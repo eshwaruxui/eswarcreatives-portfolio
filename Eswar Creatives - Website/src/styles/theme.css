@@ -1,0 +1,602 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  --background: #ffffff;
+  --foreground: oklch(0.145 0 0);
+
+  /* ── Typography Font Family ── */
+  --font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* ══════════════════════════════════════════════════════════════════
+     TYPOGRAPHY TOKENS — 43 styles · 4px grid · Inter Variable
+     ══════════════════════════════════════════════════════════════════ */
+
+  /* ── Heading Category (17 tokens) ── */
+
+  /* D — Display */
+  --typo-display-size: 48px;
+  --typo-display-weight: 700;
+  --typo-display-line-height: 56px;
+  --typo-display-letter-spacing: -0.02em;
+  --typo-display-transform: none;
+
+  /* H1 — Heading XL */
+  --typo-h1-size: 36px;
+  --typo-h1-weight: 600;
+  --typo-h1-line-height: 44px;
+  --typo-h1-letter-spacing: -0.02em;
+  --typo-h1-transform: none;
+
+  /* H1R — Heading XL Light */
+  --typo-h1r-size: 36px;
+  --typo-h1r-weight: 300;
+  --typo-h1r-line-height: 44px;
+  --typo-h1r-letter-spacing: -0.01em;
+  --typo-h1r-transform: none;
+
+  /* H2 — Heading L */
+  --typo-h2-size: 30px;
+  --typo-h2-weight: 600;
+  --typo-h2-line-height: 36px;
+  --typo-h2-letter-spacing: -0.02em;
+  --typo-h2-transform: none;
+
+  /* H2B — Heading L Bold */
+  --typo-h2b-size: 30px;
+  --typo-h2b-weight: 700;
+  --typo-h2b-line-height: 36px;
+  --typo-h2b-letter-spacing: -0.02em;
+  --typo-h2b-transform: none;
+
+  /* H3 — Heading M */
+  --typo-h3-size: 24px;
+  --typo-h3-weight: 600;
+  --typo-h3-line-height: 32px;
+  --typo-h3-letter-spacing: -0.01em;
+  --typo-h3-transform: none;
+
+  /* H3B — Heading M Bold */
+  --typo-h3b-size: 24px;
+  --typo-h3b-weight: 700;
+  --typo-h3b-line-height: 32px;
+  --typo-h3b-letter-spacing: -0.01em;
+  --typo-h3b-transform: none;
+
+  /* H4 — Heading S */
+  --typo-h4-size: 20px;
+  --typo-h4-weight: 600;
+  --typo-h4-line-height: 28px;
+  --typo-h4-letter-spacing: -0.01em;
+  --typo-h4-transform: none;
+
+  /* H4R — Heading S Regular */
+  --typo-h4r-size: 20px;
+  --typo-h4r-weight: 400;
+  --typo-h4r-line-height: 28px;
+  --typo-h4r-letter-spacing: -0.01em;
+  --typo-h4r-transform: none;
+
+  /* H5 — Heading XS */
+  --typo-h5-size: 18px;
+  --typo-h5-weight: 600;
+  --typo-h5-line-height: 24px;
+  --typo-h5-letter-spacing: -0.01em;
+  --typo-h5-transform: none;
+
+  /* H6 — Label Caps */
+  --typo-h6-size: 16px;
+  --typo-h6-weight: 600;
+  --typo-h6-line-height: 24px;
+  --typo-h6-letter-spacing: 0.06em;
+  --typo-h6-transform: uppercase;
+
+  /* H7 — Body Large */
+  --typo-h7-size: 14px;
+  --typo-h7-weight: 400;
+  --typo-h7-line-height: 20px;
+  --typo-h7-letter-spacing: 0em;
+  --typo-h7-transform: none;
+
+  /* H7M — Body Large Med */
+  --typo-h7m-size: 14px;
+  --typo-h7m-weight: 500;
+  --typo-h7m-line-height: 20px;
+  --typo-h7m-letter-spacing: 0em;
+  --typo-h7m-transform: none;
+
+  /* H8 — Body Small */
+  --typo-h8-size: 12px;
+  --typo-h8-weight: 400;
+  --typo-h8-line-height: 16px;
+  --typo-h8-letter-spacing: 0em;
+  --typo-h8-transform: none;
+
+  /* H8M — Body Small Med */
+  --typo-h8m-size: 12px;
+  --typo-h8m-weight: 500;
+  --typo-h8m-line-height: 16px;
+  --typo-h8m-letter-spacing: 0em;
+  --typo-h8m-transform: none;
+
+  /* H9 — Overline */
+  --typo-h9-size: 11px;
+  --typo-h9-weight: 600;
+  --typo-h9-line-height: 16px;
+  --typo-h9-letter-spacing: 0.08em;
+  --typo-h9-transform: uppercase;
+
+  /* H9R — Overline Reg */
+  --typo-h9r-size: 11px;
+  --typo-h9r-weight: 400;
+  --typo-h9r-line-height: 16px;
+  --typo-h9r-letter-spacing: 0.08em;
+  --typo-h9r-transform: uppercase;
+
+  /* ── Paragraph Category (11 tokens) ── */
+
+  /* P-XS — Extra Small Regular */
+  --typo-p-xs-size: 12px;
+  --typo-p-xs-weight: 400;
+  --typo-p-xs-line-height: 20px;
+  --typo-p-xs-letter-spacing: 0em;
+
+  /* P-SM — Small Regular */
+  --typo-p-sm-size: 13px;
+  --typo-p-sm-weight: 400;
+  --typo-p-sm-line-height: 20px;
+  --typo-p-sm-letter-spacing: 0em;
+
+  /* P-SM-MED — Small Medium */
+  --typo-p-sm-med-size: 13px;
+  --typo-p-sm-med-weight: 500;
+  --typo-p-sm-med-line-height: 20px;
+  --typo-p-sm-med-letter-spacing: 0em;
+
+  /* P-BASE — Base Regular */
+  --typo-p-base-size: 14px;
+  --typo-p-base-weight: 400;
+  --typo-p-base-line-height: 24px;
+  --typo-p-base-letter-spacing: 0em;
+
+  /* P-BASE-MED — Base Medium */
+  --typo-p-base-med-size: 14px;
+  --typo-p-base-med-weight: 500;
+  --typo-p-base-med-line-height: 24px;
+  --typo-p-base-med-letter-spacing: 0em;
+
+  /* P-BASE-BOLD — Base Bold */
+  --typo-p-base-bold-size: 14px;
+  --typo-p-base-bold-weight: 700;
+  --typo-p-base-bold-line-height: 24px;
+  --typo-p-base-bold-letter-spacing: 0em;
+
+  /* P-LG — Large Regular */
+  --typo-p-lg-size: 16px;
+  --typo-p-lg-weight: 400;
+  --typo-p-lg-line-height: 28px;
+  --typo-p-lg-letter-spacing: 0em;
+
+  /* P-LG-SEMI — Large Semibold */
+  --typo-p-lg-semi-size: 16px;
+  --typo-p-lg-semi-weight: 600;
+  --typo-p-lg-semi-line-height: 28px;
+  --typo-p-lg-semi-letter-spacing: 0em;
+
+  /* P-XL — XL Regular */
+  --typo-p-xl-size: 18px;
+  --typo-p-xl-weight: 400;
+  --typo-p-xl-line-height: 28px;
+  --typo-p-xl-letter-spacing: 0em;
+
+  /* P-LINK — Link */
+  --typo-p-link-size: 16px;
+  --typo-p-link-weight: 400;
+  --typo-p-link-line-height: 24px;
+  --typo-p-link-letter-spacing: 0em;
+
+  /* P-BLOCKQUOTE — Block quote */
+  --typo-p-blockquote-size: 14px;
+  --typo-p-blockquote-weight: 400;
+  --typo-p-blockquote-line-height: 24px;
+  --typo-p-blockquote-letter-spacing: 0em;
+
+  /* ── One-line Category (15 tokens) ── */
+
+  /* OL-BTN-DEFAULT — Button Default */
+  --typo-btn-default-size: 14px;
+  --typo-btn-default-weight: 400;
+  --typo-btn-default-line-height: 20px;
+  --typo-btn-default-letter-spacing: 0em;
+
+  /* OL-BTN-MED — Button Medium */
+  --typo-btn-med-size: 14px;
+  --typo-btn-med-weight: 500;
+  --typo-btn-med-line-height: 20px;
+  --typo-btn-med-letter-spacing: 0em;
+
+  /* OL-BTN-SEMI — Button Semibold */
+  --typo-btn-semi-size: 14px;
+  --typo-btn-semi-weight: 600;
+  --typo-btn-semi-line-height: 20px;
+  --typo-btn-semi-letter-spacing: 0em;
+
+  /* OL-BTN-BOLD — Button Bold */
+  --typo-btn-bold-size: 14px;
+  --typo-btn-bold-weight: 700;
+  --typo-btn-bold-line-height: 20px;
+  --typo-btn-bold-letter-spacing: 0em;
+
+  /* OL-LABEL-R — Label Regular */
+  --typo-label-r-size: 11px;
+  --typo-label-r-weight: 400;
+  --typo-label-r-line-height: 16px;
+  --typo-label-r-letter-spacing: 0em;
+
+  /* OL-LABEL-M — Label Medium */
+  --typo-label-m-size: 11px;
+  --typo-label-m-weight: 500;
+  --typo-label-m-line-height: 16px;
+  --typo-label-m-letter-spacing: 0em;
+
+  /* OL-CAPTION-R — Caption Regular */
+  --typo-caption-r-size: 13px;
+  --typo-caption-r-weight: 400;
+  --typo-caption-r-line-height: 16px;
+  --typo-caption-r-letter-spacing: 0em;
+
+  /* OL-CAPTION-M — Caption Medium */
+  --typo-caption-m-size: 13px;
+  --typo-caption-m-weight: 500;
+  --typo-caption-m-line-height: 16px;
+  --typo-caption-m-letter-spacing: 0em;
+
+  /* OL-BODY — Body Regular */
+  --typo-ol-body-size: 15px;
+  --typo-ol-body-weight: 400;
+  --typo-ol-body-line-height: 20px;
+  --typo-ol-body-letter-spacing: 0em;
+
+  /* OL-BODY-SEMI — Body Semibold */
+  --typo-ol-body-semi-size: 15px;
+  --typo-ol-body-semi-weight: 600;
+  --typo-ol-body-semi-line-height: 20px;
+  --typo-ol-body-semi-letter-spacing: 0em;
+
+  /* OL-LEAD — Lead Regular */
+  --typo-lead-r-size: 17px;
+  --typo-lead-r-weight: 400;
+  --typo-lead-r-line-height: 24px;
+  --typo-lead-r-letter-spacing: 0em;
+
+  /* OL-LEAD-MED — Lead Medium */
+  --typo-lead-m-size: 17px;
+  --typo-lead-m-weight: 500;
+  --typo-lead-m-line-height: 24px;
+  --typo-lead-m-letter-spacing: 0em;
+
+  /* OL-LEAD-SEMI — Lead Semibold */
+  --typo-lead-semi-size: 17px;
+  --typo-lead-semi-weight: 600;
+  --typo-lead-semi-line-height: 24px;
+  --typo-lead-semi-letter-spacing: 0em;
+
+  /* OL-OVERLINE-BOLD — Overline Bold */
+  --typo-ol-overline-bold-size: 11px;
+  --typo-ol-overline-bold-weight: 700;
+  --typo-ol-overline-bold-line-height: 16px;
+  --typo-ol-overline-bold-letter-spacing: 0.08em;
+  --typo-ol-overline-bold-transform: uppercase;
+
+  /* OL-POINTER — Pointer */
+  --typo-pointer-size: 10px;
+  --typo-pointer-weight: 400;
+  --typo-pointer-line-height: 16px;
+  --typo-pointer-letter-spacing: 0em;
+
+  /* ── Semantic Text Color Tokens (21) ── */
+  --text-primary: #181a19;
+  --text-secondary: #4b4f4e;
+  --text-tertiary: #6f7371;
+  --text-quaternary: #727674;
+  --text-placeholder: #cacccb;
+  --text-disabled: #d9dbda;
+  --text-disabled-alpha: rgba(0, 0, 0, 0.30);
+  --text-inverse: #ffffff;
+  --text-on-bold: #ffffff;
+  --text-brand: #007872;
+  --text-link-default: #2563eb;
+  --text-link-hover: #1556f5;
+  --text-link-visited: #7c3aed;
+  --text-success: #058051;
+  --text-warning: #d23600;
+  --text-danger: #ed0013;
+  --text-info: #144be9;
+
+  /* ── Semantic Text Color Tokens (Accent · 4) ── */
+  --text-accent-violet: #6d28d9;
+  --text-accent-sky: #0369a1;
+  --text-accent-emerald: #047857;
+  --text-accent-amber: #b45309;
+
+  /* ── Semantic Interactive Color Tokens (4 — Primary) ── */
+  --interactive-primary: #00ccc1;
+  --interactive-primary-hover: #00beb4;
+  --interactive-primary-active: #009a95;
+  --interactive-primary-disabled: #98f3e8;
+
+  /* ── Semantic Surface Color Tokens ── */
+  --surface-inverse: #0f1211;
+
+  /* ── Semantic Text Color Tokens (Inverse Surface — 4) ── */
+  --text-inverse-secondary: #d9dbda;
+  --text-inverse-tertiary: #aeb1af;
+  --text-inverse-quaternary: #7c807e;
+  --text-inverse-disabled: #4b4f4e;
+
+  /* ── Semantic Text Color Token (Inverse Link) ── */
+  --text-link-inverse: #6baaff;
+
+  /* ── Semantic Icon Color Tokens ── */
+  --icon-secondary: #7c807e;
+
+  /* ── Semantic State Color Tokens (Inverse Surface) ── */
+  --state-inverse-hover: rgba(255,255,255,0.06);
+
+  /* ── Semantic Border Color Tokens (Alpha-based · 3) ── */
+  --border-light-alpha: rgba(0, 0, 0, 0.06);
+  --border-medium-alpha: rgba(0, 0, 0, 0.12);
+  --border-deep-alpha: rgba(0, 0, 0, 0.22);
+
+  /* ── Corner Radius Token — Pill ── */
+  --corner-pill: 9999px;
+
+  --card: #ffffff;
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #030213;
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.0058 264.53);
+  --secondary-foreground: #030213;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #d4183d;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --input: transparent;
+  --input-background: #f3f3f5;
+  --switch-background: #cbced4;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #030213;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+@theme inline {
+  /* ── Semantic Text Tokens → Tailwind utilities ── */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-quaternary: var(--text-quaternary);
+  --color-text-placeholder: var(--text-placeholder);
+  --color-text-disabled: var(--text-disabled);
+  --color-text-disabled-alpha: var(--text-disabled-alpha);
+  --color-text-inverse: var(--text-inverse);
+  --color-text-on-bold: var(--text-on-bold);
+  --color-text-brand: var(--text-brand);
+  --color-text-link-default: var(--text-link-default);
+  --color-text-link-hover: var(--text-link-hover);
+  --color-text-link-visited: var(--text-link-visited);
+  --color-text-success: var(--text-success);
+  --color-text-warning: var(--text-warning);
+  --color-text-danger: var(--text-danger);
+  --color-text-info: var(--text-info);
+
+  /* ── Semantic Text (Accent) Tokens → Tailwind utilities ── */
+  --color-text-accent-violet: var(--text-accent-violet);
+  --color-text-accent-sky: var(--text-accent-sky);
+  --color-text-accent-emerald: var(--text-accent-emerald);
+  --color-text-accent-amber: var(--text-accent-amber);
+
+  /* ── Semantic Interactive Tokens → Tailwind utilities ── */
+  --color-interactive-primary: var(--interactive-primary);
+  --color-interactive-primary-hover: var(--interactive-primary-hover);
+  --color-interactive-primary-active: var(--interactive-primary-active);
+  --color-interactive-primary-disabled: var(--interactive-primary-disabled);
+
+  /* ── Semantic Surface Tokens → Tailwind utilities ── */
+  --color-surface-inverse: var(--surface-inverse);
+
+  /* ── Semantic Text (Inverse Surface) Tokens → Tailwind utilities ── */
+  --color-text-inverse-secondary: var(--text-inverse-secondary);
+  --color-text-inverse-tertiary: var(--text-inverse-tertiary);
+  --color-text-inverse-quaternary: var(--text-inverse-quaternary);
+  --color-text-inverse-disabled: var(--text-inverse-disabled);
+
+  /* ── Semantic Text Color Token (Inverse Link) ── */
+  --color-text-link-inverse: var(--text-link-inverse);
+
+  /* ── Semantic Icon Tokens → Tailwind utilities ── */
+  --color-icon-secondary: var(--icon-secondary);
+
+  /* ── Semantic State (Inverse) Tokens → Tailwind utilities ── */
+  --color-state-inverse-hover: var(--state-inverse-hover);
+
+  /* ���─ Semantic Border Tokens → Tailwind utilities ── */
+  --color-border-light-alpha: var(--border-light-alpha);
+  --color-border-medium-alpha: var(--border-medium-alpha);
+  --color-border-deep-alpha: var(--border-deep-alpha);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply text-foreground;
+    background: transparent;
+  }
+
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+}
+
+/* ── Font rendering & anti-aliasing ── */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
+  font-optical-sizing: auto;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+*,
+*::before,
+*::after {
+  -webkit-font-smoothing: inherit;
+  -moz-osx-font-smoothing: inherit;
+  text-rendering: inherit;
+}

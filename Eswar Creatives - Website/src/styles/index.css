@@ -1,0 +1,8 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+/* Utility: hide scrollbar */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
