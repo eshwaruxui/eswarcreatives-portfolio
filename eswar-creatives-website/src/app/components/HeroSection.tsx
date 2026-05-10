@@ -2,14 +2,12 @@ import portraitImg from "figma:asset/69caae487773daa26c0bca174fbb3def356268d3.pn
 import portraitMobileImg from "figma:asset/e3f7bb7eb9b6ea388c4115e7349761cb135eaf57.png";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { motion } from "motion/react";
-import { ArrowRight, Download, Loader2 } from "lucide-react";
-import { useResumeDownload, RESUME_URL, RESUME_FILENAME } from "./useResumeDownload";
+import { ArrowRight } from "lucide-react";
 import { Tag } from "./ui/tag";
 import { PortfolioButton } from "./ui/portfolio-button";
 import { CuaBadge } from "./ui/cua-badge";
 
 export function HeroSection() {
-  const { isDownloading, handleDownload, fileSize } = useResumeDownload();
 
   return (
     <section className="relative pt-20 md:pt-24 pb-[4%] overflow-x-hidden">
@@ -39,22 +37,29 @@ export function HeroSection() {
                 letterSpacing: "var(--typo-display-letter-spacing)",
               }}
             >
-              Senior UX Designer for{" "}
-              <span className="text-text-quaternary">enterprise SaaS</span>{" "}
-              & AI-driven{" "}
-              <span className="text-text-quaternary">security products.</span>
+              Enterprise design systems for SaaS{" "}
+              <span className="text-text-quaternary">that ship across web, iOS, and Android.</span>
             </h1>
 
             {/* Subtext */}
             <p
-              className="text-text-tertiary mb-6 md:mb-8"
+              className="text-text-tertiary mb-4"
               style={{
                 fontSize: "var(--typo-ol-body-size)",
                 lineHeight: "var(--typo-ol-body-line-height)",
                 fontWeight: "var(--typo-ol-body-weight)",
                 letterSpacing: "var(--typo-ol-body-letter-spacing)",
               }}
-            >Design framework, Business outcome, Complex workflow.</p>
+            >I help Series B–D SaaS teams architect token-based design systems that scale from one product to many — without slowing engineering down.</p>
+
+            {/* Stats line */}
+            <p
+              className="text-text-tertiary mb-6 md:mb-8 font-medium"
+              style={{
+                fontSize: "var(--typo-ol-body-size)",
+                lineHeight: "var(--typo-ol-body-line-height)",
+              }}
+            >60+ components. 180+ semantic tokens. Cross-platform. Shipped at CYGNVS.</p>
 
             {/* Certification credential badge */}
             <motion.div
@@ -69,23 +74,12 @@ export function HeroSection() {
             {/* Buttons - desktop only */}
             <div className="hidden md:flex md:flex-row flex-wrap gap-3 md:mt-4">
               <PortfolioButton href="#work" variant="primary" size="lg">
-                View Flagship Case
+                See the CYGNVS system
                 <ArrowRight className="w-4 h-4" />
               </PortfolioButton>
-              <PortfolioButton
-                href={RESUME_URL}
-                download={RESUME_FILENAME}
-                onClick={handleDownload}
-                variant="secondary"
-                size="lg"
-                loading={isDownloading}
-              >
-                {isDownloading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                {isDownloading ? "Downloading…" : "Download Resume"}
+              <PortfolioButton href="#contact" variant="secondary" size="lg">
+                Book a 30-min intro
+                <ArrowRight className="w-4 h-4" />
               </PortfolioButton>
             </div>
           </motion.div>
@@ -138,27 +132,26 @@ export function HeroSection() {
             className="flex flex-col gap-3 md:hidden pl-0 pr-6"
           >
             <PortfolioButton href="#work" variant="primary" size="lg" fullWidth>
-              View Flagship Case
+              See the CYGNVS system
               <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
-            <PortfolioButton
-              href={RESUME_URL}
-              download={RESUME_FILENAME}
-              onClick={handleDownload}
-              variant="secondary"
-              size="lg"
-              fullWidth
-              loading={isDownloading}
-            >
-              {isDownloading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              {isDownloading ? "Downloading…" : "Download Resume"}
+            <PortfolioButton href="#contact" variant="secondary" size="lg" fullWidth>
+              Book a 30-min intro
+              <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
           </motion.div>
         </div>
+
+        {/* Trust strip */}
+        <motion.p
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="text-text-tertiary text-center mt-8 md:mt-10 text-sm"
+          style={{ letterSpacing: "0.01em" }}
+        >
+          HFI-CUA Certified · 11+ years SaaS, 20 years in design · $3.25M+ ARR contribution at CYGNVS · Working async with US &amp; EU teams
+        </motion.p>
       </div>
     </section>
   );
