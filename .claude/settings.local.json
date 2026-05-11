@@ -8,7 +8,9 @@
       "Read(//usr/local/**)",
       "Read(//Users/vc/**)",
       "Read(//Users/vc/.local/bin/**)",
-      "Read(//Users/vc/.local/**)"
+      "Read(//Users/vc/.local/**)",
+      "Bash(npm run *)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
