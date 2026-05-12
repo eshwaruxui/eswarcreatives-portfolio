@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { Link } from "react-router";
 import eswarLogo from "../../imports/eswar-logo.svg";
 
@@ -22,6 +22,9 @@ const C = {
   error: "#dc2626",
   success: "#16a34a",
 } as const;
+
+// ── Font context (propagates Tamil font through form components) ───
+const FontCtx = createContext("var(--font-family-primary)");
 
 // ── Section metadata ───────────────────────────────────────────────
 const SECTIONS = [
@@ -289,15 +292,15 @@ function TopBar({ step }: { step: number }) {
 }
 
 // ── Step indicator ─────────────────────────────────────────────────
-function StepIndicator({ step }: { step: number }) {
-  const s = SECTIONS[step];
+function StepIndicator({ step, titles }: { step: number; titles: string[] }) {
+  const title = titles[step] ?? SECTIONS[step].title;
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 24px 28px" }}>
       {/* Desktop */}
       <div className="hidden sm:block">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
           <p style={{ fontSize: 14, fontWeight: 500, color: C.text }}>
-            Section {step + 1} of 7 — {s.title}
+            Section {step + 1} of 7 — {title}
           </p>
           <p style={{ fontSize: 12, color: C.textMuted }}>{step + 1} / 7</p>
         </div>
@@ -314,7 +317,7 @@ function StepIndicator({ step }: { step: number }) {
       {/* Mobile */}
       <div className="sm:hidden">
         <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 8 }}>
-          Step {step + 1} / 7 — {s.title}
+          Step {step + 1} / 7 — {title}
         </p>
         <div style={{ height: 3, background: "#e5e7eb", borderRadius: 2, overflow: "hidden" }}>
           <div style={{
@@ -330,14 +333,15 @@ function StepIndicator({ step }: { step: number }) {
 
 // ── Section heading ────────────────────────────────────────────────
 function SHead({ num, title }: { num: string; title: string }) {
+  const font = useContext(FontCtx);
   return (
     <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 28 }}>
       <span style={{
-        fontFamily: "var(--font-family-primary)", fontSize: 48, fontWeight: 500,
+        fontFamily: font, fontSize: 48, fontWeight: 500,
         lineHeight: 1, color: C.accent, letterSpacing: "-0.04em", userSelect: "none",
       }}>{num}</span>
       <h2 style={{
-        fontFamily: "var(--font-family-primary)", fontSize: 20, fontWeight: 600,
+        fontFamily: font, fontSize: 20, fontWeight: 600,
         lineHeight: "28px", letterSpacing: "-0.01em", color: C.text, margin: 0,
       }}>{title}</h2>
     </div>
@@ -351,9 +355,10 @@ function QDivider() {
 
 // ── Question label ─────────────────────────────────────────────────
 function QL({ children, required }: { children: React.ReactNode; required?: boolean }) {
+  const font = useContext(FontCtx);
   return (
     <label style={{
-      display: "block", fontFamily: "var(--font-family-primary)", fontSize: 14,
+      display: "block", fontFamily: font, fontSize: 14,
       fontWeight: 500, lineHeight: "20px", color: C.text, marginBottom: 8,
     }}>
       {children}
@@ -498,8 +503,9 @@ function FErr({ msg }: { msg: string }) {
 
 // ── Hint text ──────────────────────────────────────────────────────
 function Hint({ children }: { children: React.ReactNode }) {
+  const font = useContext(FontCtx);
   return (
-    <p style={{ fontSize: 13, color: C.textMuted, lineHeight: "18px", marginBottom: 8 }}>
+    <p style={{ fontSize: 13, color: C.textMuted, lineHeight: "18px", marginBottom: 8, fontFamily: font }}>
       {children}
     </p>
   );
@@ -1116,10 +1122,10 @@ const BLANK: FS = {
 };
 
 // ── Success screen ─────────────────────────────────────────────────
-function SuccessScreen() {
+function SuccessScreen({ title, text, font }: { title: string; text: string; font: string }) {
   return (
     <div style={{
-      minHeight: "100vh", background: C.bg, fontFamily: "var(--font-family-primary)",
+      minHeight: "100vh", background: C.bg, fontFamily: font,
       display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px",
     }}>
       <div style={{
@@ -1136,11 +1142,11 @@ function SuccessScreen() {
             <path d="M20 6L9 17L4 12" stroke={C.success} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
-        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: C.text, marginBottom: 14 }}>
-          Brief received.
+        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: C.text, marginBottom: 14, fontFamily: font }}>
+          {title}
         </h1>
-        <p style={{ fontSize: 15, lineHeight: "26px", color: C.textSoft, marginBottom: 36 }}>
-          We'll review your answers carefully and come back within three working days with our initial brand direction and a transparent quote.
+        <p style={{ fontSize: 15, lineHeight: "26px", color: C.textSoft, marginBottom: 36, fontFamily: font }}>
+          {text}
         </p>
         <a
           href="https://eswarcreatives.in"
@@ -1177,6 +1183,7 @@ export function BrandIdentityDiscoveryPage() {
   const [visualRefsDragOver, setVisualRefsDragOver] = useState(false);
   const [visualRefsError, setVisualRefsError] = useState("");
   const [openLightbox, setOpenLightbox] = useState<string | null>(null);
+  const [lang, setLang] = useState<"en" | "ta">("en");
   const topRef = useRef<HTMLDivElement>(null);
 
   const set = useCallback(<K extends keyof FS>(k: K, v: FS[K]) => {
@@ -1298,7 +1305,214 @@ export function BrandIdentityDiscoveryPage() {
     }
   };
 
-  if (status === "success") return <SuccessScreen />;
+  // ── Translations ──────────────────────────────────────────────────
+  const t = {
+    en: {
+      pageEyebrow: "Brand Identity Discovery",
+      pageTitle: "Tell us about your brand.",
+      pageSubtitle: "This brief helps us understand the soul of your business before we begin. Take your time — there are no wrong answers.",
+      pageNote: "We'll review your brief and follow up within three working days.",
+      s1Title: "The Business",
+      s2Title: "The Brand Soul",
+      s3Title: "Your Clients",
+      s4Title: "Competitors & Positioning",
+      s5Title: "Visual Direction",
+      s6Title: "Practical Details",
+      s7Title: "Final Thoughts",
+      continue: "Continue →",
+      back: "← Back",
+      submit: "Submit Discovery Brief",
+      q1Label: "Business name",
+      q1Hint: "The name as it appears on your signage, Instagram, and printed materials.",
+      q2Label: "Tagline (if you have one)",
+      q2Hint: "Even a rough one. Or leave blank — we'll help you find one.",
+      q3Label: "What do you do? Tell us about your work.",
+      q3Hint: "Describe what you do, who you serve, and what makes your work special.",
+      q4Label: "How long have you been in business?",
+      q4Hint: "Helps us understand where you are in your journey.",
+      q5Label: "Where do you operate?",
+      q5Hint: "City, region, or 'pan-India / international' if relevant.",
+      q6Label: "What does success look like in 3 years?",
+      q6Hint: "Team size, revenue, recognition, the kind of work you want to be doing.",
+      q7Label: "If your brand were a place, which comes closest?",
+      q7Hint: "",
+      q8Label: "What feeling should clients have when they encounter your brand?",
+      q8Hint: "",
+      q9Label: "In one sentence, what is your brand promise?",
+      q9Hint: "",
+      q10Label: "If your brand were a person, describe them.",
+      q10Hint: "",
+      q11Label: "Three words you want to AVOID",
+      q11Hint: "",
+      q12Label: "Describe your ideal client in detail.",
+      q12Hint: "Age range, budget range, city, lifestyle, profession, what they value most.",
+      q13Label: "What's the biggest frustration clients have with similar businesses?",
+      q13Hint: "",
+      q14Label: "Price point",
+      q14Hint: "",
+      q15Label: "Where do clients find you?",
+      q15Hint: "",
+      q16Label: "What do clients say after working with you?",
+      q16Hint: "Actual words, reviews, or the essence of what they share.",
+      q17Label: "Name 3 competitors or peers you respect",
+      q17Hint: "Even better — paste their Instagram handles or websites.",
+      q18Label: "What makes you genuinely different?",
+      q18Hint: "Not just 'we care more' — what is the actual difference in your work, approach, or result?",
+      q19Label: "What do clients sometimes choose competitors for, over you?",
+      q19Hint: "Be honest — this helps us position you clearly.",
+      q20Label: "What should clients never think or say about you?",
+      q20Hint: "What perception would be the worst thing for your brand?",
+      q21Label: "Three words that describe your brand personality",
+      q21Hint: "",
+      q22Label: "Where do you want to be positioned in the market?",
+      q22Hint: "",
+      q23Label: "Typography direction — which feels most like you?",
+      q23Hint: "Choose the direction that feels closest to your brand.",
+      q24Label: "What type of logo feels right for your brand?",
+      q24Hint: "Most clients find it easier to choose by seeing — pick the style that feels closest.",
+      q25Label: "Logos you admire — share 3 to 5 examples",
+      q25Hint: "Brand names, Instagram handles, or URLs. What do you love about them?",
+      q26Label: "Logos or visual styles you dislike — share 2 to 3",
+      q26Hint: "What about them doesn't work for you?",
+      q27Label: "Any symbols, motifs, or floral elements you'd like explored?",
+      q27Hint: "Select any that appeal to you, or describe your own.",
+      q28Label: "Cultural & regional cues to consider",
+      q28Hint: "Choose the direction that feels right, then add specifics below.",
+      q29Label: "Share visual references — optional",
+      q29Hint: "Screenshots, Pinterest saves, Instagram posts, logos you love — anything that shows the direction you have in mind.",
+      q30Label: "Where will this identity be used?",
+      q30Hint: "Select all that apply.",
+      q31Label: "Existing logo or visual assets (optional)",
+      q31Hint: "PDF, PNG, JPG, or ZIP — multiple files, up to 25 MB total.",
+      q32Label: "Project timeline",
+      q32Hint: "When do you need final files? Any upcoming launch or season driving this?",
+      q33Label: "Budget range",
+      q33Hint: "Honest answer here lets us scope deliverables that match.",
+      q34Label: "Who is the final decision-maker for this project?",
+      q34Hint: "Just you, or a partner / family member? Knowing this prevents revision delays.",
+      q35Label: "Preferred way to communicate",
+      q35Hint: "Channel and typical response window. Helps us match your pace.",
+      q36Label: "Anything personal or symbolic you'd like carried into the brand?",
+      q36Hint: "A family name, a city, a material, a memory, a number — anything that means something to you.",
+      q37Label: "Anything else you'd like us to know before we begin?",
+      q37Hint: "An honest concern, a past experience, something you loved or hated in a previous branding project.",
+      q38Label: "Contact details",
+      q38Hint: "So we can come back to you within three working days.",
+      successTitle: "Brief received.",
+      successText: "We'll review your answers carefully and come back within three working days with our initial brand direction and a transparent quote.",
+    },
+    ta: {
+      pageEyebrow: "Brand Identity Discovery",
+      pageTitle: "உங்க brand பத்தி சொல்லுங்க.",
+      pageSubtitle: "நாங்க start பண்றதுக்கு முன்னாடி உங்க business-ஓட soul-ஐ புரிஞ்சுக்க இந்த brief உதவும். நேரம் எடுத்துக்கோங்க — தப்பான answer இல்ல.",
+      pageNote: "நீங்க submit பண்ண மூணு working days-ல நாங்க திரும்பி connect பண்றோம்.",
+      s1Title: "Business பத்தி",
+      s2Title: "Brand-ஓட Soul",
+      s3Title: "உங்க Clients",
+      s4Title: "Competitors & Positioning",
+      s5Title: "Visual Direction",
+      s6Title: "Practical Details",
+      s7Title: "கடைசி கேள்விகள்",
+      continue: "தொடரவும் →",
+      back: "← திரும்பவும்",
+      submit: "Discovery Brief அனுப்புங்க",
+      q1Label: "Business பெயர்",
+      q1Hint: "உங்க signage, Instagram, printed materials-ல இருக்கற மாதிரி சரியா எழுதுங்க.",
+      q2Label: "Tagline (இருந்தா சொல்லுங்க)",
+      q2Hint: "Rough-ஆ இருந்தாலும் பரவாயில்ல. இல்லன்னா blank-ஆ விடுங்க — நாங்க help பண்றோம்.",
+      q3Label: "நீங்க என்ன பண்றீங்க? உங்க work பத்தி சொல்லுங்க.",
+      q3Hint: "நீங்க என்ன செய்றீங்க, யாருக்கு செய்றீங்க, உங்களை special-ஆ என்ன பண்றதுன்னு சொல்லுங்க.",
+      q4Label: "Business எத்தன வருஷமா நடக்குது?",
+      q4Hint: "உங்க journey-ல இப்போ எந்த stage-ல இருக்கீங்கன்னு புரிஞ்சுக்க உதவும்.",
+      q5Label: "நீங்க எங்க operate பண்றீங்க?",
+      q5Hint: "City, region, இல்லன்னா 'pan-India / international' — relevant-ஆ இருந்தா சொல்லுங்க.",
+      q6Label: "3 வருஷத்துல success எப்படி இருக்கணும்னு நினைக்கீங்க?",
+      q6Hint: "Team size, revenue, recognition, எந்த மாதிரி work பண்ணணும்னு இருக்கீங்க.",
+      q7Label: "உங்க brand ஒரு இடமா இருந்தா, எது close-ஆ feel ஆகும்?",
+      q7Hint: "",
+      q8Label: "உங்க brand-ஐ பார்க்கும்போது clients-க்கு என்ன feel ஆகணும்?",
+      q8Hint: "",
+      q9Label: "ஒரே ஒரு sentence-ல சொல்லுங்க — உங்க brand promise என்ன?",
+      q9Hint: "",
+      q10Label: "உங்க brand ஒரு person-ஆ இருந்தா, அவங்க எப்படி இருப்பாங்க?",
+      q10Hint: "",
+      q11Label: "AVOID பண்ணணும்னு நினைக்கற மூணு words",
+      q11Hint: "",
+      q12Label: "உங்களுக்கு ideal-ஆ இருக்கற client-ஐ describe பண்ணுங்க.",
+      q12Hint: "Age range, budget range, city, lifestyle, profession, event-ல அவங்களுக்கு மிக முக்கியமான விஷயம்.",
+      q13Label: "Similar businesses-ல clients-க்கு இருக்கற மிகப்பெரிய frustration என்ன?",
+      q13Hint: "",
+      q14Label: "Price point",
+      q14Hint: "",
+      q15Label: "Clients உங்களை எப்படி find பண்றாங்க?",
+      q15Hint: "",
+      q16Label: "உங்களோட கூட work பண்ணதும் clients என்ன சொல்றாங்க?",
+      q16Hint: "Actual words, reviews, இல்லன்னா அவங்க சொல்வதன் essence.",
+      q17Label: "நீங்க respect பண்ற 3 competitors இல்லன்னா peers-ஓட பெயர் சொல்லுங்க",
+      q17Hint: "இன்னும் நல்லது — அவங்க Instagram handle இல்லன்னா website paste பண்ணுங்க.",
+      q18Label: "நீங்க genuinely என்ன different-ஆ இருக்கீங்க?",
+      q18Hint: "Just 'we care more' சொல்லாதீங்க — actual difference என்ன?",
+      q19Label: "Clients சில நேரம் உங்களை விட competitors-ஐ ஏன் choose பண்றாங்க?",
+      q19Hint: "Honest-ஆ சொல்லுங்க — இது உங்களை clearly position பண்ண உதவும்.",
+      q20Label: "Clients உங்களைப் பத்தி என்னன்னு நினைக்கவோ சொல்லவோ கூடாது?",
+      q20Hint: "உங்க brand-க்கு மிக மோசமான perception என்ன?",
+      q21Label: "உங்க brand personality-ஐ describe பண்ற மூணு words",
+      q21Hint: "",
+      q22Label: "Market-ல நீங்க எந்த position-ல இருக்கணும்?",
+      q22Hint: "",
+      q23Label: "Typography direction — உங்களுக்கு எது close-ஆ feel ஆகுது?",
+      q23Hint: "உங்க brand-க்கு closest-ஆ feel ஆகற direction-ஐ choose பண்ணுங்க.",
+      q24Label: "உங்க brand-க்கு எந்த மாதிரி logo right-ஆ feel ஆகுது?",
+      q24Hint: "பெரும்பாலான clients visually பார்த்து decide பண்றது easy-ஆ இருக்குன்னு சொல்றாங்க.",
+      q25Label: "நீங்க admire பண்ற logos — 3 முதல் 5 examples சொல்லுங்க",
+      q25Hint: "Brand names, Instagram handles, இல்லன்னா URLs. அதுல என்ன பிடிக்குதுன்னு சொல்லுங்க.",
+      q26Label: "நீங்க dislike பண்ற logos இல்லன்னா visual styles — 2 to 3 சொல்லுங்க",
+      q26Hint: "அதுல என்ன work ஆகல்ன்னு சொல்லுங்க.",
+      q27Label: "என்ன symbols, motifs, இல்லன்னா floral elements explore பண்ணணும்னு நினைக்கீங்க?",
+      q27Hint: "உங்களுக்கு appeal ஆகற எதையும் select பண்ணுங்க, இல்லன்னா describe பண்ணுங்க.",
+      q28Label: "Cultural & regional cues",
+      q28Hint: "உங்களுக்கு right-ஆ feel ஆகற direction choose பண்ணி, கீழே specifics add பண்ணுங்க.",
+      q29Label: "Visual references share பண்ணுங்க — optional",
+      q29Hint: "Screenshots, Pinterest saves, Instagram posts, நீங்க love பண்ற logos — direction காட்ட எதுவும் share பண்ணலாம்.",
+      q30Label: "இந்த identity எங்கெல்லாம் use ஆகும்?",
+      q30Hint: "Applicable-ஆன எல்லாத்தையும் select பண்ணுங்க.",
+      q31Label: "Existing logo இல்லன்னா visual assets (optional)",
+      q31Hint: "PDF, PNG, JPG, இல்லன்னா ZIP — multiple files, 25 MB வரை.",
+      q32Label: "Project timeline",
+      q32Hint: "Final files எப்போ வேணும்? Upcoming launch இல்லன்னா season இருக்கா?",
+      q33Label: "Budget range",
+      q33Hint: "Honest-ஆ சொன்னா deliverables scope பண்ண உதவும்.",
+      q34Label: "இந்த project-க்கு final decision-maker யாரு?",
+      q34Hint: "நீங்க மட்டுமா, இல்லன்னா partner / family member-உம் இருக்காங்களா? இது தெரிஞ்சா revision delays தவிர்க்கலாம்.",
+      q35Label: "நீங்க எப்படி communicate பண்ண விரும்புறீங்க?",
+      q35Hint: "Channel மற்றும் typical response window — உங்க pace-க்கு match பண்ண உதவும்.",
+      q36Label: "Brand-ல quietly carry பண்ணணும்னு நினைக்கற personal இல்லன்னா symbolic விஷயம் ஏதாவது இருக்கா?",
+      q36Hint: "Family name, meaningful flower, ஒரு Tamil word — சிலருக்கு மட்டும் தெரிஞ்ச ஒன்னு.",
+      q37Label: "Start பண்றதுக்கு முன்னாடி வேற ஏதாவது சொல்லணும்னு இருக்கா?",
+      q37Hint: "Loose thoughts, references, hopes, fears — எல்லாமே welcome.",
+      q38Label: "உங்க contact details",
+      q38Hint: "மூணு working days-ல நாங்க உங்களை திரும்பி contact பண்ண.",
+      successTitle: "Brief கிடைச்சது.",
+      successText: "நாங்க உங்க answers-ஐ carefully review பண்ணி மூணு working days-ல initial brand direction மற்றும் transparent quote-ஓட திரும்பி வருவோம்.",
+    },
+  };
+
+  const qlFont = lang === "ta" ? "'Noto Sans Tamil', sans-serif" : "var(--font-family-primary)";
+  const sectionTitles = [
+    t[lang].s1Title,
+    t[lang].s3Title,
+    t[lang].s2Title,
+    t[lang].s4Title,
+    t[lang].s5Title,
+    t[lang].s6Title,
+    t[lang].s7Title,
+  ];
+
+  if (status === "success") return (
+    <FontCtx.Provider value={qlFont}>
+      <SuccessScreen title={t[lang].successTitle} text={t[lang].successText} font={qlFont} />
+    </FontCtx.Provider>
+  );
 
   const CHANNELS = ["Instagram", "Word of mouth", "Google search", "Referrals from vendors", "Wedding expos", "Other"];
   const FEELINGS = ["Calm and cared for", "Excited and inspired", "Confident and assured", "Moved and emotional", "Seen and understood", "Something else"];
@@ -1308,23 +1522,23 @@ export function BrandIdentityDiscoveryPage() {
   const sectionContent = [
     // Step 0 — The Business
     <>
-      <SHead num="01" title="The Business" />
+      <SHead num="01" title={t[lang].s1Title} />
 
-      <QL required>Business name</QL>
+      <QL required>{t[lang].q1Label}</QL>
       <TInput value={form.businessName} onChange={(v) => set("businessName", v)} placeholder="e.g. Blooms by Meera" hasError={!!errs.businessName} />
       {errs.businessName && <FErr msg={errs.businessName} />}
 
       <QDivider />
-      <QL>Tagline (if you have one)</QL>
+      <QL>{t[lang].q2Label}</QL>
       <TInput value={form.tagline} onChange={(v) => set("tagline", v)} placeholder="e.g. Floral art for life's most beautiful moments" />
 
       <QDivider />
-      <QL>What do you do? Tell us about your work.</QL>
+      <QL>{t[lang].q3Label}</QL>
       <ExTrigger qKey="whatYouDo" onOpen={setExampleModal} />
       <TArea value={form.whatYouDo} onChange={(v) => set("whatYouDo", v)} placeholder="Describe what you do, who you serve, and what makes your work special…" />
 
       <QDivider />
-      <QL>How long have you been in business?</QL>
+      <QL>{t[lang].q4Label}</QL>
       <select
         value={businessStageSelect}
         onChange={(e) => {
@@ -1389,65 +1603,65 @@ export function BrandIdentityDiscoveryPage() {
       </div>
 
       <QDivider />
-      <QL>Where do you operate?</QL>
+      <QL>{t[lang].q5Label}</QL>
       {["Local Chennai", "Tamil Nadu-wide", "Pan-India", "International"].map((o) => (
         <RadioOpt key={o} label={o} checked={form.operationArea === o} onSelect={() => set("operationArea", o)} />
       ))}
 
       <QDivider />
-      <QL>What does success look like in 3 years?</QL>
+      <QL>{t[lang].q6Label}</QL>
       <ExTrigger qKey="successIn3Years" onOpen={setExampleModal} />
       <TArea value={form.successIn3Years} onChange={(v) => set("successIn3Years", v)} placeholder="Paint us a picture of where you want to be…" />
     </>,
 
     // Step 1 — The Audience
     <>
-      <SHead num="02" title="The Audience" />
+      <SHead num="02" title={t[lang].s3Title} />
 
-      <QL>Describe your ideal client in detail.</QL>
+      <QL>{t[lang].q12Label}</QL>
       <ExTrigger qKey="idealClient" onOpen={setExampleModal} />
       <TArea value={form.idealClient} onChange={(v) => set("idealClient", v)} placeholder="Age, lifestyle, values, what they care about most when hiring someone like you…" />
 
       <QDivider />
-      <QL>Price point</QL>
+      <QL>{t[lang].q14Label}</QL>
       {["Budget-conscious", "Mid-range", "Premium", "Luxury", "Mixed"].map((o) => (
         <RadioOpt key={o} label={o} checked={form.pricePoint === o} onSelect={() => set("pricePoint", o)} />
       ))}
 
       <QDivider />
-      <QL>Where do clients find you?</QL>
+      <QL>{t[lang].q15Label}</QL>
       {CHANNELS.map((o) => (
         <CbOpt key={o} label={o} checked={form.clientChannels.includes(o)} onToggle={() => toggleArr("clientChannels", o)} />
       ))}
 
       <QDivider />
-      <QL>What's the biggest frustration clients have with similar businesses?</QL>
+      <QL>{t[lang].q13Label}</QL>
       <ExTrigger qKey="clientFrustrations" onOpen={setExampleModal} />
       <TArea value={form.clientFrustrations} onChange={(v) => set("clientFrustrations", v)} placeholder="What do clients complain about with your competitors?…" />
 
       <QDivider />
-      <QL>What do clients say after working with you?</QL>
+      <QL>{t[lang].q16Label}</QL>
       <TArea value={form.clientFeedback} onChange={(v) => set("clientFeedback", v)} placeholder="Actual words, reviews, or the essence of what they share…" />
     </>,
 
     // Step 2 — The Brand Soul
     <>
-      <SHead num="03" title="The Brand Soul" />
+      <SHead num="03" title={t[lang].s2Title} />
 
-      <QL>Three words that describe your brand personality</QL>
+      <QL>{t[lang].q21Label}</QL>
       <TInput value={form.brandWords} onChange={(v) => set("brandWords", v)} placeholder="e.g. Warm, Refined, Celebratory" />
 
       <QDivider />
-      <QL>Three words you want to AVOID</QL>
+      <QL>{t[lang].q11Label}</QL>
       <TInput value={form.avoidWords} onChange={(v) => set("avoidWords", v)} placeholder="e.g. Cheap, Loud, Generic" />
 
       <QDivider />
-      <QL>If your brand were a person, describe them.</QL>
+      <QL>{t[lang].q10Label}</QL>
       <ExTrigger qKey="brandAsPerson" onOpen={setExampleModal} />
       <TArea value={form.brandAsPerson} onChange={(v) => set("brandAsPerson", v)} placeholder="Their style, how they speak, what they wear, how they make people feel…" />
 
       <QDivider />
-      <QL>What feeling should clients have when they encounter your brand?</QL>
+      <QL>{t[lang].q8Label}</QL>
       {FEELINGS.map((o) => (
         <CbOpt key={o} label={o} checked={form.clientFeelings.includes(o)} onToggle={() => toggleArr("clientFeelings", o)} />
       ))}
@@ -1458,51 +1672,51 @@ export function BrandIdentityDiscoveryPage() {
       )}
 
       <QDivider />
-      <QL>If your brand were a place, which comes closest?</QL>
+      <QL>{t[lang].q7Label}</QL>
       {["A curated boutique hotel", "A lush private garden", "A sun-filled studio", "A grand heritage hall", "A quiet Tamil home", "Other"].map((o) => (
         <RadioOpt key={o} label={o} checked={form.brandAsPlace === o} onSelect={() => set("brandAsPlace", o)} />
       ))}
 
       <QDivider />
-      <QL>In one sentence, what is your brand promise?</QL>
+      <QL>{t[lang].q9Label}</QL>
       <ExTrigger qKey="brandPromise" onOpen={setExampleModal} />
       <TArea value={form.brandPromise} onChange={(v) => set("brandPromise", v)} rows={3} placeholder="The core promise you make to every client who works with you…" />
     </>,
 
     // Step 3 — Competitors & Positioning
     <>
-      <SHead num="04" title="Competitors & Positioning" />
+      <SHead num="04" title={t[lang].s4Title} />
 
-      <QL>Name 3 competitors or peers you respect</QL>
+      <QL>{t[lang].q17Label}</QL>
       <TArea value={form.competitors} onChange={(v) => set("competitors", v)} rows={3} placeholder="Business names, Instagram handles, or websites — and what you admire about them…" />
 
       <QDivider />
-      <QL>What makes you genuinely different?</QL>
+      <QL>{t[lang].q18Label}</QL>
       <ExTrigger qKey="differentFrom" onOpen={setExampleModal} />
       <TArea value={form.differentFrom} onChange={(v) => set("differentFrom", v)} placeholder="Not just 'we care more' — what is the actual difference in your work, approach, or result?…" />
 
       <QDivider />
-      <QL>What do clients sometimes choose competitors for, over you?</QL>
+      <QL>{t[lang].q19Label}</QL>
       <ExTrigger qKey="competitorReasons" onOpen={setExampleModal} />
       <TArea value={form.competitorReasons} onChange={(v) => set("competitorReasons", v)} placeholder="Be honest — this helps us position you clearly…" />
 
       <QDivider />
-      <QL>Where do you want to be positioned in the market?</QL>
+      <QL>{t[lang].q22Label}</QL>
       {["Most affordable", "Best value", "Premium quality", "Absolute luxury"].map((o) => (
         <RadioOpt key={o} label={o} checked={form.positioning === o} onSelect={() => set("positioning", o)} />
       ))}
 
       <QDivider />
-      <QL>What should clients never think or say about you?</QL>
+      <QL>{t[lang].q20Label}</QL>
       <ExTrigger qKey="neverThink" onOpen={setExampleModal} />
       <TArea value={form.neverThink} onChange={(v) => set("neverThink", v)} rows={3} placeholder="What perception would be the worst thing for your brand?…" />
     </>,
 
     // Step 4 — Visual Direction
     <>
-      <SHead num="05" title="Visual Direction" />
+      <SHead num="05" title={t[lang].s5Title} />
 
-      <QL>Typography direction — which feels most like you?</QL>
+      <QL>{t[lang].q23Label}</QL>
       <SelectorTrigger
         placeholder="Choose a typography style →"
         selectedChips={form.typographyDir ? [form.typographyDir] : []}
@@ -1535,11 +1749,11 @@ export function BrandIdentityDiscoveryPage() {
       </SelectorLightbox>
 
       <QDivider />
-      <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", marginBottom: 6 }}>
-        What type of logo feels right for your brand?
+      <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", marginBottom: 6, fontFamily: qlFont }}>
+        {t[lang].q24Label}
       </p>
-      <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
-        Most clients find it easier to choose by seeing — pick the style that feels closest to you. We'll refine from here.
+      <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16, fontFamily: qlFont }}>
+        {t[lang].q24Hint}
       </p>
       <SelectorTrigger
         placeholder="Choose a logo style →"
@@ -1578,16 +1792,16 @@ export function BrandIdentityDiscoveryPage() {
       </SelectorLightbox>
 
       <QDivider />
-      <QL>Logos you admire — share 3 to 5 examples</QL>
+      <QL>{t[lang].q25Label}</QL>
       <ExTrigger qKey="logosAdmired" onOpen={setExampleModal} />
       <TArea value={form.logosAdmired} onChange={(v) => set("logosAdmired", v)} rows={3} placeholder="Brand names, Instagram handles, or URLs. What do you love about them?…" />
 
       <QDivider />
-      <QL>Logos or visual styles you dislike — share 2 to 3</QL>
+      <QL>{t[lang].q26Label}</QL>
       <TArea value={form.logosDisliked} onChange={(v) => set("logosDisliked", v)} rows={3} placeholder="What about them doesn't work for you?…" />
 
       <QDivider />
-      <QL>Any symbols, motifs, or floral elements you'd like explored?</QL>
+      <QL>{t[lang].q27Label}</QL>
       <SelectorTrigger
         placeholder="Select motifs (optional) →"
         selectedChips={motifsSelected.filter(l => l !== "Other — describe")}
@@ -1701,7 +1915,7 @@ export function BrandIdentityDiscoveryPage() {
       </div>
 
       <QDivider />
-      <QL>Cultural & regional cues to consider</QL>
+      <QL>{t[lang].q28Label}</QL>
       <SelectorTrigger
         placeholder="Choose your cultural direction →"
         selectedChips={cultureSelected ? [cultureSelected] : []}
@@ -1765,11 +1979,11 @@ export function BrandIdentityDiscoveryPage() {
       </div>
 
       {/* Visual references upload */}
-      <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", marginTop: 24, marginBottom: 6 }}>
-        Share visual references — optional
+      <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", marginTop: 24, marginBottom: 6, fontFamily: qlFont }}>
+        {t[lang].q29Label}
       </p>
-      <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
-        Screenshots, Pinterest saves, Instagram posts, logos you love — anything that shows the direction you have in mind.
+      <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12, fontFamily: qlFont }}>
+        {t[lang].q29Hint}
       </p>
       <label
         onDragOver={(e) => { e.preventDefault(); setVisualRefsDragOver(true); }}
@@ -1847,9 +2061,9 @@ export function BrandIdentityDiscoveryPage() {
 
     // Step 5 — Practical Details
     <>
-      <SHead num="06" title="Practical Details" />
+      <SHead num="06" title={t[lang].s6Title} />
 
-      <QL>Where will this identity be used?</QL>
+      <QL>{t[lang].q30Label}</QL>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-0">
         {USAGE.map((o) => (
           <CbOpt key={o} label={o} checked={form.usageChannels.includes(o)} onToggle={() => toggleArr("usageChannels", o)} />
@@ -1857,8 +2071,8 @@ export function BrandIdentityDiscoveryPage() {
       </div>
 
       <QDivider />
-      <QL>Existing logo or visual assets (optional)</QL>
-      <Hint>PDF, PNG, JPG, or ZIP — multiple files, up to 25 MB total.</Hint>
+      <QL>{t[lang].q31Label}</QL>
+      <Hint>{t[lang].q31Hint}</Hint>
       <label
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
@@ -1892,38 +2106,44 @@ export function BrandIdentityDiscoveryPage() {
       </label>
 
       <QDivider />
-      <QL>Project timeline</QL>
+      <QL>{t[lang].q32Label}</QL>
+      <Hint>{t[lang].q32Hint}</Hint>
       <TInput value={form.projectTimeline} onChange={(v) => set("projectTimeline", v)} placeholder="e.g. Needed by June 2025 for a summer launch" />
 
       <QDivider />
-      <QL>Budget range</QL>
+      <QL>{t[lang].q33Label}</QL>
+      <Hint>{t[lang].q33Hint}</Hint>
       {["₹25k–50k", "₹50k–1L", "₹1L–2L", "₹2L–3.5L", "₹3.5L+", "Open to discuss"].map((o) => (
         <RadioOpt key={o} label={o} checked={form.budget === o} onSelect={() => set("budget", o)} />
       ))}
 
       <QDivider />
-      <QL>Who is the final decision-maker for this project?</QL>
+      <QL>{t[lang].q34Label}</QL>
+      <Hint>{t[lang].q34Hint}</Hint>
       <TInput value={form.decisionMaker} onChange={(v) => set("decisionMaker", v)} placeholder="e.g. Myself, My partner and I, Founder + co-founder" />
 
       <QDivider />
-      <QL>Preferred way to communicate</QL>
+      <QL>{t[lang].q35Label}</QL>
+      <Hint>{t[lang].q35Hint}</Hint>
       <TInput value={form.preferredComm} onChange={(v) => set("preferredComm", v)} placeholder="e.g. WhatsApp, Email, Video calls on weekends" />
     </>,
 
     // Step 6 — Final Thoughts
     <>
-      <SHead num="07" title="Final Thoughts" />
+      <SHead num="07" title={t[lang].s7Title} />
 
-      <QL>Anything personal or symbolic you'd like carried into the brand?</QL>
+      <QL>{t[lang].q36Label}</QL>
+      <Hint>{t[lang].q36Hint}</Hint>
       <ExTrigger qKey="personalSymbolic" onOpen={setExampleModal} />
       <TArea value={form.personalSymbolic} onChange={(v) => set("personalSymbolic", v)} placeholder="A family name, a city, a material, a memory, a number — anything that means something to you…" />
 
       <QDivider />
-      <QL>Anything else you'd like us to know before we begin?</QL>
+      <QL>{t[lang].q37Label}</QL>
+      <Hint>{t[lang].q37Hint}</Hint>
       <TArea value={form.anythingElse} onChange={(v) => set("anythingElse", v)} placeholder="An honest concern, a past experience, something you loved or hated in a previous branding project…" />
 
       <div style={{ height: 1, background: C.border, margin: "24px 0" }} />
-      <p style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 18 }}>Contact details</p>
+      <p style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 18, fontFamily: qlFont }}>{t[lang].q38Label}</p>
 
       <div style={{ marginBottom: 16 }}>
         <QL required>Full name</QL>
@@ -1946,7 +2166,8 @@ export function BrandIdentityDiscoveryPage() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "var(--font-family-primary)", color: C.text }}>
+    <FontCtx.Provider value={qlFont}>
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: qlFont, color: C.text }}>
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
@@ -1971,28 +2192,50 @@ export function BrandIdentityDiscoveryPage() {
 
       {/* Intro */}
       <div style={{ maxWidth: 800, margin: "0 auto", padding: "44px 24px 32px" }}>
-        <div style={{
-          display: "inline-block", background: C.accentLight,
-          border: `1px solid rgba(13,148,136,0.25)`,
-          borderRadius: 20, padding: "4px 14px", fontSize: 11, fontWeight: 700,
-          letterSpacing: "0.07em", textTransform: "uppercase", color: C.accent, marginBottom: 18,
-        }}>
-          Brand Identity Discovery
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 18 }}>
+          <div style={{
+            display: "inline-block", background: C.accentLight,
+            border: `1px solid rgba(13,148,136,0.25)`,
+            borderRadius: 20, padding: "4px 14px", fontSize: 11, fontWeight: 700,
+            letterSpacing: "0.07em", textTransform: "uppercase", color: C.accent,
+          }}>
+            {t[lang].pageEyebrow}
+          </div>
+          {/* Language toggle */}
+          <div style={{ display: "inline-flex", background: "#f0eeea", borderRadius: 100, padding: 4 }}>
+            {(["en", "ta"] as const).map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLang(l)}
+                style={{
+                  borderRadius: 100, padding: "6px 16px", fontSize: 13, border: "none",
+                  fontWeight: lang === l ? 600 : 400,
+                  background: lang === l ? "#ffffff" : "transparent",
+                  color: lang === l ? C.accent : "#6b7280",
+                  boxShadow: lang === l ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+                  cursor: "pointer", transition: "all 0.15s ease",
+                  fontFamily: l === "ta" ? "'Noto Sans Tamil', sans-serif" : "var(--font-family-primary)",
+                }}
+              >
+                {l === "en" ? "EN" : "தமிழ்"}
+              </button>
+            ))}
+          </div>
         </div>
-        <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: "42px", color: C.text, marginBottom: 12 }}>
-          Tell us about your brand.
+        <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: "42px", color: C.text, marginBottom: 12, fontFamily: qlFont }}>
+          {t[lang].pageTitle}
         </h1>
-        <p style={{ fontSize: 16, lineHeight: "26px", color: C.textSoft, maxWidth: 520, marginBottom: 6 }}>
-          This brief helps us understand the soul of your business before we begin.
-          Take your time — there are no wrong answers.
+        <p style={{ fontSize: 16, lineHeight: "26px", color: C.textSoft, maxWidth: 520, marginBottom: 6, fontFamily: qlFont }}>
+          {t[lang].pageSubtitle}
         </p>
-        <p style={{ fontSize: 13, lineHeight: "20px", color: C.textMuted }}>
-          We'll review your brief and follow up within three working days.
+        <p style={{ fontSize: 13, lineHeight: "20px", color: C.textMuted, fontFamily: qlFont }}>
+          {t[lang].pageNote}
         </p>
       </div>
 
       {/* Step indicator */}
-      <StepIndicator step={step} />
+      <StepIndicator step={step} titles={sectionTitles} />
 
       {/* Form */}
       <form onSubmit={handleSubmit} noValidate style={{ maxWidth: 800, margin: "0 auto", padding: "0 24px 80px" }}>
@@ -2029,11 +2272,12 @@ export function BrandIdentityDiscoveryPage() {
               style={{
                 background: "none", border: "none", padding: "8px 4px", cursor: "pointer",
                 fontSize: 14, color: C.textMuted, display: "flex", alignItems: "center", gap: 6,
+                fontFamily: qlFont,
               }}
               onMouseOver={(e) => { e.currentTarget.style.color = C.textSoft; }}
               onMouseOut={(e) => { e.currentTarget.style.color = C.textMuted; }}
             >
-              ← Back
+              {t[lang].back}
             </button>
           )}
 
@@ -2045,15 +2289,19 @@ export function BrandIdentityDiscoveryPage() {
                 background: C.accent, color: "#fff", border: "none", borderRadius: 8,
                 padding: "14px 32px", fontSize: 15, fontWeight: 600, lineHeight: "20px",
                 cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-                transition: "background 0.18s",
+                transition: "background 0.18s", fontFamily: qlFont,
               }}
               onMouseOver={(e) => { e.currentTarget.style.background = C.accentDark; }}
               onMouseOut={(e) => { e.currentTarget.style.background = C.accent; }}
             >
-              Continue
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M5 12H19M13 6L19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              {lang === "en" ? (
+                <>
+                  Continue
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 12H19M13 6L19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </>
+              ) : t[lang].continue}
             </button>
           ) : (
             <button
@@ -2066,7 +2314,7 @@ export function BrandIdentityDiscoveryPage() {
                 cursor: status === "submitting" ? "not-allowed" : "pointer",
                 opacity: status === "submitting" ? 0.8 : 1,
                 display: "flex", alignItems: "center", gap: 10,
-                transition: "background 0.18s",
+                transition: "background 0.18s", fontFamily: qlFont,
               }}
               onMouseOver={(e) => { if (status !== "submitting") e.currentTarget.style.background = C.accentDark; }}
               onMouseOut={(e) => { if (status !== "submitting") e.currentTarget.style.background = C.accent; }}
@@ -2081,7 +2329,7 @@ export function BrandIdentityDiscoveryPage() {
                 </>
               ) : (
                 <>
-                  Submit Discovery Brief
+                  {t[lang].submit}
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                     <path d="M5 12H19M13 6L19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
@@ -2096,5 +2344,6 @@ export function BrandIdentityDiscoveryPage() {
         </p>
       </form>
     </div>
+    </FontCtx.Provider>
   );
 }
