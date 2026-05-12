@@ -2,6 +2,7 @@ import { PortfolioHome } from "./components/PortfolioHome";
 import { AboutPage } from "./components/AboutPage";
 import { DesignSystemPage } from "./components/DesignSystemPage";
 import { ContactPage } from "./components/ContactPage";
+import { BrandIdentityDiscoveryPage } from "./components/BrandIdentityDiscoveryPage";
 import { NotFound } from "./components/NotFound";
 
 export const routeConfig = [
@@ -20,6 +21,10 @@ export const routeConfig = [
   {
     path: "/contact",
     Component: ContactPage,
+  },
+  {
+    path: "/branding/brand-identity-discovery",
+    Component: BrandIdentityDiscoveryPage,
   },
   {
     path: "*",

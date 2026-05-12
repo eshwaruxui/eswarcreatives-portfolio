@@ -6,7 +6,14 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const routes = ['/', '/about', '/design-system', '/contact'];
+const routes = ['/', '/about', '/design-system', '/contact', '/branding/brand-identity-discovery'];
+
+const routeMeta = {
+  '/branding/brand-identity-discovery': {
+    title: 'Brand Identity Discovery — Eswar Creatives',
+    description: 'Tell us about your business, your vision, and the soul of the work you do. Eswar Creatives will review your brief within three working days.',
+  },
+};
 
 function figmaAssetResolver() {
   return {
@@ -48,10 +55,20 @@ async function main() {
   for (const route of routes) {
     try {
       const appHtml = await render(route);
-      const html = template.replace(
+      const meta = routeMeta[route];
+      let html = template.replace(
         '<div id="root"></div>',
         `<div id="root">${appHtml}</div>`
       );
+      if (meta) {
+        html = html
+          .replace(/<title>[^<]*<\/title>/, `<title>${meta.title}</title>`)
+          .replace(/(<meta name="description" content=")[^"]*(")/,  `$1${meta.description}$2`)
+          .replace(/(<meta property="og:title" content=")[^"]*(")/,  `$1${meta.title}$2`)
+          .replace(/(<meta property="og:description" content=")[^"]*(")/,  `$1${meta.description}$2`)
+          .replace(/(<meta name="twitter:title" content=")[^"]*(")/,  `$1${meta.title}$2`)
+          .replace(/(<meta name="twitter:description" content=")[^"]*(")/,  `$1${meta.description}$2`);
+      }
 
       const outDir =
         route === '/'
