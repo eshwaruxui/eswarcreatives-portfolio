@@ -54,6 +54,10 @@ const EXAMPLES: Record<string, string> = {
     "1. Sabyasachi — the way the logo feels rooted and handcrafted without being fussy.\n2. The Leela Hotels — restrained, confident, instantly South Indian without being literal.\n3. Tanishq — the script feels warm and trustworthy.",
   personalSymbolic:
     "My grandmother always wore a single jasmine strand, never a full gajra. I'd love if there was something in the brand that quietly referenced that — maybe a single stem rather than a full bloom.",
+  competitorReasons:
+    "Clients sometimes go to larger florists because they assume a smaller studio can't handle a 500-guest wedding. They also occasionally choose competitors when they need a very fast turnaround — we're known for being considered, not rushed.",
+  neverThink:
+    "That we're too expensive without understanding what they're getting. Or that our work looks the same as every other florist on WedMeGood. We never want to feel generic, forgettable, or interchangeable.",
 };
 
 // ── Example modal ──────────────────────────────────────────────────
@@ -98,7 +102,9 @@ function ExampleModal({ qKey, onClose }: { qKey: string; onClose: () => void }) 
           padding: "20px 24px 0",
         }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: C.accent, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Here's how another client answered this
+            {qKey === "logoTypePreference"
+              ? "Here's how logo types work in the wedding & events industry"
+              : "Here's how another client answered this"}
           </p>
           <button
             ref={closeRef}
@@ -115,12 +121,126 @@ function ExampleModal({ qKey, onClose }: { qKey: string; onClose: () => void }) 
 
         {/* Modal body */}
         <div style={{ padding: "16px 24px 0" }}>
-          <p style={{
-            fontSize: 15, lineHeight: "26px", color: C.textSoft,
-            whiteSpace: "pre-line",
-          }}>
-            "{text}"
-          </p>
+          {qKey === "logoTypePreference" ? (
+            <>
+              <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
+                <svg width="160" height="32" viewBox="0 0 160 32" style={{ display: "block", marginBottom: 8 }}>
+                  <text x="0" y="24" fontFamily="'Playfair Display', serif" fontSize="18" fontWeight="400" fill="#1a1a1a">Palam Silks</text>
+                </svg>
+                <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
+                  WORDMARK — most common for premium South Indian brands
+                </p>
+                <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
+                  Clean, elegant, lets the name do the work. Works beautifully on saree tags, invitations, and signage.
+                </p>
+              </div>
+              <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <svg width="24" height="24" viewBox="-12 -12 24 24">
+                    <ellipse rx="4" ry="10" stroke="#1a1a1a" strokeWidth="1" fill="none" />
+                    <ellipse rx="4" ry="10" stroke="#1a1a1a" strokeWidth="1" fill="none" transform="rotate(-40)" />
+                    <ellipse rx="4" ry="10" stroke="#1a1a1a" strokeWidth="1" fill="none" transform="rotate(40)" />
+                  </svg>
+                  <svg width="110" height="24" viewBox="0 0 110 24">
+                    <text x="0" y="18" fontFamily="'Inter', sans-serif" fontSize="14" fill="#1a1a1a">Jasmine Events</text>
+                  </svg>
+                </div>
+                <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
+                  COMBINATION MARK — popular for event &amp; floristry studios
+                </p>
+                <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
+                  The symbol gives you an icon for social media profiles; the full lockup works on everything else.
+                </p>
+              </div>
+              <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
+                <svg width="60" height="36" viewBox="0 0 60 36" style={{ display: "block", marginBottom: 8 }}>
+                  <text x="0" y="30" fontFamily="'Playfair Display', serif" fontSize="28" fontWeight="700" fill="#1a1a1a" letterSpacing="3">JE</text>
+                </svg>
+                <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
+                  LETTERMARK — works when the business name is long
+                </p>
+                <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
+                  Short, memorable, and scales to any size — from a 3mm stamp to a 3-metre banner.
+                </p>
+              </div>
+            </>
+          ) : qKey === "logosAdmired" ? (
+            <>
+              <div style={{ background: "#f8f7f5", borderRadius: 10, padding: "16px 20px", marginBottom: 12 }}>
+                <img
+                  src="https://upload.wikimedia.org/wikipedia/en/thumb/7/7e/Sabyasachi_logo.svg/320px-Sabyasachi_logo.svg.png"
+                  alt="Sabyasachi logo — for reference only"
+                  style={{ maxHeight: 48, maxWidth: 180, objectFit: "contain", display: "block", marginBottom: 12 }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                    const fb = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (fb) fb.style.display = "block";
+                  }}
+                />
+                <p style={{ display: "none", fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 400, letterSpacing: "4px", textTransform: "uppercase", color: "#1a1a1a", margin: "0 0 12px", lineHeight: 1.2 }}>
+                  SABYASACHI
+                </p>
+                <span style={{ fontSize: 10, color: "#9ca3af", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
+                <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1.5px", margin: "6px 0 0" }}>
+                  SABYASACHI
+                </p>
+                <p style={{ fontSize: 13, color: "#4a4a4a", margin: "8px 0 0", lineHeight: "20px" }}>
+                  Rooted and handcrafted — the typography feels like it has history without being dated.
+                </p>
+              </div>
+              <div style={{ background: "#f8f7f5", borderRadius: 10, padding: "16px 20px", marginBottom: 12 }}>
+                <img
+                  src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/The_Leela_Palaces_Hotels_and_Resorts_logo.svg/320px-The_Leela_Palaces_Hotels_and_Resorts_logo.svg.png"
+                  alt="The Leela Hotels logo — for reference only"
+                  style={{ maxHeight: 48, maxWidth: 180, objectFit: "contain", display: "block", marginBottom: 12 }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                    const fb = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (fb) fb.style.display = "block";
+                  }}
+                />
+                <p style={{ display: "none", fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 400, letterSpacing: "6px", textTransform: "uppercase", color: "#1a1a1a", margin: "0 0 12px", lineHeight: 1.2 }}>
+                  THE LEELA
+                </p>
+                <span style={{ fontSize: 10, color: "#9ca3af", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
+                <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1.5px", margin: "6px 0 0" }}>
+                  THE LEELA HOTELS
+                </p>
+                <p style={{ fontSize: 13, color: "#4a4a4a", margin: "8px 0 0", lineHeight: "20px" }}>
+                  Restrained confidence — wide letter-spacing signals luxury without shouting it.
+                </p>
+              </div>
+              <div style={{ background: "#f8f7f5", borderRadius: 10, padding: "16px 20px", marginBottom: 12 }}>
+                <img
+                  src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Tanishq_logo.svg/320px-Tanishq_logo.svg.png"
+                  alt="Tanishq logo — for reference only"
+                  style={{ maxHeight: 48, maxWidth: 180, objectFit: "contain", display: "block", marginBottom: 12 }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                    const fb = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (fb) fb.style.display = "block";
+                  }}
+                />
+                <p style={{ display: "none", fontFamily: "'DM Serif Display', serif", fontSize: 26, fontWeight: 400, letterSpacing: "1px", color: "#1a1a1a", margin: "0 0 12px", lineHeight: 1.2 }}>
+                  Tanishq
+                </p>
+                <span style={{ fontSize: 10, color: "#9ca3af", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
+                <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1.5px", margin: "6px 0 0" }}>
+                  TANISHQ
+                </p>
+                <p style={{ fontSize: 13, color: "#4a4a4a", margin: "8px 0 0", lineHeight: "20px" }}>
+                  The warmth comes from the soft serif curves — trustworthy and approachable, not cold.
+                </p>
+              </div>
+            </>
+          ) : (
+            <p style={{
+              fontSize: 15, lineHeight: "26px", color: C.textSoft,
+              whiteSpace: "pre-line",
+            }}>
+              "{text}"
+            </p>
+          )}
         </div>
 
         {/* Modal footer */}
@@ -289,7 +409,7 @@ function TArea({
         width: "100%", background: C.surface, boxSizing: "border-box",
         border: `1px solid ${focused ? C.borderFocus : C.borderInput}`,
         boxShadow: focused ? `0 0 0 3px rgba(13,148,136,0.12)` : "none",
-        borderRadius: 8, padding: "12px 14px", resize: "vertical",
+        borderRadius: 8, padding: "12px 14px", resize: "vertical", minHeight: "120px",
         fontFamily: "var(--font-family-primary)", fontSize: 15, lineHeight: "24px",
         color: C.text, outline: "none", transition: "border-color 0.18s, box-shadow 0.18s",
       }}
@@ -385,6 +505,579 @@ function Hint({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ── Typography card options ────────────────────────────────────────
+interface TypoOption {
+  label: string;
+  font?: string;
+  specimenText: string;
+  subtext: string;
+  specimenWeight?: number;
+  isMixed?: boolean;
+}
+
+const TYPO_OPTIONS: TypoOption[] = [
+  {
+    label: "Classic serif",
+    font: "'Playfair Display', serif",
+    specimenText: "Elegance",
+    subtext: "Traditional · Established · Timeless",
+  },
+  {
+    label: "Modern serif",
+    font: "'DM Serif Display', serif",
+    specimenText: "Editorial",
+    subtext: "Contemporary · Refined · Forward",
+  },
+  {
+    label: "Hand-lettered script",
+    font: "'Dancing Script', cursive",
+    specimenText: "Graceful",
+    subtext: "Romantic · Personal · Handcrafted",
+    specimenWeight: 600,
+  },
+  {
+    label: "Clean sans-serif",
+    font: "'Inter', sans-serif",
+    specimenText: "Minimal",
+    subtext: "Modern · Architectural · Clean",
+  },
+  {
+    label: "Mixed — trust your judgment",
+    specimenText: "",
+    subtext: "We'll find the perfect combination for you",
+    isMixed: true,
+  },
+];
+
+function TypoCard({
+  option, selected, onSelect,
+}: {
+  option: TypoOption; selected: boolean; onSelect: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <label
+      onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "block", cursor: "pointer",
+        background: selected ? "#f0faf9" : "#ffffff",
+        border: `1.5px solid ${selected ? "#0d9488" : hovered ? "rgba(13,148,136,0.4)" : "rgba(0,0,0,0.12)"}`,
+        borderRadius: 12, padding: 20,
+        boxShadow: hovered && !selected ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+        transition: "border-color 0.18s, background 0.18s, box-shadow 0.18s",
+      }}
+    >
+      <input type="radio" checked={selected} onChange={onSelect} style={{ display: "none" }} />
+      {option.isMixed ? (
+        <div style={{ display: "flex", gap: 14, alignItems: "baseline", marginBottom: 8 }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#1a1a1a", lineHeight: 1.1 }}>Your</span>
+          <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18, color: "#1a1a1a", lineHeight: 1.1 }}>Own</span>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 18, color: "#1a1a1a", lineHeight: 1.1 }}>Voice</span>
+        </div>
+      ) : (
+        <p style={{
+          fontFamily: option.font, fontSize: 36, fontWeight: option.specimenWeight ?? 400,
+          color: "#1a1a1a", lineHeight: 1.1, margin: "0 0 8px",
+        }}>
+          {option.specimenText}
+        </p>
+      )}
+      <p style={{
+        fontSize: 12, letterSpacing: "0.5px", color: "#6b7280",
+        textTransform: "uppercase", margin: 0,
+      }}>
+        {option.subtext}
+      </p>
+      <p style={{
+        fontSize: 13, fontWeight: 600, color: "#1a1a1a",
+        margin: "12px 0 0", paddingTop: 12,
+        borderTop: "1px solid rgba(0,0,0,0.08)",
+      }}>
+        {option.label}
+      </p>
+    </label>
+  );
+}
+
+// ── Motif chip ─────────────────────────────────────────────────────
+function MotifChip({
+  symbol, label, selected, onToggle, dashed,
+}: {
+  symbol: React.ReactNode; label: string; selected: boolean; onToggle: () => void; dashed?: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        padding: "16px 12px", borderRadius: 10, cursor: "pointer",
+        border: `1.5px ${dashed ? "dashed" : "solid"} ${selected ? "#0d9488" : hovered ? "rgba(13,148,136,0.5)" : "rgba(0,0,0,0.12)"}`,
+        background: selected ? "#f0faf9" : "#ffffff",
+        boxShadow: hovered && !selected ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+        transition: "border-color 0.18s, background 0.18s, box-shadow 0.18s",
+      }}
+    >
+      <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {symbol}
+      </div>
+      <span style={{ fontSize: 12, color: "#4a4a4a", textAlign: "center", lineHeight: "16px" }}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
+// ── Cultural cue card ──────────────────────────────────────────────
+function CultureCard({
+  visual, title, desc, selected, onSelect, dashed,
+}: {
+  visual: React.ReactNode; title: string; desc: string;
+  selected: boolean; onSelect: () => void; dashed?: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "block", padding: 20, borderRadius: 12, textAlign: "left", width: "100%", cursor: "pointer",
+        border: `1.5px ${dashed ? "dashed" : "solid"} ${selected ? "#0d9488" : hovered ? "rgba(13,148,136,0.5)" : "rgba(0,0,0,0.12)"}`,
+        background: selected ? "#f0faf9" : "#ffffff",
+        boxShadow: hovered && !selected ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+        transition: "border-color 0.18s, background 0.18s, box-shadow 0.18s",
+      }}
+    >
+      <div style={{ height: 52, display: "flex", alignItems: "center", marginBottom: 12 }}>
+        {visual}
+      </div>
+      <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", margin: 0, lineHeight: "20px" }}>{title}</p>
+      {desc && <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0", lineHeight: "18px" }}>{desc}</p>}
+    </button>
+  );
+}
+
+// ── Mood-board culture card ────────────────────────────────────────
+interface MoodBoardCultureCardProps {
+  title: string; desc: string; selected: boolean; onSelect: () => void;
+  imageSrc?: string; gradient: string; tintColor: string;
+  chips: Array<{ icon: React.ReactNode; label: string }>;
+}
+
+const CULTURE_CARD_DATA: Array<{
+  title: string; desc: string; tintColor: string; gradient: string;
+  imageSrc: string;
+  chips: Array<{ icon: React.ReactNode; label: string }>;
+}> = [
+  {
+    title: "Rooted in Tamil Nadu",
+    desc: "South Indian aesthetics — kolam, temple motifs, regional craft",
+    tintColor: "#f5ede0",
+    gradient: "linear-gradient(135deg, #e8d5b7 0%, #c9956b 100%)",
+    imageSrc: "/assets/cultural/moodboard/layer-18.png",
+    chips: [
+      { icon: <img src="/assets/cultural/moodboard/layer-22.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "KOLAM" },
+      { icon: <img src="/assets/cultural/moodboard/layer-2.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "TEMPLE" },
+      { icon: <img src="/assets/cultural/moodboard/layer-3.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "FLORALS" },
+      { icon: <img src="/assets/cultural/moodboard/layer-4.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "CRAFT" },
+    ],
+  },
+  {
+    title: "Pan-Indian",
+    desc: "Draws from across Indian traditions — inclusive, diverse, broadly resonant",
+    tintColor: "#edf5ed",
+    gradient: "linear-gradient(135deg, #c8dfc8 0%, #7aab7a 100%)",
+    imageSrc: "/assets/cultural/moodboard/layer-19.png",
+    chips: [
+      { icon: <img src="/assets/cultural/moodboard/layer-5.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "LOTUS" },
+      { icon: <img src="/assets/cultural/moodboard/layer-6.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "PAISLEY" },
+      { icon: <img src="/assets/cultural/moodboard/layer-7.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "BOTANICS" },
+      { icon: <img src="/assets/cultural/moodboard/layer-8.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "HERITAGE" },
+    ],
+  },
+  {
+    title: "International finish",
+    desc: "South Indian soul, global presentation — minimal, modern, export-ready",
+    tintColor: "#e8eef5",
+    gradient: "linear-gradient(135deg, #c5d5e8 0%, #7a9dbf 100%)",
+    imageSrc: "/assets/cultural/moodboard/layer-21.png",
+    chips: [
+      { icon: <img src="/assets/cultural/moodboard/layer-14.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "GLOBAL" },
+      { icon: <img src="/assets/cultural/moodboard/layer-15.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "MINIMAL" },
+      { icon: <img src="/assets/cultural/moodboard/layer-16.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "PREMIUM" },
+      { icon: <img src="/assets/cultural/moodboard/layer-17.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "EXPORT" },
+    ],
+  },
+  {
+    title: "South Indian roots, global finish",
+    desc: "The most requested direction — culturally specific but presented with international polish",
+    tintColor: "#f5f0e8",
+    gradient: "linear-gradient(135deg, #e8d9c0 0%, #b8956a 100%)",
+    imageSrc: "/assets/cultural/moodboard/layer-20.png",
+    chips: [
+      { icon: <img src="/assets/cultural/moodboard/layer-10.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "TEMPLE" },
+      { icon: <img src="/assets/cultural/moodboard/layer-11.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "HERITAGE" },
+      { icon: <img src="/assets/cultural/moodboard/layer-12.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "GLOBAL" },
+      { icon: <img src="/assets/cultural/moodboard/layer-13.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "PREMIUM" },
+    ],
+  },
+];
+
+function MoodBoardCultureCard({
+  title, desc, selected, onSelect, imageSrc, gradient, tintColor, chips,
+}: MoodBoardCultureCardProps) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "block", width: "100%", height: "100%", padding: 0, border: "none",
+        borderRadius: 16, overflow: "hidden", cursor: "pointer",
+        background: tintColor, textAlign: "left",
+        outline: selected ? "3px solid #0d9488" : hovered ? "2px solid rgba(13,148,136,0.4)" : "none",
+        outlineOffset: 2,
+        boxShadow: hovered ? "0 4px 16px rgba(0,0,0,0.10)" : "0 1px 4px rgba(0,0,0,0.06)",
+        transition: "box-shadow 0.18s ease",
+        boxSizing: "border-box",
+      }}
+    >
+      <div style={{ width: "100%", height: 180, background: gradient, overflow: "hidden" }}>
+        {imageSrc && (
+          <img src={imageSrc} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", display: "block" }} />
+        )}
+      </div>
+      <div style={{ padding: 20 }}>
+        <p style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a", margin: "0 0 6px" }}>{title}</p>
+        <p style={{ fontSize: 13, color: "#4a4a4a", lineHeight: 1.5, margin: "0 0 16px" }}>{desc}</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {chips.map((chip, i) => (
+            <div key={i} style={{
+              background: "rgba(255,255,255,0.55)", borderRadius: 8, padding: "8px 10px",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+              backdropFilter: "blur(4px)",
+            }}>
+              {chip.icon}
+              <span style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.8px", color: "#4a4a4a", textAlign: "center", maxWidth: 56 }}>
+                {chip.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ── Logo type card ─────────────────────────────────────────────────
+interface LogoTypeOption {
+  value: string; name: string; desc: string;
+  visual: React.ReactNode; fullWidth?: boolean; dashed?: boolean;
+  images?: string[];
+}
+
+const LOGO_TYPE_OPTIONS: LogoTypeOption[] = [
+  {
+    value: "Pictorial mark",
+    name: "Pictorial mark",
+    desc: "A symbol or icon that represents your brand — no text needed",
+    images: [
+      "/assets/logo-types/pictorial/layer-1.png",
+      "/assets/logo-types/pictorial/layer-2.png",
+      "/assets/logo-types/pictorial/layer-3.png",
+      "/assets/logo-types/pictorial/layer-4.png",
+    ],
+    visual: (
+      <svg width="60" height="40" viewBox="0 0 60 40">
+        <circle cx="30" cy="24" r="14" fill="#1a1a1a" />
+        <path d="M 30 10 C 34 4 43 7 39 14" fill="#1a1a1a" />
+        <line x1="30" y1="10" x2="30" y2="8" stroke="#1a1a1a" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
+    value: "Lettermark",
+    name: "Lettermark",
+    desc: "Your initials crafted into a distinctive identity",
+    images: [
+      "/assets/logo-types/lettermark/layer-5.png",
+      "/assets/logo-types/lettermark/layer-6.png",
+      "/assets/logo-types/lettermark/layer-7.png",
+      "/assets/logo-types/lettermark/layer-8.png",
+    ],
+    visual: (
+      <svg width="60" height="40" viewBox="0 0 60 40">
+        <text x="30" y="30" textAnchor="middle" fontFamily="serif" fontSize="24" fontWeight="700" fill="#1a1a1a" letterSpacing="2">EC</text>
+      </svg>
+    ),
+  },
+  {
+    value: "Wordmark",
+    name: "Wordmark",
+    desc: "Your full business name as the logo — typography does the work",
+    images: [
+      "/assets/logo-types/wordmark/layer-9.png",
+      "/assets/logo-types/wordmark/layer-10.png",
+      "/assets/logo-types/wordmark/layer-11.png",
+    ],
+    visual: (
+      <svg width="60" height="40" viewBox="0 0 60 40">
+        <text x="30" y="27" textAnchor="middle" fontFamily="serif" fontSize="18" fontWeight="400" fill="#1a1a1a" letterSpacing="3">Brand</text>
+      </svg>
+    ),
+  },
+  {
+    value: "Combination mark",
+    name: "Combination mark",
+    desc: "A symbol and your name together — versatile and recognisable",
+    images: [
+      "/assets/logo-types/combination/layer-12.png",
+      "/assets/logo-types/combination/layer-13.png",
+      "/assets/logo-types/combination/layer-14.png",
+    ],
+    visual: (
+      <svg width="60" height="40" viewBox="0 0 60 40">
+        <text x="6" y="26" fontSize="16" fill="#1a1a1a">✦</text>
+        <text x="26" y="26" fontFamily="sans-serif" fontSize="14" fill="#1a1a1a">Brand</text>
+      </svg>
+    ),
+  },
+  {
+    value: "Emblem",
+    name: "Emblem",
+    desc: "Text enclosed within a shape — classic, badge-like, authoritative",
+    images: [
+      "/assets/logo-types/emblem/layer-15.png",
+      "/assets/logo-types/emblem/layer-16.png",
+      "/assets/logo-types/emblem/layer-17.png",
+      "/assets/logo-types/emblem/layer-18.png",
+    ],
+    visual: (
+      <svg width="60" height="40" viewBox="0 0 60 40">
+        <ellipse cx="30" cy="20" rx="28" ry="18" stroke="#1a1a1a" strokeWidth="1.5" fill="none" />
+        <text x="30" y="23" textAnchor="middle" fontFamily="serif" fontSize="10" fill="#1a1a1a">Studio</text>
+      </svg>
+    ),
+  },
+  {
+    value: "Abstract mark",
+    name: "Abstract mark",
+    desc: "A unique geometric shape — modern, open to interpretation",
+    images: [
+      "/assets/logo-types/abstract/layer-19.png",
+      "/assets/logo-types/abstract/layer-20.png",
+      "/assets/logo-types/abstract/layer-24.png",
+      "/assets/logo-types/abstract/layer-25.png",
+    ],
+    visual: (
+      <svg width="60" height="40" viewBox="0 0 60 40">
+        <circle cx="30" cy="12" r="10" stroke="#1a1a1a" strokeWidth="1.5" fill="none" />
+        <circle cx="20" cy="28" r="10" stroke="#1a1a1a" strokeWidth="1.5" fill="none" />
+        <circle cx="40" cy="28" r="10" stroke="#1a1a1a" strokeWidth="1.5" fill="none" />
+      </svg>
+    ),
+  },
+  {
+    value: "Help me decide",
+    name: "Help me decide",
+    desc: "Share your other answers and we'll recommend the right logo style for your brand",
+    visual: (
+      <svg width="40" height="40" viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r="18" stroke="#9ca3af" strokeWidth="1.5" fill="none" />
+        <text x="20" y="20" textAnchor="middle" dominantBaseline="central" fontSize="18" fill="#9ca3af">?</text>
+      </svg>
+    ),
+    fullWidth: true, dashed: true,
+  },
+];
+
+function LogoTypeCard({ option, selected, onSelect }: {
+  option: LogoTypeOption; selected: boolean; onSelect: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: selected ? "#f0faf9" : "#ffffff",
+        border: `1.5px ${option.dashed ? "dashed" : "solid"} ${selected ? "#0d9488" : hovered ? "rgba(13,148,136,0.5)" : "rgba(0,0,0,0.12)"}`,
+        borderRadius: 12, padding: "16px", cursor: "pointer", textAlign: "center",
+        width: "100%", boxSizing: "border-box",
+        boxShadow: hovered && !selected ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+        transition: "border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease",
+        gridColumn: option.fullWidth ? "1 / -1" : undefined,
+      }}
+    >
+      {option.images ? (
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, justifyContent: "center" }}>
+          {option.images.map((src, i) => (
+            <div key={i} style={{
+              flex: 1, height: 48, background: "#f8f7f5", borderRadius: 6,
+              display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+            }}>
+              <img src={src} alt="" style={{ maxWidth: "100%", maxHeight: 36, objectFit: "contain" }} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+          {option.visual}
+        </div>
+      )}
+      <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", margin: "0 0 4px" }}>{option.name}</p>
+      <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.4, margin: 0 }}>{option.desc}</p>
+    </button>
+  );
+}
+
+// ── Selector trigger button ───────────────────────────────────────
+function SelectorTrigger({ placeholder, selectedChips, onClick, isOpen, isMulti }: {
+  placeholder: string;
+  selectedChips: string[];
+  onClick: () => void;
+  isOpen: boolean;
+  isMulti?: boolean;
+}) {
+  const show = isMulti ? selectedChips.slice(0, 3) : selectedChips;
+  const overflow = isMulti ? Math.max(0, selectedChips.length - 3) : 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: "100%", padding: "12px 16px", borderRadius: 10,
+        border: "1.5px solid rgba(0,0,0,0.15)",
+        background: "#ffffff", cursor: "pointer",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        gap: 12, boxSizing: "border-box",
+      }}
+    >
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flex: 1, minWidth: 0 }}>
+        {selectedChips.length === 0 ? (
+          <span style={{ fontSize: 14, color: "#9ca3af" }}>{placeholder}</span>
+        ) : (
+          <>
+            {show.map((chip, i) => (
+              <span key={i} style={{
+                background: "#e6f7f5", color: "#0a7c72",
+                borderRadius: 20, padding: "4px 12px",
+                fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
+              }}>{chip}</span>
+            ))}
+            {overflow > 0 && (
+              <span style={{
+                background: "#e6f7f5", color: "#0a7c72",
+                borderRadius: 20, padding: "4px 12px",
+                fontSize: 13, fontWeight: 500,
+              }}>+{overflow} more</span>
+            )}
+          </>
+        )}
+      </div>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+        style={{
+          flexShrink: 0, color: "#9ca3af",
+          transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+          transition: "transform 0.2s ease",
+        }}
+      >
+        <path d="M3 5.5L8 10.5L13 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </button>
+  );
+}
+
+// ── Selector lightbox modal ────────────────────────────────────────
+function SelectorLightbox({ isOpen, onClose, title, children, footer }: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  footer: React.ReactNode;
+}) {
+  const [visible, setVisible] = useState(false);
+  const isWide = typeof window !== "undefined" && window.innerWidth >= 680;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const t = setTimeout(() => setVisible(true), 10);
+    document.body.style.overflow = "hidden";
+    return () => {
+      clearTimeout(t);
+      setVisible(false);
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 100,
+        background: `rgba(0,0,0,${visible ? 0.5 : 0})`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: isWide ? "0 20px" : "0 16px",
+        transition: "background 0.2s ease",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        style={{
+          width: "100%", maxWidth: 680, maxHeight: "80vh",
+          background: "#fff",
+          borderRadius: 16,
+          display: "flex", flexDirection: "column", overflow: "hidden",
+          transform: visible ? "translateY(0) scale(1)" : "translateY(16px) scale(0.98)",
+          opacity: visible ? 1 : 0,
+          transition: "transform 0.25s ease-out, opacity 0.2s ease",
+        }}
+      >
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "20px 24px 16px",
+          borderBottom: "1px solid rgba(0,0,0,0.08)", flexShrink: 0,
+        }}>
+          <p style={{ fontSize: 16, fontWeight: 600, color: "#1a1a1a", margin: 0 }}>{title}</p>
+          <button type="button" onClick={onClose}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#9ca3af", padding: 4, lineHeight: 1 }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#1a1a1a")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
+          >×</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+          {children}
+        </div>
+        <div style={{ padding: "16px 24px", borderTop: "1px solid rgba(0,0,0,0.08)", flexShrink: 0 }}>
+          {footer}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Form state ─────────────────────────────────────────────────────
 interface FS {
   businessName: string; tagline: string; whatYouDo: string;
@@ -396,7 +1089,7 @@ interface FS {
   brandAsPlace: string; brandPromise: string;
   competitors: string; differentFrom: string; competitorReasons: string;
   positioning: string; neverThink: string;
-  typographyDir: string; logosAdmired: string; logosDisliked: string;
+  typographyDir: string; logoTypePreference: string; logosAdmired: string; logosDisliked: string;
   motifsElements: string; culturalCues: string;
   usageChannels: string[]; projectTimeline: string;
   budget: string; decisionMaker: string; preferredComm: string;
@@ -414,7 +1107,7 @@ const BLANK: FS = {
   brandAsPlace: "", brandPromise: "",
   competitors: "", differentFrom: "", competitorReasons: "",
   positioning: "", neverThink: "",
-  typographyDir: "", logosAdmired: "", logosDisliked: "",
+  typographyDir: "", logoTypePreference: "", logosAdmired: "", logosDisliked: "",
   motifsElements: "", culturalCues: "",
   usageChannels: [], projectTimeline: "",
   budget: "", decisionMaker: "", preferredComm: "",
@@ -473,6 +1166,17 @@ export function BrandIdentityDiscoveryPage() {
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [dragOver, setDragOver] = useState(false);
   const [exampleModal, setExampleModal] = useState<string | null>(null);
+  const [businessStageSelect, setBusinessStageSelect] = useState("");
+  const [businessStageOther, setBusinessStageOther] = useState("");
+  const [businessStageFocused, setBusinessStageFocused] = useState(false);
+  const [motifsSelected, setMotifsSelected] = useState<string[]>([]);
+  const [motifsOther, setMotifsOther] = useState("");
+  const [cultureSelected, setCultureSelected] = useState("");
+  const [cultureOther, setCultureOther] = useState("");
+  const [visualRefs, setVisualRefs] = useState<File[]>([]);
+  const [visualRefsDragOver, setVisualRefsDragOver] = useState(false);
+  const [visualRefsError, setVisualRefsError] = useState("");
+  const [openLightbox, setOpenLightbox] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
   const set = useCallback(<K extends keyof FS>(k: K, v: FS[K]) => {
@@ -560,10 +1264,14 @@ export function BrandIdentityDiscoveryPage() {
         ["20. Positioning", form.positioning],
         ["21. Never Think/Say", form.neverThink],
         ["22. Typography Direction", form.typographyDir],
+        ["logo_type_preference", form.logoTypePreference],
         ["23. Logos Admired", form.logosAdmired],
         ["24. Logos Disliked", form.logosDisliked],
-        ["25. Symbols & Motifs", form.motifsElements],
-        ["26. Cultural Cues", form.culturalCues],
+        ["25. Symbols & Motifs", [
+          ...motifsSelected.filter(l => l !== "Other — describe"),
+          motifsOther ? `Other: ${motifsOther}` : "",
+        ].filter(Boolean).join(", ")],
+        ["26. Cultural Cues", cultureSelected === "Other — I'll describe" ? cultureOther : cultureSelected],
         ["27. Usage Channels", form.usageChannels.join(", ")],
         ["29. Project Timeline", form.projectTimeline],
         ["30. Budget Range", form.budget],
@@ -579,6 +1287,7 @@ export function BrandIdentityDiscoveryPage() {
       if (files) {
         for (let i = 0; i < files.length; i++) fd.append("28. Existing Assets", files[i]);
       }
+      for (const f of visualRefs) fd.append("visual_references", f);
       const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
         method: "POST", body: fd, headers: { Accept: "application/json" },
       });
@@ -616,9 +1325,68 @@ export function BrandIdentityDiscoveryPage() {
 
       <QDivider />
       <QL>How long have you been in business?</QL>
-      {["Pre-launch", "Under 2 years", "2–5 years", "5+ years"].map((o) => (
-        <RadioOpt key={o} label={o} checked={form.businessStage === o} onSelect={() => set("businessStage", o)} />
-      ))}
+      <select
+        value={businessStageSelect}
+        onChange={(e) => {
+          const val = e.target.value;
+          setBusinessStageSelect(val);
+          if (val !== "Other — I'll specify") {
+            set("businessStage", val);
+            setBusinessStageOther("");
+          } else {
+            set("businessStage", "");
+          }
+        }}
+        onFocus={() => setBusinessStageFocused(true)}
+        onBlur={() => setBusinessStageFocused(false)}
+        style={{
+          appearance: "none",
+          width: "100%",
+          background: "#ffffff",
+          border: `1px solid ${businessStageFocused ? C.borderFocus : C.borderInput}`,
+          boxShadow: businessStageFocused ? "0 0 0 3px rgba(13,148,136,0.12)" : "none",
+          borderRadius: 8,
+          padding: "12px 40px 12px 14px",
+          fontSize: 16,
+          color: businessStageSelect ? C.text : "#9ca3af",
+          fontFamily: "var(--font-family-primary)",
+          outline: "none",
+          boxSizing: "border-box",
+          cursor: "pointer",
+          transition: "border-color 0.18s, box-shadow 0.18s",
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1L6 7L11 1' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E")`,
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "right 14px center",
+          backgroundSize: "12px",
+        }}
+      >
+        <option value="" disabled>Select…</option>
+        <option>Pre-launch</option>
+        <option>Under 2 years</option>
+        <option>2–5 years</option>
+        <option>5–10 years</option>
+        <option>10–15 years</option>
+        <option>15–20 years</option>
+        <option>20+ years</option>
+        <option>Other — I'll specify</option>
+      </select>
+      <div style={{
+        opacity: businessStageSelect === "Other — I'll specify" ? 1 : 0,
+        pointerEvents: businessStageSelect === "Other — I'll specify" ? "auto" : "none",
+        maxHeight: businessStageSelect === "Other — I'll specify" ? 100 : 0,
+        overflow: "hidden",
+        marginTop: businessStageSelect === "Other — I'll specify" ? 10 : 0,
+        transition: "opacity 0.2s ease, max-height 0.2s ease, margin-top 0.2s ease",
+      }}>
+        <TInput
+          value={businessStageOther}
+          onChange={(v) => {
+            setBusinessStageOther(v);
+            set("businessStage", v);
+          }}
+          placeholder="e.g. 23 years, since 1998…"
+        />
+      </div>
 
       <QDivider />
       <QL>Where do you operate?</QL>
@@ -715,6 +1483,7 @@ export function BrandIdentityDiscoveryPage() {
 
       <QDivider />
       <QL>What do clients sometimes choose competitors for, over you?</QL>
+      <ExTrigger qKey="competitorReasons" onOpen={setExampleModal} />
       <TArea value={form.competitorReasons} onChange={(v) => set("competitorReasons", v)} placeholder="Be honest — this helps us position you clearly…" />
 
       <QDivider />
@@ -725,6 +1494,7 @@ export function BrandIdentityDiscoveryPage() {
 
       <QDivider />
       <QL>What should clients never think or say about you?</QL>
+      <ExTrigger qKey="neverThink" onOpen={setExampleModal} />
       <TArea value={form.neverThink} onChange={(v) => set("neverThink", v)} rows={3} placeholder="What perception would be the worst thing for your brand?…" />
     </>,
 
@@ -733,9 +1503,79 @@ export function BrandIdentityDiscoveryPage() {
       <SHead num="05" title="Visual Direction" />
 
       <QL>Typography direction — which feels most like you?</QL>
-      {["Classic serif", "Modern serif", "Hand-lettered script", "Clean sans-serif", "Mixed — trust your judgment"].map((o) => (
-        <RadioOpt key={o} label={o} checked={form.typographyDir === o} onSelect={() => set("typographyDir", o)} />
-      ))}
+      <SelectorTrigger
+        placeholder="Choose a typography style →"
+        selectedChips={form.typographyDir ? [form.typographyDir] : []}
+        onClick={() => setOpenLightbox("typography")}
+        isOpen={openLightbox === "typography"}
+      />
+      <SelectorLightbox
+        isOpen={openLightbox === "typography"}
+        onClose={() => setOpenLightbox(null)}
+        title="Typography direction — which feels most like you?"
+        footer={
+          <button type="button" disabled={!form.typographyDir} onClick={() => setOpenLightbox(null)}
+            style={{
+              width: "100%", padding: "12px 24px", borderRadius: 10, border: "none",
+              background: form.typographyDir ? "#0d9488" : "#e5e7eb",
+              color: form.typographyDir ? "#fff" : "#9ca3af",
+              fontSize: 14, fontWeight: 600,
+              cursor: form.typographyDir ? "pointer" : "default",
+            }}
+          >Confirm selection</button>
+        }
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {TYPO_OPTIONS.map((opt) => (
+            <TypoCard key={opt.label} option={opt}
+              selected={form.typographyDir === opt.label}
+              onSelect={() => set("typographyDir", opt.label)} />
+          ))}
+        </div>
+      </SelectorLightbox>
+
+      <QDivider />
+      <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", marginBottom: 6 }}>
+        What type of logo feels right for your brand?
+      </p>
+      <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+        Most clients find it easier to choose by seeing — pick the style that feels closest to you. We'll refine from here.
+      </p>
+      <SelectorTrigger
+        placeholder="Choose a logo style →"
+        selectedChips={form.logoTypePreference ? [form.logoTypePreference] : []}
+        onClick={() => setOpenLightbox("logoType")}
+        isOpen={openLightbox === "logoType"}
+      />
+      <ExTrigger qKey="logoTypePreference" onOpen={setExampleModal} />
+      <SelectorLightbox
+        isOpen={openLightbox === "logoType"}
+        onClose={() => setOpenLightbox(null)}
+        title="What type of logo feels right for your brand?"
+        footer={
+          <button type="button" disabled={!form.logoTypePreference} onClick={() => setOpenLightbox(null)}
+            style={{
+              width: "100%", padding: "12px 24px", borderRadius: 10, border: "none",
+              background: form.logoTypePreference ? "#0d9488" : "#e5e7eb",
+              color: form.logoTypePreference ? "#fff" : "#9ca3af",
+              fontSize: 14, fontWeight: 600,
+              cursor: form.logoTypePreference ? "pointer" : "default",
+            }}
+          >Confirm selection</button>
+        }
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {LOGO_TYPE_OPTIONS.map((opt) => (
+            <div key={opt.value} style={{ gridColumn: opt.fullWidth ? "1 / -1" : undefined }}>
+              <LogoTypeCard
+                option={opt}
+                selected={form.logoTypePreference === opt.value}
+                onSelect={() => set("logoTypePreference", form.logoTypePreference === opt.value ? "" : opt.value)}
+              />
+            </div>
+          ))}
+        </div>
+      </SelectorLightbox>
 
       <QDivider />
       <QL>Logos you admire — share 3 to 5 examples</QL>
@@ -748,11 +1588,261 @@ export function BrandIdentityDiscoveryPage() {
 
       <QDivider />
       <QL>Any symbols, motifs, or floral elements you'd like explored?</QL>
-      <TArea value={form.motifsElements} onChange={(v) => set("motifsElements", v)} rows={3} placeholder="e.g. jasmine, lotus, kolam patterns, temple pillars — or 'keep it abstract'…" />
+      <SelectorTrigger
+        placeholder="Select motifs (optional) →"
+        selectedChips={motifsSelected.filter(l => l !== "Other — describe")}
+        onClick={() => setOpenLightbox("motifs")}
+        isOpen={openLightbox === "motifs"}
+        isMulti
+      />
+      <SelectorLightbox
+        isOpen={openLightbox === "motifs"}
+        onClose={() => setOpenLightbox(null)}
+        title="Symbols, motifs, or floral elements"
+        footer={
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button type="button" onClick={() => setOpenLightbox(null)}
+              style={{
+                flex: 1, padding: "12px 24px", borderRadius: 10, border: "none",
+                background: "#0d9488", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              {motifsSelected.filter(l => l !== "Other — describe").length > 0
+                ? `Done — ${motifsSelected.filter(l => l !== "Other — describe").length} selected`
+                : "Done"}
+            </button>
+            {motifsSelected.length > 0 && (
+              <button type="button" onClick={() => setMotifsSelected([])}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#9ca3af", padding: 0, whiteSpace: "nowrap" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
+              >Clear all</button>
+            )}
+          </div>
+        }
+      >
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {([
+            { label: "Jasmine / florals", symbol: <span style={{ fontSize: 28 }}>🌸</span> },
+            { label: "Lotus", symbol: <span style={{ fontSize: 28 }}>🪷</span> },
+            { label: "Geometric star", symbol: (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <path d="M14 2L16.5 11.5L26 14L16.5 16.5L14 26L11.5 16.5L2 14L11.5 11.5Z" stroke="#1a1a1a" strokeWidth="1.5" strokeLinejoin="round"/>
+              </svg>
+            ) },
+            { label: "Kolam / mandala", symbol: (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <circle cx="14" cy="14" r="11" stroke="#1a1a1a" strokeWidth="1.5"/>
+                <circle cx="14" cy="14" r="4" stroke="#1a1a1a" strokeWidth="1.5"/>
+                <line x1="14" y1="3" x2="14" y2="25" stroke="#1a1a1a" strokeWidth="1"/>
+                <line x1="3" y1="14" x2="25" y2="14" stroke="#1a1a1a" strokeWidth="1"/>
+                <line x1="6.5" y1="6.5" x2="21.5" y2="21.5" stroke="#1a1a1a" strokeWidth="1"/>
+                <line x1="21.5" y1="6.5" x2="6.5" y2="21.5" stroke="#1a1a1a" strokeWidth="1"/>
+              </svg>
+            ) },
+            { label: "Botanical / leaves", symbol: <span style={{ fontSize: 28 }}>🌿</span> },
+            { label: "Elephant motif", symbol: <span style={{ fontSize: 28 }}>🐘</span> },
+            { label: "Diamond / frame", symbol: (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <path d="M14 3L25 14L14 25L3 14Z" stroke="#1a1a1a" strokeWidth="1.5" strokeLinejoin="round"/>
+              </svg>
+            ) },
+            { label: "Infinity / flow", symbol: <span style={{ fontSize: 28, lineHeight: "1" }}>∞</span> },
+            { label: "Temple arch", symbol: (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <path d="M5 27V14C5 8.477 9.029 4 14 4C18.971 4 23 8.477 23 14V27" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="3" y1="27" x2="25" y2="27" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            ) },
+            { label: "Floral ornament", symbol: <span style={{ fontSize: 28 }}>❦</span> },
+            { label: "Honeycomb / hex", symbol: (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <path d="M14 3L23.5 8.5V19.5L14 25L4.5 19.5V8.5Z" stroke="#1a1a1a" strokeWidth="1.5" strokeLinejoin="round"/>
+              </svg>
+            ) },
+            { label: "Abstract / minimal", symbol: (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="#1a1a1a">
+                <circle cx="10" cy="10" r="2.5"/><circle cx="18" cy="10" r="2.5"/>
+                <circle cx="10" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/>
+                <circle cx="14" cy="14" r="1.5"/>
+              </svg>
+            ) },
+          ] as Array<{ label: string; symbol: React.ReactNode }>).map((chip) => (
+            <MotifChip
+              key={chip.label}
+              symbol={chip.symbol}
+              label={chip.label}
+              selected={motifsSelected.includes(chip.label)}
+              onToggle={() => setMotifsSelected(prev =>
+                prev.includes(chip.label) ? prev.filter(x => x !== chip.label) : [...prev, chip.label]
+              )}
+            />
+          ))}
+          <MotifChip
+            symbol={<span style={{ fontSize: 24, color: "#6b7280", fontWeight: 300 }}>+</span>}
+            label="Other — describe"
+            selected={motifsSelected.includes("Other — describe")}
+            onToggle={() => setMotifsSelected(prev =>
+              prev.includes("Other — describe") ? prev.filter(x => x !== "Other — describe") : [...prev, "Other — describe"]
+            )}
+            dashed
+          />
+        </div>
+      </SelectorLightbox>
+      <div style={{
+        opacity: motifsSelected.includes("Other — describe") ? 1 : 0,
+        maxHeight: motifsSelected.includes("Other — describe") ? 200 : 0,
+        overflow: "hidden",
+        marginTop: motifsSelected.includes("Other — describe") ? 12 : 0,
+        pointerEvents: motifsSelected.includes("Other — describe") ? "auto" : "none",
+        transition: "opacity 0.2s ease, max-height 0.2s ease, margin-top 0.2s ease",
+      }}>
+        <TArea value={motifsOther} onChange={(v) => setMotifsOther(v)} placeholder="Describe the symbol or motif you have in mind…" />
+      </div>
 
       <QDivider />
       <QL>Cultural & regional cues to consider</QL>
-      <TArea value={form.culturalCues} onChange={(v) => set("culturalCues", v)} rows={3} placeholder="Tamil Nadu heritage, specific regional identity, or 'keep it pan-India'…" />
+      <SelectorTrigger
+        placeholder="Choose your cultural direction →"
+        selectedChips={cultureSelected ? [cultureSelected] : []}
+        onClick={() => setOpenLightbox("culture")}
+        isOpen={openLightbox === "culture"}
+      />
+      <SelectorLightbox
+        isOpen={openLightbox === "culture"}
+        onClose={() => setOpenLightbox(null)}
+        title="Cultural & regional cues to consider"
+        footer={
+          <button type="button" disabled={!cultureSelected} onClick={() => setOpenLightbox(null)}
+            style={{
+              width: "100%", padding: "12px 24px", borderRadius: 10, border: "none",
+              background: cultureSelected ? "#0d9488" : "#e5e7eb",
+              color: cultureSelected ? "#fff" : "#9ca3af",
+              fontSize: 14, fontWeight: 600,
+              cursor: cultureSelected ? "pointer" : "default",
+            }}
+          >Confirm selection</button>
+        }
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ alignItems: "stretch" }}>
+          {CULTURE_CARD_DATA.map((card) => (
+            <MoodBoardCultureCard
+              key={card.title}
+              title={card.title}
+              desc={card.desc}
+              selected={cultureSelected === card.title}
+              onSelect={() => setCultureSelected(p => p === card.title ? "" : card.title)}
+              imageSrc={card.imageSrc}
+              gradient={card.gradient}
+              tintColor={card.tintColor}
+              chips={card.chips}
+            />
+          ))}
+          <CultureCard
+            selected={cultureSelected === "Other — I'll describe"}
+            onSelect={() => setCultureSelected(p => p === "Other — I'll describe" ? "" : "Other — I'll describe")}
+            title="Other — I'll describe"
+            desc=""
+            dashed
+            visual={
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <path d="M20 4L24 8L10 22H6V18L20 4Z" stroke="#6b7280" strokeWidth="1.5" strokeLinejoin="round"/>
+                <line x1="17" y1="7" x2="21" y2="11" stroke="#6b7280" strokeWidth="1.5"/>
+              </svg>
+            }
+          />
+        </div>
+      </SelectorLightbox>
+      <div style={{
+        opacity: cultureSelected === "Other — I'll describe" ? 1 : 0,
+        maxHeight: cultureSelected === "Other — I'll describe" ? 200 : 0,
+        overflow: "hidden",
+        marginTop: cultureSelected === "Other — I'll describe" ? 12 : 0,
+        pointerEvents: cultureSelected === "Other — I'll describe" ? "auto" : "none",
+        transition: "opacity 0.2s ease, max-height 0.2s ease, margin-top 0.2s ease",
+      }}>
+        <TArea value={cultureOther} onChange={(v) => setCultureOther(v)} placeholder="Describe the cultural direction you have in mind…" />
+      </div>
+
+      {/* Visual references upload */}
+      <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", marginTop: 24, marginBottom: 6 }}>
+        Share visual references — optional
+      </p>
+      <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
+        Screenshots, Pinterest saves, Instagram posts, logos you love — anything that shows the direction you have in mind.
+      </p>
+      <label
+        onDragOver={(e) => { e.preventDefault(); setVisualRefsDragOver(true); }}
+        onDragLeave={() => setVisualRefsDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setVisualRefsDragOver(false);
+          const dropped = Array.from(e.dataTransfer.files);
+          const next = [...visualRefs, ...dropped].slice(0, 5);
+          if ([...visualRefs, ...dropped].length > 5) setVisualRefsError("Maximum 5 files allowed");
+          else setVisualRefsError("");
+          setVisualRefs(next);
+        }}
+        style={{
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          gap: 8, borderRadius: 12, padding: "32px 24px", cursor: "pointer", textAlign: "center",
+          border: `2px dashed ${visualRefsDragOver ? "#0d9488" : "rgba(0,0,0,0.15)"}`,
+          background: visualRefsDragOver ? "#f0faf9" : "#f8f7f5",
+          transition: "border-color 0.15s ease, background 0.15s ease",
+        }}
+      >
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style={{ color: "#9ca3af" }}>
+          <circle cx="14" cy="14" r="13" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M14 19V9M9 14l5-5 5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <p style={{ fontSize: 14, color: "#4a4a4a", margin: 0 }}>Drag files here or click to browse</p>
+        <p style={{ fontSize: 12, color: "#9ca3af", margin: 0, marginTop: 4 }}>JPG, PNG, PDF, GIF · Up to 5 files · 10MB each</p>
+        <input
+          type="file"
+          accept=".jpg,.jpeg,.png,.pdf,.gif"
+          multiple
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const picked = Array.from(e.target.files ?? []);
+            const next = [...visualRefs, ...picked].slice(0, 5);
+            if ([...visualRefs, ...picked].length > 5) setVisualRefsError("Maximum 5 files allowed");
+            else setVisualRefsError("");
+            setVisualRefs(next);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      {visualRefsError && (
+        <p style={{ fontSize: 12, color: "#dc2626", marginTop: 6 }}>{visualRefsError}</p>
+      )}
+      {visualRefs.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+          {visualRefs.map((f, i) => (
+            <div key={i} style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              background: "#ffffff", border: "1px solid rgba(0,0,0,0.12)",
+              borderRadius: 20, padding: "6px 12px",
+            }}>
+              <span style={{ fontSize: 12, color: "#1a1a1a", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {f.name}
+              </span>
+              <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>
+                {(f.size / 1024 / 1024).toFixed(1)} MB
+              </span>
+              <button
+                type="button"
+                onClick={() => setVisualRefs((prev) => prev.filter((_, j) => j !== i))}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#9ca3af", fontSize: 16, lineHeight: 1 }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
+                aria-label={`Remove ${f.name}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </>,
 
     // Step 5 — Practical Details
