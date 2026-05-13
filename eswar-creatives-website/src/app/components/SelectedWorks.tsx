@@ -6,7 +6,16 @@ import { SectionHeader } from "./SectionHeader";
 import { Tag } from "./ui/tag";
 import { PortfolioButton } from "./ui/portfolio-button";
 
-const projects = [
+const projects: {
+  title: string;
+  tags: string[];
+  role: string;
+  context: string;
+  result: string;
+  image: string;
+  flagship: boolean;
+  href?: string;
+}[] = [
   {
     title: "Streamlining onboarding for a subscription billing platform",
     tags: ["Enterprise SaaS", "Productivity", "Web & Mobile"],
@@ -19,15 +28,16 @@ const projects = [
     flagship: true,
   },
   {
-    title: "Redesigning workflow automation for operations teams",
-    tags: ["Enterprise SaaS", "Operations", "Web"],
-    role: "Product designer",
+    title: "Reducing cognitive load in cyber tabletop exercises with state-aware navigation",
+    tags: ["Enterprise SaaS", "Cybersecurity", "Cross-platform"],
+    role: "Lead Product Designer",
     context:
-      '"Teams were juggling multiple tools with no unified view of task status."',
-    result: "Result: +22% task completion speed across global SOC teams.",
+      '"Participants couldn\'t tell if the exercise was running, paused, or over — facilitators were narrating the UI."',
+    result: "Result: −32% median triage time. +18% analyst satisfaction.",
     image:
-      "https://images.unsplash.com/photo-1562577309-d67db487e6cd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbnRlcnByaXNlJTIwd29ya2Zsb3clMjBhdXRvbWF0aW9uJTIwc29mdHdhcmV8ZW58MXx8fHwxNzczNTYwNjc5fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+      "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjeWJlcnNlY3VyaXR5JTIwb3BlcmF0aW9ucyUyMGNlbnRlcnxlbnwxfHx8fDE3NzM1NjA2Nzl8MA&ixlib=rb-4.1.0&q=80&w=1080",
     flagship: false,
+    href: "/work/cygnvs-ttx",
   },
   {
     title: "Building an analytics dashboard for data-driven decisions",
@@ -144,7 +154,7 @@ export function SelectedWorks() {
 
                   {/* CTA */}
                   <PortfolioButton
-                    href="#!"
+                    href={project.href ?? "#!"}
                     variant="secondary"
                     size="sm"
                     className="mt-auto rounded-lg"

@@ -6,12 +6,16 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const routes = ['/', '/about', '/design-system', '/contact', '/branding/brand-identity-discovery'];
+const routes = ['/', '/about', '/design-system', '/contact', '/branding/brand-identity-discovery', '/work/cygnvs-ttx'];
 
 const routeMeta = {
   '/branding/brand-identity-discovery': {
     title: 'Brand Identity Discovery — Eswar Creatives',
     description: 'Tell us about your business, your vision, and the soul of the work you do. Eswar Creatives will review your brief within three working days.',
+  },
+  '/work/cygnvs-ttx': {
+    title: 'CYGNVS TTX — UX Case Study · Eswar',
+    description: 'How I reduced cognitive load in cyber tabletop exercises by designing a state-aware navigation system for CYGNVS TTX — delivered across Web, iOS, and Android in 12 weeks.',
   },
 };
 
