@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MessageCircle, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Link, useLocation } from "react-router";
 import eswarLogo from "../../imports/eswar-logo.svg";
 import { PortfolioButton } from "./ui/portfolio-button";
@@ -34,14 +34,14 @@ export function Navbar() {
   const navLinks: NavLink[] = isHome
     ? [
         { label: "Work", href: "#work" },
+        { label: "Services", href: "/services", isRoute: true },
         { label: "About", href: "/about", isRoute: true },
-        { label: "Resume", href: "#resume" },
         { label: "Contact", href: "#contact", isModal: true },
       ]
     : [
         { label: "Work", href: "/#work", isRoute: true },
+        { label: "Services", href: "/services", isRoute: true },
         { label: "About", href: "/about", isRoute: true, active: true },
-        { label: "Resume", href: "/#resume", isRoute: true },
         { label: "Contact", href: "#contact", isModal: true },
       ];
 
@@ -120,18 +120,16 @@ export function Navbar() {
           )}
         </div>
 
-        {/* WhatsApp CTA */}
+        {/* TODO: Replace with real Calendly URL when available */}
         <PortfolioButton
-          href="https://wa.me/919841085484"
+          href="https://calendly.com/eswarcreatives/25-min-intro-call"
           target="_blank"
           rel="noopener noreferrer"
-          title="Chat with me on WhatsApp"
           variant="primary"
           size="md"
           className="hidden md:flex px-4 py-2"
         >
-          <MessageCircle className="w-3.5 h-3.5" />
-          WhatsApp
+          Book a call →
         </PortfolioButton>
 
         {/* Mobile Menu Button */}
@@ -208,18 +206,17 @@ export function Navbar() {
               </a>
             )
           )}
+          {/* TODO: Replace with real Calendly URL when available */}
           <PortfolioButton
-            href="https://wa.me/919841085484"
+            href="https://calendly.com/eswarcreatives/25-min-intro-call"
             target="_blank"
             rel="noopener noreferrer"
-            title="Chat with me on WhatsApp"
             variant="primary"
             size="md"
             className="mt-2 px-4 py-2.5"
             role="menuitem"
           >
-            <MessageCircle className="w-3.5 h-3.5" />
-            WhatsApp
+            Book a call →
           </PortfolioButton>
         </div>
       )}

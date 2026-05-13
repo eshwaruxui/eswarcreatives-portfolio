@@ -22,9 +22,9 @@ export function HeroSection() {
           >
             {/* Tags */}
             <div className="flex items-center gap-2 mb-4 md:mb-6 flex-wrap">
-              <Tag variant="subtle" size="lg">#enterprise</Tag>
-              <Tag variant="subtle" size="lg">#design systems</Tag>
-              <Tag variant="subtle" size="lg">#AI workflow</Tag>
+              <Tag asChild variant="subtle" size="lg"><a href="/services#design-systems">Design Systems</a></Tag>
+              <Tag asChild variant="subtle" size="lg"><a href="/services#ux-audit">UX Audit</a></Tag>
+              <Tag asChild variant="subtle" size="lg"><a href="/services#saas-ux">SaaS UX</a></Tag>
             </div>
 
             {/* Headline */}
@@ -73,12 +73,12 @@ export function HeroSection() {
 
             {/* Buttons - desktop only */}
             <div className="hidden md:flex md:flex-row flex-wrap gap-3 md:mt-4">
-              <PortfolioButton href="#work" variant="primary" size="lg">
-                See the CYGNVS system
+              <PortfolioButton href="https://calendly.com/eswarcreatives/25-min-intro-call" target="_blank" rel="noopener noreferrer" variant="primary" size="lg">
+                Book a 30-min intro
                 <ArrowRight className="w-4 h-4" />
               </PortfolioButton>
-              <PortfolioButton href="#contact" variant="secondary" size="lg">
-                Book a 30-min intro
+              <PortfolioButton href="#work" variant="secondary" size="lg">
+                See the CYGNVS system
                 <ArrowRight className="w-4 h-4" />
               </PortfolioButton>
             </div>
@@ -131,12 +131,12 @@ export function HeroSection() {
             transition={{ duration: 0.6, delay: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
             className="flex flex-col gap-3 md:hidden pl-0 pr-6"
           >
-            <PortfolioButton href="#work" variant="primary" size="lg" fullWidth>
-              See the CYGNVS system
+            <PortfolioButton href="https://calendly.com/eswarcreatives/25-min-intro-call" target="_blank" rel="noopener noreferrer" variant="primary" size="lg" fullWidth>
+              Book a 30-min intro
               <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
-            <PortfolioButton href="#contact" variant="secondary" size="lg" fullWidth>
-              Book a 30-min intro
+            <PortfolioButton href="#work" variant="secondary" size="lg" fullWidth>
+              See the CYGNVS system
               <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
           </motion.div>
