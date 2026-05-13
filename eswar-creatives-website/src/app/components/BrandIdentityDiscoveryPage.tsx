@@ -1355,14 +1355,7 @@ export function BrandIdentityDiscoveryPage() {
         ["35c. Phone / WhatsApp", form.phone],
       ];
       const submittedAt = new Date().toISOString();
-      const sheetsData: Record<string, string> = {
-        _submitted_at: submittedAt,
-        _subject: `New brief: ${form.businessName || 'Unnamed'}`,
-      };
-      for (const [k, val] of fields) {
-        fd.append(k, val);
-        sheetsData[k] = val;
-      }
+      for (const [k, val] of fields) fd.append(k, val);
       fd.append("_submitted_at", submittedAt);
       fd.append("_subject", `New brief: ${form.businessName || 'Unnamed'}`);
       if (files) {
@@ -1370,13 +1363,25 @@ export function BrandIdentityDiscoveryPage() {
       }
       for (const f of visualRefs) fd.append("visual_references", f);
 
+      const sheetsPayload: Record<string, string | string[]> = {};
+      fd.forEach((value, key) => {
+        if (typeof value === 'string') {
+          if (sheetsPayload[key]) {
+            sheetsPayload[key] = ([] as string[]).concat(sheetsPayload[key] as string | string[], value);
+          } else {
+            sheetsPayload[key] = value;
+          }
+        }
+      });
+
       const [formspreeRes, sheetsRes] = await Promise.allSettled([
         fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
           method: "POST", body: fd, headers: { Accept: "application/json" },
         }),
         fetch(SHEETS_ENDPOINT, {
           method: "POST",
-          body: new URLSearchParams(sheetsData),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sheetsPayload),
         }),
       ]);
 
