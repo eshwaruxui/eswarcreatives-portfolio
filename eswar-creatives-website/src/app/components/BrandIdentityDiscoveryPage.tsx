@@ -4,6 +4,7 @@ import eswarLogo from "../../imports/eswar-logo.svg";
 
 // ── Formspree ──────────────────────────────────────────────────────
 const FORMSPREE_ID = "maqvagwj";
+const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyEmYryPGYUID2akiY13GGJfsMlfyOivEVLfywHX29np-XTrSmj-gM7MHWa5Y8f1geW/exec';
 
 // ── Light theme tokens ─────────────────────────────────────────────
 const C = {
@@ -1184,7 +1185,12 @@ export function BrandIdentityDiscoveryPage() {
   const [visualRefsError, setVisualRefsError] = useState("");
   const [openLightbox, setOpenLightbox] = useState<string | null>(null);
   const [lang, setLang] = useState<"en" | "ta">("en");
+  const [honeypot, setHoneypot] = useState('');
+  const [showRestorationBanner, setShowRestorationBanner] = useState(false);
+  const [autosaveToastVisible, setAutosaveToastVisible] = useState(false);
+  const [autosaveToastOpacity, setAutosaveToastOpacity] = useState(0);
   const topRef = useRef<HTMLDivElement>(null);
+  const hasSavedOnce = useRef(false);
 
   const set = useCallback(<K extends keyof FS>(k: K, v: FS[K]) => {
     setForm((p) => ({ ...p, [k]: v }));
@@ -1210,6 +1216,63 @@ export function BrandIdentityDiscoveryPage() {
       document.body.style.background = "";
     };
   }, []);
+
+  // Restore from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('discovery_draft_v1');
+      if (!saved) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parsed = JSON.parse(saved) as any;
+      const d = parsed?.data;
+      if (!d) return;
+      const restored = Object.fromEntries(
+        (Object.keys(BLANK) as (keyof FS)[])
+          .filter(k => d[k] !== undefined)
+          .map(k => [k, d[k]])
+      ) as Partial<FS>;
+      setForm(prev => ({ ...prev, ...restored }));
+      if (typeof d.businessStageSelect === 'string') setBusinessStageSelect(d.businessStageSelect);
+      if (typeof d.businessStageOther === 'string') setBusinessStageOther(d.businessStageOther);
+      if (Array.isArray(d.motifsSelected)) setMotifsSelected(d.motifsSelected as string[]);
+      if (typeof d.motifsOther === 'string') setMotifsOther(d.motifsOther);
+      if (typeof d.cultureSelected === 'string') setCultureSelected(d.cultureSelected);
+      if (typeof d.cultureOther === 'string') setCultureOther(d.cultureOther);
+      setShowRestorationBanner(true);
+    } catch {}
+  }, []);
+
+  // Autosave — debounced 500ms
+  useEffect(() => {
+    if (!hasSavedOnce.current) {
+      hasSavedOnce.current = true;
+      return;
+    }
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem('discovery_draft_v1', JSON.stringify({
+          data: {
+            ...form,
+            businessStageSelect,
+            businessStageOther,
+            motifsSelected,
+            motifsOther,
+            cultureSelected,
+            cultureOther,
+          },
+          saved_at: new Date().toISOString(),
+        }));
+        setAutosaveToastVisible(true);
+        setAutosaveToastOpacity(1);
+        const fadeTimer = setTimeout(() => {
+          setAutosaveToastOpacity(0);
+          setTimeout(() => setAutosaveToastVisible(false), 400);
+        }, 2000);
+        return () => clearTimeout(fadeTimer);
+      } catch {}
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [form, businessStageSelect, businessStageOther, motifsSelected, motifsOther, cultureSelected, cultureOther]);
 
   const validateStep = (s: number): Record<string, string> => {
     const e: Record<string, string> = {};
@@ -1241,6 +1304,7 @@ export function BrandIdentityDiscoveryPage() {
     e.preventDefault();
     const v = validateStep(6);
     if (Object.keys(v).length) { setErrs(v); return; }
+    if (honeypot !== '') return;
     setStatus("submitting");
     try {
       const fd = new FormData();
@@ -1290,16 +1354,41 @@ export function BrandIdentityDiscoveryPage() {
         ["35b. Email", form.email],
         ["35c. Phone / WhatsApp", form.phone],
       ];
-      for (const [k, v] of fields) fd.append(k, v);
+      const submittedAt = new Date().toISOString();
+      const sheetsData: Record<string, string> = {
+        _submitted_at: submittedAt,
+        _subject: `New brief: ${form.businessName || 'Unnamed'}`,
+      };
+      for (const [k, val] of fields) {
+        fd.append(k, val);
+        sheetsData[k] = val;
+      }
+      fd.append("_submitted_at", submittedAt);
+      fd.append("_subject", `New brief: ${form.businessName || 'Unnamed'}`);
       if (files) {
         for (let i = 0; i < files.length; i++) fd.append("28. Existing Assets", files[i]);
       }
       for (const f of visualRefs) fd.append("visual_references", f);
-      const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
-        method: "POST", body: fd, headers: { Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error("failed");
-      setStatus("success");
+
+      const [formspreeRes, sheetsRes] = await Promise.allSettled([
+        fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+          method: "POST", body: fd, headers: { Accept: "application/json" },
+        }),
+        fetch(SHEETS_ENDPOINT, {
+          method: "POST",
+          body: new URLSearchParams(sheetsData),
+        }),
+      ]);
+
+      const formspreeOk = formspreeRes.status === 'fulfilled' && formspreeRes.value.ok;
+      const sheetsOk = sheetsRes.status === 'fulfilled';
+
+      if (formspreeOk || sheetsOk) {
+        localStorage.removeItem('discovery_draft_v1');
+        setStatus("success");
+      } else {
+        setStatus("error");
+      }
     } catch {
       setStatus("error");
     }
@@ -2171,6 +2260,7 @@ export function BrandIdentityDiscoveryPage() {
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
         ::placeholder { color: #9ca3af; }
       `}</style>
 
@@ -2240,6 +2330,32 @@ export function BrandIdentityDiscoveryPage() {
       {/* Form */}
       <form onSubmit={handleSubmit} noValidate style={{ maxWidth: 800, margin: "0 auto", padding: "0 24px 80px" }}>
 
+        {/* Honeypot — invisible to real users */}
+        <div style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }} aria-hidden="true">
+          <label>Website (leave blank)</label>
+          <input type="text" tabIndex={-1} autoComplete="off" value={honeypot} onChange={e => setHoneypot(e.target.value)} />
+        </div>
+        <input name="_gotcha" tabIndex={-1} value="" readOnly style={{ display: 'none' }} />
+        <input name="_replyto" value={form.email || ''} readOnly style={{ display: 'none' }} />
+
+        {/* Restoration banner */}
+        {showRestorationBanner && (
+          <div style={{
+            background: '#fef3e2', borderLeft: '4px solid #d4a574',
+            padding: '14px 18px', borderRadius: '0 8px 8px 0',
+            fontSize: 14, color: '#4a423d', marginBottom: 16,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          }}>
+            <span>Welcome back — your previous answers have been restored.</span>
+            <button
+              type="button"
+              onClick={() => setShowRestorationBanner(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#4a423d', lineHeight: 1, padding: 0, flexShrink: 0 }}
+              aria-label="Dismiss"
+            >×</button>
+          </div>
+        )}
+
         {/* Animated section card */}
         <div
           key={step}
@@ -2258,8 +2374,8 @@ export function BrandIdentityDiscoveryPage() {
             background: "#fef2f2", border: `1px solid rgba(220,38,38,0.25)`, borderRadius: 10,
             padding: "14px 18px", marginBottom: 20, fontSize: 14, lineHeight: "20px", color: C.error,
           }}>
-            Something went wrong. Please try again or email{" "}
-            <a href="mailto:eswarcreatives@gmail.com" style={{ color: C.error, fontWeight: 600 }}>eswarcreatives@gmail.com</a>.
+            Something didn&apos;t go through. Your answers are saved on this device — please try again or write to{" "}
+            <a href="mailto:eswar@eswarcreatives.in" style={{ color: C.error, fontWeight: 600 }}>eswar@eswarcreatives.in</a>.
           </div>
         )}
 
@@ -2313,6 +2429,8 @@ export function BrandIdentityDiscoveryPage() {
                 padding: "14px 32px", fontSize: 15, fontWeight: 600, lineHeight: "20px",
                 cursor: status === "submitting" ? "not-allowed" : "pointer",
                 opacity: status === "submitting" ? 0.8 : 1,
+                pointerEvents: status === "submitting" ? "none" : "auto",
+                animation: status === "submitting" ? "pulse 0.8s ease-in-out infinite" : "none",
                 display: "flex", alignItems: "center", gap: 10,
                 transition: "background 0.18s", fontFamily: qlFont,
               }}
@@ -2321,11 +2439,11 @@ export function BrandIdentityDiscoveryPage() {
             >
               {status === "submitting" ? (
                 <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 0.9s linear infinite" }}>
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
-                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ animation: "spin 1s linear infinite", flexShrink: 0 }}>
+                    <circle cx="10" cy="10" r="8" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
+                    <circle cx="10" cy="10" r="8" stroke="white" strokeWidth="2" strokeDasharray="50 30" strokeLinecap="round" />
                   </svg>
-                  Sending your brief…
+                  Sending…
                 </>
               ) : (
                 <>
@@ -2344,6 +2462,20 @@ export function BrandIdentityDiscoveryPage() {
         </p>
       </form>
     </div>
+
+      {/* Autosave toast */}
+      {autosaveToastVisible && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 300,
+          background: '#1a1a1a', color: 'white',
+          fontSize: 12, padding: '8px 16px', borderRadius: 20,
+          opacity: autosaveToastOpacity,
+          transition: 'opacity 0.4s ease',
+          pointerEvents: 'none',
+        }}>
+          ✓ Draft saved
+        </div>
+      )}
     </FontCtx.Provider>
   );
 }
