@@ -77,7 +77,7 @@ export function HeroSection() {
                 Book a 30-min intro
                 <ArrowRight className="w-4 h-4" />
               </PortfolioButton>
-              <PortfolioButton href="#work" variant="secondary" size="lg">
+              <PortfolioButton href="/design-system/" variant="secondary" size="lg">
                 See the CYGNVS system
                 <ArrowRight className="w-4 h-4" />
               </PortfolioButton>
@@ -135,7 +135,7 @@ export function HeroSection() {
               Book a 30-min intro
               <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
-            <PortfolioButton href="#work" variant="secondary" size="lg" fullWidth>
+            <PortfolioButton href="/design-system/" variant="secondary" size="lg" fullWidth>
               See the CYGNVS system
               <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
