@@ -34,7 +34,6 @@ export function FooterSection() {
             </h2>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
-            {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
             <a
               href="https://calendly.com/eswarcreatives/25-min-intro-call"
               target="_blank"
@@ -188,7 +187,6 @@ export function FooterSection() {
               </div>
             </div>
 
-            {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
             <a
               href="https://calendly.com/eswarcreatives/25-min-intro-call"
               target="_blank"

@@ -77,7 +77,7 @@ export function ContactModal({ open, onOpenChange }: ContactModalProps) {
           {/* High-commitment: Email + LinkedIn (related actions, tight gap) */}
           <div className="space-y-2.5">
             <PortfolioButton
-              href="mailto:eswarcreatives@gmail.com?subject=Design%20Inquiry%20%E2%80%94%20via%20Portfolio&body=Hi%20Eswar%2C%0A%0AI%20came%20across%20your%20portfolio%20and%20would%20love%20to%20discuss%20a%20potential%20collaboration.%0A%0A%E2%80%94%20Company%2FTeam%3A%20%0A%E2%80%94%20Role%2FProject%3A%20%0A%E2%80%94%20Timeline%3A%20%0A%0ALooking%20forward%20to%20hearing%20from%20you!"
+              href="mailto:eswar@eswarcreatives.in?subject=Design%20Inquiry%20%E2%80%94%20via%20Portfolio&body=Hi%20Eswar%2C%0A%0AI%20came%20across%20your%20portfolio%20and%20would%20love%20to%20discuss%20a%20potential%20collaboration.%0A%0A%E2%80%94%20Company%2FTeam%3A%20%0A%E2%80%94%20Role%2FProject%3A%20%0A%E2%80%94%20Timeline%3A%20%0A%0ALooking%20forward%20to%20hearing%20from%20you!"
               variant="primary"
               size="lg"
               fullWidth
