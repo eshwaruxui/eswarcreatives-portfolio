@@ -5,6 +5,7 @@ import { TokenLibraryColors } from "./TokenLibraryColors";
 import { TypographySystem } from "./TypographySystem";
 import { ComponentLibrary } from "./ComponentLibrary";
 import { copyToClipboard } from "./clipboard";
+import { DesignSystemFooter } from "./DesignSystemFooter";
 
 /* ─── Color palette definitions sourced from theme-colors.css (hex) ─── */
 
@@ -769,6 +770,8 @@ export function DesignSystemPage() {
           </div>
         </>
       )}
+
+      <DesignSystemFooter />
     </div>
   );
 }

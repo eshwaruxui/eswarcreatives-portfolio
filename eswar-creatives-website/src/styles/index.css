@@ -21,3 +21,40 @@
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
+
+/* ── Design system demo CTA — arrow beckon animation ─────── */
+
+/* REST STATE — gentle beckon loop */
+.demo-arrow {
+  display: inline-block;
+  animation: arrow-beckon 2.8s ease-in-out 1.5s infinite;
+  will-change: transform;
+}
+
+/* HOVER STATE — pause loop, smooth slide */
+.demo-cta:hover .demo-arrow {
+  animation-play-state: paused;
+  transform: translateX(5px);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* EXIT STATE — smooth return */
+.demo-cta .demo-arrow {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Parent button hover */
+.demo-cta:hover {
+  border-color: #0d9488;
+  transition: border-color 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Beckon keyframe — smoother, slower */
+@keyframes arrow-beckon {
+  0%   { transform: translateX(0px);  opacity: 1; }
+  25%  { transform: translateX(5px);  opacity: 1; }
+  45%  { transform: translateX(5px);  opacity: 0; }
+  50%  { transform: translateX(-3px); opacity: 0; }
+  65%  { transform: translateX(0px);  opacity: 1; }
+  100% { transform: translateX(0px);  opacity: 1; }
+}

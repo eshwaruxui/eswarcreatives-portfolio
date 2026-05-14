@@ -77,10 +77,20 @@ export function HeroSection() {
                 Book a 30-min intro
                 <ArrowRight className="w-4 h-4" />
               </PortfolioButton>
-              <PortfolioButton href="/design-system/" variant="secondary" size="lg">
-                See the CYGNVS system
-                <ArrowRight className="w-4 h-4" />
-              </PortfolioButton>
+              <a
+                href="/design-system/"
+                className="demo-cta inline-flex items-center justify-center w-fit rounded-xl cursor-pointer whitespace-nowrap border border-gray-300 text-text-secondary hover:bg-gray-50 hover:-translate-y-0.5 px-6 py-3"
+                style={{
+                  fontSize: 'var(--typo-btn-med-size)',
+                  lineHeight: 'var(--typo-btn-med-line-height)',
+                  fontWeight: 'var(--typo-btn-med-weight)',
+                  gap: '6px',
+                  textDecoration: 'none',
+                }}
+              >
+                See design system demo
+                <span className="demo-arrow">→</span>
+              </a>
             </div>
           </motion.div>
 
@@ -135,10 +145,20 @@ export function HeroSection() {
               Book a 30-min intro
               <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
-            <PortfolioButton href="/design-system/" variant="secondary" size="lg" fullWidth>
-              See the CYGNVS system
-              <ArrowRight className="w-4 h-4" />
-            </PortfolioButton>
+            <a
+              href="/design-system/"
+              className="demo-cta inline-flex items-center justify-center w-full rounded-xl cursor-pointer whitespace-nowrap border border-gray-300 text-text-secondary hover:bg-gray-50 hover:-translate-y-0.5 px-6 py-3"
+              style={{
+                fontSize: 'var(--typo-btn-med-size)',
+                lineHeight: 'var(--typo-btn-med-line-height)',
+                fontWeight: 'var(--typo-btn-med-weight)',
+                gap: '6px',
+                textDecoration: 'none',
+              }}
+            >
+              See design system demo
+              <span className="demo-arrow">→</span>
+            </a>
           </motion.div>
         </div>
 
