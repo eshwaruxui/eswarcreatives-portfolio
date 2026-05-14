@@ -101,22 +101,20 @@ function AboutHero({ onContactClick }: { onContactClick?: () => void }) {
               Senior Product Designer with 20+ years of experience — 11+ in
               enterprise SaaS and a foundation in visual design — crafting web
               and mobile workflows for data-heavy, security-sensitive products.
-              Focused on turning complex systems into clear, measurable
+              I focus on turning complex systems into clear, measurable
               experiences for global teams.
             </p>
 
             {/* Bullet highlights */}
             <ul className="space-y-2 mb-6">
               <BulletItem>
-                Turning complex systems into clear, measurable workflows
+                Based in Chennai, okay to relocate, working with US/EU/APAC teams
               </BulletItem>
               <BulletItem>
-                Experience across cybersecurity, communication-focused SaaS
-                workflows, and AI-integrated decision systems
+                Experienced across cybersecurity, collaborations, and operations platforms.
               </BulletItem>
               <BulletItem>
-                Based in Chennai, open to relocating or working with US/EU/APAC
-                teams
+                Designed for 4 global SOC teams across 10 weeks.
               </BulletItem>
             </ul>
 

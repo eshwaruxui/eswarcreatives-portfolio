@@ -120,7 +120,7 @@ export function Navbar() {
           )}
         </div>
 
-        {/* TODO: Replace with real Calendly URL when available */}
+        {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
         <PortfolioButton
           href="https://calendly.com/eswarcreatives/25-min-intro-call"
           target="_blank"
@@ -206,7 +206,7 @@ export function Navbar() {
               </a>
             )
           )}
-          {/* TODO: Replace with real Calendly URL when available */}
+          {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
           <PortfolioButton
             href="https://calendly.com/eswarcreatives/25-min-intro-call"
             target="_blank"

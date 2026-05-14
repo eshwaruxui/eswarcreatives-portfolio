@@ -1,19 +1,14 @@
 import { useRef } from "react";
 import { motion, useInView } from "motion/react";
 import {
-  Phone,
   Mail,
   Linkedin,
-  MessageCircle,
-  Download,
-  MapPin,
-  Shield,
-  Globe,
-  Loader2,
+  Layers,
+  TrendingUp,
+  Award,
   BadgeCheck,
 } from "lucide-react";
 import hfiLogo from "figma:asset/6fbb4e650de7aa03cf61da817d2d4d915097f262.png";
-import { useResumeDownload, RESUME_URL, RESUME_FILENAME } from "./useResumeDownload";
 import { SectionLabel } from "./ui/section-label";
 import { PortfolioButton } from "./ui/portfolio-button";
 import { ContactRow } from "./ui/contact-row";
@@ -22,23 +17,58 @@ import { InfoRow } from "./ui/info-row";
 export function FooterSection() {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
-  const { isDownloading, handleDownload, fileSize } = useResumeDownload();
-
   return (
     <footer id="contact" className="bg-surface-inverse text-text-inverse py-12 md:py-16 rounded-t-[2rem]">
-      <div className="max-w-6xl mx-auto px-6">
+      {/* ── FULL-WIDTH CTA BANNER ── */}
+      <div style={{ padding: "48px 0", borderBottom: "1px solid rgba(255,255,255,0.10)" }}>
+        <div
+          className="flex flex-col md:flex-row md:justify-between md:items-center gap-6 md:gap-8"
+          style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 32px" }}
+        >
+          <div>
+            <p style={{ fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", color: "#0d9488", fontWeight: 600, marginBottom: "10px" }}>
+              Available for engagements
+            </p>
+            <h2 style={{ fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 700, color: "#ffffff", lineHeight: 1.2, maxWidth: "560px", margin: 0 }}>
+              Let's build something that ships — and scales.
+            </h2>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
+            {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
+            <a
+              href="https://calendly.com/eswarcreatives/25-min-intro-call"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ background: "#0d9488", color: "#ffffff", borderRadius: "100px", padding: "14px 28px", fontWeight: 600, fontSize: "15px", textDecoration: "none", whiteSpace: "nowrap", textAlign: "center" }}
+            >
+              Book a 30-min intro →
+            </a>
+            <a
+              href="mailto:eswar@eswarcreatives.in"
+              style={{ border: "1.5px solid rgba(255,255,255,0.25)", color: "#e2e8f0", borderRadius: "100px", padding: "14px 28px", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px", textDecoration: "none", whiteSpace: "nowrap" }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+              eswar@eswarcreatives.in
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6" style={{ paddingTop: "48px" }}>
         <motion.div
           ref={ref}
           initial={{ opacity: 0, y: 30 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6 }}
-          className="grid md:grid-cols-2 gap-12 md:gap-16"
+          className="grid md:grid-cols-2 gap-12 md:gap-[80px]"
         >
           {/* Left - About */}
           <div id="about">
-            <SectionLabel surface="inverse" className="mb-2">About</SectionLabel>
+            <SectionLabel surface="inverse" className="mb-1.5">About</SectionLabel>
             <h2
-              className="text-text-inverse mb-4"
+              className="text-text-inverse mb-0"
               style={{
                 fontSize: "var(--typo-h3-size)",
                 fontWeight: "var(--typo-h3-weight)",
@@ -46,38 +76,43 @@ export function FooterSection() {
                 letterSpacing: "var(--typo-h3-letter-spacing)",
               }}
             >
-              About Eswar{" "}
-              <span className="text-text-inverse-quaternary">(Maheswaran Y)</span>
+              Eswar Maheswaran
             </h2>
             <p
-              className="text-text-inverse-tertiary mb-8 max-w-md"
+              className="mb-4"
+              style={{ fontSize: "13px", color: "#6b7280", fontWeight: 400, marginTop: "2px", letterSpacing: "0.3px" }}
+            >
+              Product Design Lead · Enterprise SaaS
+            </p>
+            <p
+              className="text-text-inverse-tertiary mb-4 max-w-md"
               style={{
                 fontSize: "var(--typo-p-base-size)",
                 lineHeight: "var(--typo-p-base-line-height)",
                 fontWeight: "var(--typo-p-base-weight)",
               }}
             >
-              Senior Product Designer with 20+ years of experience — 11+ in
-              enterprise SaaS and a foundation in visual design — crafting web
-              and mobile workflows for data-heavy, security-sensitive products.
-              I focus on turning complex systems into clear, measurable
-              experiences for global teams.
+              Product Design Lead with 11+ years shipping enterprise SaaS
+              across Web, iOS, and Android — and 20 years across the design
+              discipline. I build token-based design systems, lead
+              cross-platform UX, and connect design decisions to revenue
+              outcomes.
             </p>
 
-            <div className="space-y-3 mb-6">
-              <InfoRow icon={<MapPin />}>
-                Based in Chennai, okay to relocate, working with US/EU/APAC teams
+            <div className="space-y-[10px] mb-5">
+              <InfoRow icon={<Layers />}>
+                Built a 180-token design system and 60+ component library at CYGNVS — shipped across Web, iOS, and Android.
               </InfoRow>
-              <InfoRow icon={<Shield />}>
-                Experienced across cybersecurity, collaborations, and operations platforms.
+              <InfoRow icon={<TrendingUp />}>
+                Contributed to $3.25M+ ARR through the AI-powered TTX Player on mobile.
               </InfoRow>
-              <InfoRow icon={<Globe />}>
-                Designed for 4 global SOC teams across 10 weeks.
+              <InfoRow icon={<Award />}>
+                HFI-CUA certified. Working async-first with US and EU teams from Chennai.
               </InfoRow>
             </div>
 
             {/* CUA Certification — inline credential */}
-            <div className="flex items-center gap-2.5 mb-8 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06] w-fit">
+            <div className="flex items-center gap-2.5 mb-4 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06] w-fit">
               <div className="w-[22px] h-[22px] rounded-[5px] overflow-hidden shrink-0 ring-1 ring-white/[0.08]">
                 <img
                   src={hfiLogo}
@@ -107,9 +142,9 @@ export function FooterSection() {
 
           {/* Right - Contact */}
           <div id="resume">
-            <SectionLabel surface="inverse" className="mb-2">Contact</SectionLabel>
+            <SectionLabel surface="inverse" className="mb-1.5">Contact</SectionLabel>
             <h2
-              className="text-text-inverse mb-3"
+              className="text-text-inverse mb-1.5"
               style={{
                 fontSize: "var(--typo-h4-size)",
                 fontWeight: "var(--typo-h4-weight)",
@@ -120,79 +155,107 @@ export function FooterSection() {
               Let's talk
             </h2>
             <p
-              className="text-text-inverse-tertiary mb-8"
+              className="text-text-inverse-tertiary mb-6"
               style={{
                 fontSize: "var(--typo-p-base-size)",
                 lineHeight: "var(--typo-p-base-line-height)",
                 fontWeight: "var(--typo-p-base-weight)",
               }}
             >
-              Open to senior product design roles and consulting for enterprise
-              SaaS teams.
+              Available for design systems engagements, SaaS UX retainers, and
+              UX audits. US &amp; EU timezone overlap.
             </p>
 
-            <div className="space-y-0 mb-8">
-              <ContactRow
-                icon={<Phone />}
-                label="Mobile no"
-                href="tel:+919841085484"
-                value="+91 98410 85484"
-              />
-              <ContactRow
-                icon={<Mail />}
-                label="Email"
-                href="mailto:eswarcreatives@gmail.com?subject=Design%20Inquiry%20%E2%80%94%20via%20Portfolio&body=Hi%20Eswar%2C%0A%0AI%20came%20across%20your%20portfolio%20and%20would%20love%20to%20discuss%20a%20potential%20collaboration.%0A%0A%E2%80%94%20Company%2FTeam%3A%20%0A%E2%80%94%20Role%2FProject%3A%20%0A%E2%80%94%20Timeline%3A%20%0A%0ALooking%20forward%20to%20hearing%20from%20you!"
-                value="eswarcreatives@gmail.com"
-              />
-              <ContactRow
-                icon={<MessageCircle />}
-                label="WhatsApp"
-                href="https://wa.me/919841085484"
-                value="Message / Call"
-                external
-                isLink
-              />
-              <ContactRow
-                icon={<Linkedin />}
-                label="LinkedIn"
-                href="https://www.linkedin.com/in/eswaruxui/"
-                value="/in/eswaruxui"
-                external
-                isLink
-                isLast
-              />
+            <div className="mb-6">
+              <div style={{ paddingBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                <ContactRow
+                  icon={<Mail />}
+                  label="Email"
+                  href="mailto:eswar@eswarcreatives.in?subject=Design%20Inquiry%20%E2%80%94%20via%20Portfolio&body=Hi%20Eswar%2C%0A%0AI%20came%20across%20your%20portfolio%20and%20would%20love%20to%20discuss%20a%20potential%20collaboration.%0A%0A%E2%80%94%20Company%2FTeam%3A%20%0A%E2%80%94%20Role%2FProject%3A%20%0A%E2%80%94%20Timeline%3A%20%0A%0ALooking%20forward%20to%20hearing%20from%20you!"
+                  value="eswar@eswarcreatives.in"
+                />
+              </div>
+              <div style={{ paddingTop: "8px" }}>
+                <ContactRow
+                  icon={<Linkedin />}
+                  label="LinkedIn"
+                  href="https://www.linkedin.com/in/eswaruxui/"
+                  value="/in/eswaruxui"
+                  external
+                  isLink
+                  isLast
+                />
+              </div>
             </div>
 
-            <PortfolioButton
-              href={RESUME_URL}
-              download={RESUME_FILENAME}
-              onClick={handleDownload}
-              variant="primary"
-              size="md"
-              loading={isDownloading}
+            {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
+            <a
+              href="https://calendly.com/eswarcreatives/25-min-intro-call"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "block",
+                width: "100%",
+                background: "#0d9488",
+                color: "#ffffff",
+                borderRadius: "100px",
+                padding: "16px 32px",
+                fontWeight: 600,
+                fontSize: "15px",
+                textAlign: "center",
+                textDecoration: "none",
+                boxSizing: "border-box",
+              }}
             >
-              {isDownloading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              {isDownloading ? "Downloading…" : "Download Resume"}
-            </PortfolioButton>
+              Book a 30-min intro →
+            </a>
+            <a
+              href="/Eswar-AI-Native-UX-Lead-2026.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "block",
+                textAlign: "center",
+                marginTop: "12px",
+                color: "#9ca3af",
+                fontSize: "13px",
+                textDecoration: "none",
+              }}
+            >
+              ↓ Download CV (PDF)
+            </a>
           </div>
         </motion.div>
 
         {/* Bottom */}
-        <div className="mt-16 pt-6 border-t border-white/[0.06]">
+        <div className="mt-16 pt-6 border-t border-white/[0.08] flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <p
-            className="text-text-inverse-quaternary text-center"
+            className="text-text-inverse-quaternary"
             style={{
               fontSize: "var(--typo-h8-size)",
               lineHeight: "var(--typo-h8-line-height)",
               fontWeight: "var(--typo-h8-weight)",
             }}
           >
-            © 2026 Eswar (Maheswaran Y). Designed with care.
+            © 2026 Eswar Maheswaran. All rights reserved.
           </p>
+          <nav className="hidden md:flex items-center gap-6" aria-label="Footer navigation">
+            {[
+              { label: "Work",     href: "/" },
+              { label: "Services", href: "/services" },
+              { label: "About",    href: "/about" },
+              { label: "Contact",  href: "/contact" },
+            ].map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                className="hover:text-gray-300 transition-colors"
+                style={{ fontSize: "13px", color: "#6b7280", textDecoration: "none" }}
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
         </div>
       </div>
     </footer>

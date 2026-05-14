@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { ArrowRight, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronRight, ExternalLink } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { Tag } from "./ui/tag";
 import { PortfolioButton } from "./ui/portfolio-button";
+import { ProgressiveImage } from "./ProgressiveImage";
 
 // ── Inline callout block ─────────────────────────────────────
 function Callout({
@@ -18,16 +19,16 @@ function Callout({
   variant?: "teal" | "amber" | "blue";
   className?: string;
 }) {
-  const styles: Record<string, { border: string; bg: string }> = {
-    teal:  { border: "#0d9488", bg: "#f0faf9" },
-    amber: { border: "#f59e0b", bg: "#fffbeb" },
-    blue:  { border: "#3b82f6", bg: "#eff6ff" },
+  const styles: Record<string, { border: string; bg: string; borderWidth: string; italic: boolean }> = {
+    teal:  { border: "#0d9488", bg: "#f0faf9",  borderWidth: "4px", italic: false },
+    amber: { border: "#c47a5e", bg: "#fdf6f0",  borderWidth: "3px", italic: true  },
+    blue:  { border: "#3b82f6", bg: "#eff6ff",  borderWidth: "4px", italic: false },
   };
-  const { border, bg } = styles[variant];
+  const { border, bg, borderWidth, italic } = styles[variant];
   return (
     <div
       className={`rounded-r-xl px-5 py-4 ${className}`}
-      style={{ borderLeft: `4px solid ${border}`, background: bg }}
+      style={{ borderLeft: `${borderWidth} solid ${border}`, background: bg }}
     >
       {label && (
         <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-gray-400 mb-2">
@@ -35,8 +36,8 @@ function Callout({
         </p>
       )}
       <div
-        className="text-gray-600 leading-relaxed"
-        style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
+        className={`leading-relaxed${italic ? " italic" : ""}`}
+        style={{ color: "#1a1a1a", fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
       >
         {children}
       </div>
@@ -48,14 +49,12 @@ function Callout({
 function ArtifactPlaceholder({
   type,
   label,
-  spec,
   badge,
   badgeColor = "amber",
   className = "",
 }: {
   type: string;
   label: React.ReactNode;
-  spec?: string;
   badge?: string;
   badgeColor?: "amber" | "teal" | "blue";
   className?: string;
@@ -67,7 +66,7 @@ function ArtifactPlaceholder({
   }[badgeColor];
   return (
     <div className={`border-2 border-dashed border-black/[0.15] rounded-2xl overflow-hidden bg-white ${className}`}>
-      <div className="flex items-center justify-between px-5 py-3 border-b border-black/[0.06]">
+      <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid #d4cfc8" }}>
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400">{type}</span>
         {badge && (
           <span className={`text-[10px] font-semibold uppercase tracking-[0.05em] px-2.5 py-1 rounded-full ${badgeCls}`}>
@@ -85,11 +84,6 @@ function ArtifactPlaceholder({
         >
           {label}
         </p>
-        {spec && (
-          <code className="text-[11px] text-gray-400 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 font-mono">
-            {spec}
-          </code>
-        )}
       </div>
     </div>
   );
@@ -110,35 +104,41 @@ function DecisionCard({
   impact: string;
 }) {
   return (
-    <div className="bg-white border border-black/[0.06] rounded-2xl overflow-hidden">
-      <div className="flex items-start gap-4 p-5 border-b border-black/[0.06]">
-        <div className="w-7 h-7 rounded-full bg-[#0d9488] text-white text-xs font-semibold flex items-center justify-center flex-shrink-0 mt-0.5">
+    <div
+      className="bg-white rounded-2xl overflow-hidden"
+      style={{ border: "1px solid #d4cfc8", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+    >
+      <div className="flex items-start gap-4 p-5" style={{ borderBottom: "1px solid #d4cfc8" }}>
+        <div
+          className="rounded-full text-white flex items-center justify-center flex-shrink-0 mt-0.5"
+          style={{ width: 28, height: 28, background: "#1a1a1a", fontSize: 13, fontWeight: 700 }}
+        >
           {num}
         </div>
         <div>
           <p
-            className="font-semibold text-gray-900 leading-snug"
-            style={{ fontSize: "var(--typo-ol-body-semi-size)", lineHeight: "1.4" }}
+            className="font-semibold leading-snug"
+            style={{ fontSize: "var(--typo-ol-body-semi-size)", lineHeight: "1.4", color: "#1a1a1a" }}
           >
             {title}
           </p>
-          <p className="text-gray-400 mt-1 leading-snug" style={{ fontSize: "var(--typo-p-xs-size)" }}>
+          <p className="mt-1 leading-snug" style={{ fontSize: "var(--typo-p-xs-size)", color: "#5a5550" }}>
             {rationale}
           </p>
         </div>
       </div>
-      <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.06]">
+      <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[#d4cfc8]">
         <div className="p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-gray-400 mb-2">
             Tradeoff accepted
           </p>
-          <p className="text-gray-600 leading-relaxed" style={{ fontSize: "var(--typo-p-xs-size)", lineHeight: "1.6" }}>
+          <p className="leading-relaxed" style={{ fontSize: "var(--typo-p-xs-size)", lineHeight: "1.6", color: "#5a5550" }}>
             {tradeoff}
           </p>
         </div>
         <div className="p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-gray-400 mb-2">Impact</p>
-          <p className="text-gray-600 leading-relaxed" style={{ fontSize: "var(--typo-p-xs-size)", lineHeight: "1.6" }}>
+          <p className="leading-relaxed" style={{ fontSize: "var(--typo-p-xs-size)", lineHeight: "1.6", color: "#5a5550" }}>
             {impact}
           </p>
         </div>
@@ -147,18 +147,28 @@ function DecisionCard({
   );
 }
 
+// ── Section progress nav data ─────────────────────────────────
+const CS_SECTIONS = [
+  { id: "cs-problem",  label: "Problem",  num: "01" },
+  { id: "cs-process",  label: "Process",  num: "02" },
+  { id: "cs-outcome",  label: "Outcome",  num: "03" },
+  { id: "cs-learning", label: "Learning", num: "04" },
+];
+
 // ── Case section layout ──────────────────────────────────────
 function CsSection({
   num,
   title,
   children,
+  id,
 }: {
   num: string;
   title: string;
   children: React.ReactNode;
+  id?: string;
 }) {
   return (
-    <section className="border-t border-black/[0.06] py-16 md:py-20">
+    <section id={id} className="border-t border-[#d4cfc8] py-16 md:py-20">
       <div className="max-w-5xl mx-auto px-6">
         <div className="grid md:grid-cols-[200px_1fr] gap-8 md:gap-14">
           <div className="flex-shrink-0">
@@ -210,6 +220,12 @@ function BP({ children }: { children: React.ReactNode }) {
 
 // ── Main component ───────────────────────────────────────────
 export function TtxCaseStudy() {
+  const [activeSection, setActiveSection] = useState<string>("");
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
+
   useEffect(() => {
     document.title = "CYGNVS TTX — UX Case Study · Eswar";
     const metaDesc = document.querySelector('meta[name="description"]');
@@ -222,10 +238,34 @@ export function TtxCaseStudy() {
     const prevBg = document.documentElement.style.background;
     document.documentElement.style.background = "#f5f3f0";
     document.body.style.background = "transparent";
+
+    // Preload first visible artifact image
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'image';
+    link.href = '/assets/ttx/preview/problem-artifacts-1.webp';
+    document.head.appendChild(link);
+
     return () => {
       document.documentElement.style.background = prevBg;
       document.body.style.background = "";
+      document.head.removeChild(link);
     };
+  }, []);
+
+  useEffect(() => {
+    const observers: IntersectionObserver[] = [];
+    CS_SECTIONS.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const obs = new IntersectionObserver(
+        ([entry]) => { if (entry.isIntersecting) setActiveSection(id); },
+        { rootMargin: "-20% 0px -70% 0px", threshold: 0 }
+      );
+      obs.observe(el);
+      observers.push(obs);
+    });
+    return () => observers.forEach((o) => o.disconnect());
   }, []);
 
   return (
@@ -237,7 +277,7 @@ export function TtxCaseStudy() {
 
       {/* ── HERO ──────────────────────────────────────────── */}
       <header className="pt-20 md:pt-24">
-        <div className="max-w-5xl mx-auto px-6 pb-14 md:pb-16 border-b border-black/[0.06]">
+        <div className="max-w-5xl mx-auto px-6 pb-14 md:pb-16" style={{ borderBottom: "1px solid #d4cfc8" }}>
 
           {/* Breadcrumb */}
           <nav
@@ -254,7 +294,7 @@ export function TtxCaseStudy() {
 
           {/* Meta chips */}
           <div className="flex flex-wrap gap-2 mb-6">
-            {["Enterprise SaaS", "Cybersecurity", "Cross-platform", "Design Systems"].map((t) => (
+            {["Enterprise SaaS", "Cybersecurity", "Android · iOS · Web", "Design Systems"].map((t) => (
               <Tag key={t} variant="outlined" size="md">{t}</Tag>
             ))}
           </div>
@@ -273,8 +313,8 @@ export function TtxCaseStudy() {
               maxWidth: "820px",
             }}
           >
-            Reducing cognitive load in cyber tabletop exercises{" "}
-            <span className="text-gray-400">with state-aware navigation</span>
+            Redesigning the TTX platform end-to-end —{" "}
+            <span className="text-gray-400">room, injects, navigation, and state model</span>
           </motion.h1>
 
           {/* Subtitle */}
@@ -290,8 +330,9 @@ export function TtxCaseStudy() {
             }}
           >
             Participants in a live cyber crisis exercise couldn't tell if the exercise was
-            running, paused, or over — so facilitators were narrating the UI instead of
-            running the scenario. I redesigned the product around an explicit state model.
+            running, paused, or over. Facilitators were narrating the UI instead of running
+            the scenario. I redesigned the entire TTX experience — from the state model up —
+            across Web, iOS, and Android.
           </motion.p>
 
           {/* Metrics strip */}
@@ -299,24 +340,25 @@ export function TtxCaseStudy() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-px bg-black/[0.06] rounded-2xl overflow-hidden mb-10"
+            className="grid grid-cols-2 md:grid-cols-4 gap-px rounded-2xl overflow-hidden mb-10"
+            style={{ background: "#d4cfc8", border: "1.5px solid #d4cfc8" }}
           >
             {[
               { val: "−32%",   label: "Median triage time for critical alerts" },
               { val: "+18%",   label: "Analyst satisfaction with workflows" },
-              { val: "↓ sig.", label: "Missed critical incidents (qualitative)" },
-              { val: "12 wks", label: "Delivery across Web + iOS + Android" },
+              { val: "↓ sig.", label: "Facilitator orientation overhead" },
+              { val: "12 wks", label: "End-to-end delivery across 3 platforms" },
             ].map((m) => (
               <div key={m.val} className="bg-white px-6 py-5">
                 <p
-                  className="font-bold text-[#0d9488] mb-1"
-                  style={{ fontSize: "clamp(22px, 2.5vw, 30px)", lineHeight: 1 }}
+                  className="font-bold mb-1"
+                  style={{ fontSize: "clamp(22px, 2.5vw, 30px)", lineHeight: 1, color: "#1a1a1a", fontWeight: 700 }}
                 >
                   {m.val}
                 </p>
                 <p
-                  className="text-gray-500 leading-snug"
-                  style={{ fontSize: "var(--typo-p-xs-size)", lineHeight: "1.4" }}
+                  className="leading-snug"
+                  style={{ fontSize: "12px", lineHeight: "1.4", color: "#5a5550" }}
                 >
                   {m.label}
                 </p>
@@ -329,13 +371,14 @@ export function TtxCaseStudy() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="flex flex-wrap gap-8 pt-8 border-t border-black/[0.06]"
+            className="flex flex-wrap gap-8 pt-8"
+            style={{ borderTop: "1px solid #d4cfc8" }}
           >
             {[
-              { key: "Role",     val: "Lead Product Designer" },
-              { key: "Product",  val: "CYGNVS TTX — Cyber crisis tabletop platform" },
-              { key: "Team",     val: "PM · Security · Engineering · Mobile · Platform" },
-              { key: "Timeline", val: "12 weeks" },
+              { key: "Role",    val: "Lead Product Designer" },
+              { key: "Product", val: "CYGNVS TTX — Cyber crisis tabletop platform" },
+              { key: "Scope",   val: "TTX Room · Inject system · Navigation · State model" },
+              { key: "Team",    val: "PM · Security · Engineering · Mobile · Platform" },
             ].map((r) => (
               <div key={r.key}>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-1">
@@ -350,70 +393,92 @@ export function TtxCaseStudy() {
         </div>
       </header>
 
+      {/* ── SECTION PROGRESS NAV ──────────────────────────── */}
+      <nav
+        className="sticky z-40 bg-white/95 backdrop-blur-sm"
+        style={{ top: 57, borderBottom: "1px solid #d4cfc8" }}
+        aria-label="Case study sections"
+      >
+        <div className="max-w-5xl mx-auto px-6 overflow-x-auto">
+          <div className="flex min-w-max">
+            {CS_SECTIONS.map(({ id, label, num }) => {
+              const isActive = activeSection === id;
+              return (
+                <a
+                  key={id}
+                  href={`#${id}`}
+                  className={`flex items-center gap-2 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] border-b-2 transition-all duration-200 whitespace-nowrap ${
+                    isActive
+                      ? "border-[#0d9488] text-[#0d9488]"
+                      : "border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300"
+                  }`}
+                >
+                  <span className={isActive ? "text-[#0d9488]" : "text-gray-300"}>{num}</span>
+                  {label}
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
+
       {/* ── SECTION 01: PROBLEM ───────────────────────────── */}
-      <CsSection num="01" title="Problem">
+      <CsSection id="cs-problem" num="01" title="Problem">
         <BH>The tool was fighting the exercise</BH>
         <BP>
           A tabletop exercise (TTX) is a structured rehearsal for a cyberattack. Leadership,
-          legal, comms, and IT teams play through a realistic scenario so they know their roles
-          before a real incident. CYGNVS ran these exercises — but the platform had a systemic
-          orientation problem.
+          legal, comms, and IT teams play through a realistic scenario under pressure — so they
+          know their roles before a real incident hits. CYGNVS ran these exercises for enterprise
+          clients. The platform had four surfaces: the TTX Room, an Inject list, Comments, and
+          Messages. The problem was systemic across all of them.
         </BP>
-        <Callout label="Core problem" variant="amber" className="my-6">
-          Participants joined from multiple entry points with no shared understanding of where
-          they were in the exercise. Facilitators were spending their time answering "Where should
-          I be now?" instead of running the scenario.
+        <Callout label="The core failure" variant="amber" className="my-6">
+          There was no shared concept of exercise state in the UI. Participants joined from
+          multiple entry points — mobile, web, late to the room — with no common understanding
+          of whether the exercise was running, paused, or already over. Every question about
+          "where are we?" landed on the facilitator, not the product.
         </Callout>
 
-        <BH>Three failure modes, one root cause</BH>
+        <BH>Three distinct failure modes</BH>
         <BP>
-          User interviews with facilitators and SOC leads surfaced three distinct patterns — all
-          tracing back to the same gap:{" "}
+          Research with facilitators, SOC leads, and exercise participants surfaced three
+          patterns — all with the same root cause:{" "}
           <strong className="text-gray-900 font-semibold">
-            the exercise state was invisible in the UI.
+            state was invisible.
           </strong>
         </BP>
-        <ArtifactPlaceholder
-          type="Artefact · Research synthesis"
-          badge="Add: affinity map or interview insight clusters"
-          badgeColor="amber"
-          label={
-            <>
-              <strong className="text-gray-700 block mb-1">Three failure modes — visual from research</strong>
-              "Unclear state" · "Unclear actions" · "Facilitator drag"
-              <span className="text-gray-400 text-xs block mt-1">
-                Each column with a representative quote from user interviews
-              </span>
-            </>
-          }
-          spec="Figma frame · 1200×500 · Export @2x PNG"
+        <ProgressiveImage
+          previewSrc="/assets/ttx/preview/problem-artifacts-1.webp"
+          fullSrc="/assets/ttx/full/problem-artifacts-1.webp"
+          alt="Research synthesis diagram showing three failure modes: Unclear state, Unclear actions, and Facilitator drag — from user interviews"
+          caption="Three failure modes from user interviews: Unclear state · Unclear actions · Facilitator drag"
           className="my-7"
         />
 
-        <BP>Existing constraints made this harder:</BP>
+        <BP>What made this hard to solve:</BP>
         <div className="grid sm:grid-cols-2 gap-3 mt-3">
           {[
             {
-              label: "No backend overhaul",
-              body: "Had to design within the existing alert engine — a full data model rewrite was out of scope.",
+              label: "State lived in the backend only",
+              body: "Exercise state was tracked server-side but never surfaced in the UI. There was no visual contract between what the system knew and what the participant saw.",
             },
             {
-              label: "24/7 operations",
-              body: "Zero downtime during rollout. SOC analysts couldn't absorb a disruptive change mid-shift.",
+              label: "Cross-platform parity didn't exist",
+              body: "Web and mobile showed the same exercise differently. A facilitator explaining the flow on web couldn't transfer that to a mobile participant without re-explaining.",
             },
             {
-              label: "Strict compliance",
-              body: "Every user action needed to be auditable. No ephemeral state, no ambiguity in the log.",
+              label: "Injects had no sequence or status",
+              body: "The inject list showed all injects at once with no clear ordering, active state, or indication of what was \"live\" vs upcoming vs already actioned.",
             },
             {
-              label: "Limited research time",
-              body: "Senior analysts had 1–2 hours per week maximum for validation. Every session had to count.",
+              label: "24/7 operation, no downtime tolerance",
+              body: "CYGNVS ran live client exercises continuously. The redesign had to ship incrementally — no big-bang cutover, no disruption to running exercises.",
             },
           ].map((c) => (
             <div
               key={c.label}
               className="bg-white rounded-xl px-4 py-4"
-              style={{ border: "1px solid rgba(0,0,0,0.06)", borderLeft: "4px solid #0d9488" }}
+              style={{ border: "1px solid #d4cfc8", borderLeft: "4px solid #0d9488", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
             >
               <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-gray-400 mb-1.5">
                 {c.label}
@@ -424,55 +489,69 @@ export function TtxCaseStudy() {
             </div>
           ))}
         </div>
+        <ProgressiveImage
+          previewSrc="/assets/ttx/preview/problem-artifacts-2.webp"
+          fullSrc="/assets/ttx/full/problem-artifacts-2.webp"
+          alt="What made this hard to solve — state lived in backend only, cross-platform parity didn't exist, injects had no sequence or status, 24/7 operation with no downtime tolerance"
+          caption="Artefact · Research synthesis — pain points mapped across Visibility, Navigation, Context, and Collaboration"
+          className="mt-6"
+        />
       </CsSection>
 
       {/* ── SECTION 02: PROCESS ───────────────────────────── */}
-      <CsSection num="02" title="Process">
+      <CsSection id="cs-process" num="02" title="Process">
         <BH>Start from the state model, not the screen</BH>
         <BP>
-          Most navigation redesigns start with the nav. I started with the state machine —
-          mapping every possible exercise state, every role, every entry point. The UI would
-          follow from that contract.
+          The instinct was to redesign the navigation. I pushed back — you can't design the
+          right navigation without first defining what states the system can be in. I mapped
+          the exercise lifecycle as an explicit state machine and made that the shared contract
+          for design, engineering, and product.
         </BP>
 
         {/* Process steps */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-6">
           {[
-            { num: "01", label: "Discover",  desc: "Map how exercises behave across roles and entry points" },
-            { num: "02", label: "Model",     desc: "Define states, transitions, and edge cases as a shared contract" },
-            { num: "03", label: "Prototype", desc: "Design Web and mobile navigation patterns per state" },
-            { num: "04", label: "Validate",  desc: "Test flows in real and internal exercises; capture 'lost' moments" },
+            { num: "01", label: "Discover",  desc: "Map exercise behaviour across roles, entry points, and platforms" },
+            { num: "02", label: "Model",     desc: "Define the 3-state lifecycle, transitions, triggers, and what each state unlocks" },
+            { num: "03", label: "Prototype", desc: "Design TTX Room, inject system, and navigation tied to state across Web + Android + iOS" },
+            { num: "04", label: "Validate",  desc: "Test in pilot exercises; measure orientation time and facilitator load" },
           ].map((s) => (
-            <div key={s.num} className="bg-white border border-black/[0.06] rounded-xl p-4 text-center">
-              <p className="text-[#0d9488] font-bold text-2xl leading-none mb-2">{s.num}</p>
-              <p className="font-semibold text-gray-900 mb-1" style={{ fontSize: "var(--typo-p-xs-size)" }}>
+            <div
+              key={s.num}
+              className="bg-white rounded-lg p-4 text-center"
+              style={{ border: "1.5px solid #d4cfc8", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+            >
+              <span style={{ fontSize: 28, fontWeight: 700, color: "#c47a5e", lineHeight: 1, display: "block", marginBottom: 8 }}>
+                {s.num}
+              </span>
+              <p className="font-semibold mb-1" style={{ fontSize: "13px", color: "#1a1a1a" }}>
                 {s.label}
               </p>
-              <p className="text-gray-500 leading-snug" style={{ fontSize: "11px", lineHeight: "1.45" }}>
+              <p className="leading-snug" style={{ fontSize: "12px", lineHeight: "1.45", color: "#5a5550" }}>
                 {s.desc}
               </p>
             </div>
           ))}
         </div>
 
-        <ArtifactPlaceholder
-          type="Artefact · State machine diagram"
-          badge="Highest-value artefact in this case study"
-          badgeColor="teal"
-          label={
-            <>
-              <strong className="text-gray-700 block mb-1">TTX exercise lifecycle — state diagram</strong>
-              4 states: Not Started → Live → Paused → Wrapped.
-              <span className="text-gray-400 text-xs block mt-1">
-                Show transitions, who triggers them (facilitator vs system), and what UI elements change per state. The shared contract design and engineering both worked from.
-              </span>
-            </>
-          }
-          spec="Figma / FigJam · 1400×600 · Abstract enough to show without NDA conflict"
-          className="my-7"
+        <ProgressiveImage
+          previewSrc="/assets/ttx/preview/process-artifacts-1.webp"
+          fullSrc="/assets/ttx/full/process-artifacts-1.webp"
+          alt="TTX exercise lifecycle state model — 3 states: Not Started, In Progress, and Complete, with transitions, triggers, and what each state unlocks in the UI"
+          caption="TTX exercise lifecycle — 3-state model: Not Started → In Progress → Complete"
+          className="mt-7"
         />
+        <div style={{ marginTop: 16 }}>
+          <ProgressiveImage
+            previewSrc="/assets/ttx/preview/process-artifacts-2.webp"
+            fullSrc="/assets/ttx/full/process-artifacts-2.webp"
+            alt="Inject list before and after redesign — before: flat unordered list with no status; after: sequenced with N/Total numbering, status chips, and active inject visually highlighted"
+            caption="Artefact · State transitions — trigger, role, and notes for each state change"
+            className="mb-7"
+          />
+        </div>
 
-        <BH>Four design decisions, each with a real tradeoff</BH>
+        <BH>Six design decisions, each with a real tradeoff</BH>
         <BP>
           Each decision was deliberate — not just "what looks good" but "what constraint does
           this solve and what does it cost."
@@ -480,78 +559,75 @@ export function TtxCaseStudy() {
         <div className="space-y-4 my-6">
           <DecisionCard
             num={1}
-            title="Make exercise state explicit in the UI"
-            rationale="Participants shouldn't have to ask a facilitator what's happening"
-            tradeoff="Introduced a persistent state header and status chips — costs some vertical space but removes all ambiguity about exercise state."
-            impact="Reduced orientation time at exercise start and after breaks. Facilitators stopped narrating state."
+            title="Make exercise state explicit with a persistent chip + bottom sheet"
+            rationale="Participants need to know state without asking anyone"
+            tradeoff="The chip and bottom sheet cost vertical space on a small mobile screen. Accepted this to eliminate all ambiguity — a smaller content area is better than a confused participant."
+            impact={`Participants self-oriented from the state chip within seconds of joining. Facilitators stopped narrating "we're about to start" or "the exercise is live."`}
           />
           <DecisionCard
             num={2}
-            title="Navigation adapts to exercise state"
-            rationale="Surface only what matters right now — hide what doesn't"
-            tradeoff="Tighter coupling between backend state and UI — required close engineering partnership to avoid performance regressions."
-            impact="Less wandering through screens. Participants moved directly to active injects and tasks."
+            title="Bottom sheet carries the primary orientation message per state"
+            rationale={`One persistent place that answers "what should I do right now?"`}
+            tradeoff={`The bottom sheet is always visible, which reduces content area. Tested with a dismissable version — participants dismissed it and then asked "what should I do?" thirty seconds later. Non-dismissable won.`}
+            impact={`"Exercise not started — no action needed" and "Exercise in progress — start responding to injects →" gave every participant the same instruction at the same time.`}
           />
           <DecisionCard
             num={3}
-            title="Standardise state cues across Web and mobile"
-            rationale="Facilitators should explain the experience once, not twice"
-            tradeoff="Aligned patterns even when platform conventions differed — balanced native behaviours with a shared mental model across iOS and Web."
-            impact="Single explanation for 'how TTX works', reducing facilitator training time and onboarding overhead."
+            title="Navigation adapts to exercise state — items appear and disappear"
+            rationale="Don't show destinations that don't apply to the current state"
+            tradeoff="Dynamic navigation required tight coupling between backend state events and the UI layer. Worked closely with engineering to ensure state changes propagated to nav without performance regressions."
+            impact="Messages tab disappears when the exercise completes — participants aren't presented with channels that serve no purpose after the scenario ends. Nav reflects reality."
           />
           <DecisionCard
             num={4}
-            title="Clarify inject status and expectations inline"
-            rationale="Participants needed to know what to do next without a heavier dashboard"
-            tradeoff="Added explicit status labels, priorities, and lightweight filters — deliberately avoided a full dashboard to keep cognitive load low."
-            impact="More participants could explain what the current inject required — and what was next — in their own words."
+            title="Inject list shows sequence number, not just inject title"
+            rationale="Progress through the exercise should be visible at a glance"
+            tradeoff="Sequential numbering (7/9) works for linearly structured exercises. For branching exercises, this framing is less clear. Scoped to linear TTX flows for v1."
+            impact="Participants could tell how far through the scenario they were without asking the facilitator. Late joiners understood context immediately from the progress fraction."
           />
-        </div>
-
-        {/* Two-up artefact placeholders */}
-        <div className="grid sm:grid-cols-2 gap-4 my-7">
-          <ArtifactPlaceholder
-            type="Artefact · State header component"
-            badge="Key screen"
-            badgeColor="teal"
-            label="Persistent state header — 4 states with status chips. Show colour/label change per state (Not Started / Live / Paused / Wrapped)."
-            spec="Web · abstracted component · 1200×200"
+          <DecisionCard
+            num={5}
+            title="Active inject highlighted — not buried in the list"
+            rationale="The most important inject right now should require zero scanning"
+            tradeoff="Visual differentiation of the active inject (blue border, filled circle) creates a denser-looking list. Tested alternatives — separate tabs, auto-scroll, modal overlay. Inline differentiation with clear status won for simplicity."
+            impact={`"In Progress" with a "View →" CTA gave participants one clear next action without requiring them to scan the whole list to find where they were.`}
           />
-          <ArtifactPlaceholder
-            type="Artefact · Mobile state nav"
-            badge="Cross-platform"
-            badgeColor="blue"
-            label="iOS bottom nav adapting to exercise state. Show active vs locked destinations per state. Side-by-side 2 states."
-            spec="iOS · 390×844 × 2 states · @2x"
+          <DecisionCard
+            num={6}
+            title="State patterns standardised across Android and iOS"
+            rationale="Facilitators explain the experience once, not twice"
+            tradeoff="Standardised state chips and bottom sheets across platforms means some native Android conventions (e.g. Material snackbars) were set aside in favour of a shared mental model."
+            impact="Leadership participants moving between their laptop and phone saw the same state chips, the same language, and the same bottom sheet copy. One mental model for the whole exercise."
           />
         </div>
 
         <Callout
-          label="Operating rhythm — what actually kept this on track"
+          label="Operating rhythm"
           variant="blue"
           className="my-6"
         >
-          Weekly triad reviews (design · PM · eng lead) using a shared state diagram and test
-          injects to decide what to cut, keep, or move to backlog. Design crits with adjacent
-          teams reused patterns instead of inventing new ones. Build checks paired me with
-          engineers on edge cases, reviewing against the state contract rather than static screens.
+          Weekly triad reviews (design · PM · eng lead) using the state model as the shared
+          meeting artefact — not a Figma prototype. We reviewed decisions against the state
+          contract: "does this behaviour make sense in Not Started? In Progress? Complete?"
+          Design crits with adjacent teams reused existing design system patterns where possible.
+          Build reviews happened against the state spec, not static screens.
         </Callout>
       </CsSection>
 
       {/* ── SECTION 03: OUTCOME ───────────────────────────── */}
-      <CsSection num="03" title="Outcome">
+      <CsSection id="cs-outcome" num="03" title="Outcome">
         <BH>Measured results, 8 weeks post-launch</BH>
         <BP>
-          Data gathered from product analytics, SOC operational reports, and facilitator feedback
-          approximately 8 weeks post-launch. Qualitative signals from pilot exercises and internal
-          dogfooding sessions.
+          Data from product analytics, SOC operational reports, facilitator debriefs, and pilot
+          exercise observations. Qualitative signals from internal dogfooding and live client
+          exercises.
         </BP>
 
         {/* Before / after table */}
-        <div className="overflow-x-auto -mx-2 px-2 my-6 rounded-2xl border border-black/[0.06] bg-white">
+        <div className="overflow-x-auto -mx-2 px-2 my-6 rounded-lg overflow-hidden bg-white" style={{ border: "1px solid #d4cfc8" }}>
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="border-b border-black/[0.06]">
+              <tr style={{ background: "#f0ede8", borderBottom: "2px solid #d4cfc8" }}>
                 {["Metric", "Before", "After", "Change"].map((h) => (
                   <th
                     key={h}
@@ -565,10 +641,22 @@ export function TtxCaseStudy() {
             <tbody>
               {[
                 {
-                  metric: "Median time-to-triage critical alerts",
-                  before: "25–30 minutes",
-                  after: "17 minutes",
-                  change: "↓ 32%",
+                  metric: "Participant orientation time at exercise start",
+                  before: `Required facilitator narration: “We’re starting now”`,
+                  after: "State chip + bottom sheet — self-oriented without facilitator",
+                  change: "↓ sig.",
+                },
+                {
+                  metric: "Late joiner onboarding",
+                  before: "Needed 1:1 explanation to understand current exercise state",
+                  after: "State chip visible immediately on join; bottom sheet gives current instruction",
+                  change: "↓ sig.",
+                },
+                {
+                  metric: "Facilitator drag (time spent narrating product)",
+                  before: `Significant — facilitators answering "where should I be?" throughout`,
+                  after: "Noticeably reduced — UI answered orientation questions",
+                  change: "↓ sig.",
                 },
                 {
                   metric: "Analyst satisfaction with triage workflows",
@@ -577,39 +665,34 @@ export function TtxCaseStudy() {
                   change: "↑ 18%",
                 },
                 {
-                  metric: "Missed critical incidents",
-                  before: "Frequent escalations due to missed alerts",
-                  after: "Fewer escalations reported",
-                  change: "↓ sig.",
+                  metric: "Median time-to-triage critical alerts",
+                  before: "25–30 minutes",
+                  after: "17 minutes",
+                  change: "↓ 32%",
                 },
                 {
-                  metric: "Facilitator orientation overhead",
-                  before: "Narrating state at exercise start + after breaks",
-                  after: "UI handles orientation without facilitator narration",
-                  change: "↓ sig.",
-                },
-                {
-                  metric: "Late joiner onboarding",
-                  before: "Required 1:1 explanation to understand current state",
-                  after: "Self-oriented from state header within seconds",
+                  metric: "Cross-platform consistency (facilitator training time)",
+                  before: "Separate explanation needed for Web vs Android users",
+                  after: "Single explanation — same state chips + bottom sheet copy across platforms",
                   change: "↓ sig.",
                 },
               ].map((row, i) => (
                 <tr
                   key={i}
-                  className="border-b border-black/[0.04] last:border-0 hover:bg-black/[0.015] transition-colors"
+                  className="last:border-0 hover:bg-black/[0.015] transition-colors"
+                  style={{ borderBottom: "1px solid #e8e3dc" }}
                 >
-                  <td className="py-3.5 px-4 font-semibold text-gray-800" style={{ fontSize: "var(--typo-p-xs-size)" }}>
+                  <td className="py-3.5 px-4 font-semibold" style={{ fontSize: "var(--typo-p-xs-size)", color: "#1a1a1a" }}>
                     {row.metric}
                   </td>
                   <td className="py-3.5 px-4 text-gray-400" style={{ fontSize: "var(--typo-p-xs-size)" }}>
                     {row.before}
                   </td>
-                  <td className="py-3.5 px-4 text-[#0d9488] font-medium" style={{ fontSize: "var(--typo-p-xs-size)" }}>
+                  <td className="py-3.5 px-4 font-medium" style={{ fontSize: "var(--typo-p-xs-size)", color: "#1a7a4a" }}>
                     {row.after}
                   </td>
                   <td className="py-3.5 px-4">
-                    <span className="text-[#0d9488] font-semibold text-xs">{row.change}</span>
+                    <span className="font-semibold text-xs" style={{ color: "#1a7a4a" }}>{row.change}</span>
                   </td>
                 </tr>
               ))}
@@ -618,20 +701,17 @@ export function TtxCaseStudy() {
         </div>
 
         <ArtifactPlaceholder
-          type="Artefact · Before / after comparison"
-          badge="Critical for trust"
+          type="Artefact · Before / after — TTX Room"
+          badge="Screens redacted · NDA"
           badgeColor="teal"
           label={
             <>
-              <strong className="text-gray-700 block mb-1">Side-by-side: Old nav vs state-aware nav</strong>
-              Left: original — no state indicator, scattered entry points, cluttered actions.
-              Right: redesigned — persistent state header, context-aware nav, clear inject status.
-              <span className="text-gray-400 text-xs block mt-1">
-                Annotate 3–4 specific changes. No proprietary screens needed — abstract the content.
-              </span>
+              <strong className="text-gray-700 block mb-1">TTX Room — before vs after (mobile)</strong>
+              Left panel: old experience — no state chip, no bottom sheet, full inject list unordered.
+              Right panel: redesign — state chip top-left, bottom sheet with contextual instruction,
+              inject list with sequence numbers and active state highlighted.
             </>
           }
-          spec="1400×700 · 2-panel split · Annotated · @2x PNG"
           className="my-7"
         />
 
@@ -640,18 +720,28 @@ export function TtxCaseStudy() {
           {[
             {
               quote: "I no longer have to narrate where we are in the exercise — the UI does that for me.",
-              source: "TTX Facilitator — post-pilot feedback",
+              source: "TTX Facilitator — post-pilot debrief",
             },
             {
               quote: "It's much easier to see what's live and what's just context.",
-              source: "Exercise Participant — pilot session debrief",
+              source: "Exercise Participant — pilot session",
             },
             {
-              quote: "State cues feel consistent whether I'm on my laptop or phone.",
+              quote: "State cues feel consistent whether I'm on my laptop or my phone.",
               source: "Leadership team member — cross-platform review",
             },
           ].map((q, i) => (
-            <div key={i} className="bg-white border border-black/[0.06] rounded-xl p-5 relative overflow-hidden">
+            <div
+              key={i}
+              className="relative overflow-hidden"
+              style={{
+                background: "#ffffff",
+                border: "1px solid #d4cfc8",
+                borderLeft: "3px solid #c47a5e",
+                borderRadius: "0 8px 8px 0",
+                padding: "18px 20px",
+              }}
+            >
               <span
                 className="text-gray-200 absolute top-3 left-4 text-4xl leading-none select-none font-serif"
                 aria-hidden="true"
@@ -659,12 +749,15 @@ export function TtxCaseStudy() {
                 "
               </span>
               <p
-                className="text-gray-600 italic pl-5 leading-relaxed"
-                style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "1.65" }}
+                className="pl-5 leading-relaxed"
+                style={{ color: "#1a1a1a", fontStyle: "italic", fontSize: "15px", lineHeight: "1.6" }}
               >
                 {q.quote}
               </p>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400 mt-3 pl-5">
+              <p
+                className="font-semibold uppercase tracking-[0.06em] pl-5"
+                style={{ fontSize: "12px", color: "#5a5550", marginTop: "10px" }}
+              >
                 {q.source}
               </p>
             </div>
@@ -673,27 +766,30 @@ export function TtxCaseStudy() {
       </CsSection>
 
       {/* ── SECTION 04: LEARNING ──────────────────────────── */}
-      <CsSection num="04" title="Learning">
+      <CsSection id="cs-learning" num="04" title="Learning">
         <BH>What I'd keep</BH>
         <BP>
-          Starting with a state model rather than a screen was the right call. It gave
-          engineering and design a shared contract from day one — not a design artefact that
-          engineers had to interpret. That contract is what made cross-platform consistency
-          achievable without redundant work.
+          Starting with the state model rather than the screen was the right call — and the
+          hardest sell. "We're redesigning navigation" is a familiar brief. "We need to define
+          the exercise state machine before we touch any UI" takes more convincing. But that
+          contract is what made it possible to redesign four surfaces consistently without each
+          one being its own separate negotiation.
         </BP>
         <BP>
-          The weekly triad rhythm (design · PM · eng) using the state diagram as the meeting
-          artefact, not static Figma frames, kept decisions grounded in system behaviour rather
-          than visual preference.
+          The non-dismissable bottom sheet was counterintuitive but correct. Every time we
+          tested a dismissable version, participants dismissed it and then asked for the
+          information it contained. Persistent contextual instruction beats a cleaner screen.
+          Using the state model as the weekly triad meeting artefact — not Figma frames — kept
+          decisions grounded in system behaviour rather than visual preference.
         </BP>
 
         <BH>What I'd do differently</BH>
-        <Callout label="Opportunity missed early" variant="amber" className="my-6">
-          Facilitator-side tooling was lower priority than participant experience — but
-          facilitator drag was the root cause. I'd instrument facilitator workflows earlier and
-          treat them as the first user, not a secondary persona. Integrating predictive incident
-          detection signals from product analytics as proactive triage flags would have been the
-          natural next step.
+        <Callout label="Facilitator tools came too late" variant="amber" className="my-6">
+          The redesign correctly prioritised participant orientation — that was the visible pain.
+          But facilitator drag was the root cause, and facilitator-side controls (exercise start,
+          inject activation, state transitions) were descoped to a later release. I'd instrument
+          facilitator workflows earlier and treat them as the primary user of state transitions,
+          not a secondary persona who happens to control the exercise.
         </Callout>
 
         <BH>Design principles this project reinforced</BH>
@@ -702,28 +798,35 @@ export function TtxCaseStudy() {
             {
               num: "1",
               title: "Treat system state as a first-class design object",
-              body: "State and transitions aren't implementation details — they're the primary design material. Design navigation, visibility, and permissions around those states first, not last.",
+              body: "State and transitions aren't engineering details — they're the primary design material for any workflow product. Design navigation, content visibility, and available actions around state first. Screens are a consequence of state, not the other way around.",
             },
             {
               num: "2",
               title: "Design for fast orientation, not just task completion",
-              body: "Users who don't know where they are can't complete tasks efficiently. Reducing 'what should I do now?' questions is a measurable UX outcome, not a soft improvement.",
+              body: `"What should I do right now?" is a UX failure, not a user education problem. If the answer requires a facilitator to speak it out loud, the product hasn't done its job. Orientation time is a measurable outcome worth designing for explicitly.`,
             },
             {
               num: "3",
               title: "Share contracts, not just screens",
-              body: "A state machine as a shared artefact between design and engineering is more durable than a Figma prototype. It survives handoff, scope changes, and release trains.",
+              body: "A state machine reviewed weekly by design, PM, and engineering is more durable than a Figma prototype handed over at the end of a sprint. It survives scope changes, release trains, and personnel turnover because the behaviour is agreed, not just illustrated.",
             },
             {
               num: "4",
               title: "Favour patterns teams can reuse",
-              body: "Every pattern invented only for this project is a debt. Reusing and extending existing design system components — even when they needed adaptation — kept the system coherent and reduced engineering rework.",
+              body: "The state chip, bottom sheet, and inject status patterns were built on the existing CYGNVS design system — not invented for this project. Every novel pattern is a maintenance cost. Extension is cheaper than invention.",
             },
           ].map((p) => (
-            <div key={p.num} className="bg-white border border-black/[0.06] rounded-xl p-5 flex items-start gap-4">
-              <span className="text-[#0d9488] font-bold text-2xl leading-none flex-shrink-0 mt-0.5">
+            <div
+              key={p.num}
+              className="bg-white rounded-xl p-5 flex items-start gap-4"
+              style={{ border: "1px solid #d4cfc8", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+            >
+              <div
+                className="rounded-full text-white flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ width: 28, height: 28, background: "#1a1a1a", fontSize: 13, fontWeight: 700 }}
+              >
                 {p.num}
-              </span>
+              </div>
               <div>
                 <p className="font-semibold text-gray-900 mb-1.5" style={{ fontSize: "var(--typo-ol-body-semi-size)" }}>
                   {p.title}
@@ -738,7 +841,7 @@ export function TtxCaseStudy() {
       </CsSection>
 
       {/* ── FOOTER CTA ────────────────────────────────────── */}
-      <div className="border-t border-black/[0.06] py-16 md:py-20 bg-white">
+      <div className="py-16 md:py-20 bg-white" style={{ borderTop: "1px solid #d4cfc8" }}>
         <div className="max-w-5xl mx-auto px-6 text-center">
           <h3
             className="text-gray-900 font-semibold mb-3"
@@ -750,8 +853,8 @@ export function TtxCaseStudy() {
             className="text-gray-500 mb-8 max-w-lg mx-auto"
             style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
           >
-            I'm happy to walk through this case in detail, share additional artefacts, or talk
-            through the design system that underpinned it — in a live conversation.
+            I'm happy to walk through this case in detail, share additional artefacts, or demo
+            the state model in a live conversation.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
             <PortfolioButton
@@ -762,7 +865,7 @@ export function TtxCaseStudy() {
               size="lg"
             >
               Book a 30-min conversation
-              <ArrowRight className="w-4 h-4" />
+              <ExternalLink className="w-4 h-4" />
             </PortfolioButton>
             <PortfolioButton href="/#work" variant="secondary" size="lg">
               View another case study

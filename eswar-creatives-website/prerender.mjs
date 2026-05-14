@@ -6,9 +6,13 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const routes = ['/', '/about', '/design-system', '/contact', '/branding/brand-identity-discovery', '/work/cygnvs-ttx'];
+const routes = ['/', '/about', '/design-system', '/contact', '/services', '/branding/brand-identity-discovery', '/work/cygnvs-ttx'];
 
 const routeMeta = {
+  '/services': {
+    title: 'Services — Eswar Creatives',
+    description: 'Design systems, SaaS UX, and UX audits for enterprise teams. Detailed service pages coming soon — book a 30-min intro call in the meantime.',
+  },
   '/branding/brand-identity-discovery': {
     title: 'Brand Identity Discovery — Eswar Creatives',
     description: 'Tell us about your business, your vision, and the soul of the work you do. Eswar Creatives will review your brief within three working days.',
