@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CYGNVS TTX — UX Case Study · Eswar Maheswaran</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --ink: #0f0f0f;
+    --ink-2: #3a3a3a;
+    --ink-3: #6b6b6b;
+    --ink-4: #9a9a9a;
+    --rule: #e4e4e0;
+    --bg: #f7f6f2;
+    --bg-2: #ffffff;
+    --accent: #1a4a3a;
+    --accent-light: #e8f0ec;
+    --amber: #c8500a;
+    --amber-light: #fdf0e8;
+    --blue: #1a3a5c;
+    --blue-light: #e8eef5;
+    --serif: 'DM Serif Display', Georgia, serif;
+    --sans: 'DM Sans', system-ui, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+    padding: 0 40px;
+    height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-brand { font-family: var(--serif); font-size: 18px; color: var(--ink); text-decoration: none; }
+  .nav-links { display: flex; gap: 32px; list-style: none; }
+  .nav-links a { font-size: 13px; color: var(--ink-3); text-decoration: none; letter-spacing: 0.02em; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-cta {
+    font-size: 13px; font-weight: 500;
+    background: var(--accent); color: #fff;
+    padding: 8px 18px; border-radius: 100px;
+    text-decoration: none;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    max-width: 920px; margin: 0 auto;
+    padding: 80px 40px 64px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .breadcrumb {
+    font-size: 12px; color: var(--ink-4);
+    letter-spacing: 0.06em; text-transform: uppercase;
+    margin-bottom: 28px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .breadcrumb span { color: var(--ink-3); }
+  .hero-meta {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;
+  }
+  .chip {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 4px 12px; border-radius: 100px;
+    border: 1px solid var(--rule);
+    color: var(--ink-3); background: var(--bg-2);
+  }
+  .chip-accent { background: var(--accent-light); color: var(--accent); border-color: transparent; }
+
+  h1.case-title {
+    font-family: var(--serif);
+    font-size: clamp(32px, 5vw, 52px);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    max-width: 780px;
+    margin-bottom: 20px;
+  }
+  h1.case-title em { font-style: italic; color: var(--ink-3); }
+
+  .hero-sub {
+    font-size: 17px; color: var(--ink-2);
+    max-width: 620px; line-height: 1.65;
+    margin-bottom: 40px;
+  }
+
+  /* ── METRICS STRIP ── */
+  .metrics-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px; background: var(--rule);
+    border: 1px solid var(--rule); border-radius: 12px;
+    overflow: hidden;
+  }
+  .metric {
+    background: var(--bg-2); padding: 20px 24px;
+  }
+  .metric-val {
+    font-family: var(--serif); font-size: 32px;
+    color: var(--accent); line-height: 1;
+    margin-bottom: 4px;
+  }
+  .metric-label { font-size: 12px; color: var(--ink-3); line-height: 1.4; }
+
+  /* ── ROLE STRIP ── */
+  .role-strip {
+    display: flex; gap: 40px; flex-wrap: wrap;
+    padding: 28px 0 0;
+    margin-top: 32px;
+    border-top: 1px solid var(--rule);
+  }
+  .role-item { }
+  .role-key { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-4); margin-bottom: 4px; }
+  .role-val { font-size: 14px; color: var(--ink-2); font-weight: 500; }
+
+  /* ── LAYOUT ── */
+  .case-body {
+    max-width: 920px; margin: 0 auto;
+    padding: 0 40px 120px;
+  }
+
+  /* ── SECTION ── */
+  .cs-section {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 48px;
+    padding: 72px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .cs-section:last-child { border-bottom: none; }
+
+  .section-sidebar {}
+  .section-num {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ink-4);
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-family: var(--serif);
+    font-size: 26px; line-height: 1.2;
+    color: var(--ink);
+    position: sticky; top: 80px;
+  }
+
+  .section-body {}
+
+  h2 {
+    font-family: var(--serif);
+    font-size: 22px; line-height: 1.3;
+    color: var(--ink); margin-bottom: 12px; margin-top: 36px;
+  }
+  h2:first-child { margin-top: 0; }
+
+  p { font-size: 15px; color: var(--ink-2); margin-bottom: 16px; line-height: 1.75; }
+  p:last-child { margin-bottom: 0; }
+
+  strong { color: var(--ink); font-weight: 600; }
+
+  /* ── CALLOUT ── */
+  .callout {
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 18px 20px;
+    margin: 24px 0;
+    font-size: 14px; color: var(--ink-2);
+    line-height: 1.65;
+  }
+  .callout-amber { border-left-color: var(--amber); }
+  .callout-blue { border-left-color: var(--blue); }
+  .callout strong { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-4); margin-bottom: 6px; }
+
+  /* ── ARTEFACT PLACEHOLDER ── */
+  .artefact {
+    background: var(--bg-2);
+    border: 1.5px dashed #c8c8c0;
+    border-radius: 12px;
+    margin: 28px 0;
+    overflow: hidden;
+  }
+  .artefact-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .artefact-type {
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-4);
+  }
+  .artefact-tag {
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 3px 8px; border-radius: 100px;
+    background: var(--amber-light); color: var(--amber);
+  }
+  .artefact-tag-green { background: var(--accent-light); color: var(--accent); }
+  .artefact-tag-blue { background: var(--blue-light); color: var(--blue); }
+
+  .artefact-body {
+    padding: 28px 20px;
+    min-height: 180px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; gap: 10px;
+  }
+  .artefact-icon { font-size: 28px; opacity: 0.25; }
+  .artefact-label {
+    font-size: 13px; font-weight: 500; color: var(--ink-3);
+    max-width: 340px; line-height: 1.5;
+  }
+  .artefact-spec {
+    font-size: 11px; color: var(--ink-4);
+    background: var(--bg); border: 1px solid var(--rule);
+    border-radius: 6px; padding: 6px 12px;
+    font-family: 'SF Mono', monospace; letter-spacing: 0.02em;
+  }
+
+  /* ── TWO-UP ARTEFACTS ── */
+  .artefact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 28px 0; }
+
+  /* ── DECISION CARDS ── */
+  .decisions { display: flex; flex-direction: column; gap: 20px; margin: 28px 0; }
+  .decision-card {
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    border-radius: 12px; overflow: hidden;
+  }
+  .decision-head {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; align-items: flex-start; gap: 14px;
+  }
+  .decision-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 12px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .decision-title { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+  .decision-rationale { font-size: 13px; color: var(--ink-3); margin-top: 3px; line-height: 1.5; }
+  .decision-body {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1px; background: var(--rule);
+  }
+  .decision-col { background: var(--bg-2); padding: 14px 18px; }
+  .decision-col-label {
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--ink-4); margin-bottom: 6px;
+  }
+  .decision-col p { font-size: 13px; color: var(--ink-2); margin: 0; line-height: 1.55; }
+
+  /* ── BEFORE/AFTER TABLE ── */
+  .ba-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 13px; }
+  .ba-table thead tr { border-bottom: 2px solid var(--rule); }
+  .ba-table th { padding: 10px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-4); font-weight: 600; }
+  .ba-table td { padding: 12px 14px; border-bottom: 1px solid var(--rule); color: var(--ink-2); vertical-align: top; line-height: 1.5; }
+  .ba-table tr:hover td { background: var(--bg); }
+  .ba-metric { font-weight: 600; color: var(--ink); }
+  .ba-before { color: var(--ink-3); }
+  .ba-after { color: var(--accent); font-weight: 500; }
+  .ba-change {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 600;
+    color: var(--accent); white-space: nowrap;
+  }
+
+  /* ── QUOTE ── */
+  .quote-block {
+    margin: 28px 0; display: flex; flex-direction: column; gap: 12px;
+  }
+  .quote-item {
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    border-radius: 10px; padding: 16px 20px;
+    font-size: 14px; color: var(--ink-2);
+    line-height: 1.6; font-style: italic;
+    position: relative;
+  }
+  .quote-item::before {
+    content: '"'; font-family: var(--serif); font-size: 40px;
+    color: var(--rule); position: absolute; top: 8px; left: 14px;
+    line-height: 1;
+  }
+  .quote-item p { padding-left: 20px; margin: 0; font-style: italic; }
+  .quote-source {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--ink-4); font-style: normal; margin-top: 8px;
+    display: block; padding-left: 20px;
+  }
+
+  /* ── PROCESS STEPS ── */
+  .process-steps { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin: 24px 0; }
+  .process-step {
+    background: var(--bg-2); border: 1px solid var(--rule);
+    border-radius: 10px; padding: 16px;
+    text-align: center;
+  }
+  .step-num { font-family: var(--serif); font-size: 28px; color: var(--accent); line-height: 1; margin-bottom: 6px; }
+  .step-label { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+  .step-desc { font-size: 11px; color: var(--ink-3); line-height: 1.4; }
+
+  /* ── PRINCIPLES ── */
+  .principles { display: flex; flex-direction: column; gap: 14px; margin: 24px 0; }
+  .principle {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: var(--bg-2); border: 1px solid var(--rule);
+    border-radius: 10px; padding: 16px 18px;
+  }
+  .principle-num {
+    font-family: var(--serif); font-size: 20px; color: var(--accent);
+    width: 28px; flex-shrink: 0; line-height: 1.2;
+  }
+  .principle-text {}
+  .principle-title { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+  .principle-body { font-size: 13px; color: var(--ink-3); line-height: 1.55; }
+
+  /* ── FOOTER ── */
+  .case-footer {
+    background: var(--bg-2);
+    border-top: 1px solid var(--rule);
+    padding: 64px 40px;
+    text-align: center;
+  }
+  .case-footer h3 { font-family: var(--serif); font-size: 28px; margin-bottom: 12px; }
+  .case-footer p { font-size: 15px; color: var(--ink-3); max-width: 480px; margin: 0 auto 28px; }
+  .footer-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--accent); color: #fff;
+    padding: 12px 28px; border-radius: 100px;
+    text-decoration: none; font-size: 14px; font-weight: 500;
+  }
+  .btn-secondary {
+    background: transparent; color: var(--ink);
+    padding: 12px 28px; border-radius: 100px;
+    text-decoration: none; font-size: 14px; font-weight: 500;
+    border: 1px solid var(--rule);
+  }
+
+  @media (max-width: 768px) {
+    .cs-section { grid-template-columns: 1fr; gap: 24px; }
+    .metrics-strip { grid-template-columns: repeat(2, 1fr); }
+    .decision-body { grid-template-columns: 1fr; }
+    .artefact-grid { grid-template-columns: 1fr; }
+    .process-steps { grid-template-columns: repeat(2,1fr); }
+    nav { padding: 0 20px; }
+    .hero, .case-body { padding-left: 20px; padding-right: 20px; }
+    .section-title { position: static; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-brand" href="/">Eswar</a>
+  <ul class="nav-links">
+    <li><a href="/work">Work</a></li>
+    <li><a href="/services">Services</a></li>
+    <li><a href="/about">About</a></li>
+  </ul>
+  <a class="nav-cta" href="/contact">Book a call →</a>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="breadcrumb">
+    <a href="/work" style="color:inherit;text-decoration:none">Work</a>
+    <span>›</span>
+    CYGNVS TTX
+  </div>
+
+  <div class="hero-meta">
+    <span class="chip chip-accent">Enterprise SaaS</span>
+    <span class="chip">Cybersecurity</span>
+    <span class="chip">Cross-platform</span>
+    <span class="chip">Design Systems</span>
+  </div>
+
+  <h1 class="case-title">
+    Reducing cognitive load in cyber tabletop exercises
+    <em>with state-aware navigation</em>
+  </h1>
+
+  <p class="hero-sub">
+    Participants in a live cyber crisis exercise couldn't tell if the exercise was 
+    running, paused, or over — so facilitators were narrating the UI instead of 
+    running the scenario. I redesigned the product around an explicit state model.
+  </p>
+
+  <div class="metrics-strip">
+    <div class="metric">
+      <div class="metric-val">−32%</div>
+      <div class="metric-label">Median triage time for critical alerts</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val">+18%</div>
+      <div class="metric-label">Analyst satisfaction with workflows</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val">↓ sig.</div>
+      <div class="metric-label">Missed critical incidents (qualitative)</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val">12 wks</div>
+      <div class="metric-label">Delivery across Web + iOS + Android</div>
+    </div>
+  </div>
+
+  <div class="role-strip">
+    <div class="role-item"><div class="role-key">Role</div><div class="role-val">Lead Product Designer</div></div>
+    <div class="role-item"><div class="role-key">Product</div><div class="role-val">CYGNVS TTX — Cyber crisis tabletop platform</div></div>
+    <div class="role-item"><div class="role-key">Team</div><div class="role-val">PM · Security · Engineering · Mobile · Platform</div></div>
+    <div class="role-item"><div class="role-key">Timeline</div><div class="role-val">12 weeks</div></div>
+  </div>
+</header>
+
+<!-- BODY -->
+<div class="case-body">
+
+  <!-- ═══════════════════════════════
+       SECTION 1 — PROBLEM
+  ════════════════════════════════ -->
+  <section class="cs-section">
+    <div class="section-sidebar">
+      <div class="section-num">01</div>
+      <div class="section-title">Problem</div>
+    </div>
+    <div class="section-body">
+
+      <h2>The tool was fighting the exercise</h2>
+      <p>
+        A tabletop exercise (TTX) is a structured rehearsal for a cyberattack. Leadership, legal, comms, 
+        and IT teams play through a realistic scenario so they know their roles before a real incident.
+        CYGNVS ran these exercises — but the platform had a systemic orientation problem.
+      </p>
+
+      <div class="callout callout-amber">
+        <strong>Core problem</strong>
+        Participants joined from multiple entry points with no shared understanding of where they were in 
+        the exercise. Facilitators were spending their time answering "Where should I be now?" instead of 
+        running the scenario.
+      </div>
+
+      <h2>Three failure modes, one root cause</h2>
+      <p>User interviews with facilitators and SOC leads surfaced three distinct patterns — all tracing back to the same gap: <strong>the exercise state was invisible in the UI.</strong></p>
+
+      <!-- ARTEFACT: User research summary / failure mode diagram -->
+      <div class="artefact">
+        <div class="artefact-header">
+          <span class="artefact-type">Artefact · Research synthesis</span>
+          <span class="artefact-tag">📋 Add: affinity map or interview insight clusters</span>
+        </div>
+        <div class="artefact-body">
+          <div class="artefact-icon">🗂</div>
+          <div class="artefact-label">
+            <strong style="display:block;margin-bottom:6px;color:#0f0f0f">Three failure modes — visual from research</strong>
+            Show the three pain points as a 3-column diagram:<br>
+            "Unclear state" · "Unclear actions" · "Facilitator drag"<br>
+            Each with a representative quote from user interviews
+          </div>
+          <div class="artefact-spec">Figma frame · 1200×500 · Export @2x PNG</div>
+        </div>
+      </div>
+
+      <p>Existing constraints made this harder:</p>
+      <div class="decisions" style="margin-top:0">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="callout" style="margin:0">
+            <strong>No backend overhaul</strong>
+            Had to design within the existing alert engine — a full data model rewrite was out of scope.
+          </div>
+          <div class="callout" style="margin:0">
+            <strong>24/7 operations</strong>
+            Zero downtime during rollout. SOC analysts couldn't absorb a disruptive change mid-shift.
+          </div>
+          <div class="callout" style="margin:0">
+            <strong>Strict compliance</strong>
+            Every user action needed to be auditable. No ephemeral state, no ambiguity in the log.
+          </div>
+          <div class="callout" style="margin:0">
+            <strong>Limited research time</strong>
+            Senior analysts had 1–2 hours per week maximum for validation. Every session had to count.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════
+       SECTION 2 — PROCESS
+  ════════════════════════════════ -->
+  <section class="cs-section">
+    <div class="section-sidebar">
+      <div class="section-num">02</div>
+      <div class="section-title">Process</div>
+    </div>
+    <div class="section-body">
+
+      <h2>Start from the state model, not the screen</h2>
+      <p>
+        Most navigation redesigns start with the nav. I started with the state machine — 
+        mapping every possible exercise state, every role, every entry point. 
+        The UI would follow from that contract.
+      </p>
+
+      <div class="process-steps">
+        <div class="process-step">
+          <div class="step-num">01</div>
+          <div class="step-label">Discover</div>
+          <div class="step-desc">Map how exercises behave today across roles and entry points</div>
+        </div>
+        <div class="process-step">
+          <div class="step-num">02</div>
+          <div class="step-label">Model</div>
+          <div class="step-desc">Define key states, transitions, and edge cases as a shared contract</div>
+        </div>
+        <div class="process-step">
+          <div class="step-num">03</div>
+          <div class="step-label">Prototype</div>
+          <div class="step-desc">Design Web and mobile navigation patterns tied to each state</div>
+        </div>
+        <div class="process-step">
+          <div class="step-num">04</div>
+          <div class="step-label">Validate</div>
+          <div class="step-desc">Test flows in real and internal exercises, capture 'lost' moments</div>
+        </div>
+      </div>
+
+      <!-- ARTEFACT: State machine diagram -->
+      <div class="artefact">
+        <div class="artefact-header">
+          <span class="artefact-type">Artefact · State machine diagram</span>
+          <span class="artefact-tag artefact-tag-green">📌 Highest-value artefact in this case study</span>
+        </div>
+        <div class="artefact-body">
+          <div class="artefact-icon">⬡</div>
+          <div class="artefact-label">
+            <strong style="display:block;margin-bottom:6px;color:#0f0f0f">TTX exercise lifecycle — state diagram</strong>
+            4 states: Not Started → Live → Paused → Wrapped.<br>
+            Show transitions, who triggers them (facilitator vs system), and what UI elements change per state.<br>
+            This is the "shared contract" — the artefact engineering and design both worked from.
+          </div>
+          <div class="artefact-spec">Figma / FigJam · 1400×600 · Abstract enough to show without NDA conflict</div>
+        </div>
+      </div>
+
+      <h2>Four design decisions, each with a real tradeoff</h2>
+      <p>Each decision was deliberate — not just "what looks good" but "what constraint does this solve and what does it cost."</p>
+
+      <div class="decisions">
+
+        <div class="decision-card">
+          <div class="decision-head">
+            <div class="decision-num">1</div>
+            <div>
+              <div class="decision-title">Make exercise state explicit in the UI</div>
+              <div class="decision-rationale">Participants shouldn't have to ask a facilitator what's happening</div>
+            </div>
+          </div>
+          <div class="decision-body">
+            <div class="decision-col">
+              <div class="decision-col-label">Tradeoff accepted</div>
+              <p>Introduced a persistent state header and status chips — costs some vertical space but removes all ambiguity about exercise state.</p>
+            </div>
+            <div class="decision-col">
+              <div class="decision-col-label">Impact</div>
+              <p>Reduced orientation time at exercise start and after breaks. Facilitators stopped narrating state.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="decision-card">
+          <div class="decision-head">
+            <div class="decision-num">2</div>
+            <div>
+              <div class="decision-title">Navigation adapts to exercise state</div>
+              <div class="decision-rationale">Surface only what matters right now — hide what doesn't</div>
+            </div>
+          </div>
+          <div class="decision-body">
+            <div class="decision-col">
+              <div class="decision-col-label">Tradeoff accepted</div>
+              <p>Tighter coupling between backend state and UI — required close engineering partnership to avoid performance regressions.</p>
+            </div>
+            <div class="decision-col">
+              <div class="decision-col-label">Impact</div>
+              <p>Less wandering through screens. Participants moved directly to active injects and tasks.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="decision-card">
+          <div class="decision-head">
+            <div class="decision-num">3</div>
+            <div>
+              <div class="decision-title">Standardise state cues across Web and mobile</div>
+              <div class="decision-rationale">Facilitators should explain the experience once, not twice</div>
+            </div>
+          </div>
+          <div class="decision-body">
+            <div class="decision-col">
+              <div class="decision-col-label">Tradeoff accepted</div>
+              <p>Aligned patterns even when platform conventions differed — balanced native behaviours with a shared mental model across iOS and Web.</p>
+            </div>
+            <div class="decision-col">
+              <div class="decision-col-label">Impact</div>
+              <p>Single explanation for 'how TTX works', reducing facilitator training time and onboarding overhead.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="decision-card">
+          <div class="decision-head">
+            <div class="decision-num">4</div>
+            <div>
+              <div class="decision-title">Clarify inject status and expectations inline</div>
+              <div class="decision-rationale">Participants needed to know what to do next without a heavier dashboard</div>
+            </div>
+          </div>
+          <div class="decision-body">
+            <div class="decision-col">
+              <div class="decision-col-label">Tradeoff accepted</div>
+              <p>Added explicit status labels, priorities, and lightweight filters — deliberately avoided a full dashboard to keep cognitive load low.</p>
+            </div>
+            <div class="decision-col">
+              <div class="decision-col-label">Impact</div>
+              <p>More participants could explain what the current inject required — and what was next — in their own words.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ARTEFACT: State header + navigation prototypes -->
+      <div class="artefact-grid">
+        <div class="artefact">
+          <div class="artefact-header">
+            <span class="artefact-type">Artefact · State header component</span>
+            <span class="artefact-tag artefact-tag-green">Key screen</span>
+          </div>
+          <div class="artefact-body" style="min-height:140px">
+            <div class="artefact-icon">🖥</div>
+            <div class="artefact-label">
+              Persistent state header — 4 states with status chips.<br>
+              Show colour/label change per state (Not Started / Live / Paused / Wrapped).
+            </div>
+            <div class="artefact-spec">Web · abstracted component · 1200×200</div>
+          </div>
+        </div>
+        <div class="artefact">
+          <div class="artefact-header">
+            <span class="artefact-type">Artefact · Mobile state nav</span>
+            <span class="artefact-tag artefact-tag-blue">Cross-platform</span>
+          </div>
+          <div class="artefact-body" style="min-height:140px">
+            <div class="artefact-icon">📱</div>
+            <div class="artefact-label">
+              iOS bottom nav adapting to exercise state.<br>
+              Show active vs locked destinations per state. Side-by-side 2 states.
+            </div>
+            <div class="artefact-spec">iOS · 390×844 × 2 states · @2x</div>
+          </div>
+        </div>
+      </div>
+
+      <h2>How the team operated</h2>
+      <div class="callout callout-blue">
+        <strong>Operating rhythm — what actually kept this on track</strong>
+        Weekly triad reviews (design · PM · eng lead) using a shared state diagram and test injects 
+        to decide what to cut, keep, or move to backlog. Design crits with adjacent teams reused 
+        patterns instead of inventing new ones. Build checks paired me with engineers on edge cases, 
+        reviewing against the state contract rather than static screens.
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════
+       SECTION 3 — OUTCOME
+  ════════════════════════════════ -->
+  <section class="cs-section">
+    <div class="section-sidebar">
+      <div class="section-num">03</div>
+      <div class="section-title">Outcome</div>
+    </div>
+    <div class="section-body">
+
+      <h2>Measured results, 8 weeks post-launch</h2>
+      <p>
+        Data gathered from product analytics, SOC operational reports, and facilitator feedback 
+        approximately 8 weeks post-launch. Qualitative signals from pilot exercises and internal 
+        dogfooding sessions.
+      </p>
+
+      <!-- Before/after table -->
+      <table class="ba-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Before</th>
+            <th>After</th>
+            <th>Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="ba-metric">Median time-to-triage critical alerts</td>
+            <td class="ba-before">25–30 minutes</td>
+            <td class="ba-after">17 minutes</td>
+            <td><span class="ba-change">↓ 32%</span></td>
+          </tr>
+          <tr>
+            <td class="ba-metric">Analyst satisfaction with triage workflows</td>
+            <td class="ba-before">3.0 / 5</td>
+            <td class="ba-after">3.6 / 5</td>
+            <td><span class="ba-change">↑ 18%</span></td>
+          </tr>
+          <tr>
+            <td class="ba-metric">Missed critical incidents</td>
+            <td class="ba-before">Frequent escalations due to missed alerts</td>
+            <td class="ba-after">Fewer escalations reported</td>
+            <td><span class="ba-change">↓ sig.</span></td>
+          </tr>
+          <tr>
+            <td class="ba-metric">Facilitator orientation overhead</td>
+            <td class="ba-before">Narrating state at exercise start + after breaks</td>
+            <td class="ba-after">UI handles orientation without facilitator narration</td>
+            <td><span class="ba-change">↓ sig.</span></td>
+          </tr>
+          <tr>
+            <td class="ba-metric">Late joiner onboarding</td>
+            <td class="ba-before">Required 1:1 explanation to understand current state</td>
+            <td class="ba-after">Self-oriented from state header within ~N seconds</td>
+            <td><span class="ba-change">↓ sig.</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ARTEFACT: Before/after screen comparison -->
+      <div class="artefact">
+        <div class="artefact-header">
+          <span class="artefact-type">Artefact · Before / after comparison</span>
+          <span class="artefact-tag artefact-tag-green">📌 Critical for trust</span>
+        </div>
+        <div class="artefact-body">
+          <div class="artefact-icon">↔</div>
+          <div class="artefact-label">
+            <strong style="display:block;margin-bottom:6px;color:#0f0f0f">Side-by-side: Old nav vs state-aware nav</strong>
+            Left: original flow — no state indicator, scattered entry points, cluttered actions.<br>
+            Right: redesigned — persistent state header, context-aware nav, clear inject status.<br>
+            Annotate 3–4 specific changes with callout lines. No proprietary screens needed — abstract the content.
+          </div>
+          <div class="artefact-spec">1400×700 · 2-panel split · Annotated · @2x PNG</div>
+        </div>
+      </div>
+
+      <h2>What users said</h2>
+
+      <div class="quote-block">
+        <div class="quote-item">
+          <p>I no longer have to narrate where we are in the exercise — the UI does that for me.</p>
+          <span class="quote-source">TTX Facilitator — post-pilot feedback</span>
+        </div>
+        <div class="quote-item">
+          <p>It's much easier to see what's live and what's just context.</p>
+          <span class="quote-source">Exercise Participant — pilot session debrief</span>
+        </div>
+        <div class="quote-item">
+          <p>State cues feel consistent whether I'm on my laptop or phone.</p>
+          <span class="quote-source">Leadership team member — cross-platform review</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════
+       SECTION 4 — LEARNING
+  ════════════════════════════════ -->
+  <section class="cs-section">
+    <div class="section-sidebar">
+      <div class="section-num">04</div>
+      <div class="section-title">Learning</div>
+    </div>
+    <div class="section-body">
+
+      <h2>What I'd keep</h2>
+      <p>
+        Starting with a state model rather than a screen was the right call. It gave engineering and design a shared contract from day one — not a design artefact that engineers had to interpret. That contract is what made cross-platform consistency achievable without redundant work.
+      </p>
+      <p>
+        The weekly triad rhythm (design · PM · eng) using the state diagram as the meeting artefact, not static Figma frames, kept decisions grounded in system behaviour rather than visual preference.
+      </p>
+
+      <h2>What I'd do differently</h2>
+      <div class="callout callout-amber">
+        <strong>Opportunity missed early</strong>
+        Facilitator-side tooling was lower priority than participant experience — but facilitator 
+        drag was the root cause. I'd instrument facilitator workflows earlier and treat them as 
+        the first user, not a secondary persona. Integrating predictive incident detection signals 
+        from product analytics as proactive triage flags would have been the natural next step.
+      </div>
+
+      <h2>Design principles this project reinforced</h2>
+
+      <div class="principles">
+        <div class="principle">
+          <div class="principle-num">1</div>
+          <div class="principle-text">
+            <div class="principle-title">Treat system state as a first-class design object</div>
+            <div class="principle-body">State and transitions aren't implementation details — they're the primary design material. Design navigation, visibility, and permissions around those states first, not last.</div>
+          </div>
+        </div>
+        <div class="principle">
+          <div class="principle-num">2</div>
+          <div class="principle-text">
+            <div class="principle-title">Design for fast orientation, not just task completion</div>
+            <div class="principle-body">Users who don't know where they are can't complete tasks efficiently. Reducing "what should I do now?" questions is a measurable UX outcome, not a soft improvement.</div>
+          </div>
+        </div>
+        <div class="principle">
+          <div class="principle-num">3</div>
+          <div class="principle-text">
+            <div class="principle-title">Share contracts, not just screens</div>
+            <div class="principle-body">A state machine as a shared artefact between design and engineering is more durable than a Figma prototype. It survives handoff, scope changes, and release trains.</div>
+          </div>
+        </div>
+        <div class="principle">
+          <div class="principle-num">4</div>
+          <div class="principle-text">
+            <div class="principle-title">Favour patterns teams can reuse</div>
+            <div class="principle-body">Every pattern invented only for this project is a debt. Reusing and extending existing design system components — even when they needed adaptation — kept the system coherent and reduced engineering rework.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<!-- FOOTER -->
+<footer class="case-footer">
+  <h3>Want to see more of this work?</h3>
+  <p>I'm happy to walk through this case in detail, share additional artefacts, or talk through the design system that underpinned it — in a live conversation.</p>
+  <div class="footer-ctas">
+    <a href="/contact" class="btn-primary">Book a 30-min conversation →</a>
+    <a href="/work" class="btn-secondary">View another case study</a>
+  </div>
+</footer>
+
+</body>
+</html>
