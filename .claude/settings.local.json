@@ -10,7 +10,22 @@
       "Read(//Users/vc/.local/bin/**)",
       "Read(//Users/vc/.local/**)",
       "Bash(npm run *)",
-      "Bash(python3 -c ' *)"
-    ]
+      "Bash(python3 -c ' *)",
+      "Bash(npx tsc *)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(file \"/Users/vc/Documents/eswarcreatives-portfolio/assets and visuals/img/moodboard/\"*)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(git *)",
+      "WebFetch(domain:localhost)",
+      "WebFetch(domain:claude.ai)",
+      "Bash(xargs sed -i '' 's|https://calendly.com/eswar-eswarcreatives/30min|https://calendly.com/eswarcreatives/25-min-intro-call|g')"
+    ],
+    "defaultMode": "acceptEdits"
   }
 }

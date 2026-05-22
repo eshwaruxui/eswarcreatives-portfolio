@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Design System Footer Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0a0c0f;
+    --surface:  #111318;
+    --surface2: #181b22;
+    --border:   rgba(255,255,255,0.07);
+    --border2:  rgba(255,255,255,0.12);
+    --text:     #e8eaf0;
+    --muted:    #7a8090;
+    --dim:      #767c8a;
+
+    /* token palette — pulled from the screenshot */
+    --teal:     #00C4A1;
+    --teal-dim: rgba(0,196,161,0.12);
+    --green:    #22c55e;
+    --green-dim:rgba(34,197,94,0.12);
+    --amber:    #f59e0b;
+    --amber-dim:rgba(245,158,11,0.12);
+    --blue:     #3b82f6;
+    --blue-dim: rgba(59,130,246,0.12);
+    --red:      #ef4444;
+    --violet:   #8b5cf6;
+    --rose:     #f43f5e;
+    --cyan:     #06b6d4;
+
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+
+  body {
+    background: #f0efeb;
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Page stub ── */
+  .stub {
+    padding: 48px 40px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #999;
+    letter-spacing: 0.08em;
+    background: #f0efeb;
+    border-bottom: 1px solid #ddd;
+  }
+
+  /* ════════════════════════════════════
+     FOOTER
+  ════════════════════════════════════ */
+  .ds-footer {
+    background: var(--bg);
+    font-family: var(--sans);
+    color: var(--text);
+    border-top: 1px solid var(--border2);
+  }
+
+  /* ── Token swatch strip ── */
+  .swatch-strip {
+    display: flex;
+    height: 4px;
+    overflow: hidden;
+  }
+  .swatch-strip span {
+    flex: 1;
+    display: block;
+  }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .stat-item {
+    flex: 1;
+    min-width: 120px;
+    padding: 20px 28px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-val {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--teal);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .stat-key {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* ── Main body ── */
+  .footer-main {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .footer-col {
+    padding: 40px 32px;
+    border-right: 1px solid var(--border);
+  }
+  .footer-col:last-child { border-right: none; }
+
+  .col-eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .col-eyebrow::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    display: block;
+  }
+
+  /* ── Col 1: About ── */
+  .ds-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: -0.01em;
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+  .ds-version {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--teal);
+    background: var(--teal-dim);
+    border: 1px solid rgba(0,196,161,0.2);
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.06em;
+    margin-bottom: 16px;
+  }
+  .ds-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 20px;
+    max-width: 260px;
+  }
+
+  /* Token layer pills */
+  .token-layers {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .token-layer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+  }
+  .layer-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .layer-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+    font-weight: 500;
+    min-width: 80px;
+  }
+  .layer-desc { font-size: 11px; color: var(--muted); }
+  .layer-count {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    margin-left: auto;
+  }
+
+  /* ── Col 2: Palette preview ── */
+  .palette-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .palette-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .palette-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    width: 76px;
+    flex-shrink: 0;
+    font-weight: 500;
+  }
+  .palette-swatches {
+    display: flex;
+    gap: 2px;
+    flex: 1;
+  }
+  .swatch {
+    height: 18px;
+    flex: 1;
+    border-radius: 2px;
+    transition: transform 0.15s;
+    cursor: default;
+  }
+  .swatch:hover { transform: scaleY(1.5); }
+  .palette-count {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    width: 28px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ── Col 3: CTA ── */
+  .cta-heading {
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
+  }
+  .cta-sub {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.65;
+    margin-bottom: 24px;
+  }
+
+  .cta-primary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--teal);
+    color: #0a0c0f;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 12px 18px;
+    border-radius: 6px;
+    text-decoration: none;
+    margin-bottom: 8px;
+    transition: opacity 0.15s;
+    font-family: var(--sans);
+  }
+  .cta-primary:hover { opacity: 0.88; }
+  .cta-arrow {
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .cta-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font-weight: 500;
+    font-size: 13px;
+    padding: 12px 18px;
+    border-radius: 6px;
+    text-decoration: none;
+    border: 1px solid var(--border2);
+    margin-bottom: 20px;
+    transition: border-color 0.15s;
+    font-family: var(--sans);
+  }
+  .cta-secondary:hover { border-color: rgba(255,255,255,0.25); }
+
+  /* Compliance badges */
+  .badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    padding: 4px 9px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+  }
+  .badge-green  { background: var(--green-dim);  color: var(--green);  border-color: rgba(34,197,94,0.2);  }
+  .badge-amber  { background: var(--amber-dim);  color: var(--amber);  border-color: rgba(245,158,11,0.2); }
+  .badge-blue   { background: var(--blue-dim);   color: var(--blue);   border-color: rgba(59,130,246,0.2); }
+  .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* ── Bottom bar ── */
+  .footer-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 32px;
+    flex-wrap: wrap;
+  }
+
+  .bottom-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .bottom-brand {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-decoration: none;
+  }
+  .bottom-brand:hover { color: var(--text); }
+  .bottom-sep { color: var(--dim); font-size: 11px; }
+  .bottom-copy {
+    font-size: 11px;
+    color: var(--dim);
+    font-family: var(--mono);
+  }
+
+  .bottom-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .bottom-link {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  .bottom-link:hover {
+    color: var(--text);
+    border-color: var(--border2);
+    background: var(--surface2);
+  }
+
+  @media (max-width: 900px) {
+    .footer-main { grid-template-columns: 1fr; }
+    .footer-col { border-right: none; border-bottom: 1px solid var(--border); }
+    .stats-bar { flex-wrap: wrap; }
+    .stat-item { min-width: 50%; border-right: none; border-bottom: 1px solid var(--border); }
+    .footer-bottom { padding: 16px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stub">↑ Design System · Color Palette · 11 palettes · 220 tokens ↑</div>
+
+<footer class="ds-footer">
+
+  <!-- Token swatch strip — all 11 palettes as a single decorative bar -->
+  <div class="swatch-strip">
+    <span style="background:#6b7280"></span><!-- Neutral -->
+    <span style="background:#9ca3af"></span><!-- Alpha Neutral -->
+    <span style="background:#00C4A1"></span><!-- Primary / Teal -->
+    <span style="background:#22c55e"></span><!-- Success -->
+    <span style="background:#eab308"></span><!-- Alert -->
+    <span style="background:#f97316"></span><!-- Warning -->
+    <span style="background:#ef4444"></span><!-- Danger -->
+    <span style="background:#3b82f6"></span><!-- System Blue -->
+    <span style="background:#f43f5e"></span><!-- Spl-Rose -->
+    <span style="background:#8b5cf6"></span><!-- Spl-Violet -->
+    <span style="background:#06b6d4"></span><!-- Spl-Cyan -->
+  </div>
+
+  <!-- Stats bar -->
+  <div class="stats-bar">
+    <div class="stat-item">
+      <span class="stat-val">220</span>
+      <span class="stat-key">Design tokens</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-val">11</span>
+      <span class="stat-key">Color palettes</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-val">19</span>
+      <span class="stat-key">Steps per palette</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-val">3</span>
+      <span class="stat-key">Token layers</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-val">V2.1</span>
+      <span class="stat-key">Current version</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-val">WCAG AA</span>
+      <span class="stat-key">Compliance level</span>
+    </div>
+  </div>
+
+  <!-- Main 3-col body -->
+  <div class="footer-main">
+
+    <!-- Col 1: System info -->
+    <div class="footer-col">
+      <div class="col-eyebrow">Design System</div>
+      <div class="ds-name">HEX Portal</div>
+      <div class="ds-version">
+        <span>●</span> V2.1 · Active
+      </div>
+      <p class="ds-desc">
+        A token-based design system built for enterprise SaaS —
+        cross-platform across Web, iOS, and Android.
+        Primitive → semantic → component. One source of truth.
+      </p>
+
+      <div class="token-layers">
+        <div class="token-layer">
+          <span class="layer-dot" style="background:#6b7280"></span>
+          <span class="layer-name">Primitive</span>
+          <span class="layer-desc">Raw values. No meaning.</span>
+          <span class="layer-count">~80</span>
+        </div>
+        <div class="token-layer">
+          <span class="layer-dot" style="background:var(--teal)"></span>
+          <span class="layer-name">Semantic</span>
+          <span class="layer-desc">Intent layer. What it means.</span>
+          <span class="layer-count">~90</span>
+        </div>
+        <div class="token-layer">
+          <span class="layer-dot" style="background:var(--blue)"></span>
+          <span class="layer-name">Component</span>
+          <span class="layer-desc">Leaf tokens. Component-owned.</span>
+          <span class="layer-count">~50</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 2: Palette preview -->
+    <div class="footer-col">
+      <div class="col-eyebrow">Color Library</div>
+      <div class="palette-grid">
+
+        <div class="palette-row">
+          <span class="palette-label">Neutral</span>
+          <div class="palette-swatches">
+            <div class="swatch" style="background:#f9fafb"></div><div class="swatch" style="background:#f3f4f6"></div><div class="swatch" style="background:#e5e7eb"></div><div class="swatch" style="background:#d1d5db"></div><div class="swatch" style="background:#9ca3af"></div><div class="swatch" style="background:#6b7280"></div><div class="swatch" style="background:#4b5563"></div><div class="swatch" style="background:#374151"></div><div class="swatch" style="background:#1f2937"></div><div class="swatch" style="background:#111827"></div>
+          </div>
+          <span class="palette-count">19</span>
+        </div>
+
+        <div class="palette-row">
+          <span class="palette-label">Primary</span>
+          <div class="palette-swatches">
+            <div class="swatch" style="background:#f0fdfa"></div><div class="swatch" style="background:#ccfbf1"></div><div class="swatch" style="background:#99f6e4"></div><div class="swatch" style="background:#5eead4"></div><div class="swatch" style="background:#2dd4bf"></div><div class="swatch" style="background:#00C4A1"></div><div class="swatch" style="background:#0d9488"></div><div class="swatch" style="background:#0f766e"></div><div class="swatch" style="background:#115e59"></div><div class="swatch" style="background:#134e4a"></div>
+          </div>
+          <span class="palette-count">19</span>
+        </div>
+
+        <div class="palette-row">
+          <span class="palette-label">Success</span>
+          <div class="palette-swatches">
+            <div class="swatch" style="background:#f0fdf4"></div><div class="swatch" style="background:#dcfce7"></div><div class="swatch" style="background:#bbf7d0"></div><div class="swatch" style="background:#86efac"></div><div class="swatch" style="background:#4ade80"></div><div class="swatch" style="background:#22c55e"></div><div class="swatch" style="background:#16a34a"></div><div class="swatch" style="background:#15803d"></div><div class="swatch" style="background:#166534"></div><div class="swatch" style="background:#14532d"></div>
+          </div>
+          <span class="palette-count">19</span>
+        </div>
+
+        <div class="palette-row">
+          <span class="palette-label">Alert</span>
+          <div class="palette-swatches">
+            <div class="swatch" style="background:#fefce8"></div><div class="swatch" style="background:#fef9c3"></div><div class="swatch" style="background:#fef08a"></div><div class="swatch" style="background:#fde047"></div><div class="swatch" style="background:#facc15"></div><div class="swatch" style="background:#eab308"></div><div class="swatch" style="background:#ca8a04"></div><div class="swatch" style="background:#a16207"></div><div class="swatch" style="background:#854d0e"></div><div class="swatch" style="background:#713f12"></div>
+          </div>
+          <span class="palette-count">19</span>
+        </div>
+
+        <div class="palette-row">
+          <span class="palette-label">Warning</span>
+          <div class="palette-swatches">
+            <div class="swatch" style="background:#fff7ed"></div><div class="swatch" style="background:#ffedd5"></div><div class="swatch" style="background:#fed7aa"></div><div class="swatch" style="background:#fdba74"></div><div class="swatch" style="background:#fb923c"></div><div class="swatch" style="background:#f97316"></div><div class="swatch" style="background:#ea580c"></div><div class="swatch" style="background:#c2410c"></div><div class="swatch" style="background:#9a3412"></div><div class="swatch" style="background:#7c2d12"></div>
+          </div>
+          <span class="palette-count">19</span>
+        </div>
+
+        <div class="palette-row">
+          <span class="palette-label">Danger</span>
+          <div class="palette-swatches">
+            <div class="swatch" style="background:#fef2f2"></div><div class="swatch" style="background:#fee2e2"></div><div class="swatch" style="background:#fecaca"></div><div class="swatch" style="background:#fca5a5"></div><div class="swatch" style="background:#f87171"></div><div class="swatch" style="background:#ef4444"></div><div class="swatch" style="background:#dc2626"></div><div class="swatch" style="background:#b91c1c"></div><div class="swatch" style="background:#991b1b"></div><div class="swatch" style="background:#7f1d1d"></div>
+          </div>
+          <span class="palette-count">19</span>
+        </div>
+
+        <div class="palette-row">
+          <span class="palette-label">Sys-Blue</span>
+          <div class="palette-swatches">
+            <div class="swatch" style="background:#eff6ff"></div><div class="swatch" style="background:#dbeafe"></div><div class="swatch" style="background:#bfdbfe"></div><div class="swatch" style="background:#93c5fd"></div><div class="swatch" style="background:#60a5fa"></div><div class="swatch" style="background:#3b82f6"></div><div class="swatch" style="background:#2563eb"></div><div class="swatch" style="background:#1d4ed8"></div><div class="swatch" style="background:#1e40af"></div><div class="swatch" style="background:#1e3a8a"></div>
+          </div>
+          <span class="palette-count">19</span>
+        </div>
+
+        <div class="palette-row">
+          <span class="palette-label">Spl-Rose</span>
+          <div class="palette-swatches">
+            <div class="swatch" style="background:#fff1f2"></div><div class="swatch" style="background:#ffe4e6"></div><div class="swatch" style="background:#fecdd3"></div><div class="swatch" style="background:#fda4af"></div><div class="swatch" style="background:#fb7185"></div><div class="swatch" style="background:#f43f5e"></div><div class="swatch" style="background:#e11d48"></div><div class="swatch" style="background:#be123c"></div><div class="swatch" style="background:#9f1239"></div><div class="swatch" style="background:#881337"></div>
+          </div>
+          <span class="palette-count">19</span>
+        </div>
+
+        <div class="palette-row">
+          <span class="palette-label">Spl-Violet</span>
+          <div class="palette-swatches">
+            <div class="swatch" style="background:#f5f3ff"></div><div class="swatch" style="background:#ede9fe"></div><div class="swatch" style="background:#ddd6fe"></div><div class="swatch" style="background:#c4b5fd"></div><div class="swatch" style="background:#a78bfa"></div><div class="swatch" style="background:#8b5cf6"></div><div class="swatch" style="background:#7c3aed"></div><div class="swatch" style="background:#6d28d9"></div><div class="swatch" style="background:#5b21b6"></div><div class="swatch" style="background:#4c1d95"></div>
+          </div>
+          <span class="palette-count">19</span>
+        </div>
+
+        <div class="palette-row">
+          <span class="palette-label">Spl-Cyan</span>
+          <div class="palette-swatches">
+            <div class="swatch" style="background:#ecfeff"></div><div class="swatch" style="background:#cffafe"></div><div class="swatch" style="background:#a5f3fc"></div><div class="swatch" style="background:#67e8f9"></div><div class="swatch" style="background:#22d3ee"></div><div class="swatch" style="background:#06b6d4"></div><div class="swatch" style="background:#0891b2"></div><div class="swatch" style="background:#0e7490"></div><div class="swatch" style="background:#155e75"></div><div class="swatch" style="background:#164e63"></div>
+          </div>
+          <span class="palette-count">19</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Col 3: CTA -->
+    <div class="footer-col">
+      <div class="col-eyebrow">Architect</div>
+      <div class="cta-heading">Want this system in your product?</div>
+      <p class="cta-sub">
+        This is a live demo of a production design system — 
+        the architecture, token taxonomy, and component library 
+        I built at CYGNVS. I build systems like this for 
+        Series B–D SaaS teams.
+      </p>
+
+      <a class="cta-primary" href="/contact">
+        Book a 30-min intro
+        <span class="cta-arrow">→</span>
+      </a>
+      <a class="cta-secondary" href="/work/cygnvs">
+        Read the full case study
+        <span style="font-size:14px;opacity:0.5">↗</span>
+      </a>
+
+      <!-- Compliance badges -->
+      <div class="badges">
+        <span class="badge badge-green">
+          <span class="badge-dot"></span>WCAG AA Passed
+        </span>
+        <span class="badge badge-amber">
+          <span class="badge-dot"></span>Cross-platform
+        </span>
+        <span class="badge badge-blue">
+          <span class="badge-dot"></span>Tokens Studio
+        </span>
+      </div>
+    </div>
+
+  </div><!-- /footer-main -->
+
+  <!-- Bottom bar -->
+  <div class="footer-bottom">
+    <div class="bottom-left">
+      <a class="bottom-brand" href="/">eswar@eswarcreatives.in</a>
+      <span class="bottom-sep">·</span>
+      <span class="bottom-copy">© 2026 Eswar Maheswaran. HEX Portal Design System V2.1.</span>
+    </div>
+    <div class="bottom-right">
+      <a class="bottom-link" href="/work">Portfolio</a>
+      <a class="bottom-link" href="/services">Services</a>
+      <a class="bottom-link" href="/about">About</a>
+      <a class="bottom-link" href="https://linkedin.com/in/eswaruxui" target="_blank">LinkedIn ↗</a>
+    </div>
+  </div>
+
+</footer>
+
+</body>
+</html>
