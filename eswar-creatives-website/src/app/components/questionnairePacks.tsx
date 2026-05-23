@@ -74,6 +74,16 @@ export interface QuestionnairePack {
   culturalCueTriggerPlaceholder: string;
   culturalCueRenderStyle: "moodboard" | "plain";
   culturalCueCards: CultureCardOption[];
+
+  // Tamil overrides — same fields above that contain industry-specific
+  // wording also need a Tamil version (the rest of the Tamil block in
+  // BrandIdentityDiscoveryPage.tsx is pack-agnostic).
+  pageSubtitleTamil: string;
+  q12HintTamil: string;
+  q27LabelTamil: string;
+  culturalCueLabelTamil: string;
+  culturalCueHintTamil: string;
+  q36HintTamil: string;
 }
 
 // ── Shared SVG helpers ────────────────────────────────────────────────
@@ -385,6 +395,17 @@ export const questionnairePacks: Record<string, QuestionnairePack> = {
     culturalCueTriggerPlaceholder: "Choose your cultural direction →",
     culturalCueRenderStyle: "moodboard",
     culturalCueCards: creativeCultureCards,
+    pageSubtitleTamil:
+      "நாங்க start பண்றதுக்கு முன்னாடி உங்க business-ஓட soul-ஐ புரிஞ்சுக்க இந்த brief உதவும். நேரம் எடுத்துக்கோங்க — தப்பான answer இல்ல.",
+    q12HintTamil:
+      "Age range, budget range, city, lifestyle, profession, event-ல அவங்களுக்கு மிக முக்கியமான விஷயம்.",
+    q27LabelTamil:
+      "என்ன symbols, motifs, இல்லன்னா floral elements explore பண்ணணும்னு நினைக்கீங்க?",
+    culturalCueLabelTamil: "Cultural & regional cues",
+    culturalCueHintTamil:
+      "உங்களுக்கு right-ஆ feel ஆகற direction choose பண்ணி, கீழே specifics add பண்ணுங்க.",
+    q36HintTamil:
+      "Family name, meaningful flower, ஒரு Tamil word — சிலருக்கு மட்டும் தெரிஞ்ச ஒன்னு.",
   },
 
   // ── B2B Industrial ────────────────────────────────────────────────
@@ -458,6 +479,17 @@ export const questionnairePacks: Record<string, QuestionnairePack> = {
     culturalCueTriggerPlaceholder: "Choose your visual tone →",
     culturalCueRenderStyle: "moodboard",
     culturalCueCards: industrialCultureCards,
+    pageSubtitleTamil:
+      "நாங்க start பண்றதுக்கு முன்னாடி உங்க business எதுக்காக நிக்குதுன்னும், யாருக்கு serve பண்றதுன்னும் புரிஞ்சுக்க இந்த brief உதவும். நேரம் எடுத்துக்கோங்க — தப்பான answer இல்ல.",
+    q12HintTamil:
+      "e.g. contractors, dealers, factories, hardware retailers — யாரு உங்களிடம் buy பண்றாங்க, எதுக்கு.",
+    q27LabelTamil:
+      "என்ன symbols இல்லன்னா motifs explore பண்ணணும்னு நினைக்கீங்க? (e.g. tools, gears, strength, precision)",
+    culturalCueLabelTamil: "Visual tone & finish",
+    culturalCueHintTamil:
+      "உங்க brand எப்படி present ஆகணும்னு close-ஆ feel ஆகற tone-ஐ choose பண்ணுங்க.",
+    q36HintTamil:
+      "Family name, ஒரு city, ஒரு material, ஒரு memory, ஒரு number — உங்களுக்கு meaningful-ஆ இருக்கற எதுவும்.",
   },
 };
 
