@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
 import { Link } from "react-router";
 import eswarLogo from "../../imports/eswar-logo.svg";
+import { getPackFromSearch, getPackKeyFromSearch } from "./questionnairePacks";
 
 // ── Formspree ──────────────────────────────────────────────────────
 const FORMSPREE_ID = "maqvagwj";
@@ -38,35 +39,17 @@ const SECTIONS = [
   { num: "07", title: "Final Thoughts" },
 ] as const;
 
-// ── Example answers for complex questions ─────────────────────────
-const EXAMPLES: Record<string, string> = {
-  whatYouDo:
-    "We design and style floral installations for South Indian weddings — from the wedding mandap and car decoration to the reception stage and centrepieces. Most of our clients are Tamil and Telugu families in Chennai planning weddings of 200–800 guests.",
-  successIn3Years:
-    "We are the first name Chennai wedding families think of when they want florals that feel both traditional and elevated. We have a team of 8, a studio in Nungambakkam, and we're featured regularly in WedMeGood and The Wedding Brigade.",
-  idealClient:
-    "A bride in her late 20s or early 30s, Chennai-based, planning a wedding in the next 6–12 months. She's researching vendors on Instagram and WedMeGood. Her mother is involved in decisions. Budget is mid-to-premium. She wants something that feels personal, not generic.",
-  clientFrustrations:
-    "Most florists show generic catalogue packages. Clients feel like they can't customise anything, and nobody explains why a design costs what it costs. They feel like they're buying blind.",
-  brandAsPerson:
-    "She's a well-travelled South Indian woman in her 40s — confident, quietly elegant, never loud. She wears a good silk saree as easily as she wears linen. She has strong opinions but shares them gently. She knows quality when she sees it.",
-  brandPromise:
-    "We make the spaces where your family's most important moments happen feel as beautiful as those moments deserve.",
-  differentFrom:
-    "We're the only florist in Chennai who does a full site visit before quoting — we design for your specific venue lighting, not a generic room. And we've never repeated a stage design.",
-  logosAdmired:
-    "1. Sabyasachi — the way the logo feels rooted and handcrafted without being fussy.\n2. The Leela Hotels — restrained, confident, instantly South Indian without being literal.\n3. Tanishq — the script feels warm and trustworthy.",
-  personalSymbolic:
-    "My grandmother always wore a single jasmine strand, never a full gajra. I'd love if there was something in the brand that quietly referenced that — maybe a single stem rather than a full bloom.",
-  competitorReasons:
-    "Clients sometimes go to larger florists because they assume a smaller studio can't handle a 500-guest wedding. They also occasionally choose competitors when they need a very fast turnaround — we're known for being considered, not rushed.",
-  neverThink:
-    "That we're too expensive without understanding what they're getting. Or that our work looks the same as every other florist on WedMeGood. We never want to feel generic, forgettable, or interchangeable.",
-};
-
 // ── Example modal ──────────────────────────────────────────────────
-function ExampleModal({ qKey, onClose }: { qKey: string; onClose: () => void }) {
-  const text = EXAMPLES[qKey] ?? "";
+function ExampleModal({
+  qKey, onClose, examples, logoTypeIntro, packKey,
+}: {
+  qKey: string;
+  onClose: () => void;
+  examples: Record<string, string>;
+  logoTypeIntro: string;
+  packKey: string;
+}) {
+  const text = examples[qKey] ?? "";
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -107,7 +90,7 @@ function ExampleModal({ qKey, onClose }: { qKey: string; onClose: () => void }) 
         }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: C.accent, textTransform: "uppercase", letterSpacing: "0.06em" }}>
             {qKey === "logoTypePreference"
-              ? "Here's how logo types work in the wedding & events industry"
+              ? logoTypeIntro
               : "Here's how another client answered this"}
           </p>
           <button
@@ -168,7 +151,7 @@ function ExampleModal({ qKey, onClose }: { qKey: string; onClose: () => void }) 
                 </p>
               </div>
             </>
-          ) : qKey === "logosAdmired" ? (
+          ) : qKey === "logosAdmired" && packKey === "creative" ? (
             <>
               <div style={{ background: "#f8f7f5", borderRadius: 10, padding: "16px 20px", marginBottom: 12 }}>
                 <img
@@ -678,65 +661,6 @@ interface MoodBoardCultureCardProps {
   chips: Array<{ icon: React.ReactNode; label: string }>;
 }
 
-const CULTURE_CARD_DATA: Array<{
-  title: string; desc: string; tintColor: string; gradient: string;
-  imageSrc: string;
-  chips: Array<{ icon: React.ReactNode; label: string }>;
-}> = [
-  {
-    title: "Rooted in Tamil Nadu",
-    desc: "South Indian aesthetics — kolam, temple motifs, regional craft",
-    tintColor: "#f5ede0",
-    gradient: "linear-gradient(135deg, #e8d5b7 0%, #c9956b 100%)",
-    imageSrc: "/assets/cultural/moodboard/layer-18.png",
-    chips: [
-      { icon: <img src="/assets/cultural/moodboard/layer-22.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "KOLAM" },
-      { icon: <img src="/assets/cultural/moodboard/layer-2.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "TEMPLE" },
-      { icon: <img src="/assets/cultural/moodboard/layer-3.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "FLORALS" },
-      { icon: <img src="/assets/cultural/moodboard/layer-4.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "CRAFT" },
-    ],
-  },
-  {
-    title: "Pan-Indian",
-    desc: "Draws from across Indian traditions — inclusive, diverse, broadly resonant",
-    tintColor: "#edf5ed",
-    gradient: "linear-gradient(135deg, #c8dfc8 0%, #7aab7a 100%)",
-    imageSrc: "/assets/cultural/moodboard/layer-19.png",
-    chips: [
-      { icon: <img src="/assets/cultural/moodboard/layer-5.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "LOTUS" },
-      { icon: <img src="/assets/cultural/moodboard/layer-6.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "PAISLEY" },
-      { icon: <img src="/assets/cultural/moodboard/layer-7.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "BOTANICS" },
-      { icon: <img src="/assets/cultural/moodboard/layer-8.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "HERITAGE" },
-    ],
-  },
-  {
-    title: "International finish",
-    desc: "South Indian soul, global presentation — minimal, modern, export-ready",
-    tintColor: "#e8eef5",
-    gradient: "linear-gradient(135deg, #c5d5e8 0%, #7a9dbf 100%)",
-    imageSrc: "/assets/cultural/moodboard/layer-21.png",
-    chips: [
-      { icon: <img src="/assets/cultural/moodboard/layer-14.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "GLOBAL" },
-      { icon: <img src="/assets/cultural/moodboard/layer-15.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "MINIMAL" },
-      { icon: <img src="/assets/cultural/moodboard/layer-16.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "PREMIUM" },
-      { icon: <img src="/assets/cultural/moodboard/layer-17.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "EXPORT" },
-    ],
-  },
-  {
-    title: "South Indian roots, global finish",
-    desc: "The most requested direction — culturally specific but presented with international polish",
-    tintColor: "#f5f0e8",
-    gradient: "linear-gradient(135deg, #e8d9c0 0%, #b8956a 100%)",
-    imageSrc: "/assets/cultural/moodboard/layer-20.png",
-    chips: [
-      { icon: <img src="/assets/cultural/moodboard/layer-10.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "TEMPLE" },
-      { icon: <img src="/assets/cultural/moodboard/layer-11.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "HERITAGE" },
-      { icon: <img src="/assets/cultural/moodboard/layer-12.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "GLOBAL" },
-      { icon: <img src="/assets/cultural/moodboard/layer-13.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />, label: "PREMIUM" },
-    ],
-  },
-];
-
 function MoodBoardCultureCard({
   title, desc, selected, onSelect, imageSrc, gradient, tintColor, chips,
 }: MoodBoardCultureCardProps) {
@@ -1166,6 +1090,11 @@ function SuccessScreen({ title, text, font }: { title: string; text: string; fon
 
 // ── Main page ──────────────────────────────────────────────────────
 export function BrandIdentityDiscoveryPage() {
+  // Read ?pack= once on mount — defaults to creative (florist wording).
+  const search = typeof window !== "undefined" ? window.location.search : "";
+  const pack = useMemo(() => getPackFromSearch(search), [search]);
+  const packKey = useMemo(() => getPackKeyFromSearch(search), [search]);
+
   const [form, setForm] = useState<FS>(BLANK);
   const [files, setFiles] = useState<FileList | null>(null);
   const [step, setStep] = useState(0);
@@ -1404,7 +1333,7 @@ export function BrandIdentityDiscoveryPage() {
     en: {
       pageEyebrow: "Brand Identity Discovery",
       pageTitle: "Tell us about your brand.",
-      pageSubtitle: "This brief helps us understand the soul of your business before we begin. Take your time — there are no wrong answers.",
+      pageSubtitle: pack.pageSubtitle,
       pageNote: "We'll review your brief and follow up within three working days.",
       s1Title: "The Business",
       s2Title: "The Brand Soul",
@@ -1439,7 +1368,7 @@ export function BrandIdentityDiscoveryPage() {
       q11Label: "Three words you want to AVOID",
       q11Hint: "",
       q12Label: "Describe your ideal client in detail.",
-      q12Hint: "Age range, budget range, city, lifestyle, profession, what they value most.",
+      q12Hint: pack.q12Hint,
       q13Label: "What's the biggest frustration clients have with similar businesses?",
       q13Hint: "",
       q14Label: "Price point",
@@ -1468,10 +1397,10 @@ export function BrandIdentityDiscoveryPage() {
       q25Hint: "Brand names, Instagram handles, or URLs. What do you love about them?",
       q26Label: "Logos or visual styles you dislike — share 2 to 3",
       q26Hint: "What about them doesn't work for you?",
-      q27Label: "Any symbols, motifs, or floral elements you'd like explored?",
+      q27Label: pack.q27Label,
       q27Hint: "Select any that appeal to you, or describe your own.",
-      q28Label: "Cultural & regional cues to consider",
-      q28Hint: "Choose the direction that feels right, then add specifics below.",
+      q28Label: pack.culturalCueLabel,
+      q28Hint: pack.culturalCueHint,
       q29Label: "Share visual references — optional",
       q29Hint: "Screenshots, Pinterest saves, Instagram posts, logos you love — anything that shows the direction you have in mind.",
       q30Label: "Where will this identity be used?",
@@ -1608,8 +1537,8 @@ export function BrandIdentityDiscoveryPage() {
     </FontCtx.Provider>
   );
 
-  const CHANNELS = ["Instagram", "Word of mouth", "Google search", "Referrals from vendors", "Wedding expos", "Other"];
-  const FEELINGS = ["Calm and cared for", "Excited and inspired", "Confident and assured", "Moved and emotional", "Seen and understood", "Something else"];
+  const CHANNELS = pack.clientChannels;
+  const FEELINGS = pack.clientFeelings;
   const USAGE = ["Instagram & social", "Website", "Signage at venues", "Printed invitations", "Vehicle branding", "Staff uniforms", "Business cards", "Gift packaging", "Brochures & decks"];
 
   // ── Section content ──────────────────────────────────────────────
@@ -1619,12 +1548,12 @@ export function BrandIdentityDiscoveryPage() {
       <SHead num="01" title={t[lang].s1Title} />
 
       <QL required>{t[lang].q1Label}</QL>
-      <TInput value={form.businessName} onChange={(v) => set("businessName", v)} placeholder="e.g. Blooms by Meera" hasError={!!errs.businessName} />
+      <TInput value={form.businessName} onChange={(v) => set("businessName", v)} placeholder={pack.businessNamePlaceholder} hasError={!!errs.businessName} />
       {errs.businessName && <FErr msg={errs.businessName} />}
 
       <QDivider />
       <QL>{t[lang].q2Label}</QL>
-      <TInput value={form.tagline} onChange={(v) => set("tagline", v)} placeholder="e.g. Floral art for life's most beautiful moments" />
+      <TInput value={form.tagline} onChange={(v) => set("tagline", v)} placeholder={pack.taglinePlaceholder} />
 
       <QDivider />
       <QL>{t[lang].q3Label}</QL>
@@ -1743,7 +1672,7 @@ export function BrandIdentityDiscoveryPage() {
       <SHead num="03" title={t[lang].s2Title} />
 
       <QL>{t[lang].q21Label}</QL>
-      <TInput value={form.brandWords} onChange={(v) => set("brandWords", v)} placeholder="e.g. Warm, Refined, Celebratory" />
+      <TInput value={form.brandWords} onChange={(v) => set("brandWords", v)} placeholder={pack.brandWordsPlaceholder} />
 
       <QDivider />
       <QL>{t[lang].q11Label}</QL>
@@ -1767,7 +1696,7 @@ export function BrandIdentityDiscoveryPage() {
 
       <QDivider />
       <QL>{t[lang].q7Label}</QL>
-      {["A curated boutique hotel", "A lush private garden", "A sun-filled studio", "A grand heritage hall", "A quiet Tamil home", "Other"].map((o) => (
+      {pack.brandAsPlaceOptions.map((o) => (
         <RadioOpt key={o} label={o} checked={form.brandAsPlace === o} onSelect={() => set("brandAsPlace", o)} />
       ))}
 
@@ -1906,7 +1835,7 @@ export function BrandIdentityDiscoveryPage() {
       <SelectorLightbox
         isOpen={openLightbox === "motifs"}
         onClose={() => setOpenLightbox(null)}
-        title="Symbols, motifs, or floral elements"
+        title={pack.motifsLightboxTitle}
         footer={
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button type="button" onClick={() => setOpenLightbox(null)}
@@ -1930,59 +1859,14 @@ export function BrandIdentityDiscoveryPage() {
         }
       >
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {([
-            { label: "Jasmine / florals", symbol: <span style={{ fontSize: 28 }}>🌸</span> },
-            { label: "Lotus", symbol: <span style={{ fontSize: 28 }}>🪷</span> },
-            { label: "Geometric star", symbol: (
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <path d="M14 2L16.5 11.5L26 14L16.5 16.5L14 26L11.5 16.5L2 14L11.5 11.5Z" stroke="#1a1a1a" strokeWidth="1.5" strokeLinejoin="round"/>
-              </svg>
-            ) },
-            { label: "Kolam / mandala", symbol: (
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <circle cx="14" cy="14" r="11" stroke="#1a1a1a" strokeWidth="1.5"/>
-                <circle cx="14" cy="14" r="4" stroke="#1a1a1a" strokeWidth="1.5"/>
-                <line x1="14" y1="3" x2="14" y2="25" stroke="#1a1a1a" strokeWidth="1"/>
-                <line x1="3" y1="14" x2="25" y2="14" stroke="#1a1a1a" strokeWidth="1"/>
-                <line x1="6.5" y1="6.5" x2="21.5" y2="21.5" stroke="#1a1a1a" strokeWidth="1"/>
-                <line x1="21.5" y1="6.5" x2="6.5" y2="21.5" stroke="#1a1a1a" strokeWidth="1"/>
-              </svg>
-            ) },
-            { label: "Botanical / leaves", symbol: <span style={{ fontSize: 28 }}>🌿</span> },
-            { label: "Elephant motif", symbol: <span style={{ fontSize: 28 }}>🐘</span> },
-            { label: "Diamond / frame", symbol: (
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <path d="M14 3L25 14L14 25L3 14Z" stroke="#1a1a1a" strokeWidth="1.5" strokeLinejoin="round"/>
-              </svg>
-            ) },
-            { label: "Infinity / flow", symbol: <span style={{ fontSize: 28, lineHeight: "1" }}>∞</span> },
-            { label: "Temple arch", symbol: (
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <path d="M5 27V14C5 8.477 9.029 4 14 4C18.971 4 23 8.477 23 14V27" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round"/>
-                <line x1="3" y1="27" x2="25" y2="27" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            ) },
-            { label: "Floral ornament", symbol: <span style={{ fontSize: 28 }}>❦</span> },
-            { label: "Honeycomb / hex", symbol: (
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <path d="M14 3L23.5 8.5V19.5L14 25L4.5 19.5V8.5Z" stroke="#1a1a1a" strokeWidth="1.5" strokeLinejoin="round"/>
-              </svg>
-            ) },
-            { label: "Abstract / minimal", symbol: (
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="#1a1a1a">
-                <circle cx="10" cy="10" r="2.5"/><circle cx="18" cy="10" r="2.5"/>
-                <circle cx="10" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/>
-                <circle cx="14" cy="14" r="1.5"/>
-              </svg>
-            ) },
-          ] as Array<{ label: string; symbol: React.ReactNode }>).map((chip) => (
+          {pack.motifOptions.map((m) => (
             <MotifChip
-              key={chip.label}
-              symbol={chip.symbol}
-              label={chip.label}
-              selected={motifsSelected.includes(chip.label)}
+              key={m.label}
+              symbol={m.icon}
+              label={m.label}
+              selected={motifsSelected.includes(m.label)}
               onToggle={() => setMotifsSelected(prev =>
-                prev.includes(chip.label) ? prev.filter(x => x !== chip.label) : [...prev, chip.label]
+                prev.includes(m.label) ? prev.filter(x => x !== m.label) : [...prev, m.label]
               )}
             />
           ))}
@@ -2011,7 +1895,7 @@ export function BrandIdentityDiscoveryPage() {
       <QDivider />
       <QL>{t[lang].q28Label}</QL>
       <SelectorTrigger
-        placeholder="Choose your cultural direction →"
+        placeholder={pack.culturalCueTriggerPlaceholder}
         selectedChips={cultureSelected ? [cultureSelected] : []}
         onClick={() => setOpenLightbox("culture")}
         isOpen={openLightbox === "culture"}
@@ -2019,7 +1903,7 @@ export function BrandIdentityDiscoveryPage() {
       <SelectorLightbox
         isOpen={openLightbox === "culture"}
         onClose={() => setOpenLightbox(null)}
-        title="Cultural & regional cues to consider"
+        title={pack.culturalCueLightboxTitle}
         footer={
           <button type="button" disabled={!cultureSelected} onClick={() => setOpenLightbox(null)}
             style={{
@@ -2033,19 +1917,30 @@ export function BrandIdentityDiscoveryPage() {
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ alignItems: "stretch" }}>
-          {CULTURE_CARD_DATA.map((card) => (
-            <MoodBoardCultureCard
-              key={card.title}
-              title={card.title}
-              desc={card.desc}
-              selected={cultureSelected === card.title}
-              onSelect={() => setCultureSelected(p => p === card.title ? "" : card.title)}
-              imageSrc={card.imageSrc}
-              gradient={card.gradient}
-              tintColor={card.tintColor}
-              chips={card.chips}
-            />
-          ))}
+          {pack.culturalCueRenderStyle === "moodboard"
+            ? pack.culturalCueCards.map((card) => (
+                <MoodBoardCultureCard
+                  key={card.title}
+                  title={card.title}
+                  desc={card.desc}
+                  selected={cultureSelected === card.title}
+                  onSelect={() => setCultureSelected(p => p === card.title ? "" : card.title)}
+                  imageSrc={card.imageSrc}
+                  gradient={card.gradient ?? ""}
+                  tintColor={card.tintColor ?? "#ffffff"}
+                  chips={card.chips ?? []}
+                />
+              ))
+            : pack.culturalCueCards.map((card) => (
+                <CultureCard
+                  key={card.title}
+                  title={card.title}
+                  desc={card.desc}
+                  selected={cultureSelected === card.title}
+                  onSelect={() => setCultureSelected(p => p === card.title ? "" : card.title)}
+                  visual={card.visual}
+                />
+              ))}
           <CultureCard
             selected={cultureSelected === "Other — I'll describe"}
             onSelect={() => setCultureSelected(p => p === "Other — I'll describe" ? "" : "Other — I'll describe")}
@@ -2269,7 +2164,15 @@ export function BrandIdentityDiscoveryPage() {
         ::placeholder { color: #9ca3af; }
       `}</style>
 
-      {exampleModal && <ExampleModal qKey={exampleModal} onClose={() => setExampleModal(null)} />}
+      {exampleModal && (
+        <ExampleModal
+          qKey={exampleModal}
+          onClose={() => setExampleModal(null)}
+          examples={pack.examples}
+          logoTypeIntro={pack.logoTypeExampleIntro}
+          packKey={packKey}
+        />
+      )}
       <TopBar step={step} />
 
       {/* Scroll anchor */}
