@@ -7,8 +7,12 @@ import { BrandIdentityDiscoveryPage } from "./components/BrandIdentityDiscoveryP
 import { TtxCaseStudy } from "./components/TtxCaseStudy";
 import { ServicesPage } from "./components/ServicesPage";
 import { NotFound } from "./components/NotFound";
+import { LoginPage } from "../portal/LoginPage";
+import { VerifyPage } from "../portal/VerifyPage";
 
 export const routeConfig = [
+  { path: "/portal/login",  Component: LoginPage  },
+  { path: "/portal/verify", Component: VerifyPage },
   {
     Component: RootLayout,
     children: [
