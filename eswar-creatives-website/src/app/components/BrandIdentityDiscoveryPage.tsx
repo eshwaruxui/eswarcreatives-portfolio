@@ -1,7 +1,52 @@
 import { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
 import { Link } from "react-router";
+import confetti from "canvas-confetti";
 import eswarLogo from "../../imports/eswar-logo.svg";
 import { getPackFromSearch, getPackKeyFromSearch } from "./questionnairePacks";
+
+// ── Gamification ─────────────────────────────────────────────────────
+// Messages shown briefly after completing each section (1-indexed).
+// Section 7 is intentionally absent — its completion triggers the final
+// celebration card + confetti instead.
+const STEP_TOAST_MESSAGES = [
+  "Great start! Your brand story is taking shape ✨",
+  "Love it — now we can see who you're speaking to 🎯",
+  "Your brand personality is coming alive 🌟",
+  "Smart choices — the visual direction is getting clear 🎨",
+  "Almost there — you're building something special 🔥",
+  "Brilliant — just one more step to go! 💎",
+];
+
+// Fires confetti from both bottom corners for ~3s on submit success.
+function fireCelebration() {
+  const colors = ["#0d9488", "#14b8a6", "#5eead4", "#a7f3d0", "#fbbf24", "#f59e0b"];
+  const burst = (origin: { x: number; y: number }, angle: number, particleCount = 60) =>
+    confetti({
+      particleCount,
+      angle,
+      spread: 70,
+      origin,
+      colors,
+      startVelocity: 55,
+      gravity: 1,
+      scalar: 1.0,
+      zIndex: 9999,
+    });
+
+  burst({ x: 0, y: 1 }, 60);
+  burst({ x: 1, y: 1 }, 120);
+
+  const duration = 3000;
+  const end = Date.now() + duration;
+  const interval = setInterval(() => {
+    if (Date.now() > end) {
+      clearInterval(interval);
+      return;
+    }
+    burst({ x: 0, y: 1 }, 60, 35);
+    burst({ x: 1, y: 1 }, 120, 35);
+  }, 550);
+}
 
 // ── Formspree ──────────────────────────────────────────────────────
 const FORMSPREE_ID = "maqvagwj";
@@ -266,11 +311,26 @@ function ExTrigger({ qKey, onOpen }: { qKey: string; onOpen: (k: string) => void
 }
 
 // ── Top step progress bar ──────────────────────────────────────────
-function TopBar({ step }: { step: number }) {
+function TopBar({ step, pulseKey }: { step: number; pulseKey: number }) {
   const pct = Math.round(((step + 1) / 7) * 100);
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 3, zIndex: 100, background: "#e5e7eb" }}>
       <div style={{ height: "100%", width: `${pct}%`, background: C.accent, transition: "width 0.4s ease" }} />
+      {pulseKey > 0 && (
+        <div
+          key={pulseKey}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            height: "100%",
+            width: `${pct}%`,
+            background: C.accent,
+            animation: "pulseProgress 0.7s ease",
+            pointerEvents: "none",
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1046,25 +1106,63 @@ const BLANK: FS = {
   fullName: "", email: "", phone: "",
 };
 
-// ── Success screen ─────────────────────────────────────────────────
+// ── Success celebration card ───────────────────────────────────────
+// Owns its own <style> block — when status === "success" the main page
+// tree is unmounted, so any @keyframes defined there are gone.
 function SuccessScreen({ title, text, font }: { title: string; text: string; font: string }) {
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    // Fire confetti from both bottom corners the moment the card mounts.
+    // canvas-confetti attaches its own <canvas> to document.body with
+    // zIndex 9999 (set in fireCelebration), which sits above this card.
+    fireCelebration();
+    // Brief RAF so the card's transition fires from opacity 0 → 1.
+    const t = setTimeout(() => setRevealed(true), 60);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <div style={{
       minHeight: "100vh", background: C.bg, fontFamily: font,
       display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px",
     }}>
+      <style>{`
+        @keyframes fillCircle {
+          0%   { background-color: transparent; transform: scale(0.92); }
+          60%  { background-color: ${C.success}; transform: scale(1.05); }
+          100% { background-color: ${C.success}; transform: scale(1); }
+        }
+        @keyframes drawCheck { to { stroke-dashoffset: 0; } }
+        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
       <div style={{
         background: C.surface, borderRadius: 20, padding: "52px 40px",
         maxWidth: 520, width: "100%", textAlign: "center",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.07)",
+        boxShadow: "0 12px 40px rgba(0,0,0,0.10)",
+        opacity: revealed ? 1 : 0,
+        transform: revealed ? "translateY(0) scale(1)" : "translateY(12px) scale(0.98)",
+        transition: "opacity 0.4s ease, transform 0.4s ease",
       }}>
         <div style={{
-          width: 72, height: 72, borderRadius: "50%",
-          background: `${C.success}14`, border: `2px solid ${C.success}40`,
-          display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px",
+          width: 80, height: 80, borderRadius: "50%",
+          background: "transparent",
+          border: `2.5px solid ${C.success}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 28px",
+          animation: "fillCircle 0.45s cubic-bezier(0.34, 1.2, 0.64, 1) 0.15s forwards",
         }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-            <path d="M20 6L9 17L4 12" stroke={C.success} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+            <path
+              d="M12 23L19 30L32 15"
+              stroke="#ffffff" strokeWidth="3.5"
+              strokeLinecap="round" strokeLinejoin="round"
+              style={{
+                strokeDasharray: 32,
+                strokeDashoffset: 32,
+                animation: "drawCheck 0.6s ease-out 0.55s forwards",
+              }}
+            />
           </svg>
         </div>
         <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: C.text, marginBottom: 14, fontFamily: font }}>
@@ -1074,14 +1172,19 @@ function SuccessScreen({ title, text, font }: { title: string; text: string; fon
           {text}
         </p>
         <a
-          href="https://eswarcreatives.in"
+          href="/"
           style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            background: C.accent, color: "#fff", borderRadius: 8,
-            padding: "12px 28px", fontSize: 14, fontWeight: 600, textDecoration: "none",
+            background: "transparent", color: C.textSoft,
+            border: `1px solid ${C.border}`, borderRadius: 8,
+            padding: "10px 24px", fontSize: 14, fontWeight: 500,
+            textDecoration: "none", fontFamily: font,
+            transition: "border-color 0.18s, color 0.18s",
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderInput; e.currentTarget.style.color = C.text; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSoft; }}
         >
-          Back to eswarcreatives.in
+          Close
         </a>
       </div>
     </div>
@@ -1118,6 +1221,9 @@ export function BrandIdentityDiscoveryPage() {
   const [showRestorationBanner, setShowRestorationBanner] = useState(false);
   const [autosaveToastVisible, setAutosaveToastVisible] = useState(false);
   const [autosaveToastOpacity, setAutosaveToastOpacity] = useState(0);
+  const [stepToast, setStepToast] = useState<string | null>(null);
+  const [stepToastOpacity, setStepToastOpacity] = useState(0);
+  const [progressPulseKey, setProgressPulseKey] = useState(0);
   const topRef = useRef<HTMLDivElement>(null);
   const hasSavedOnce = useRef(false);
 
@@ -1219,8 +1325,27 @@ export function BrandIdentityDiscoveryPage() {
     const v = validateStep(step);
     if (Object.keys(v).length) { setErrs(v); return; }
     setErrs({});
+    const completedStepIdx = step; // section just finished (0-indexed)
     setStep((s) => s + 1);
     topRef.current?.scrollIntoView({ behavior: "smooth" });
+
+    // Progress bar pulse
+    setProgressPulseKey((k) => k + 1);
+
+    // Step-completion toast: section 1..6 → message; section 7 has no toast.
+    const msg = STEP_TOAST_MESSAGES[completedStepIdx];
+    if (msg) {
+      // Hold 3.5s, then a 0.3s grace pause before fade-out begins.
+      const HOLD_MS = 3500;
+      const GRACE_MS = 300;
+      const FADE_MS = 400;
+      setStepToast(msg);
+      setStepToastOpacity(0);
+      // RAF gap so the entry transition fires from opacity 0 → 1.
+      requestAnimationFrame(() => setStepToastOpacity(1));
+      setTimeout(() => setStepToastOpacity(0), HOLD_MS + GRACE_MS);
+      setTimeout(() => setStepToast(null), HOLD_MS + GRACE_MS + FADE_MS);
+    }
   };
 
   const handleBack = () => {
@@ -1319,6 +1444,8 @@ export function BrandIdentityDiscoveryPage() {
 
       if (formspreeOk || sheetsOk) {
         localStorage.removeItem('discovery_draft_v1');
+        // Confetti fires from inside SuccessScreen's mount effect, so it
+        // arrives together with the card.
         setStatus("success");
       } else {
         setStatus("error");
@@ -1421,8 +1548,8 @@ export function BrandIdentityDiscoveryPage() {
       q37Hint: "An honest concern, a past experience, something you loved or hated in a previous branding project.",
       q38Label: "Contact details",
       q38Hint: "So we can come back to you within three working days.",
-      successTitle: "Brief received.",
-      successText: "We'll review your answers carefully and come back within three working days with our initial brand direction and a transparent quote.",
+      successTitle: "You did it! 🎉",
+      successText: "Your brand discovery is complete. We'll review your responses and get back to you within 48 hours with a custom brand strategy.",
     },
     ta: {
       pageEyebrow: "Brand Identity Discovery",
@@ -2161,6 +2288,11 @@ export function BrandIdentityDiscoveryPage() {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+        @keyframes pulseProgress {
+          0% { opacity: 0.85; box-shadow: 0 0 0 rgba(13,148,136,0); filter: brightness(1); }
+          40% { opacity: 1; box-shadow: 0 0 14px rgba(13,148,136,0.75); filter: brightness(1.25); }
+          100% { opacity: 0; box-shadow: 0 0 0 rgba(13,148,136,0); filter: brightness(1); }
+        }
         ::placeholder { color: #9ca3af; }
       `}</style>
 
@@ -2173,7 +2305,39 @@ export function BrandIdentityDiscoveryPage() {
           packKey={packKey}
         />
       )}
-      <TopBar step={step} />
+      <TopBar step={step} pulseKey={progressPulseKey} />
+
+      {/* Step-completion toast (top-center, slides down + fades) */}
+      {stepToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            top: 80,
+            left: "50%",
+            zIndex: 250,
+            background: "#ffffff",
+            border: `1.5px solid rgba(13,148,136,0.30)`,
+            borderRadius: 100,
+            padding: "10px 22px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.10)",
+            fontSize: 14,
+            fontWeight: 500,
+            color: C.text,
+            fontFamily: qlFont,
+            whiteSpace: "nowrap",
+            maxWidth: "calc(100vw - 32px)",
+            opacity: stepToastOpacity,
+            transform: stepToastOpacity ? "translate(-50%, 0)" : "translate(-50%, -12px)",
+            transition: "opacity 0.35s ease, transform 0.35s ease",
+            pointerEvents: "none",
+          }}
+        >
+          {stepToast}
+        </div>
+      )}
+
 
       {/* Scroll anchor */}
       <div ref={topRef} style={{ position: "absolute", top: 0 }} />
