@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>UBI Branch Navigator</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--blue:#2563EB;--red:#DC2626;--orange:#D97706;--green:#16A34A;--dark:#0F172A;--text:#1E293B;--muted:#64748B;--light:#F8FAFC;--card:#FFFFFF;--border:#E2E8F0;--radius:16px}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--light);color:var(--text);overflow:hidden}
+
+/* App Shell */
+.app{display:flex;flex-direction:column;height:100%;position:relative}
+
+/* Header */
+.header{background:linear-gradient(135deg,#00579C 0%,#003D6E 100%);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.15)}
+.header-logo{width:36px;height:36px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.header-logo svg{width:24px;height:24px}
+.header-text h1{font-size:14px;font-weight:700;letter-spacing:.3px}
+.header-text p{font-size:10px;opacity:.7;margin-top:1px}
+.header-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.header-badge{background:rgba(255,255,255,.15);padding:4px 10px;border-radius:20px;font-size:10px;font-weight:600}
+
+/* Search Bar */
+.search-area{padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:90}
+.search-box{width:100%;padding:12px 16px 12px 44px;background:var(--light);border:2px solid var(--border);border-radius:14px;font-size:15px;font-family:inherit;color:var(--text);outline:none;transition:border-color .2s}
+.search-box:focus{border-color:var(--blue)}
+.search-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:18px;opacity:.4}
+.search-wrap{position:relative}
+
+/* Filter Chips */
+.filters{display:flex;gap:6px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;z-index:80}
+.filters::-webkit-scrollbar{display:none}
+.chip{padding:7px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid var(--border);background:#fff;color:var(--muted);white-space:nowrap;cursor:pointer;transition:all .2s;flex-shrink:0}
+.chip.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.chip[data-r="r:Chennai North"].active{background:#2563EB}
+.chip[data-r="r:Chennai South"].active{background:#059669}
+.chip[data-r="r:Kancheepuram"].active{background:#D97706}
+.chip[data-r="r:Salem"].active{background:#7C3AED}
+
+/* Map */
+.map-container{flex:1;position:relative}
+#map{width:100%;height:100%}
+
+/* Bottom Sheet */
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:200;opacity:0;pointer-events:none;transition:opacity .3s}
+.sheet-overlay.show{opacity:1;pointer-events:auto}
+.sheet{position:fixed;bottom:0;left:0;right:0;background:#fff;border-radius:24px 24px 0 0;z-index:300;transform:translateY(100%);transition:transform .35s cubic-bezier(.22,.68,0,1.04);max-height:75vh;display:flex;flex-direction:column;box-shadow:0 -4px 30px rgba(0,0,0,.12)}
+.sheet.show{transform:translateY(0)}
+.sheet-handle{width:40px;height:4px;background:#CBD5E1;border-radius:2px;margin:10px auto 0}
+.sheet-header{padding:12px 20px 10px;border-bottom:1px solid var(--border)}
+.sheet-sol{font-size:11px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace;letter-spacing:.5px}
+.sheet-name{font-size:20px;font-weight:800;margin:4px 0 2px;color:var(--dark)}
+.sheet-district{font-size:12px;color:var(--muted)}
+.sheet-body{padding:16px 20px;overflow-y:auto;flex:1}
+.sheet-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F1F5F9}
+.sheet-row:last-child{border:none}
+.sheet-row-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.sheet-row-text{flex:1}
+.sheet-row-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.sheet-row-value{font-size:13px;font-weight:500;margin-top:1px}
+.sheet-actions{display:flex;gap:8px;padding:12px 20px 24px;border-top:1px solid var(--border)}
+.sheet-btn{flex:1;padding:14px;border-radius:14px;border:none;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:transform .1s}
+.sheet-btn:active{transform:scale(.97)}
+.btn-navigate{background:var(--blue);color:#fff}
+.btn-call{background:#ECFDF5;color:#059669}
+.btn-copy{background:#F1F5F9;color:var(--text)}
+
+/* Branch List (when sheet shows results) */
+.results{position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:150;transform:translateY(100%);transition:transform .3s cubic-bezier(.22,.68,0,1.04);display:flex;flex-direction:column}
+.results.show{transform:translateY(0)}
+.results-header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fff}
+.results-back{width:36px;height:36px;border-radius:12px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;background:#fff}
+.results-title{font-size:16px;font-weight:700}
+.results-count{font-size:12px;color:var(--muted);margin-left:auto}
+.results-list{flex:1;overflow-y:auto;padding:8px 12px}
+.result-card{display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:6px;background:var(--light);border-radius:14px;cursor:pointer;transition:background .15s;border:1.5px solid transparent}
+.result-card:active{background:#EFF6FF;border-color:var(--blue)}
+.result-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.result-info{flex:1;min-width:0}
+.result-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.result-meta{font-size:10px;color:var(--muted);margin-top:2px}
+.result-arrow{font-size:14px;color:#CBD5E1;flex-shrink:0}
+.result-dist{font-size:11px;font-weight:600;color:var(--blue);flex-shrink:0;text-align:right}
+
+/* Nearby Floating Button */
+.fab{position:fixed;bottom:24px;right:16px;z-index:100;width:56px;height:56px;border-radius:50%;background:var(--blue);color:#fff;border:none;font-size:22px;box-shadow:0 4px 20px rgba(37,99,235,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s}
+.fab:active{transform:scale(.9)}
+
+/* Pop badge */
+.pop-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.pop-label{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:.3px}
+.pop-METRO{background:#DBEAFE;color:#1D4ED8}
+.pop-URBAN{background:#FEE2E2;color:#991B1B}
+.pop-SEMI{background:#FEF3C7;color:#92400E}
+.pop-RURAL{background:#DCFCE7;color:#166534}
+
+/* Loading splash */
+.splash{position:fixed;inset:0;background:linear-gradient(135deg,#00579C,#003D6E);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;transition:opacity .5s}
+.splash.hide{opacity:0;pointer-events:none}
+.splash-logo{width:64px;height:64px;background:#fff;border-radius:18px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+.splash h2{font-size:18px;font-weight:800;letter-spacing:.5px}
+.splash p{font-size:12px;opacity:.6;margin-top:4px}
+.splash-bar{width:120px;height:3px;background:rgba(255,255,255,.2);border-radius:2px;margin-top:20px;overflow:hidden}
+.splash-bar-fill{width:0%;height:100%;background:#fff;border-radius:2px;transition:width 1s}
+
+.leaflet-popup-content-wrapper{border-radius:14px!important;border:1px solid #E2E8F0!important;box-shadow:0 4px 20px rgba(0,0,0,.1)!important}
+.leaflet-popup-tip{background:#fff!important}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+<!-- Splash Screen -->
+<div class="splash" id="splash">
+  <div class="splash-logo">
+    <svg width="40" height="40" viewBox="0 0 48 48"><path d="M30.8094 8.16667H32.5253C32.6675 8.20877 32.8221 8.19073 32.9674 8.21478C34.9183 8.39819 36.8505 8.96946 38.5046 10.0098C39.1693 10.4277 39.7784 10.9328 40.3256 11.4861C40.746 11.9491 41.1511 12.4332 41.4757 12.9654C41.6859 13.2811 41.8498 13.6208 42.026 13.9576C42.8886 15.6233 43.0555 17.4754 42.9813 19.3095C42.9535 19.98 42.8484 20.6415 42.7216 21.3C42.6505 21.6908 42.5268 22.0727 42.4465 22.4606C41.6334 25.6206 40.8202 28.7807 40.0102 31.9437C39.8773 32.53 39.7134 33.1073 39.5712 33.6906C39.4723 34.0635 39.3733 34.4483 39.1507 34.776C38.9869 35.0316 38.7736 35.2511 38.5355 35.4465C37.9728 35.8855 37.2432 36.09 36.529 36.096C36.226 36.0689 35.9169 36.0328 35.6293 35.9336C35.3264 35.8194 35.0234 35.6781 34.8008 35.4375C34.4823 35.1639 34.3092 34.752 34.2814 34.3461C34.2474 34.0905 34.3185 33.8349 34.3834 33.5884C34.7699 32.0911 35.1532 30.5907 35.5397 29.0934C35.7066 28.462 35.8519 27.8215 36.0189 27.1901C36.5785 25.0072 37.1412 22.8244 37.7008 20.6445C38.2356 18.5669 38.0316 16.0683 36.3002 14.5108C34.1546 12.5805 30.5714 12.8241 28.0146 13.69C27.4271 13.8884 26.8706 14.162 26.3234 14.4477C25.3063 14.9769 24.3973 15.7045 23.6924 16.5915C22.8855 17.6077 22.6227 18.8104 22.2733 20.0251C22.0044 21.0204 21.7292 22.0156 21.4726 23.0138C21.1634 24.1443 20.8821 25.2809 20.5513 26.4054C20.4029 26.8774 20.2545 27.3495 20.103 27.8215C20.035 28.0801 19.9793 28.3447 19.8526 28.5852C19.4537 29.4361 18.585 30.0435 17.6451 30.2058C17.0051 30.3261 16.3095 30.2419 15.7499 29.9022C15.5892 29.7789 15.4098 29.6676 15.2924 29.5023C15.045 29.2227 14.9059 28.8649 14.8564 28.501C14.8502 28.3297 14.7791 28.1523 14.8564 27.9869C15.6232 25.5454 16.2322 23.0589 16.9 20.5904C17.3143 19.066 17.6637 17.5115 18.2758 16.0473C19.2311 13.7531 21.0181 11.9341 23.1452 10.6232C24.1469 10.0068 25.2197 9.50466 26.3327 9.11379C26.6079 9.02358 26.8768 8.91234 27.1582 8.84318C27.7487 8.6718 28.3485 8.51846 28.9575 8.41623C29.4275 8.32001 29.9067 8.27792 30.3828 8.21478C30.525 8.19975 30.6703 8.22079 30.8063 8.17569L30.8094 8.16667Z" fill="#00579C"/><path d="M10.8805 12.8932C11.8173 12.785 12.8066 13.0406 13.3693 13.7351C13.6105 14.0328 13.6259 14.4387 13.5517 14.7935C13.3353 15.6053 13.1405 16.4201 12.9148 17.2289C12.6644 18.2091 12.4109 19.1863 12.1605 20.1634C11.975 20.9091 11.7616 21.6458 11.5792 22.3914C11.3628 23.2393 11.1402 24.0872 10.9238 24.9381C10.7352 25.6086 10.5713 26.2851 10.3951 26.9586C10.1973 27.6832 10.0427 28.4229 10.0303 29.1746C9.9932 29.37 10.0025 29.5684 10.0303 29.7639C10.0427 30.5486 10.2251 31.3334 10.5621 32.046C10.7259 32.3346 10.8867 32.6263 11.1031 32.8818C11.2701 33.0652 11.4216 33.2637 11.6225 33.417C11.842 33.5824 12.0492 33.7688 12.2965 33.9011C12.5531 34.0605 12.8283 34.1897 13.1034 34.316C13.7248 34.5536 14.3679 34.74 15.0233 34.8512C15.6355 34.9354 16.2569 34.9955 16.8753 34.9474C18.4273 34.8572 19.9484 34.4243 21.3242 33.7237C23.1142 32.8157 24.6786 31.4807 25.2691 29.5534C26.042 27.0308 26.6449 24.454 27.3405 21.9103C27.4951 21.3661 27.6837 20.8339 27.8476 20.2927C28.0022 19.7936 28.2464 19.3125 28.605 18.9187C28.7967 18.6691 29.0595 18.4857 29.3254 18.3173C29.8943 17.9625 30.593 17.8272 31.2608 17.8904C31.5823 17.9295 31.9038 18.0046 32.1883 18.158C32.5438 18.3203 32.853 18.5879 33.0354 18.9277C33.2147 19.2494 33.2178 19.6343 33.1405 19.983C32.6335 21.6307 32.179 23.2934 31.7431 24.9591C31.1402 27.2022 30.5621 29.4482 29.9004 31.6731C29.8448 31.8746 29.7582 32.067 29.6655 32.2564C29.5078 32.6263 29.3007 32.975 29.0873 33.3178C28.7102 33.9191 28.2773 34.4874 27.7827 35.0046C27.5817 35.2511 27.3313 35.4556 27.1118 35.6841C26.6697 36.078 26.2121 36.4598 25.7236 36.8026C24.96 37.3528 24.1345 37.8188 23.2843 38.2308C22.8916 38.4021 22.5021 38.5856 22.0971 38.7329C21.7446 38.8802 21.3767 38.9824 21.015 39.1087C20.4585 39.2831 19.8927 39.4184 19.3239 39.5417C19.1074 39.5838 18.8879 39.6108 18.6715 39.6559C18.3407 39.7131 18.0037 39.7371 17.6698 39.7882C17.4998 39.8183 17.3205 39.7822 17.1566 39.8333H15.4407C15.3758 39.8153 15.3109 39.8033 15.2459 39.8033C15.0017 39.8003 14.7606 39.7431 14.5163 39.7281C13.7743 39.6319 13.0416 39.4846 12.3274 39.2621C11.5267 39.0366 10.763 38.6998 10.0303 38.315C9.50163 38.0203 9.00387 37.6775 8.53085 37.3047C8.38554 37.1754 8.22477 37.0612 8.09183 36.9198C7.8816 36.7034 7.64354 36.5079 7.45495 36.2734C6.17809 34.8633 5.37735 33.0713 5.11146 31.2131C5.0589 30.9184 5.04963 30.6178 4.99707 30.3261V28.6243C5.02799 28.5101 5.0249 28.3928 5.03726 28.2786C5.12692 27.4427 5.25368 26.6098 5.48865 25.798C5.85346 24.4059 6.19664 23.0108 6.57073 21.6217C6.85825 20.5032 7.14578 19.3877 7.4333 18.2692C7.70228 17.289 7.94343 16.2998 8.20004 15.3136C8.26805 15.0701 8.30825 14.8175 8.42264 14.589C8.55249 14.3274 8.69161 14.0628 8.91112 13.8614C9.01933 13.7622 9.11826 13.6539 9.23265 13.5577C9.66549 13.1939 10.256 12.9684 10.8743 12.8962L10.8805 12.8932Z" fill="#DA251C"/></svg>
+  </div>
+  <h2>Branch Navigator</h2>
+  <p>Union Bank of India · Chennai Zone</p>
+  <div class="splash-bar"><div class="splash-bar-fill" id="splashBar"></div></div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-logo">
+    <svg width="24" height="24" viewBox="0 0 48 48"><path d="M30.8094 8.16667H32.5253C32.6675 8.20877 32.8221 8.19073 32.9674 8.21478C34.9183 8.39819 36.8505 8.96946 38.5046 10.0098C39.1693 10.4277 39.7784 10.9328 40.3256 11.4861C40.746 11.9491 41.1511 12.4332 41.4757 12.9654C41.6859 13.2811 41.8498 13.6208 42.026 13.9576C42.8886 15.6233 43.0555 17.4754 42.9813 19.3095C42.9535 19.98 42.8484 20.6415 42.7216 21.3C42.6505 21.6908 42.5268 22.0727 42.4465 22.4606C41.6334 25.6206 40.8202 28.7807 40.0102 31.9437C39.8773 32.53 39.7134 33.1073 39.5712 33.6906C39.4723 34.0635 39.3733 34.4483 39.1507 34.776C38.9869 35.0316 38.7736 35.2511 38.5355 35.4465C37.9728 35.8855 37.2432 36.09 36.529 36.096C36.226 36.0689 35.9169 36.0328 35.6293 35.9336C35.3264 35.8194 35.0234 35.6781 34.8008 35.4375C34.4823 35.1639 34.3092 34.752 34.2814 34.3461C34.2474 34.0905 34.3185 33.8349 34.3834 33.5884C34.7699 32.0911 35.1532 30.5907 35.5397 29.0934C35.7066 28.462 35.8519 27.8215 36.0189 27.1901C36.5785 25.0072 37.1412 22.8244 37.7008 20.6445C38.2356 18.5669 38.0316 16.0683 36.3002 14.5108C34.1546 12.5805 30.5714 12.8241 28.0146 13.69C27.4271 13.8884 26.8706 14.162 26.3234 14.4477C25.3063 14.9769 24.3973 15.7045 23.6924 16.5915C22.8855 17.6077 22.6227 18.8104 22.2733 20.0251C22.0044 21.0204 21.7292 22.0156 21.4726 23.0138C21.1634 24.1443 20.8821 25.2809 20.5513 26.4054C20.4029 26.8774 20.2545 27.3495 20.103 27.8215C20.035 28.0801 19.9793 28.3447 19.8526 28.5852C19.4537 29.4361 18.585 30.0435 17.6451 30.2058C17.0051 30.3261 16.3095 30.2419 15.7499 29.9022C15.5892 29.7789 15.4098 29.6676 15.2924 29.5023C15.045 29.2227 14.9059 28.8649 14.8564 28.501C14.8502 28.3297 14.7791 28.1523 14.8564 27.9869C15.6232 25.5454 16.2322 23.0589 16.9 20.5904C17.3143 19.066 17.6637 17.5115 18.2758 16.0473C19.2311 13.7531 21.0181 11.9341 23.1452 10.6232C24.1469 10.0068 25.2197 9.50466 26.3327 9.11379C26.6079 9.02358 26.8768 8.91234 27.1582 8.84318C27.7487 8.6718 28.3485 8.51846 28.9575 8.41623C29.4275 8.32001 29.9067 8.27792 30.3828 8.21478C30.525 8.19975 30.6703 8.22079 30.8063 8.17569L30.8094 8.16667Z" fill="#00579C"/><path d="M10.8805 12.8932C11.8173 12.785 12.8066 13.0406 13.3693 13.7351C13.6105 14.0328 13.6259 14.4387 13.5517 14.7935C13.3353 15.6053 13.1405 16.4201 12.9148 17.2289C12.6644 18.2091 12.4109 19.1863 12.1605 20.1634C11.975 20.9091 11.7616 21.6458 11.5792 22.3914C11.3628 23.2393 11.1402 24.0872 10.9238 24.9381C10.7352 25.6086 10.5713 26.2851 10.3951 26.9586C10.1973 27.6832 10.0427 28.4229 10.0303 29.1746C9.9932 29.37 10.0025 29.5684 10.0303 29.7639C10.0427 30.5486 10.2251 31.3334 10.5621 32.046C10.7259 32.3346 10.8867 32.6263 11.1031 32.8818C11.2701 33.0652 11.4216 33.2637 11.6225 33.417C11.842 33.5824 12.0492 33.7688 12.2965 33.9011C12.5531 34.0605 12.8283 34.1897 13.1034 34.316C13.7248 34.5536 14.3679 34.74 15.0233 34.8512C15.6355 34.9354 16.2569 34.9955 16.8753 34.9474C18.4273 34.8572 19.9484 34.4243 21.3242 33.7237C23.1142 32.8157 24.6786 31.4807 25.2691 29.5534C26.042 27.0308 26.6449 24.454 27.3405 21.9103C27.4951 21.3661 27.6837 20.8339 27.8476 20.2927C28.0022 19.7936 28.2464 19.3125 28.605 18.9187C28.7967 18.6691 29.0595 18.4857 29.3254 18.3173C29.8943 17.9625 30.593 17.8272 31.2608 17.8904C31.5823 17.9295 31.9038 18.0046 32.1883 18.158C32.5438 18.3203 32.853 18.5879 33.0354 18.9277C33.2147 19.2494 33.2178 19.6343 33.1405 19.983C32.6335 21.6307 32.179 23.2934 31.7431 24.9591C31.1402 27.2022 30.5621 29.4482 29.9004 31.6731C29.8448 31.8746 29.7582 32.067 29.6655 32.2564C29.5078 32.6263 29.3007 32.975 29.0873 33.3178C28.7102 33.9191 28.2773 34.4874 27.7827 35.0046C27.5817 35.2511 27.3313 35.4556 27.1118 35.6841C26.6697 36.078 26.2121 36.4598 25.7236 36.8026C24.96 37.3528 24.1345 37.8188 23.2843 38.2308C22.8916 38.4021 22.5021 38.5856 22.0971 38.7329C21.7446 38.8802 21.3767 38.9824 21.015 39.1087C20.4585 39.2831 19.8927 39.4184 19.3239 39.5417C19.1074 39.5838 18.8879 39.6108 18.6715 39.6559C18.3407 39.7131 18.0037 39.7371 17.6698 39.7882C17.4998 39.8183 17.3205 39.7822 17.1566 39.8333H15.4407C15.3758 39.8153 15.3109 39.8033 15.2459 39.8033C15.0017 39.8003 14.7606 39.7431 14.5163 39.7281C13.7743 39.6319 13.0416 39.4846 12.3274 39.2621C11.5267 39.0366 10.763 38.6998 10.0303 38.315C9.50163 38.0203 9.00387 37.6775 8.53085 37.3047C8.38554 37.1754 8.22477 37.0612 8.09183 36.9198C7.8816 36.7034 7.64354 36.5079 7.45495 36.2734C6.17809 34.8633 5.37735 33.0713 5.11146 31.2131C5.0589 30.9184 5.04963 30.6178 4.99707 30.3261V28.6243C5.02799 28.5101 5.0249 28.3928 5.03726 28.2786C5.12692 27.4427 5.25368 26.6098 5.48865 25.798C5.85346 24.4059 6.19664 23.0108 6.57073 21.6217C6.85825 20.5032 7.14578 19.3877 7.4333 18.2692C7.70228 17.289 7.94343 16.2998 8.20004 15.3136C8.26805 15.0701 8.30825 14.8175 8.42264 14.589C8.55249 14.3274 8.69161 14.0628 8.91112 13.8614C9.01933 13.7622 9.11826 13.6539 9.23265 13.5577C9.66549 13.1939 10.256 12.9684 10.8743 12.8962L10.8805 12.8932Z" fill="#DA251C"/></svg>
+  </div>
+  <div class="header-text">
+    <h1>Branch Navigator</h1>
+    <p>Chennai Zone · 271 Branches</p>
+  </div>
+  <div class="header-right">
+    <div class="header-badge" id="nearbyBadge" style="display:none">📍 Nearby</div>
+  </div>
+</div>
+
+<!-- Search -->
+<div class="search-area">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" class="search-box" id="searchInput" placeholder="Search branch, SOL ID, district, pincode..."/>
+  </div>
+</div>
+
+<!-- Filter Chips -->
+<div class="filters" id="filters">
+  <div class="chip active" data-r="all">All 271</div>
+  <div class="chip" data-r="r:Chennai North">Chennai North</div>
+  <div class="chip" data-r="r:Chennai South">Chennai South</div>
+  <div class="chip" data-r="r:Kancheepuram">Kancheepuram</div>
+  <div class="chip" data-r="r:Salem">Salem</div>
+  <div class="chip" data-r="nearby">📍 Nearby</div>
+</div>
+
+<!-- Map -->
+<div class="map-container">
+  <div id="map"></div>
+</div>
+
+<!-- Nearby FAB -->
+<button class="fab" id="fabNearby" title="Find nearby branches">📍</button>
+
+<!-- Bottom Sheet -->
+<div class="sheet-overlay" id="sheetOverlay"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header" id="sheetHeader"></div>
+  <div class="sheet-body" id="sheetBody"></div>
+  <div class="sheet-actions" id="sheetActions"></div>
+</div>
+
+<!-- Results List -->
+<div class="results" id="results">
+  <div class="results-header">
+    <div class="results-back" id="resultsBack">←</div>
+    <div class="results-title" id="resultsTitle">Search Results</div>
+    <div class="results-count" id="resultsCount"></div>
+  </div>
+  <div class="results-list" id="resultsList"></div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const branches = [
+{"no":1,"sol":"00052","name":"Madras-George Town","region":"Chennai North","district":"CHENNAI","lat":13.100611,"lon":80.2916,"addr":"148,ARMENIANST,GEORGE, TOWN,MADRAS","pin":"600001","ifsc":"UBIN0900052","pop":"METRO"},
+{"no":2,"sol":"03481","name":"Madras-Esplanade","region":"Chennai North","district":"CHENNAI","lat":13.090657,"lon":80.28904,"addr":"M/S.WAWOOMANSION,48/39,RAJAJISALAI,CHANNAI-600001, ESPLANADEROAD","pin":"600001","ifsc":"UBIN0803481","pop":"METRO"},
+{"no":3,"sol":"33260","name":"Madras-Kuralagam,Esplnad","region":"Chennai North","district":"CHENNAI","lat":13.060429,"lon":80.249576,"addr":"139,BROADWAY,, MADRAS,","pin":"600001","ifsc":"UBIN0533262","pop":"METRO"},
+{"no":4,"sol":"05121","name":"Sowcarpet Anna Pillai Street","region":"Chennai North","district":"CHENNAI","lat":13.090834,"lon":80.28906,"addr":"NO.40,ANNAPILLAISTREET,MADRAS,600079, SOWCARPET","pin":"600001","ifsc":"UBIN0805122","pop":"METRO"},
+{"no":5,"sol":"33240","name":"Madras-Sowcarpet","region":"Chennai North","district":"CHENNAI","lat":13.090351,"lon":80.280207,"addr":"NO.16, ERNAKULAM AGRAHARAM, CHENNAI, PO PARK TOWN, CHENNAI","pin":"600003","ifsc":"UBIN0533246","pop":"METRO"},
+{"no":6,"sol":"05061","name":"Madras-Shenoy Nagar","region":"Chennai North","district":"CHENNAI","lat":13.074802,"lon":80.228382,"addr":"5,K.K.STREET,SHENOYNAGAR,MADRAS,600030","pin":"600030","ifsc":"UBIN0805068","pop":"METRO"},
+{"no":7,"sol":"33250","name":"Mount Road Chennai","region":"Chennai North","district":"CHENNAI","lat":13.062243,"lon":80.263711,"addr":"NO: 152, AGURCHAND MANSION,, MOUNT ROAD, CHENNAI","pin":"600002","ifsc":"UBIN0533254","pop":"METRO"},
+{"no":8,"sol":"33290","name":"Moolakadi Madhavaram","region":"Chennai North","district":"CHENNAI","lat":13.129015,"lon":80.240927,"addr":"NO.1,G.N.T.ROAD,MOOLAKADI,, MADHAVARAM,","pin":"600060","ifsc":"UBIN0533297","pop":"METRO"},
+{"no":9,"sol":"33280","name":"Kathivakkam","region":"Chennai North","district":"CHENNAI","lat":13.216213,"lon":80.321114,"addr":"82/83,KATHIVAKKAM HIGH RD;AT&PO.KATHIVAKKAM,TQ-PONNERY","pin":"600057","ifsc":"UBIN0533289","pop":"METRO"},
+{"no":10,"sol":"01232","name":"Chennai-Kellys Corner","region":"Chennai North","district":"CHENNAI","lat":13.083711,"lon":80.2396,"addr":"NO.12,ORMESRD,KELLY\\\'SCORNER,CHENNAI, KILPAUK,","pin":"600010","ifsc":"UBIN0901237","pop":"METRO"},
+{"no":11,"sol":"01492","name":"Madras-Mint Street","region":"Chennai North","district":"CHENNAI","lat":13.093611,"lon":80.2795,"addr":"No.21/86,NYANAPPANAICKENSTREET,PARKTOWN,, CHENNAI,TAMILNADU","pin":"600003","ifsc":"UBIN0901491","pop":"METRO"},
+{"no":12,"sol":"06221","name":"Alwar Thirunagar Valasaravakkam","region":"Chennai North","district":"CHENNAI","lat":13.044463,"lon":80.185401,"addr":"PLOTNO.115,ARCOTRD,VALASARAVAKKAM,600037, TIRUVALLUR","pin":"600037","ifsc":"UBIN0806226","pop":"METRO"},
+{"no":13,"sol":"43680","name":"High Road Purasawakkam","region":"Chennai North","district":"CHENNAI","lat":13.118051,"lon":80.240483,"addr":"141,PURASAWALKAM,KILPAUK,, PURASAWALKAM HIGH RD.MADRAS-10","pin":"600084","ifsc":"UBIN0543683","pop":"METRO"},
+{"no":14,"sol":"07841","name":"Chetpet","region":"Chennai North","district":"CHENNAI","lat":13.07433,"lon":80.252331,"addr":"NO.55/61,BUCKINGHAMTERRACECHENNAI, MCNICHOLSROAD","pin":"600031","ifsc":"UBIN0807842","pop":"METRO"},
+{"no":15,"sol":"06371","name":"Tondaiarpet Washermenpet","region":"Chennai North","district":"CHENNAI","lat":13.121098,"lon":80.223901,"addr":"NO.294,THIRUVATHYURHIGHROAD,WASHERMENPET,MADRAS,600021, chennai","pin":"600021","ifsc":"UBIN0806374","pop":"METRO"},
+{"no":16,"sol":"02271","name":"Annanagar","region":"Chennai North","district":"CHENNAI","lat":13.06898,"lon":80.21433,"addr":"DOORNO.231,YBLOCK,6THMAIN ROAD,OPP.TOTOWERPARK,ANNANAGAR,CHENNAI,TAMILNADUCHE...","pin":"600040","ifsc":"UBIN0802271","pop":"METRO"},
+{"no":17,"sol":"46500","name":"Madras-Washermanpet","region":"Chennai North","district":"CHENNAI","lat":13.126756,"lon":80.281376,"addr":"17,G.A.RD,WASHERMANPET,, WASHERMANPET MADRAS,","pin":"600021","ifsc":"UBIN0546500","pop":"METRO"},
+{"no":18,"sol":"49750","name":"Ambattur-T.S.Krishna Nagar","region":"Chennai North","district":"CHENNAI","lat":13.088593,"lon":80.177261,"addr":"1ST FLOOR, D NO: 1392 A, MOGAPPAIR ROAD,, GOLDEN COLONY, CHENNAI","pin":"600050","ifsc":"UBIN0549754","pop":"METRO"},
+{"no":19,"sol":"50440","name":"Umfb Tsk Nagar","region":"Chennai North","district":"CHENNAI","lat":13.099827,"lon":80.186887,"addr":"PLOT NO. 1392, GOLDEN COLONY ANNA NAGAR WEST EXTENSION, TNHB 4TH STREET,","pin":"600050","ifsc":"UBIN0550442","pop":"METRO"},
+{"no":20,"sol":"50680","name":"Mcb Chennai","region":"Chennai North","district":"CHENNAI","lat":13.090508,"lon":80.284388,"addr":"UNION BANK BHAVAN BROADWAY, CHENNAI, 139, BROADWAY","pin":"600108","ifsc":"UBIN0550680","pop":"METRO"},
+{"no":21,"sol":"52590","name":"Ayanavaram","region":"Chennai North","district":"CHENNAI","lat":13.1041,"lon":80.23363,"addr":"V.T.E.T. CAMPUS,6 II COURS STREET,, V.P.COLONY A\\\'RAM,CHENNAI,","pin":"600023","ifsc":"UBIN0552593","pop":"METRO"},
+{"no":22,"sol":"05892","name":"Egmore,Chennai","region":"Chennai North","district":"CHENNAI","lat":13.07101,"lon":80.254,"addr":"37GROUNDFLOOR,, CASAMAJORROAD,EGMORE,CHENNAI","pin":"600008","ifsc":"UBIN0905895","pop":"METRO"},
+{"no":23,"sol":"53060","name":"Shanthi Colony Annanagar","region":"Chennai North","district":"CHENNAI","lat":13.06938,"lon":80.21713,"addr":"AG3,4TH AVENUE,SHANTI COLONY,CHENNAI,, P.O.ANNA NAGAR,","pin":"600040","ifsc":"UBIN0553069","pop":"METRO"},
+{"no":24,"sol":"11021","name":"Purasawalkam Branch","region":"Chennai North","district":"CHENNAI","lat":13.085839,"lon":80.254128,"addr":"OLDNO.5,NEWNO.9PURASAWALAM, VELLALASTREET","pin":"600084","ifsc":"UBIN0811025","pop":"METRO"},
+{"no":25,"sol":"11291","name":"Sathyamurthy  Nagar Branch","region":"Chennai North","district":"CHENNAI","lat":13.130098,"lon":80.131597,"addr":"SATHYAMURTHYNAGAR,MURUGAPPAPOLYTECHNICCAMPUS,CHENNAI600062, THIRUMULLAIVOYAL,...","pin":"600062","ifsc":"UBIN0811297","pop":"METRO"},
+{"no":26,"sol":"06752","name":"Anna Salai,Chennai","region":"Chennai North","district":"CHENNAI","lat":13.06561,"lon":80.2663,"addr":"LICOFINDIA,, GROUNDFLOOR,102,ANNASALAI,CHENNAI","pin":"600002","ifsc":"UBIN0906751","pop":"METRO"},
+{"no":27,"sol":"12771","name":"Senthilnagar","region":"Chennai North","district":"CHENNAI","lat":13.117389,"lon":80.135475,"addr":"SEKHARCOMPLEX,RAJAJISALAI15A,SENTHILNAGAR","pin":"600062","ifsc":"UBIN0812773","pop":"METRO"},
+{"no":28,"sol":"07812","name":"Ambattur","region":"Chennai North","district":"CHENNAI","lat":13.120247,"lon":80.148763,"addr":"29&30,AMBATTURAMBATTUR, SURYAPRAKASAMROAD","pin":"600053","ifsc":"UBIN0907812","pop":"METRO"},
+{"no":29,"sol":"20912","name":"Chennai Mogappair West","region":"Chennai North","district":"CHENNAI","lat":13.083611,"lon":80.1731,"addr":"SPARTANMATRICULATIONHR.SEC.SCHOOLMOGAPPAIR, 30,SPARTANNAGAR","pin":"600050","ifsc":"UBIN0920916","pop":"METRO"},
+{"no":30,"sol":"13351","name":"Alapakkam Road, Madhuravoyal","region":"Chennai North","district":"CHENNAI","lat":13.044664,"lon":80.164856,"addr":"THIRUSEVENHILLSPOLYTECHNICMADHURAVOYAL, ALAPAKKAMMAIN ROAD","pin":"600095","ifsc":"UBIN0813354","pop":"METRO"},
+{"no":31,"sol":"13231","name":"Villivakkam Rajamangalam","region":"Chennai North","district":"CHENNAI","lat":13.114748,"lon":80.206618,"addr":"NO.93VILLIVAKKAM, NORTHREDHILLSROAD","pin":"600049","ifsc":"UBIN0813231","pop":"METRO"},
+{"no":32,"sol":"55190","name":"Porur","region":"Chennai North","district":"CHENNAI","lat":13.031679,"lon":80.16413,"addr":"PLOT NO. 2&9, PORUR, MOUNT POONAMALLEE ROAD","pin":"600116","ifsc":"UBIN0555193","pop":"METRO"},
+{"no":33,"sol":"08892","name":"Choolai Chennai Kilpauk","region":"Chennai North","district":"CHENNAI","lat":13.060011,"lon":80.2302,"addr":"NO.11/A,FIRSTFLOOR,KILPAUK, ORMESROAD,KILPAUK","pin":"600010","ifsc":"UBIN0908894","pop":"METRO"},
+{"no":34,"sol":"20852","name":"Chennai-Valasaravakkam","region":"Chennai North","district":"CHENNAI","lat":13.040268,"lon":80.171658,"addr":"NO.559, ARCOTROAD","pin":"600087","ifsc":"UBIN0920851","pop":"METRO"},
+{"no":35,"sol":"21022","name":"Madanandapuram Chennai-Porur","region":"Chennai North","district":"CHENNAI","lat":13.034811,"lon":80.1559,"addr":"NO.80,ISTFLOOR, ARCOTROAD","pin":"600116","ifsc":"UBIN0921025","pop":"METRO"},
+{"no":36,"sol":"57050","name":"Madras Veterinary College, Vepery","region":"Chennai North","district":"CHENNAI","lat":13.085337,"lon":80.2607,"addr":"MADRAS VETERINARY COLLEGE VEPERY","pin":"600007","ifsc":"UBIN0557056","pop":"METRO"},
+{"no":37,"sol":"57990","name":"Kolathur","region":"Chennai North","district":"CHENNAI","lat":13.119704,"lon":80.218529,"addr":"J.S.SHALINI COMMERCIAL COMPLEX UNITED COLONY, CHENNAI, NO.1, MAIN ROAD","pin":"600099","ifsc":"UBIN0557994","pop":"METRO"},
+{"no":38,"sol":"15891","name":"Perambur","region":"Chennai North","district":"CHENNAI","lat":13.121759,"lon":80.222856,"addr":"NO.3&4PERAMBUR, PAPERMILLSROAD","pin":"600099","ifsc":"UBIN0815896","pop":"METRO"},
+{"no":39,"sol":"59420","name":"Villivakkam","region":"Chennai North","district":"CHENNAI","lat":13.101956,"lon":80.194929,"addr":"NO.3, NEW AVADI ROAD CHENNAI, VILLIVAKKAM","pin":"600049","ifsc":"UBIN0559423","pop":"METRO"},
+{"no":40,"sol":"61220","name":"Ambattur Old Town","region":"Chennai North","district":"CHENNAI","lat":13.118964,"lon":80.149051,"addr":"NO.2, PALLAM STREET, SECRETARIAT COLONY","pin":"600053","ifsc":"UBIN0561223","pop":"METRO"},
+{"no":41,"sol":"16161","name":"Kilpauk","region":"Chennai North","district":"CHENNAI","lat":13.084698,"lon":80.233923,"addr":"NO.2/75, NEWAVADIROAD","pin":"600010","ifsc":"UBIN0816167","pop":"METRO"},
+{"no":42,"sol":"12782","name":"Periyar Nagar Chennai-Perambur","region":"Chennai North","district":"CHENNAI","lat":13.115211,"lon":80.2231,"addr":"C-128,KARTHIKEYANSALAICHENNAI, PERIYARNAGAR,","pin":"600082","ifsc":"UBIN0912786","pop":"METRO"},
+{"no":43,"sol":"18992","name":"Madhuravoyal","region":"Chennai North","district":"CHENNAI","lat":13.06121,"lon":80.1639,"addr":"NO.42,VARALAKSHMINAGAR,MADURAVOYAL, MAIN ROAD,","pin":"600095","ifsc":"UBIN0918997","pop":"METRO"},
+{"no":44,"sol":"19632","name":"Madhavaram","region":"Chennai North","district":"CHENNAI","lat":13.147811,"lon":80.231,"addr":"SY.NO.504,504/4,100FT.RINGROAD,MADHAVARAM","pin":"600060","ifsc":"UBIN0919632","pop":"METRO"},
+{"no":45,"sol":"26401","name":"Annanagar West","region":"Chennai North","district":"CHENNAI","lat":13.086178,"lon":80.201791,"addr":"W61,65THSTREET,ANNANAGARWESTERNEXTENSIONCHENNAI, 6THSTREET","pin":"600101","ifsc":"UBIN0826405","pop":"METRO"},
+{"no":46,"sol":"23641","name":"Tiruvottiyur","region":"Chennai North","district":"CHENNAI","lat":13.169191,"lon":80.304579,"addr":"NO.665,THROAD,TIRUVOTTIYUR,CHENNAI,TAMILCHENNAI","pin":"600019","ifsc":"UBIN0823643","pop":"METRO"},
+{"no":47,"sol":"27451","name":"Kodungaiyur Moolakadi","region":"Chennai North","district":"CHENNAI","lat":13.1296,"lon":80.2416,"addr":"NO.4,THROAD,MRNAGAR,KODINGAIYUR,MOOLAKAKODINGAIYUR","pin":"600118","ifsc":"UBIN0827452","pop":"METRO"},
+{"no":48,"sol":"29361","name":"Mmda Colony","region":"Chennai North","district":"CHENNAI","lat":13.066497,"lon":80.214703,"addr":"NO.5&7,TAMILARSTREET,PADMANABHANAGAR,MMDCHENNAI","pin":"600094","ifsc":"UBIN0829366","pop":"METRO"},
+{"no":49,"sol":"91630","name":"Nari Shakti Anna Nagar Chennai","region":"Chennai North","district":"CHENNAI","lat":13.084726,"lon":80.205571,"addr":"3362W, GROUND FLOOR, 2ND AVENUE, 11TH MAIN ROAD, AF BLOCK, ANNA NAGAR","pin":"600040","ifsc":"UBIN0591637","pop":"METRO"},
+{"no":50,"sol":"22381","name":"Gummidipoondi","region":"Chennai North","district":"THIRUVALLUR","lat":13.406604,"lon":80.127441,"addr":"NO.315,GNTROAD,GUMMIDIPOONDI,THRUVALLUR,GUMMIDIPOONDI","pin":"601201","ifsc":"UBIN0822388","pop":"SEMI URBAN"},
+{"no":51,"sol":"12301","name":"Red Hills","region":"Chennai North","district":"THIRUVALLUR","lat":13.20568,"lon":80.17175,"addr":"NO.1/990,1STFLR,SKLSSHOPPINGCOMPLXREDHILLS, BYEPASSROAD,GNTROAD","pin":"600052","ifsc":"UBIN0812307","pop":"SEMI URBAN"},
+{"no":52,"sol":"21681","name":"Pallipattu","region":"Chennai North","district":"THIRUVALLUR","lat":13.33628,"lon":79.46848,"addr":"NO.27,MAIN ROAD,PALLIPATTU,THIRUVALLURDISPALLIPATTU","pin":"631207","ifsc":"UBIN0821683","pop":"RURAL"},
+{"no":53,"sol":"27981","name":"Peddanagapoondi","region":"Chennai North","district":"THIRUVALLUR","lat":13.113788,"lon":79.366872,"addr":"SBCOMPLEX,CHITTOORMAIN ROAD,PEDDANAGAPOONPEDDANAGAPOONDI","pin":"631302","ifsc":"UBIN0827983","pop":"RURAL"},
+{"no":54,"sol":"12132","name":"Minjur","region":"Chennai North","district":"THIRUVALLUR","lat":13.269211,"lon":80.2637,"addr":"TYSONCOMPLEXMINJUR, OPP.POLICESTATION","pin":"601203","ifsc":"UBIN0912131","pop":"SEMI URBAN"},
+{"no":55,"sol":"18551","name":"Vembakkam","region":"Chennai North","district":"THIRUVALLUR","lat":13.332771,"lon":80.193832,"addr":"S.NO.496/24THADAPERUMBAKKAM, VEMBAKKAMROAD","pin":"601204","ifsc":"UBIN0818551","pop":"SEMI URBAN"},
+{"no":56,"sol":"10141","name":"Avadi","region":"Chennai North","district":"THIRUVALLUR","lat":13.115125,"lon":80.102852,"addr":"PLOTNO.16,PC3-4,OPPTONEWAVADITOWNSHIPBUILDING,NEARAVADIMARKET,AVADI,CHENNAIAVADI","pin":"600057","ifsc":"UBIN0810142","pop":"URBAN"},
+{"no":57,"sol":"21281","name":"Vellavedu","region":"Chennai North","district":"THIRUVALLUR","lat":13.0732,"lon":80.03123,"addr":"TIRUVALLURHIGHROAD,VELLAVEDUPOST,POONAMAVELLAVEDU","pin":"600124","ifsc":"UBIN0821284","pop":"RURAL"},
+{"no":58,"sol":"25531","name":"Poonamalle","region":"Chennai North","district":"THIRUVALLUR","lat":13.044318,"lon":80.114605,"addr":"NO.30,MAIN ROAD,RUKMANINAGAR,POONAMALLE,POONAMALLE","pin":"600056","ifsc":"UBIN0825531","pop":"SEMI URBAN"},
+{"no":59,"sol":"30041","name":"Tiruverkadu","region":"Chennai North","district":"THIRUVALLUR","lat":13.0706,"lon":80.129,"addr":"NO.55,PERUMALAGARAM,TIRUVERKADU,TIRUVALLURTIRUVERKADU, tiruverkadu","pin":"600077","ifsc":"UBIN0830046","pop":"SEMI URBAN"},
+{"no":60,"sol":"13211","name":"Mogappair East","region":"Chennai North","district":"THIRUVALLUR","lat":13.0796,"lon":80.180999,"addr":"12CMOGAPPAIR, E.B.OFFICEROAD","pin":"600037","ifsc":"UBIN0813214","pop":"SEMI URBAN"},
+{"no":61,"sol":"13511","name":"Manavala Nagar","region":"Chennai North","district":"THIRUVALLUR","lat":13.1123,"lon":79.912857,"addr":"MANAVALANAGAR, 171,POONAMALLEHIGHROAD","pin":"602001","ifsc":"UBIN0813516","pop":"SEMI URBAN"},
+{"no":62,"sol":"63540","name":"Thiruvallur","region":"Chennai North","district":"THIRUVALLUR","lat":13.140526,"lon":79.906401,"addr":"PLOT NO. 3573 THIRUVALLUR, THIRUVALLUR-KAKKALUR BYE PASS ROAD","pin":"602001","ifsc":"UBIN0563544","pop":"SEMI URBAN"},
+{"no":63,"sol":"30051","name":"Kakkalur","region":"Chennai North","district":"THIRUVALLUR","lat":13.128294,"lon":79.916472,"addr":"NO.R-84/2,KAKKALURBYPASSROAD,KAKKALUR,THKAKKALUR","pin":"602001","ifsc":"UBIN0830054","pop":"SEMI URBAN"},
+{"no":64,"sol":"21131","name":"Tiruttani","region":"Chennai North","district":"THIRUVALLUR","lat":13.181266,"lon":79.609967,"addr":"OLDMADRASROAD,NEARKAMALATHEATRE,TIRUTTATIRUTTANI","pin":"631209","ifsc":"UBIN0821136","pop":"SEMI URBAN"},
+{"no":65,"sol":"26571","name":"Maddur","region":"Chennai North","district":"THIRUVALLUR","lat":13.253264,"lon":79.554724,"addr":"FIRSTFLOOR,MAIN ROAD,KKPCOMPLEX,NEARBUSMADDUR","pin":"631206","ifsc":"UBIN0826570","pop":"RURAL"},
+{"no":66,"sol":"27871","name":"Kg Kandigari","region":"Chennai North","district":"THIRUVALLUR","lat":13.1734,"lon":79.5168,"addr":"PLOTNO.4,NOCHILIROAD,KHKANDIGARI,THIRUVTIRUTTANI","pin":"631205","ifsc":"UBIN0827878","pop":"RURAL"},
+{"no":67,"sol":"21151","name":"Uthukkottai","region":"Chennai North","district":"THIRUVALLUR","lat":13.3339,"lon":79.8927,"addr":"BALAJICOMPLEX,DOORNO.82,NAGALAPURAMROAD,UTHUKKOTTAI","pin":"602026","ifsc":"UBIN0821152","pop":"SEMI URBAN"},
+{"no":68,"sol":"10472","name":"Mahindra City","region":"Chennai South","district":"CHENGALPATTU","lat":12.835163,"lon":80.2147,"addr":"THECANOPY,`A\\\'BLOCKMAHINDRACITY, MAHINDRAWORLDCITY","pin":"603002","ifsc":"UBIN0910473","pop":"SEMI URBAN"},
+{"no":69,"sol":"62220","name":"Guduvancherry","region":"Chennai South","district":"CHENGALPATTU","lat":12.684007,"lon":79.983336,"addr":"NO. 45 GUDUVANCHERRY, THIKUDUR, KUMARAN STREET","pin":"603202","ifsc":"UBIN0562220","pop":"SEMI URBAN"},
+{"no":70,"sol":"18271","name":"Maraimali Nagar","region":"Chennai South","district":"CHENGALPATTU","lat":12.785999,"lon":80.02639,"addr":"C.S.33/6,PAVENDERSALAIMARAIMALINAGAR, NH-1","pin":"603209","ifsc":"UBIN0818275","pop":"SEMI URBAN"},
+{"no":71,"sol":"70340","name":"Chengalpattu Vedachalam Nagar","region":"Chennai South","district":"CHENGALPATTU","lat":12.703135,"lon":79.965091,"addr":"24, ALAGESAN STREET, VEDACHALAM NAGA, CHENGALPATTU, MAIN ROAD","pin":"603001","ifsc":"UBIN0570346","pop":"SEMI URBAN"},
+{"no":72,"sol":"22371","name":"Chengalpattu T K M Road","region":"Chennai South","district":"CHENGALPATTU","lat":12.688213,"lon":79.982883,"addr":"AARUPADAIPALACE,NO.533/A,TKMROAD,CHENGALCHENGALPATTU","pin":"603001","ifsc":"UBIN0822370","pop":"SEMI URBAN"},
+{"no":73,"sol":"23191","name":"Guduvancheri-Nandivaram","region":"Chennai South","district":"CHENGALPATTU","lat":12.795285,"lon":80.026536,"addr":"S.NO.531/8,USHANAGAR,NO.6,NANDIVARAMVILLAGE,GUDUVANCHERY,KANCHEEPURAMDIST.,TA...","pin":"603202","ifsc":"UBIN0823198","pop":"SEMI URBAN"},
+{"no":74,"sol":"13082","name":"Sothupakkam","region":"Chennai South","district":"CHENGALPATTU","lat":12.432312,"lon":79.831802,"addr":"S.NO.39,GSTROAD,SOTHUPAKKAM, MELMARUVATHUR","pin":"603319","ifsc":"UBIN0913081","pop":"RURAL"},
+{"no":75,"sol":"08062","name":"Madurantakam","region":"Chennai South","district":"CHENGALPATTU","lat":12.507612,"lon":79.881302,"addr":"NO.44/100MADURANTAKAM, G.S.T.ROAD","pin":"603306","ifsc":"UBIN0908061","pop":"SEMI URBAN"},
+{"no":76,"sol":"13881","name":"Sozhinganallur","region":"Chennai South","district":"CHENGALPATTU","lat":12.900607,"lon":80.224365,"addr":"PLOTNO.13&14, MEDAVAKKAMMAIN ROAD","pin":"600019","ifsc":"UBIN0813885","pop":"RURAL"},
+{"no":77,"sol":"17341","name":"Mambakkam","region":"Chennai South","district":"CHENGALPATTU","lat":12.82264,"lon":80.16232,"addr":"NO.3/330MAMBAKKAM, KELAMBAKKAMHIGHROAD","pin":"600048","ifsc":"UBIN0817341","pop":"RURAL"},
+{"no":78,"sol":"35052","name":"Kadalur","region":"Chennai South","district":"CHENGALPATTU","lat":12.487481,"lon":80.125984,"addr":"SY.NO.232/3B1B1A,KATHANKADAI(ECR)KADALUR, MAIN ROAD,","pin":"603305","ifsc":"UBIN0935051","pop":"RURAL"},
+{"no":79,"sol":"52750","name":"Chromepet","region":"Chennai South","district":"CHENGALPATTU","lat":12.933622,"lon":80.125402,"addr":"92,,STATION ROAD,CHROMEPET,, PALLAVARAM,","pin":"600044","ifsc":"UBIN0552755","pop":"URBAN"},
+{"no":80,"sol":"12791","name":"Pammal","region":"Chennai South","district":"CHENGALPATTU","lat":12.971961,"lon":80.139633,"addr":"NO.1PAMMAL, PAMMALMAIN ROAD","pin":"600075","ifsc":"UBIN0812790","pop":"SEMI URBAN"},
+{"no":81,"sol":"58900","name":"Pallavaram","region":"Chennai South","district":"CHENGALPATTU","lat":12.96393,"lon":80.150202,"addr":"NO. 58, OPP. LAKSHMI NURSING HOME, SHANDY ROAD","pin":"600043","ifsc":"UBIN0558907","pop":"URBAN"},
+{"no":82,"sol":"20601","name":"Nanganallur Main Road","region":"Chennai South","district":"CHENGALPATTU","lat":12.981595,"lon":80.186164,"addr":"NO.3-A,45THSTREET,NANGANALLURCHENNAI","pin":"600061","ifsc":"UBIN0820601","pop":"SEMI URBAN"},
+{"no":83,"sol":"50080","name":"East Tambaram","region":"Chennai South","district":"CHENGALPATTU","lat":12.92455,"lon":80.1235,"addr":"10-A,KARPAGA VINAYAGAR KOIL ST.,, TAMBARAM,","pin":"600059","ifsc":"UBIN0550086","pop":"URBAN"},
+{"no":84,"sol":"04692","name":"Tambaram Sanatorium","region":"Chennai South","district":"CHENGALPATTU","lat":12.937713,"lon":80.1325,"addr":"NO7,RLYSTATIONRD,, TAMBARAM,","pin":"600047","ifsc":"UBIN0904694","pop":"URBAN"},
+{"no":85,"sol":"11981","name":"Medavakkam Perumbakkam Main Road","region":"Chennai South","district":"CHENGALPATTU","lat":12.917518,"lon":80.191406,"addr":"OLDNO.2/123,SNO.417/3MEDAVAKKAM, PERUMBAKKAMMAIN ROAD,MEDAVAKKAM","pin":"601302","ifsc":"UBIN0811980","pop":"SEMI URBAN"},
+{"no":86,"sol":"14711","name":"Tambaram Mudichur Road","region":"Chennai South","district":"CHENGALPATTU","lat":12.925438,"lon":80.095894,"addr":"NO.1,KRISHNANAGARMUDICHURROAD,","pin":"600045","ifsc":"UBIN0814717","pop":"URBAN"},
+{"no":87,"sol":"15901","name":"Madambakkam","region":"Chennai South","district":"CHENGALPATTU","lat":12.911147,"lon":80.15614,"addr":"PLOTNO.4B,MADAMBAKKAM, MAIN ROAD,NBEARHANSAGARDEN","pin":"600073","ifsc":"UBIN0815900","pop":"SEMI URBAN"},
+{"no":88,"sol":"15861","name":"Perungudi Tirumalai Nagar","region":"Chennai South","district":"CHENGALPATTU","lat":12.959688,"lon":80.242038,"addr":"NO.32,THIRUMALAIANNANAGARANNEX, 1STMAIN ROAD","pin":"600096","ifsc":"UBIN0815861","pop":"SEMI URBAN"},
+{"no":89,"sol":"60610","name":"West Tambaram","region":"Chennai South","district":"CHENGALPATTU","lat":12.933621,"lon":80.125403,"addr":"NEW NO. 157/OLD NO.36 WEST TAMBARAM, AYYASAMY STREET","pin":"600045","ifsc":"UBIN0560618","pop":"URBAN"},
+{"no":90,"sol":"29022","name":"Selaiyur Mahalakshmi Nagar","region":"Chennai South","district":"CHENGALPATTU","lat":12.908012,"lon":80.1408,"addr":"NO.17,MAHALAKSHMINAGAR,SELAIYUR, CHITLAPAKKAMMAIN ROAD,","pin":"600073","ifsc":"UBIN0929026","pop":"URBAN"},
+{"no":91,"sol":"23901","name":"Chrompet","region":"Chennai South","district":"CHENGALPATTU","lat":12.971974,"lon":80.139886,"addr":"NO.7/8A,PLOTNO.125A2,IIIMAIN ROAD,NEWCTAMBARAM","pin":"600044","ifsc":"UBIN0823902","pop":"URBAN"},
+{"no":92,"sol":"26411","name":"Selaiyur","region":"Chennai South","district":"CHENGALPATTU","lat":12.908025,"lon":80.140849,"addr":"PLOTNO.11,DOORNO.11A,VENKATESANSTREET,ETAMBARAM","pin":"600059","ifsc":"UBIN0826413","pop":"URBAN"},
+{"no":93,"sol":"11102","name":"Padur","region":"Chennai South","district":"CHENGALPATTU","lat":12.788913,"lon":80.2214,"addr":"1/364APADUR, OLDMAHABALIPURAMROAD","pin":"603103","ifsc":"UBIN0911101","pop":"RURAL"},
+{"no":94,"sol":"03601","name":"Mylapore North Mada Street","region":"Chennai South","district":"CHENNAI","lat":13.033889,"lon":80.270997,"addr":"MYLAPORE,MADRAS-4, MYLAPUR","pin":"600004","ifsc":"UBIN0803600","pop":"METRO"},
+{"no":95,"sol":"05571","name":"Madras-T.Nagar","region":"Chennai South","district":"CHENNAI","lat":13.040805,"lon":80.235096,"addr":"D.NO-65,SRITAYAGARAYARD,P.B.NO-1416,MADRAS,600017, CHENNAI","pin":"600017","ifsc":"UBIN0805572","pop":"METRO"},
+{"no":96,"sol":"00492","name":"Chennai-Mylapore","region":"Chennai South","district":"CHENNAI","lat":13.032411,"lon":80.2693,"addr":"GROUNDFLOOR,13(OLDNO.5),CHENNAI, KAPALEESWARARSOUTHMADASTREET,","pin":"600004","ifsc":"UBIN0900494","pop":"METRO"},
+{"no":97,"sol":"33230","name":"Madras-Chamiers Road","region":"Chennai South","district":"CHENNAI","lat":13.04115,"lon":80.24605,"addr":"PLOT NO.39,CHAMIERS ROAD,, MADRAS","pin":"600018","ifsc":"UBIN0533238","pop":"METRO"},
+{"no":98,"sol":"00191","name":"Madras-Ashoknagr","region":"Chennai South","district":"CHENNAI","lat":13.040335,"lon":80.204021,"addr":"47,FIRSTAVENUECHENNAI, MAIN ROAD","pin":"600083","ifsc":"UBIN0800198","pop":"METRO"},
+{"no":99,"sol":"35210","name":"Madras-Tyagaraja Nagar","region":"Chennai South","district":"CHENNAI","lat":13.04745,"lon":80.23635,"addr":"NEW NO.42 / OLD NO. 51, THYAGARAJA NAGAR, THIRUMALAI PILLAI ROAD,","pin":"600017","ifsc":"UBIN0535214","pop":"METRO"},
+{"no":100,"sol":"01222","name":"Madras-Mount Road","region":"Chennai South","district":"CHENNAI","lat":13.057611,"lon":80.2615,"addr":"38&39,MADRAS-, WHITESRD,MADRAS","pin":"600014","ifsc":"UBIN0901229","pop":"METRO"},
+{"no":101,"sol":"01242","name":"Madras-Indiranagar","region":"Chennai South","district":"CHENNAI","lat":12.994813,"lon":80.2538,"addr":"37-1AVENUE,, INDIRANAGAR","pin":"600020","ifsc":"UBIN0901245","pop":"METRO"},
+{"no":102,"sol":"35720","name":"Triplicane High Road","region":"Chennai South","district":"CHENNAI","lat":13.05686,"lon":80.279505,"addr":"578 PYCROFTS ROAD,, TRIPLICANE,MADRAS","pin":"600005","ifsc":"UBIN0535729","pop":"METRO"},
+{"no":103,"sol":"05641","name":"Triplicane Big Street","region":"Chennai South","district":"CHENNAI","lat":13.059204,"lon":80.275767,"addr":"27,BIGSTREET,TRIPLICANE,MADRAS, CHENNAI","pin":"600005","ifsc":"UBIN0805645","pop":"METRO"},
+{"no":104,"sol":"07031","name":"Madras-Adyar Gandhinagar","region":"Chennai South","district":"CHENNAI","lat":13.0068,"lon":80.255271,"addr":"30-1,MAIN ROAD,GANDHINAGAR,ADAYAR,MADRAS,600020, adyarchennai","pin":"600020","ifsc":"UBIN0807036","pop":"METRO"},
+{"no":105,"sol":"39570","name":"Mylapore-Sivasamy Salai","region":"Chennai South","district":"CHENNAI","lat":13.033619,"lon":80.268603,"addr":"40,SULLIVANS GARDEN ROAD,, MYLAPORE,MADRAS","pin":"600004","ifsc":"UBIN0539571","pop":"METRO"},
+{"no":106,"sol":"08121","name":"Madras-Karunanidhinagar","region":"Chennai South","district":"CHENNAI","lat":13.042321,"lon":80.258921,"addr":"PLOTNO.40,DR.A.RAMASWAMYRD,KARUNANIDHINAGAR,MADRAS,600078, MAIN ROAD","pin":"600078","ifsc":"UBIN0808121","pop":"METRO"},
+{"no":107,"sol":"40920","name":"Madras-Ashok Nagar","region":"Chennai South","district":"CHENNAI","lat":13.038611,"lon":80.211206,"addr":"PLOT NO-1209,I AVENUE,, ASHOK NAGAR,MADRAS,","pin":"600083","ifsc":"UBIN0540927","pop":"METRO"},
+{"no":108,"sol":"41230","name":"Madras-Nungambakkam","region":"Chennai South","district":"CHENNAI","lat":13.061079,"lon":80.240483,"addr":"37,COLLEGE ROAD,, NUNGAMBAKKAM MADRAS","pin":"600034","ifsc":"UBIN0541231","pop":"METRO"},
+{"no":109,"sol":"05441","name":"Madras-Saidapet","region":"Chennai South","district":"CHENNAI","lat":13.024022,"lon":80.227752,"addr":"393,ANNASALAI,SAIDAPET,MADRAS-600015, CHENNAI","pin":"600015","ifsc":"UBIN0805441","pop":"METRO"},
+{"no":110,"sol":"02551","name":"Mowbrays Road","region":"Chennai South","district":"CHENNAI","lat":13.042503,"lon":80.261705,"addr":"265,MOWBRAYSROAD,T.T.K.SALAI,MADRAS,600018, CHENNAI","pin":"600018","ifsc":"UBIN0802557","pop":"METRO"},
+{"no":111,"sol":"04912","name":"T Nagar Madras","region":"Chennai South","district":"CHENNAI","lat":13.034911,"lon":80.2373,"addr":"NO41,, VENKATANARAYANARD,TNAGAR,MADRAS","pin":"600017","ifsc":"UBIN0904911","pop":"METRO"},
+{"no":112,"sol":"05782","name":"Ashok Nagar-Chennai","region":"Chennai South","district":"CHENNAI","lat":13.03741,"lon":80.2123,"addr":"NUTECHVIKASH,, 581AVENUE,ASHOKNAGAR,CHENNAI","pin":"600083","ifsc":"UBIN0905780","pop":"METRO"},
+{"no":113,"sol":"52630","name":"Umfb Guindy Chennai","region":"Chennai South","district":"CHENNAI","lat":13.003304,"lon":80.218164,"addr":"S-10A THIRU-VI-KA INDUSTRIAL ESTATE,, GUINDY,CHENNAI,","pin":"600032","ifsc":"UBIN0552631","pop":"METRO"},
+{"no":114,"sol":"52720","name":"Besant Nagar","region":"Chennai South","district":"CHENNAI","lat":12.99372,"lon":80.266,"addr":"58,S.V.CHURCH ROAD,, BESANT NAGAR,CHENNAI,","pin":"600090","ifsc":"UBIN0552721","pop":"METRO"},
+{"no":115,"sol":"10771","name":"Saligramam","region":"Chennai South","district":"CHENNAI","lat":13.05545,"lon":80.204015,"addr":"NO.51,ARUNACHALAMROAD,SALIGRAMAM,CHENNAI-600093CHENNAI","pin":"600093","ifsc":"UBIN0810771","pop":"METRO"},
+{"no":116,"sol":"52850","name":"Nanganallur 26Th Street","region":"Chennai South","district":"CHENNAI","lat":12.985003,"lon":80.193624,"addr":"PLOT NO.83 DOOR NO.13,FIRST MAIN ROAD,NANGANALLUR,ALANDUR,600061","pin":"600061","ifsc":"UBIN0552852","pop":"METRO"},
+{"no":117,"sol":"53310","name":"Vadapalani","region":"Chennai South","district":"CHENNAI","lat":13.052202,"lon":80.212042,"addr":"14,ARCOT ROAD,CHENNAI,, P.O.VADAPALANI,","pin":"600026","ifsc":"UBIN0553310","pop":"METRO"},
+{"no":118,"sol":"11741","name":"Velachery Hsg.Finance Branch","region":"Chennai South","district":"CHENNAI","lat":12.985449,"lon":80.218087,"addr":"320/B/47-B,RAMARACLINICCOMPLEX,VELACHERYMAINRD,CHENNAI600042","pin":"600042","ifsc":"UBIN0811742","pop":"METRO"},
+{"no":119,"sol":"12021","name":"Besant Nagar  Branch","region":"Chennai South","district":"CHENNAI","lat":12.995711,"lon":80.268341,"addr":"34&36,VIIAVENUE,BESANTNAGAR,CHENNAI600090","pin":"600090","ifsc":"UBIN0812021","pop":"METRO"},
+{"no":120,"sol":"07672","name":"Teynampet-Chennai","region":"Chennai South","district":"CHENNAI","lat":13.04591,"lon":80.2481,"addr":"TEYNAMPET,MIDLANDINSURANCE,BLDG.556,, ANNASALAI,CHENNAI-","pin":"600018","ifsc":"UBIN0907677","pop":"METRO"},
+{"no":121,"sol":"07792","name":"Chennai-Nanganallur","region":"Chennai South","district":"CHENNAI","lat":12.981613,"lon":80.1883,"addr":"C-60,DR27,SUR25,, ANJANIAPT.,4THMAINRD,NANGANALLUR,CHENNAI-","pin":"600061","ifsc":"UBIN0907791","pop":"METRO"},
+{"no":122,"sol":"12761","name":"Keelakattalai","region":"Chennai South","district":"CHENNAI","lat":12.957443,"lon":80.187105,"addr":"DOORNO.85KEELAKATTALAI, MEDAVAKKAMHIGHROAD","pin":"600017","ifsc":"UBIN0812765","pop":"METRO"},
+{"no":123,"sol":"08172","name":"Chennai-Vepery","region":"Chennai South","district":"CHENNAI","lat":13.05271,"lon":80.2261,"addr":"THEPERIYARSELFRESPECTPROPAGANDAINSTVEPERY, PERIYARTHIDAL,50,EVK,SAMPATHSALAI","pin":"600035","ifsc":"UBIN0908177","pop":"METRO"},
+{"no":124,"sol":"13271","name":"Neelangarai","region":"Chennai South","district":"CHENNAI","lat":12.94784,"lon":80.261,"addr":"NO.321,KarunanidhiSalai, NEELANGARAI","pin":"600041","ifsc":"UBIN0813273","pop":"METRO"},
+{"no":125,"sol":"08642","name":"Chennai-Madipakkam","region":"Chennai South","district":"CHENNAI","lat":12.965413,"lon":80.2017,"addr":"2/220,MOOVARASAMPETROAD,SY.NO.12/13MADIPAKKAM, NRMADIPAKKAMKOOTROAD,","pin":"600091","ifsc":"UBIN0908649","pop":"METRO"},
+{"no":126,"sol":"54840","name":"Tiruvanmiyur","region":"Chennai South","district":"CHENNAI","lat":12.982684,"lon":80.263369,"addr":"PLOT NO. 1, KARPAGAMBAL NAGAR, KARPAGAMBAL NAGAR, EAST COAST ROAD,","pin":"600041","ifsc":"UBIN0554847","pop":"METRO"},
+{"no":127,"sol":"56330","name":"Perungudi","region":"Chennai South","district":"CHENNAI","lat":12.960228,"lon":80.245342,"addr":"5/602, PERUNDUGI, OLD MAHABALIPURAM ROAD,","pin":"600096","ifsc":"UBIN0556335","pop":"METRO"},
+{"no":128,"sol":"57020","name":"St.Michael\\\'S Academy, Adyar","region":"Chennai South","district":"CHENNAI","lat":13.001182,"lon":80.25649,"addr":"13A ADYAR, 4TH CANAL CROSS ROAD , 4TH MAIN ROAD","pin":"600020","ifsc":"UBIN0557021","pop":"METRO"},
+{"no":129,"sol":"57040","name":"Central Training Institute, Guindy","region":"Chennai South","district":"CHENNAI","lat":13.003304,"lon":80.218164,"addr":"MINISTRY OF LABOUR, GOVT. OF INDIA GUINDY, GUINDY INDUSTRIAL ESTATE","pin":"600032","ifsc":"UBIN0557048","pop":"METRO"},
+{"no":130,"sol":"14701","name":"Virugumbakkam","region":"Chennai South","district":"CHENNAI","lat":13.059708,"lon":80.195266,"addr":"NO.56,KALIAMMANKOILVIRUGUMBAKKAM, Virugumbakkam","pin":"600092","ifsc":"UBIN0814709","pop":"METRO"},
+{"no":131,"sol":"57900","name":"Velachery","region":"Chennai South","district":"CHENNAI","lat":12.97598,"lon":80.2212,"addr":"24/6, 100 FT. MAIN ROAD, THARAMANI VELACHERY LINK ROAD","pin":"600042","ifsc":"UBIN0557901","pop":"METRO"},
+{"no":132,"sol":"11352","name":"Sholinganallur","region":"Chennai South","district":"CHENNAI","lat":12.901013,"lon":80.2279,"addr":"D.NO.21A,PARAMESHWARNAGAR,GRD.FLOORSHOLINGANALLUR, SATHYAVANIMUTHUST,FIRSTAVENUE","pin":"600119","ifsc":"UBIN0911356","pop":"METRO"},
+{"no":133,"sol":"59330","name":"Alandur","region":"Chennai South","district":"CHENNAI","lat":12.992178,"lon":80.198959,"addr":"48- A VELLALAR STREET ADAMBAKKAM, MEDAVAKKAM MAIN ROAD, ADAMBAKKAM","pin":"600088","ifsc":"UBIN0559334","pop":"METRO"},
+{"no":134,"sol":"15011","name":"Jaffarkhanpet","region":"Chennai South","district":"CHENNAI","lat":13.041695,"lon":80.23542,"addr":"SAIDAPET, 41,MOSQUESTREET","pin":"600015","ifsc":"UBIN0815012","pop":"METRO"},
+{"no":135,"sol":"11632","name":"Chennai-Koyembedu","region":"Chennai South","district":"CHENNAI","lat":13.05951,"lon":80.1954,"addr":"D.NO.32KOYAMBEDU, KALIAMMANKOILSTREET","pin":"600107","ifsc":"UBIN0911631","pop":"METRO"},
+{"no":136,"sol":"16151","name":"Ra Puram","region":"Chennai South","district":"CHENNAI","lat":13.025725,"lon":80.274085,"addr":"OLDNO.17,NEWNO.31CHENNAI, LAZARUSCHURCHROAD","pin":"600028","ifsc":"UBIN0816159","pop":"METRO"},
+{"no":137,"sol":"61170","name":"West Mambalam-Chennai","region":"Chennai South","district":"CHENNAI","lat":13.038,"lon":80.22292,"addr":"NO. 41, MAMBALAM, JUBILEE ROAD","pin":"600033","ifsc":"UBIN0561177","pop":"METRO"},
+{"no":138,"sol":"12112","name":"Chennai-Palavakkam","region":"Chennai South","district":"CHENNAI","lat":12.961551,"lon":80.256684,"addr":"NO.3,KPTJNESTCHENNAI, ANNASALAI,PALAVAKKAM","pin":"600041","ifsc":"UBIN0912115","pop":"METRO"},
+{"no":139,"sol":"12122","name":"Chennai-Micro Finance Branch","region":"Chennai South","district":"CHENNAI","lat":12.982313,"lon":80.2172,"addr":"R-11,TNHB-VELACHERYSCHEMECHENNAI, NETHAJIROADEXTN,TNHBIII,MAIN ROAD","pin":"600042","ifsc":"UBIN0912123","pop":"METRO"},
+{"no":140,"sol":"12852","name":"Chennai-Shastrinagar","region":"Chennai South","district":"CHENNAI","lat":13.00091,"lon":80.2617,"addr":"NEWNO.5,OLDNO.11,CHENNAI, FIRSTAVENUE,SHASTRINAGAR,","pin":"600020","ifsc":"UBIN0912859","pop":"METRO"},
+{"no":141,"sol":"14971","name":"Madhya Kailash","region":"Chennai South","district":"CHENNAI","lat":13.0068,"lon":80.25526,"addr":"CANCERINSTITUTECAMPUSCHENNAI, 18,SARDARPATELROAD","pin":"600020","ifsc":"UBIN0814971","pop":"METRO"},
+{"no":142,"sol":"20721","name":"Kodambakkam","region":"Chennai South","district":"CHENNAI","lat":13.051509,"lon":80.223721,"addr":"NO.4/9,4THMAIN ROAD,UNITEDINDIACOLONY,KCHENNAI","pin":"600024","ifsc":"UBIN0820725","pop":"METRO"},
+{"no":143,"sol":"21491","name":"Hasthinapuram","region":"Chennai South","district":"KANCHEEPURAM","lat":12.941079,"lon":80.146449,"addr":"NO.98,RAJENDRAPRASADROAD,HASTHINAPAURAM,KANCHEEPURAM","pin":"600064","ifsc":"UBIN0821497","pop":"URBAN"},
+{"no":144,"sol":"40740","name":"Kancheepuram","region":"Kancheepuram","district":"KANCHEEPURAM","lat":12.836832,"lon":79.701695,"addr":"54 VANIGAR STREET,, KANCHEEPURAM","pin":"631502","ifsc":"UBIN0540749","pop":"URBAN"},
+{"no":145,"sol":"17361","name":"Nasrathpettai","region":"Kancheepuram","district":"KANCHEEPURAM","lat":12.834676,"lon":79.706229,"addr":"NO.27,CHENGALPATTUMAIN ROAD,OPP.TOPACHAIYAPPA\\\'SCOLLEGE,PARIYARNAGAR,KANCHEEPU...","pin":"631501","ifsc":"UBIN0817368","pop":"URBAN"},
+{"no":146,"sol":"24891","name":"Kaneepuram","region":"Kancheepuram","district":"KANCHEEPURAM","lat":12.832705,"lon":79.711582,"addr":"OLDNO.81,82&83,NEWNO.74,VILAKADIKOILKANCHEEPURAM, VILAKADIKOILSTREET","pin":"631501","ifsc":"UBIN0824895","pop":"URBAN"},
+{"no":147,"sol":"17621","name":"Iyyappanthangal","region":"Kancheepuram","district":"KANCHEEPURAM","lat":13.04072,"lon":80.136409,"addr":"PLOTNO.IV,VGNNAGAR,\\\'B\\\'PHASEIYYAPPANTHANGAL, ANESALAI","pin":"600056","ifsc":"UBIN0817627","pop":"SEMI URBAN"},
+{"no":148,"sol":"18401","name":"Padappai","region":"Kancheepuram","district":"KANCHEEPURAM","lat":12.883692,"lon":80.022836,"addr":"CSNO.540/2D3PADAPPAI, NAVASAKTHINAGAR","pin":"601301","ifsc":"UBIN0818402","pop":"SEMI URBAN"},
+{"no":149,"sol":"24861","name":"Kundrathur","region":"Kancheepuram","district":"KANCHEEPURAM","lat":12.998168,"lon":80.095057,"addr":"NO.51,MURUGANKOILROAD,KUNDRATHUR,KANCHEEKUNDRATHUR","pin":"600069","ifsc":"UBIN0824861","pop":"SEMI URBAN"},
+{"no":150,"sol":"34030","name":"Thirumangalam-S.Chatram","region":"Kancheepuram","district":"KANCHEEPURAM","lat":9.819811,"lon":77.985562,"addr":"MAIN ROAD,SUNGAVARCHATRAM,, THIRUMANGALAM,TEH.SRIPERUMPUDUR","pin":"602106","ifsc":"UBIN0534030","pop":"RURAL"},
+{"no":151,"sol":"15032","name":"Oragadam","region":"Kancheepuram","district":"KANCHEEPURAM","lat":12.85189,"lon":79.944359,"addr":"GROUNDFLOOR,SY.NO.44,ORAGADAMKOOTROADORAGADAM, VANDALURWALAJAHBADROAD","pin":"602105","ifsc":"UBIN0915033","pop":"RURAL"},
+{"no":152,"sol":"24111","name":"Sriperumbudur","region":"Kancheepuram","district":"KANCHEEPURAM","lat":12.945108,"lon":79.923094,"addr":"PLOTNO.3,BANGALOREMAIN ROAD,OPP.TOSUMATSRIPERUMBUDUR","pin":"602105","ifsc":"UBIN0824119","pop":"SEMI URBAN"},
+{"no":153,"sol":"32722","name":"Kalakattur","region":"Kancheepuram","district":"KANCHEEPURAM","lat":12.776413,"lon":79.729202,"addr":"PLOTNO.149,KANCHINEWTOWNKALAKATTUR, MAIN ROAD,","pin":"631502","ifsc":"UBIN0932728","pop":"RURAL"},
+{"no":154,"sol":"37950","name":"Pondicherry","region":"Kancheepuram","district":"PUDUCHERRY","lat":11.913869,"lon":79.814462,"addr":"47,JAWAHARLAL NEHRU ST,, PONDICHERRY,","pin":"605001","ifsc":"UBIN0537951","pop":"URBAN"},
+{"no":155,"sol":"01991","name":"J.N.St.Pondicherry","region":"Kancheepuram","district":"PUDUCHERRY","lat":11.936287,"lon":79.827624,"addr":"77,MISSIONST,PONDICHERRY,605001, pondicherry","pin":"605001","ifsc":"UBIN0801992","pop":"URBAN"},
+{"no":156,"sol":"04422","name":"Pondicherry-Reddiarpalayam","region":"Kancheepuram","district":"PUDUCHERRY","lat":11.913913,"lon":79.814502,"addr":"R.S.12/2,100FTROAD., ESRNATESHANNAGARPUDUPALAYAM","pin":"605005","ifsc":"UBIN0904422","pop":"URBAN"},
+{"no":157,"sol":"32182","name":"Puducherry-Arumparthapuram","region":"Kancheepuram","district":"PUDUCHERRY","lat":11.890213,"lon":79.745602,"addr":"NO.6,GROUNDFLOORPUDUCHERRY, VILLIANOORMAIN ROAD","pin":"605110","ifsc":"UBIN0932183","pop":"URBAN"},
+{"no":158,"sol":"24701","name":"Vilianur","region":"Kancheepuram","district":"PUDUCHERRY","lat":11.910023,"lon":79.750168,"addr":"BALARAJAMANICOMPLEX,NO.30/1,VILLUPURAMMAVILLIANUR, VILLUPURAMMAIN ROAD","pin":"605110","ifsc":"UBIN0824704","pop":"SEMI URBAN"},
+{"no":159,"sol":"33310","name":"Arkonam","region":"Kancheepuram","district":"RANIPET","lat":13.081913,"lon":79.668729,"addr":"49/15, VTH GANDHI ROAD, STAURTPET ARKONAM, VTH GANDHI ROAD ARKONAM","pin":"631001","ifsc":"UBIN0533319","pop":"SEMI URBAN"},
+{"no":160,"sol":"35640","name":"Thakkolam","region":"Kancheepuram","district":"RANIPET","lat":13.01351,"lon":79.75117,"addr":"13,BAZAR ST,THAKKOLAM,TEH.ARKONAM, VELLORE","pin":"631151","ifsc":"UBIN0535648","pop":"SEMI URBAN"},
+{"no":161,"sol":"20001","name":"Arakkonam","region":"Kancheepuram","district":"RANIPET","lat":13.092452,"lon":79.660369,"addr":"MIG,H.NO.262,TNHBARAKKONAM","pin":"631001","ifsc":"UBIN0820008","pop":"SEMI URBAN"},
+{"no":162,"sol":"42560","name":"Ranipet-Indtl.Estate","region":"Kancheepuram","district":"RANIPET","lat":12.94605,"lon":79.347,"addr":"SIPCOT INDTL.EST.MADRAS-BOM TRUNK RD;RANIPET,WALLAJA TEH, RANIPETINDUSTRIAL","pin":"632403","ifsc":"UBIN0542563","pop":"SEMI URBAN"},
+{"no":163,"sol":"13092","name":"Lalpet","region":"Kancheepuram","district":"RANIPET","lat":12.987658,"lon":79.30293,"addr":"D.NO.1/91/A,LALPET, BAZAARSTREET","pin":"632405","ifsc":"UBIN0913090","pop":"RURAL"},
+{"no":164,"sol":"24711","name":"Seekarajapuram","region":"Kancheepuram","district":"RANIPET","lat":12.98001,"lon":79.27689,"addr":"SFNO.82/7,MBTROAD,THENDRALNAGAR,SEEKARAJAPURAM,WALLAJAHTEHSIL,VELLOREDIST.,TA...","pin":"632515","ifsc":"UBIN0824712","pop":"RURAL"},
+{"no":165,"sol":"24681","name":"Ranipettai","region":"Kancheepuram","district":"RANIPET","lat":12.933954,"lon":79.330527,"addr":"NO.47,ARCOTROAD,RANIPETTAI,VELLOREDIST.,RANIPETTAI","pin":"632401","ifsc":"UBIN0824682","pop":"SEMI URBAN"},
+{"no":166,"sol":"26421","name":"Sholingar","region":"Kancheepuram","district":"RANIPET","lat":13.111585,"lon":79.431005,"addr":"DOORNO.37,SUBBARAOSTREET,SHOLINGAR,WALLAJAHTEHSIL,VELLOREDIST.,TAMILNADUWALLAJAH","pin":"631102","ifsc":"UBIN0826421","pop":"SEMI URBAN"},
+{"no":167,"sol":"27701","name":"Thirupparkadal","region":"Kancheepuram","district":"RANIPET","lat":12.8839,"lon":79.4549,"addr":"NO.6/2A,THIRUPARKADALROAD,THIRUPPARKADAL,THIRUPPARKADAL, THIRUPPARKADALROAD","pin":"632508","ifsc":"UBIN0827703","pop":"RURAL"},
+{"no":168,"sol":"29171","name":"Ammoor","region":"Kancheepuram","district":"RANIPET","lat":12.9767,"lon":79.3649,"addr":"NO.178,BAZARSTREET,AMMOOR,VILLOREDIST.,WALLAJAH","pin":"632501","ifsc":"UBIN0829170","pop":"SEMI URBAN"},
+{"no":169,"sol":"34542","name":"Anandhalai","region":"Kancheepuram","district":"RANIPET","lat":12.940409,"lon":79.378938,"addr":"PLOTNO.31,SHOLANGHURROAD,ANANDHALAI, ANANDHALAIPANCHAYAT","pin":"632513","ifsc":"UBIN0934542","pop":"RURAL"},
+{"no":170,"sol":"11112","name":"Ambur","region":"Kancheepuram","district":"TIRUPATHUR","lat":12.783313,"lon":78.716502,"addr":"ROYALSUNTOWERAMBUR, NO.38,GUDIATTAMBYEPASSROAD","pin":"635802","ifsc":"UBIN0911119","pop":"URBAN"},
+{"no":171,"sol":"33380","name":"Natrampalli","region":"Kancheepuram","district":"TIRUPATHUR","lat":12.559899,"lon":78.554289,"addr":"38/A MAIN ROAD,NATRAMPALLI","pin":"635852","ifsc":"UBIN0533386","pop":"SEMI URBAN"},
+{"no":172,"sol":"67460","name":"Mallangunta","region":"Kancheepuram","district":"TIRUPATHUR","lat":12.59355,"lon":78.55815,"addr":"MALLANGUNTA BRANCH, NO.2 MALLANGUNTA, MALLANGUNTA MAIN ROAD","pin":"635852","ifsc":"UBIN0567469","pop":"RURAL"},
+{"no":173,"sol":"44960","name":"Boomikuppam","region":"Kancheepuram","district":"TIRUPATHUR","lat":12.464188,"lon":78.600998,"addr":"TIRUPATTUR MAIN RD.,BOOMIKUPPAM, 635660, ANUKKAVOOR","pin":"635653","ifsc":"UBIN0544965","pop":"RURAL"},
+{"no":174,"sol":"62080","name":"Tirupattur","region":"Kancheepuram","district":"TIRUPATHUR","lat":12.495916,"lon":78.572817,"addr":"DOOR NO. 23 &24, TIRUPATTUR TALUKA BLK NO.4 TIRUPATTUR, CHINNAKULAM MARIYAMMA...","pin":"635601","ifsc":"UBIN0562084","pop":"SEMI URBAN"},
+{"no":175,"sol":"27881","name":"Tirupathur","region":"Kancheepuram","district":"TIRUPATHUR","lat":12.50292,"lon":78.570808,"addr":"NO.7,KOVILURROAD,TIRUPATHUR-635601,VELLORTIRUPATHUR","pin":"635601","ifsc":"UBIN0827886","pop":"SEMI URBAN"},
+{"no":176,"sol":"33350","name":"Devasthanam-Vaniyambadi","region":"Kancheepuram","district":"TIRUPATHUR","lat":12.648593,"lon":78.583257,"addr":"302 A,P.O.VANIYAMBADI-635751,DEVASTHANAM,PERIYAPETTAI-TQ, VELLORE","pin":"635751","ifsc":"UBIN0533351","pop":"RURAL"},
+{"no":177,"sol":"33360","name":"Jaffrabad-Vaniyambadi","region":"Kancheepuram","district":"TIRUPATHUR","lat":12.690542,"lon":78.607942,"addr":"1/25,HIGH ROAD,VANIYAMBADI,JAFFRABAD,635754, VELLORE","pin":"635754","ifsc":"UBIN0533360","pop":"RURAL"},
+{"no":178,"sol":"03862","name":"Kunnathur","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.691913,"lon":79.231,"addr":"ARNIVELLOREROAD,, KUNNATHUR,","pin":"632314","ifsc":"UBIN0903868","pop":"RURAL"},
+{"no":179,"sol":"13592","name":"Arni","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.667413,"lon":79.2794,"addr":"S.F.NO.35/12C,C/2BLOCKARANI, D.NO.285,GANDHIROAD","pin":"632301","ifsc":"UBIN0913596","pop":"SEMI URBAN"},
+{"no":180,"sol":"18561","name":"Kattukanallur","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.74711,"lon":79.11079,"addr":"D.NO.7/A,KATTUKANALLURROADKATTUKANALLUR, PUDUPETTAI,ARANITALUK","pin":"632312","ifsc":"UBIN0818569","pop":"RURAL"},
+{"no":181,"sol":"71790","name":"Arani","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.66682,"lon":79.270657,"addr":"ARANI BRANCH, 280 NEAR RAJESHWARI THEATRE, SATHIYAMOORTHY ROAD","pin":"632301","ifsc":"UBIN0571792","pop":"SEMI URBAN"},
+{"no":182,"sol":"35660","name":"Pudupalayam","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.361746,"lon":78.889816,"addr":"23/A,KUPPAM VILLAGE RD,PUDUPALAYAM(TEH.CHENGAM)","pin":"606705","ifsc":"UBIN0535664","pop":"SEMI URBAN"},
+{"no":183,"sol":"33340","name":"Ankkavur","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.642868,"lon":79.539603,"addr":"1214/5,VANDAWASI ROAD,ANAKKAVOOR,TEH.CHEYYAR, ANUKKAVOOR","pin":"604401","ifsc":"UBIN0533343","pop":"RURAL"},
+{"no":184,"sol":"31162","name":"Dusi","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.776413,"lon":79.676902,"addr":"NO.407,G.FLOOR,ANUMANTHAPETTAIDUSI, OFFICER\\\'SSTREET,","pin":"631702","ifsc":"UBIN0931161","pop":"RURAL"},
+{"no":185,"sol":"33320","name":"Chetput-Pazampet","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.6233,"lon":79.25665,"addr":"RT COMPLEX,I FLOOR, KANNANUR, TEH POLUR, 23/A/1/B,GINGEE ROAD","pin":"606801","ifsc":"UBIN0533327","pop":"SEMI URBAN"},
+{"no":186,"sol":"45100","name":"Modaiyur","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.668556,"lon":79.284192,"addr":"MODAIYUR,TEH.POLUR","pin":"606902","ifsc":"UBIN0545104","pop":"RURAL"},
+{"no":187,"sol":"19432","name":"Arani Kalambur","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.626212,"lon":79.2169,"addr":"S.F.NO.1156A/2,KALAMBUR, KALAMBURRAILWAYSTATIONROAD,","pin":"606903","ifsc":"UBIN0919438","pop":"SEMI URBAN"},
+{"no":188,"sol":"03872","name":"Vengikkal","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.256511,"lon":79.0666,"addr":"181/B,VELLORETRUNKRD.,VENGIKKAL,, .THIRUVANNAMALAI","pin":"606604","ifsc":"UBIN0903876","pop":"SEMI URBAN"},
+{"no":189,"sol":"26131","name":"Tiruvannamalai","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.234576,"lon":79.06885,"addr":"SHOPNO.5,DOORNO.34/1,POLURROAD,TIRUVANNTHIRUVANNAMALAI","pin":"606601","ifsc":"UBIN0826138","pop":"URBAN"},
+{"no":190,"sol":"32872","name":"Thiruvannamalai","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.225295,"lon":79.074696,"addr":"NO.147,G.FLOOR,THIRUVANNAMALAI, CHENGAMROAD,","pin":"606603","ifsc":"UBIN0932876","pop":"URBAN"},
+{"no":191,"sol":"04232","name":"Nallur","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.381212,"lon":79.599701,"addr":"56,VANNIARSTREET,MAIN ROAD, ,NALLUR,.VANDAVASI","pin":"604406","ifsc":"UBIN0904236","pop":"RURAL"},
+{"no":192,"sol":"30322","name":"Mamandur","region":"Kancheepuram","district":"TIRUVANNAMALAI","lat":12.493983,"lon":79.703375,"addr":"S.NO.109A/3,MAMANDUR, VANDAVASI-MARUVATHURMAINRD","pin":"604403","ifsc":"UBIN0930326","pop":"RURAL"},
+{"no":193,"sol":"33330","name":"Pallikonda","region":"Kancheepuram","district":"VELLORE","lat":12.9713,"lon":79.1368,"addr":"42/A,M.C.RD,PALLIKONDA,635809","pin":"635809","ifsc":"UBIN0533335","pop":"SEMI URBAN"},
+{"no":194,"sol":"35650","name":"K.V.Kuppam-Katpadi-G.Rd.","region":"Kancheepuram","district":"VELLORE","lat":12.955202,"lon":78.986085,"addr":"4/34 K.CHETTIAR LINE,KATPADI-GUDIYATHAM RD.,K.V.KUPPAM, VELLORE","pin":"632201","ifsc":"UBIN0535656","pop":"RURAL"},
+{"no":195,"sol":"02892","name":"Ussoor","region":"Kancheepuram","district":"VELLORE","lat":12.863912,"lon":79.063,"addr":"2/232,IFLOOR,, VELLORE-ODUGATHENRD,USSOOR,","pin":"632105","ifsc":"UBIN0902896","pop":"RURAL"},
+{"no":196,"sol":"24241","name":"Gudiattam","region":"Kancheepuram","district":"VELLORE","lat":12.943891,"lon":78.866983,"addr":"NO.18/2A,RSROAD,KONDASAMUTHRAM,GUDIATTAM,GUDIATTAM","pin":"632602","ifsc":"UBIN0824241","pop":"SEMI URBAN"},
+{"no":197,"sol":"30012","name":"Vanjur","region":"Kancheepuram","district":"VELLORE","lat":12.979613,"lon":79.1375,"addr":"NO.1/62,VANJUR, OTHAVADAISTREET","pin":"632006","ifsc":"UBIN0930016","pop":"RURAL"},
+{"no":198,"sol":"23181","name":"Katpadi","region":"Kancheepuram","district":"VELLORE","lat":12.968144,"lon":79.138244,"addr":"NO.6,14THEASTCROSS,GANDHINAGAR,OPP.HUNDKATPADI","pin":"632007","ifsc":"UBIN0823180","pop":"SEMI URBAN"},
+{"no":199,"sol":"45710","name":"Vaduganthangal","region":"Kancheepuram","district":"VELLORE","lat":12.924392,"lon":79.022462,"addr":"1/167 PCG COMPLEX VADUGANTANGAL, KATPADI GUDIYATHAM ROAD,","pin":"632204","ifsc":"UBIN0545716","pop":"RURAL"},
+{"no":200,"sol":"00142","name":"Vellore","region":"Kancheepuram","district":"VELLORE","lat":12.925813,"lon":79.1295,"addr":"1STFLOOR,44/47,, LONGBAZAAR,405,VELLORE-4","pin":"632001","ifsc":"UBIN0900141","pop":"URBAN"},
+{"no":201,"sol":"33370","name":"Konavattam","region":"Kancheepuram","district":"VELLORE","lat":12.923065,"lon":79.111378,"addr":"2/1,BANGALORE ROAD,KONAVATTAM,P.O.VELLORE-8","pin":"632013","ifsc":"UBIN0533378","pop":"SEMI URBAN"},
+{"no":202,"sol":"02782","name":"Adukambarai","region":"Kancheepuram","district":"VELLORE","lat":12.916512,"lon":79.1325,"addr":"VENKATESWARAPOLY, ,CAMPUS.PO,T.B.SANITORIUMARANIMAINRD,VELLORE11","pin":"632011","ifsc":"UBIN0902781","pop":"RURAL"},
+{"no":203,"sol":"21362","name":"Vellore-Shankarapalayam","region":"Kancheepuram","district":"VELLORE","lat":12.896913,"lon":79.1379,"addr":"PATTABIRAMANBUILDING,D.NO.11/29VELLORE, PALANIRATHINAVELUSTREET,SAINATHAPURA","pin":"632001","ifsc":"UBIN0921360","pop":"URBAN"},
+{"no":204,"sol":"30022","name":"Sathuvachari","region":"Kancheepuram","district":"VELLORE","lat":12.934985,"lon":79.154405,"addr":"FIRSTFLOOR,S.F.NO.494/1A,SATHUVACHARI, ARCOTROAD,","pin":"632009","ifsc":"UBIN0930024","pop":"SEMI URBAN"},
+{"no":205,"sol":"03422","name":"Nallan Pillai Petral","region":"Kancheepuram","district":"VILLUPURAM","lat":12.188694,"lon":79.251116,"addr":"11,BANKSTREET,, NALLANPILLAIPETRAL-","pin":"604152","ifsc":"UBIN0903426","pop":"RURAL"},
+{"no":206,"sol":"55920","name":"New Mosque Street, Tindivanam","region":"Kancheepuram","district":"VILLUPURAM","lat":12.262294,"lon":79.658971,"addr":"NEW NO. 10, OLD NO. 26, TINDIVANAM, NEW MOSQUE STREET,","pin":"604001","ifsc":"UBIN0555924","pop":"SEMI URBAN"},
+{"no":207,"sol":"03082","name":"Anniyur","region":"Kancheepuram","district":"VILLUPURAM","lat":12.068611,"lon":79.396701,"addr":"NO.1/82B,, PERUMALKOVILSTREET,ANNIYUR","pin":"605202","ifsc":"UBIN0903086","pop":"RURAL"},
+{"no":208,"sol":"34840","name":"Salamedu","region":"Kancheepuram","district":"VILLUPURAM","lat":11.89138,"lon":79.4805,"addr":"INDIRA TOWER,OPP.COLLECTORATE,, TRICHY TRUNK ROAD","pin":"605401","ifsc":"UBIN0534846","pop":"SEMI URBAN"},
+{"no":209,"sol":"03122","name":"Mambalapattu","region":"Kancheepuram","district":"VILLUPURAM","lat":11.956513,"lon":79.373301,"addr":"59, ,WARDII,MAMBALAPATTUS.O.,VILLUPURANTALUK","pin":"605302","ifsc":"UBIN0903124","pop":"RURAL"},
+{"no":210,"sol":"03572","name":"Kedar","region":"Kancheepuram","district":"VILLUPURAM","lat":12.008311,"lon":79.404301,"addr":"TIRUVANNAMALAIRD,, VILLUPURAM(R.M.S.),KEDAR,","pin":"605402","ifsc":"UBIN0903574","pop":"RURAL"},
+{"no":211,"sol":"04702","name":"Villupuram","region":"Kancheepuram","district":"VILLUPURAM","lat":11.941013,"lon":79.493001,"addr":"NO6,PANDITJAWAHARLALNEHRURD,, VILLUPURAM","pin":"605602","ifsc":"UBIN0904708","pop":"SEMI URBAN"},
+{"no":212,"sol":"53070","name":"Chennai-Industrial Finance Branch","region":"NA","district":"CHENNAI","lat":13.090508,"lon":80.284388,"addr":"UNION BANK BHAVAN BROADWAY,CHENNAI, 139, BROADWAY","pin":"600108","ifsc":"UBIN0553077","pop":"METRO"},
+{"no":213,"sol":"55860","name":"Dharmapuri Four Roads","region":"Salem","district":"DHARMAPURI","lat":12.139368,"lon":78.16297,"addr":"NEW AAVIN OFFICE BUILDING, OLD BANGALORE ROAD, DHARMAPURI","pin":"636701","ifsc":"UBIN0555860","pop":"SEMI URBAN"},
+{"no":214,"sol":"29082","name":"Dharmapuri Salem Main Road","region":"Salem","district":"DHARMAPURI","lat":12.093611,"lon":78.1365,"addr":"SALEMMAIN ROAD,DHARMAPURI","pin":"636701","ifsc":"UBIN0929085","pop":"SEMI URBAN"},
+{"no":215,"sol":"27251","name":"Dharmapuri Collector Office","region":"Salem","district":"DHARMAPURI","lat":12.1065,"lon":78.1361,"addr":"OPP.TOCOLLECTOROFFICE,NEARBUSSTAND,DHACHARMAPURI, dharmapuritamilnadu","pin":"636705","ifsc":"UBIN0827258","pop":"SEMI URBAN"},
+{"no":216,"sol":"75970","name":"Harur","region":"Salem","district":"DHARMAPURI","lat":12.038328,"lon":78.500603,"addr":"10/194-11, THIUVEEKAA NAGAR, MAIN ROAD HARUR","pin":"636903","ifsc":"UBIN0575976","pop":"SEMI URBAN"},
+{"no":217,"sol":"76070","name":"Palacode","region":"Salem","district":"DHARMAPURI","lat":12.30271,"lon":78.074188,"addr":"NO 5/551(2,3) PALACODE, BY PASS ROAD","pin":"636808","ifsc":"UBIN0576077","pop":"RURAL"},
+{"no":218,"sol":"76080","name":"Kariamangalam","region":"Salem","district":"DHARMAPURI","lat":12.3106,"lon":78.188,"addr":"4/1A OPP POLICE STATION, KARIMANGALAM DHARMAPURI ROAD","pin":"635111","ifsc":"UBIN0576085","pop":"SEMI URBAN"},
+{"no":219,"sol":"31312","name":"Belagondapalli","region":"Salem","district":"KRISHNAGIRI","lat":12.674713,"lon":77.790302,"addr":"NO.153/3,BELAGONDAPALLI, THALLIMAIN ROAD,","pin":"635114","ifsc":"UBIN0931314","pop":"RURAL"},
+{"no":220,"sol":"04862","name":"Hosur Bye Pass Road","region":"Salem","district":"KRISHNAGIRI","lat":12.720013,"lon":77.820002,"addr":"560/IC,BYE-PASSRD, ,HOSUR","pin":"635109","ifsc":"UBIN0904864","pop":"URBAN"},
+{"no":221,"sol":"62090","name":"Hosur Old Bangalore Road","region":"Salem","district":"KRISHNAGIRI","lat":12.721244,"lon":77.807952,"addr":"10/77-1, SHIV PLAZA, OPP. VIJAY HOSPITAL HOSUR, OLD BANGALORE  ROAD HOSUR","pin":"635109","ifsc":"UBIN0562092","pop":"URBAN"},
+{"no":222,"sol":"55870","name":"Krishnagiri-Bangalore Road","region":"Salem","district":"KRISHNAGIRI","lat":12.524953,"lon":78.20809,"addr":"39/23. BYRAPPA LANE KRISHNAGIRI, BANGALORE ROAD KRISHAGIRI","pin":"635001","ifsc":"UBIN0555878","pop":"SEMI URBAN"},
+{"no":223,"sol":"11652","name":"Krishnagiri Co-Operative Colony","region":"Salem","district":"KRISHNAGIRI","lat":12.517762,"lon":78.219368,"addr":"AKR COMPLEX, D. NO: 2, 1ST CROSS,, CO-OPERATIVE COLONY, KRISHNAGIRI","pin":"635001","ifsc":"UBIN0911658","pop":"SEMI URBAN"},
+{"no":224,"sol":"15132","name":"Boodimutlu","region":"Salem","district":"KRISHNAGIRI","lat":12.703613,"lon":78.1821,"addr":"NO.1/114,BERIKAIMAIN ROADBOODIMUTLU, VEPPANAPALLI","pin":"635121","ifsc":"UBIN0915131","pop":"RURAL"},
+{"no":225,"sol":"25641","name":"Krishnagiri Rayakottai Main","region":"Salem","district":"KRISHNAGIRI","lat":12.666228,"lon":77.876425,"addr":"D.NO.1-374/3,1STFLOOR,RAYAKOTTAIMAINROAKRISHNAGIRI, RAYAKOTTAIMAIN ROAD","pin":"635001","ifsc":"UBIN0825646","pop":"SEMI URBAN"},
+{"no":226,"sol":"77630","name":"Uthangarai","region":"Salem","district":"KRISHNAGIRI","lat":12.259661,"lon":78.525753,"addr":"RK COMPLEX, NEAR GANESHA THEATRE,, SALEM MAIN ROAD","pin":"635207","ifsc":"UBIN0577634","pop":"SEMI URBAN"},
+{"no":227,"sol":"02022","name":"Namakkal Thillaipuram","region":"Salem","district":"NAMAKKAL","lat":11.224811,"lon":78.1621,"addr":"2,PARAMATHIROAD,, NAMAKKAL","pin":"637001","ifsc":"UBIN0902021","pop":"SEMI URBAN"},
+{"no":228,"sol":"03822","name":"Keerambur","region":"Salem","district":"NAMAKKAL","lat":11.198211,"lon":78.0894,"addr":"5/26,MAIN ROAD,,, KEERAMBUR,.NAMAKKAL","pin":"637207","ifsc":"UBIN0903825","pop":"RURAL"},
+{"no":229,"sol":"54880","name":"Namakkal-Trichy Road","region":"Salem","district":"NAMAKKAL","lat":11.224637,"lon":78.175673,"addr":"S.P. TOWERS, NAMAKKAL, OPP. RAMESH THEATRE,","pin":"637001","ifsc":"UBIN0554880","pop":"SEMI URBAN"},
+{"no":230,"sol":"15092","name":"Pachhal","region":"Salem","district":"NAMAKKAL","lat":11.400327,"lon":78.16029,"addr":"PAVAINAGARPACHHAL, NEARPAVAIENG.COLLEGE","pin":"637018","ifsc":"UBIN0915092","pop":"RURAL"},
+{"no":231,"sol":"15532","name":"Ramanathapurampudur","region":"Salem","district":"NAMAKKAL","lat":11.295181,"lon":78.259243,"addr":"CORPORATIONBANKAKKIAMPATTY, 2/33KARAVALLIROAD","pin":"637409","ifsc":"UBIN0915530","pop":"RURAL"},
+{"no":232,"sol":"21691","name":"Namakkal Paramathi Road","region":"Salem","district":"NAMAKKAL","lat":11.213775,"lon":78.14368,"addr":"NO.6/1168A,PARAMATHIROAD,NAMAKKAL,TAMILNNAMAKKAL","pin":"637001","ifsc":"UBIN0821691","pop":"SEMI URBAN"},
+{"no":233,"sol":"33762","name":"Ernapuram","region":"Salem","district":"NAMAKKAL","lat":11.245159,"lon":78.097282,"addr":"NO.2/162,NEARERNAPURAMBUSSTOP,ERNAPURAM, NAMAKKALTOTIRUCHENGODEMAIN ROAD,","pin":"637003","ifsc":"UBIN0933767","pop":"RURAL"},
+{"no":234,"sol":"77620","name":"Senthamangalam","region":"Salem","district":"NAMAKKAL","lat":11.279713,"lon":78.234644,"addr":"SENTHAMANGALAM BRANCH, SENTHAMANGALAM, 17, NORTH MOHAMMADHIAR STREET","pin":"637409","ifsc":"UBIN0577626","pop":"SEMI URBAN"},
+{"no":235,"sol":"91040","name":"Mohanur","region":"Salem","district":"NAMAKKAL","lat":11.063975,"lon":78.140167,"addr":"NO1, NAMAKKAL ROAD","pin":"637015","ifsc":"UBIN0591041","pop":"SEMI URBAN"},
+{"no":236,"sol":"75960","name":"Velur (Paramathi Velur)","region":"Salem","district":"NAMAKKAL","lat":11.136787,"lon":78.007436,"addr":"36/1, VELUR, BYPASS ROAD","pin":"638182","ifsc":"UBIN0575968","pop":"SEMI URBAN"},
+{"no":237,"sol":"02472","name":"Singalandapuram","region":"Salem","district":"NAMAKKAL","lat":11.219411,"lon":78.1677,"addr":"5/88D,MAIN ROAD,, SINGALANDAPURAM-RASIPURAMTALUK","pin":"637412","ifsc":"UBIN0902471","pop":"RURAL"},
+{"no":238,"sol":"03582","name":"Mullukurichi","region":"Salem","district":"NAMAKKAL","lat":11.447043,"lon":78.402929,"addr":"3/12,MAINRD,, MULLUKURICHI,.","pin":"636118","ifsc":"UBIN0903582","pop":"RURAL"},
+{"no":239,"sol":"13062","name":"Rasipuram Bharathidasan Road","region":"Salem","district":"NAMAKKAL","lat":11.454511,"lon":78.1906,"addr":"NO.60/79,BENUGOPALBUILDING,RASIPURAM, ARIGNARANNASALAI","pin":"637408","ifsc":"UBIN0913065","pop":"SEMI URBAN"},
+{"no":240,"sol":"18392","name":"Ayilpatty","region":"Salem","district":"NAMAKKAL","lat":11.543412,"lon":78.351501,"addr":"SF.NO.49/1C,AYILPATTY, ATTURMAIN ROAD,","pin":"636202","ifsc":"UBIN0918393","pop":"RURAL"},
+{"no":241,"sol":"29802","name":"Namagiripettai","region":"Salem","district":"NAMAKKAL","lat":11.456312,"lon":78.269,"addr":"S.NO.61/2A,KUTTAYAPILLAITHOTTAMNAMAGIRIPETTAI, ATTURMAIN ROAD,","pin":"637406","ifsc":"UBIN0929808","pop":"SEMI URBAN"},
+{"no":242,"sol":"29491","name":"Rasipuram Kavarai Street","region":"Salem","district":"NAMAKKAL","lat":11.4429,"lon":78.1792,"addr":"NO.36,1STFLOOR,KAVARAISTREET,RASIPURAM,RASIPURAM","pin":"637408","ifsc":"UBIN0829498","pop":"RURAL"},
+{"no":243,"sol":"33420","name":"Mallasamudram","region":"Salem","district":"NAMAKKAL","lat":11.498641,"lon":78.029987,"addr":"233,DR.SUBBARAYAN ROAD,MALLASAMUDRAM,TEHSIL-TIRUCHENGODE","pin":"637503","ifsc":"UBIN0533424","pop":"SEMI URBAN"},
+{"no":244,"sol":"01122","name":"Pallipalayam","region":"Salem","district":"NAMAKKAL","lat":11.368492,"lon":77.748149,"addr":"56-F,PALAMROAD,, PALLIPALAYAM,","pin":"638006","ifsc":"UBIN0901121","pop":"SEMI URBAN"},
+{"no":245,"sol":"08762","name":"Komarapalayam","region":"Salem","district":"NAMAKKAL","lat":11.446712,"lon":77.694302,"addr":"3/11,NH.47,SALEMMAIN ROADKOMARAPALAYAM, VALAYAKARANUR","pin":"638183","ifsc":"UBIN0908762","pop":"SEMI URBAN"},
+{"no":246,"sol":"58420","name":"Tiruchengode","region":"Salem","district":"NAMAKKAL","lat":11.367738,"lon":77.88916,"addr":"487/1, ESTEEM PLAZA TIRUCHENGODE, VELUR ROAD","pin":"637211","ifsc":"UBIN0558427","pop":"SEMI URBAN"},
+{"no":247,"sol":"65490","name":"Paruthipalli","region":"Salem","district":"NAMAKKAL","lat":11.414604,"lon":78.080618,"addr":"PARUTHIPALLI BRANCH, 1/17 VILLAGE PARUTHIPALLI, METTU NAICKEN STREET","pin":"637503","ifsc":"UBIN0565491","pop":"RURAL"},
+{"no":248,"sol":"16802","name":"Tiruchengodu","region":"Salem","district":"NAMAKKAL","lat":11.390012,"lon":77.891102,"addr":"NO.51/7-9TIRUCHENGODUJ, SANKARIMAIN ROAD","pin":"637209","ifsc":"UBIN0916803","pop":"SEMI URBAN"},
+{"no":249,"sol":"74600","name":"Kokkarayanpettai","region":"Salem","district":"NAMAKKAL","lat":11.313863,"lon":77.786671,"addr":"E.B.BUILDING, NEAR TNEB OFFICE,ALANGADU,CURVEY RS, MOLASAI ROAD KOKKARAYANPETTAI","pin":"638007","ifsc":"UBIN0574601","pop":"RURAL"},
+{"no":250,"sol":"26551","name":"Kumarapalayam","region":"Salem","district":"NAMAKKAL","lat":11.446664,"lon":77.694335,"addr":"TSNO.49/1A1,NEARGOWRITHEATER,PALLIPALAYAKUMARAPALAYAM, PALLIPALAYAMROAD","pin":"638183","ifsc":"UBIN0826553","pop":"SEMI URBAN"},
+{"no":251,"sol":"79490","name":"Mcb Pallipalayam","region":"Salem","district":"NAMAKKAL","lat":11.368309,"lon":77.748252,"addr":"NO.28 SANKAGIRI MAIN ROAD, PALLIPALAYAM","pin":"638066","ifsc":"UBIN0579491","pop":"SEMI URBAN"},
+{"no":252,"sol":"08321","name":"Keeripatti","region":"Salem","district":"SALEM","lat":11.53614,"lon":78.48898,"addr":"KURINJINAGARKEERUPATII, ATTURTALUK","pin":"636127","ifsc":"UBIN0808326","pop":"SEMI URBAN"},
+{"no":253,"sol":"54870","name":"Attur","region":"Salem","district":"SALEM","lat":11.58694,"lon":78.61788,"addr":"392, RAJKRISHNA SHOPPING COMPLEX ATTUR, SALEM CUDDALORE MAIN ROAD","pin":"636102","ifsc":"UBIN0554871","pop":"SEMI URBAN"},
+{"no":254,"sol":"31192","name":"Thandavarayapuram","region":"Salem","district":"SALEM","lat":11.590712,"lon":78.553301,"addr":"NVRTHOTTAMTHANDAVARAYAPURAM, MAIN ROAD,","pin":"636108","ifsc":"UBIN0931195","pop":"RURAL"},
+{"no":255,"sol":"69560","name":"Edappadi","region":"Salem","district":"SALEM","lat":11.584879,"lon":77.846512,"addr":"NO.20-C NEAR BUS STAND, SALEM MAIN ROAD IDAPPADI","pin":"637101","ifsc":"UBIN0569569","pop":"SEMI URBAN"},
+{"no":256,"sol":"04162","name":"Kudamalai","region":"Salem","district":"SALEM","lat":11.460711,"lon":78.590501,"addr":"NO.5/616KUDAMALAI, MAIN ROAD,","pin":"636105","ifsc":"UBIN0904163","pop":"RURAL"},
+{"no":257,"sol":"34972","name":"Pottaneri","region":"Salem","district":"SALEM","lat":11.820013,"lon":77.900002,"addr":"NO.4/128,POTTANERI, METTURMAIN ROAD,","pin":"636453","ifsc":"UBIN0934976","pop":"RURAL"},
+{"no":258,"sol":"18462","name":"Semmandapatti","region":"Salem","district":"SALEM","lat":11.789313,"lon":78.0245,"addr":"S.NO.229/2B2,238/2B2,229/2B1,238/2ASEMMANDAPATTI, MAIN ROAD,","pin":"636309","ifsc":"UBIN0918466","pop":"RURAL"},
+{"no":259,"sol":"00152","name":"Salem-Shevarpet","region":"Salem","district":"SALEM","lat":11.655111,"lon":78.155,"addr":"APPUCHETTYSTREET,153,, SHEVAPET,","pin":"636001","ifsc":"UBIN0900150","pop":"URBAN"},
+{"no":260,"sol":"00292","name":"Salem-Town","region":"Salem","district":"SALEM","lat":11.656712,"lon":78.1639,"addr":"Corporationbankbuilding,DNo.48,CarStreet, 153,SALEM","pin":"636001","ifsc":"UBIN0900290","pop":"URBAN"},
+{"no":261,"sol":"33410","name":"Salem","region":"Salem","district":"SALEM","lat":11.661111,"lon":78.153373,"addr":"38, PADMA TOWER SALEM, TOWN RAILWAY STATION ROAD","pin":"636001","ifsc":"UBIN0533416","pop":"URBAN"},
+{"no":262,"sol":"02432","name":"Vembadithalam","region":"Salem","district":"SALEM","lat":11.567112,"lon":78.011,"addr":"NO.4/108,VEMBADITHALAM, ELAMBILLAIMAIN ROAD,","pin":"637504","ifsc":"UBIN0902438","pop":"RURAL"},
+{"no":263,"sol":"51140","name":"Salem Five Roads Junction","region":"Salem","district":"SALEM","lat":11.671414,"lon":78.132204,"addr":"5/318-A STATE BANK COLONY-II,FIVE ROADS JUNCT RD,SALEM,636004, MEYYANUR","pin":"636004","ifsc":"UBIN0551147","pop":"URBAN"},
+{"no":264,"sol":"58410","name":"Hasthampatti","region":"Salem","district":"SALEM","lat":11.678078,"lon":78.157856,"addr":"BLDG. NO. 1 SALEM, JOHNSONPET ROAD HASTHAMPATTI","pin":"636007","ifsc":"UBIN0558419","pop":"URBAN"},
+{"no":265,"sol":"62900","name":"Seelanaickenpatti","region":"Salem","district":"SALEM","lat":11.61655,"lon":78.13885,"addr":"UMA PALACE SEELANAICKENPATTI, SALEM, TRICHY MAIN ROAD","pin":"636201","ifsc":"UBIN0562904","pop":"URBAN"},
+{"no":266,"sol":"17761","name":"Five Roads-Salem","region":"Salem","district":"SALEM","lat":11.669195,"lon":78.142914,"addr":"SANTOSHTOWERS,NO.75/1,OPP.PRANAVHOSPITALNEARNEWBUSSTAND, BRINDAVANROAD","pin":"636001","ifsc":"UBIN0817767","pop":"URBAN"},
+{"no":267,"sol":"24851","name":"Chinna Tirupathi","region":"Salem","district":"SALEM","lat":11.70351,"lon":78.18858,"addr":"ANNAMALAINAGAR,KANNANKURISHIMAIN ROAD,SASALEM","pin":"636008","ifsc":"UBIN0824852","pop":"URBAN"},
+{"no":268,"sol":"26931","name":"Kuppanoor","region":"Salem","district":"SALEM","lat":11.744706,"lon":78.28036,"addr":"NO.1/12,MAIN ROAD,KUPPANOORPOST,SUKKAMPATKUPPANNOR","pin":"636122","ifsc":"UBIN0826936","pop":"RURAL"},
+{"no":269,"sol":"76960","name":"Sarkar Gollappatti","region":"Salem","district":"SALEM","lat":11.6795,"lon":78.04555,"addr":"2/255 B, AJAY BUILDING SAMIYARKADAI BUS STOP, SALEM STEEL PLANT ROAD","pin":"636030","ifsc":"UBIN0576964","pop":"RURAL"},
+{"no":270,"sol":"16832","name":"Naduvaneri","region":"Salem","district":"SALEM","lat":11.577812,"lon":77.999602,"addr":"SFNO.143-145NADUVANERI, KAKAPALAYAMMAIN ROAD","pin":"637504","ifsc":"UBIN0916838","pop":"RURAL"},
+{"no":271,"sol":"33430","name":"Valapadi","region":"Salem","district":"SALEM","lat":11.649219,"lon":78.40241,"addr":"1/175 B SELVA VINAYAGAR STREET,VALAPADI, VALAPADY","pin":"636115","ifsc":"UBIN0533432","pop":"SEMI URBAN"}];
+
+const PC={'METRO':'#2563EB','URBAN':'#DC2626','SEMI URBAN':'#D97706','RURAL':'#16A34A'};
+const popLabel={'METRO':'Metro','URBAN':'Urban','SEMI URBAN':'Semi Urban','RURAL':'Rural'};
+let userLat=null,userLon=null,activeFilter='all',searchQuery='';
+
+// Splash
+setTimeout(()=>{document.getElementById('splashBar').style.width='100%'},100);
+setTimeout(()=>{document.getElementById('splash').classList.add('hide')},1500);
+
+// Map
+const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([12.5,79.5],8);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19}).addTo(map);
+
+// District boundaries
+fetch('https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@main/geojson/states/tamil-nadu.geojson')
+.then(r=>r.json()).then(geo=>{
+  L.geoJSON(geo,{
+    style:f=>{
+      const d=(f.properties.district||f.properties.NAME_2||f.properties.dtname||f.properties.name||'').toUpperCase();
+      const pc={'CHENNAI':'#DBEAFE','THIRUVALLUR':'#D1FAE5','CHENGALPATTU':'#FEF3C7','KANCHEEPURAM':'#FCE7F3','VELLORE':'#FEE2E2','RANIPET':'#FEE2E2','TIRUVANNAMALAI':'#CFFAFE','TIRUPATHUR':'#FEE2E2','VILLUPURAM':'#CCFBF1','SALEM':'#EDE9FE','NAMAKKAL':'#EDE9FE','KRISHNAGIRI':'#FFEDD5','DHARMAPURI':'#FFEDD5','PUDUCHERRY':'#F3E8FF'};
+      return {color:'#CBD5E1',weight:1,opacity:.5,fillColor:pc[d]||'#F8FAFC',fillOpacity:.35}
+    }
+  }).addTo(map);
+}).catch(()=>{});
+
+// Markers
+const markers={};
+const allMarkers=L.layerGroup().addTo(map);
+
+branches.forEach(b=>{
+  const c=PC[b.pop]||'#16A34A';
+  const icon=L.divIcon({
+    html:`<div style="width:12px;height:12px;border-radius:50%;background:${c};border:2px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.2)"></div>`,
+    className:'',iconSize:[12,12],iconAnchor:[6,6]
+  });
+  const m=L.marker([b.lat,b.lon],{icon});
+  m.on('click',()=>openSheet(b));
+  markers[b.sol]=m;
+  allMarkers.addLayer(m);
+});
+
+map.fitBounds(branches.map(b=>[b.lat,b.lon]),{padding:[30,30]});
+
+// Geolocation
+let userMarker=null;
+function getLocation(){
+  if(!navigator.geolocation)return;
+  navigator.geolocation.getCurrentPosition(pos=>{
+    userLat=pos.coords.latitude;
+    userLon=pos.coords.longitude;
+    document.getElementById('nearbyBadge').style.display='block';
+    if(userMarker)map.removeLayer(userMarker);
+    userMarker=L.circleMarker([userLat,userLon],{radius:8,fillColor:'#2563EB',fillOpacity:1,color:'#fff',weight:3}).addTo(map);
+    userMarker.bindPopup('<b>You are here</b>');
+  },()=>{},{enableHighAccuracy:true,timeout:10000});
+}
+getLocation();
+
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371;const dLat=(lat2-lat1)*Math.PI/180;const dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function getFiltered(){
+  let list=branches;
+  if(activeFilter==='nearby'&&userLat){
+    list=branches.map(b=>({...b,dist:haversine(userLat,userLon,b.lat,b.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,20);
+  }else if(activeFilter.startsWith('r:')){
+    const r=activeFilter.slice(2);
+    list=branches.filter(b=>b.region===r);
+  }
+  if(searchQuery){
+    const q=searchQuery.toLowerCase();
+    list=list.filter(b=>b.sol.includes(q)||b.name.toLowerCase().includes(q)||b.district.toLowerCase().includes(q)||b.pin.includes(q)||b.ifsc.toLowerCase().includes(q)||b.addr.toLowerCase().includes(q));
+  }
+  return list;
+}
+
+function updateMap(){
+  const fl=getFiltered();
+  allMarkers.clearLayers();
+  fl.forEach(b=>{if(markers[b.sol])allMarkers.addLayer(markers[b.sol])});
+  if(fl.length)map.fitBounds(fl.map(b=>[b.lat,b.lon]),{padding:[40,40]});
+}
+
+// Sheet
+function openSheet(b){
+  const pc=PC[b.pop]||'#16A34A';
+  const pl=popLabel[b.pop]||b.pop;
+  const dist=userLat?haversine(userLat,userLon,b.lat,b.lon):null;
+  const popCls=b.pop==='METRO'?'METRO':b.pop==='URBAN'?'URBAN':b.pop==='SEMI URBAN'?'SEMI':'RURAL';
+
+  document.getElementById('sheetHeader').innerHTML=`
+    <div class="sheet-sol">SOL ${b.sol} · ${b.ifsc}</div>
+    <div class="sheet-name">${b.name}</div>
+    <div class="sheet-district">${b.district} · ${b.region}${dist?` · <b>${dist.toFixed(1)} km away</b>`:''}</div>
+  `;
+  document.getElementById('sheetBody').innerHTML=`
+    <div class="sheet-row">
+      <div class="sheet-row-icon" style="background:${pc}15;color:${pc}">📍</div>
+      <div class="sheet-row-text">
+        <div class="sheet-row-label">Address</div>
+        <div class="sheet-row-value">${b.addr}</div>
+      </div>
+    </div>
+    <div class="sheet-row">
+      <div class="sheet-row-icon" style="background:#F0FDF4">📮</div>
+      <div class="sheet-row-text">
+        <div class="sheet-row-label">Pincode</div>
+        <div class="sheet-row-value">${b.pin}</div>
+      </div>
+    </div>
+    <div class="sheet-row">
+      <div class="sheet-row-icon" style="background:${pc}15">🏷️</div>
+      <div class="sheet-row-text">
+        <div class="sheet-row-label">Branch Type</div>
+        <div class="sheet-row-value"><span class="pop-label pop-${popCls}">${pl}</span></div>
+      </div>
+    </div>
+    <div class="sheet-row">
+      <div class="sheet-row-icon" style="background:#EFF6FF">🏦</div>
+      <div class="sheet-row-text">
+        <div class="sheet-row-label">IFSC Code</div>
+        <div class="sheet-row-value" style="font-family:monospace;font-weight:700">${b.ifsc}</div>
+      </div>
+    </div>
+    <div class="sheet-row">
+      <div class="sheet-row-icon" style="background:#F8FAFC">🌐</div>
+      <div class="sheet-row-text">
+        <div class="sheet-row-label">Coordinates</div>
+        <div class="sheet-row-value" style="font-family:monospace;font-size:11px">${b.lat.toFixed(6)}, ${b.lon.toFixed(6)}</div>
+      </div>
+    </div>
+  `;
+  document.getElementById('sheetActions').innerHTML=`
+    <button class="sheet-btn btn-navigate" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lon}','_blank')">🧭 Navigate</button>
+    <button class="sheet-btn btn-call" onclick="window.open('https://www.google.com/maps/search/Union+Bank+of+India+${encodeURIComponent(b.name)}/@${b.lat},${b.lon},17z','_blank')">🔍 Find</button>
+    <button class="sheet-btn btn-copy" onclick="navigator.clipboard.writeText('${b.sol} - ${b.name} - ${b.ifsc}');this.textContent='✓ Copied'">📋 Copy</button>
+  `;
+
+  document.getElementById('sheetOverlay').classList.add('show');
+  document.getElementById('sheet').classList.add('show');
+  map.setView([b.lat,b.lon],15,{animate:true});
+}
+
+function closeSheet(){
+  document.getElementById('sheetOverlay').classList.remove('show');
+  document.getElementById('sheet').classList.remove('show');
+}
+document.getElementById('sheetOverlay').addEventListener('click',closeSheet);
+
+// Results list
+function showResults(list,title){
+  const el=document.getElementById('resultsList');
+  document.getElementById('resultsTitle').textContent=title;
+  document.getElementById('resultsCount').textContent=list.length+' branches';
+  el.innerHTML=list.map(b=>{
+    const c=PC[b.pop]||'#16A34A';
+    const d=b.dist?`<div class="result-dist">${b.dist.toFixed(1)} km</div>`:'';
+    return `<div class="result-card" data-sol="${b.sol}">
+      <div class="result-dot" style="background:${c}"></div>
+      <div class="result-info">
+        <div class="result-name">${b.name}</div>
+        <div class="result-meta">SOL ${b.sol} · ${b.district} · ${b.pin}</div>
+      </div>
+      ${d}
+      <div class="result-arrow">›</div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.result-card').forEach(card=>{
+    card.addEventListener('click',()=>{
+      const b=branches.find(x=>x.sol===card.dataset.sol);
+      if(b){closeResults();openSheet(b)}
+    });
+  });
+  document.getElementById('results').classList.add('show');
+}
+function closeResults(){document.getElementById('results').classList.remove('show')}
+document.getElementById('resultsBack').addEventListener('click',closeResults);
+
+// Search
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input',e=>{
+  searchQuery=e.target.value;
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>{
+    if(searchQuery.length>=2){
+      const fl=getFiltered();
+      showResults(fl,'Search: "'+searchQuery+'"');
+      updateMap();
+    }else if(!searchQuery){
+      closeResults();
+      updateMap();
+    }
+  },300);
+});
+
+// Filters
+document.querySelectorAll('.chip').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    activeFilter=chip.dataset.r;
+    searchQuery='';
+    document.getElementById('searchInput').value='';
+    
+    if(activeFilter==='nearby'){
+      if(!userLat){getLocation();return}
+      const fl=getFiltered();
+      showResults(fl,'Nearest Branches');
+    }else{
+      closeResults();
+    }
+    updateMap();
+  });
+});
+
+// FAB
+document.getElementById('fabNearby').addEventListener('click',()=>{
+  if(!userLat){
+    getLocation();
+    setTimeout(()=>{
+      if(userLat){
+        const list=branches.map(b=>({...b,dist:haversine(userLat,userLon,b.lat,b.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,10);
+        showResults(list,'Nearest Branches');
+      }
+    },2000);
+    return;
+  }
+  const list=branches.map(b=>({...b,dist:haversine(userLat,userLon,b.lat,b.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,10);
+  showResults(list,'Nearest Branches');
+  map.setView([userLat,userLon],13);
+});
+
+// Swipe down to close sheet
+let touchStartY=0;
+document.getElementById('sheet').addEventListener('touchstart',e=>{touchStartY=e.touches[0].clientY});
+document.getElementById('sheet').addEventListener('touchmove',e=>{
+  if(e.touches[0].clientY-touchStartY>60)closeSheet();
+});
+</script>
+</body>
+</html>
