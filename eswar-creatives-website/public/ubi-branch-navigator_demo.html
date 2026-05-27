@@ -111,6 +111,93 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 
 .leaflet-popup-content-wrapper{border-radius:14px!important;border:1px solid #E2E8F0!important;box-shadow:0 4px 20px rgba(0,0,0,.1)!important}
 .leaflet-popup-tip{background:#fff!important}
+
+/* ===== DESKTOP (>=768px) ===== */
+@media(min-width:768px){
+  /* Hide mobile-only elements */
+  .fab{display:none}
+  .sheet,.sheet-overlay{display:none!important}
+  .results{display:none!important}
+
+  /* Desktop layout: sidebar + map */
+  .app{flex-direction:row}
+  .header{display:none}
+  .search-area{display:none}
+  .filters{display:none}
+
+  /* Left sidebar */
+  .desktop-sidebar{
+    width:300px;min-width:300px;height:100vh;background:#fff;
+    border-right:1px solid var(--border);display:flex;flex-direction:column;
+    box-shadow:2px 0 12px rgba(0,0,0,.06);z-index:50;flex-shrink:0
+  }
+  .ds-header{background:linear-gradient(135deg,#00589C,#003D6E);color:#fff;padding:14px 16px}
+  .ds-logo{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .ds-logo-box{width:32px;height:32px;background:#fff;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .ds-title{font-size:13px;font-weight:700}
+  .ds-sub{font-size:10px;opacity:.65;margin-top:1px}
+  .ds-stats{display:flex;gap:6px;margin-top:10px}
+  .ds-stat{flex:1;background:rgba(255,255,255,.12);border-radius:8px;padding:6px 8px;text-align:center}
+  .ds-stat-n{font-size:16px;font-weight:800}
+  .ds-stat-l{font-size:8px;opacity:.7;text-transform:uppercase;letter-spacing:.4px}
+  .ds-search{padding:10px 12px;border-bottom:1px solid var(--border)}
+  .ds-search input{width:100%;padding:9px 12px 9px 32px;background:var(--light);border:1.5px solid var(--border);border-radius:10px;font-size:12px;font-family:inherit;outline:none;color:var(--text)}
+  .ds-search input:focus{border-color:#00589C}
+  .ds-search-wrap{position:relative}.ds-search-wrap::before{content:'🔍';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11px;opacity:.4}
+  .ds-filters{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
+  .ds-chip{padding:7px 12px;border-radius:10px;font-size:11px;font-weight:600;border:1.5px solid var(--border);background:var(--light);color:var(--muted);cursor:pointer;transition:all .15s;text-align:left}
+  .ds-chip:hover{border-color:#00589C;color:var(--text)}.ds-chip.active{background:#00589C;color:#fff;border-color:#00589C}
+  .ds-results{flex:1;overflow-y:auto;padding:6px 8px}
+  .ds-results::-webkit-scrollbar{width:3px}.ds-results::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:2px}
+  .ds-empty{padding:30px 16px;text-align:center;color:var(--muted);font-size:12px}
+  .ds-card{display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:4px;background:var(--light);border-radius:10px;cursor:pointer;border:1.5px solid transparent;transition:all .15s}
+  .ds-card:hover{border-color:#00589C;background:#EFF6FF}
+  .ds-card-info{flex:1;min-width:0}
+  .ds-card-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ds-card-meta{font-size:10px;color:var(--muted);margin-top:1px}
+  .ds-card-dist{font-size:10px;font-weight:700;color:#00589C;flex-shrink:0}
+  .map-container{flex:1}
+
+  /* Desktop lightbox modal */
+  .desktop-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;opacity:0;pointer-events:none;transition:opacity .25s;display:flex;align-items:center;justify-content:center}
+  .desktop-modal-overlay.show{opacity:1;pointer-events:auto}
+  .desktop-modal{background:#fff;border-radius:20px;width:480px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);position:relative;transform:scale(.95) translateY(10px);transition:transform .25s cubic-bezier(.22,.68,0,1.1);display:flex;flex-direction:column}
+  .desktop-modal-overlay.show .desktop-modal{transform:scale(1) translateY(0)}
+  .dm-close{position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:50%;border:none;background:#F1F5F9;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;z-index:1;transition:background .15s}
+  .dm-close:hover{background:#E2E8F0}
+  .dm-header{padding:20px 20px 12px;border-bottom:1px solid var(--border)}
+  .dm-sol{font-size:10px;font-weight:700;color:#00589C;font-family:monospace;letter-spacing:.5px}
+  .dm-name{font-size:22px;font-weight:800;margin:4px 0 2px;color:var(--dark)}
+  .dm-district{font-size:12px;color:var(--muted)}
+  .dm-body{padding:16px 20px;flex:1}
+  .dm-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F1F5F9}
+  .dm-row:last-child{border:none}
+  .dm-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+  .dm-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .dm-value{font-size:13px;font-weight:500;margin-top:1px}
+  .dm-actions{display:flex;gap:8px;padding:12px 20px 20px;border-top:1px solid var(--border)}
+  .dm-btn{flex:1;padding:12px;border-radius:12px;border:none;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:transform .1s}
+  .dm-btn:active{transform:scale(.97)}
+  .dm-btn-nav{background:#00589C;color:#fff}
+  .dm-btn-find{background:#ECFDF5;color:#059669}
+  .dm-btn-copy{background:#F1F5F9;color:var(--text)}
+
+  /* Desktop list modal (Nearby/Search results) */
+  .desktop-list-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99996;opacity:0;pointer-events:none;transition:opacity .25s;display:flex;align-items:center;justify-content:center}
+  .desktop-list-overlay.show{opacity:1;pointer-events:auto}
+  .desktop-list-modal{background:#fff;border-radius:20px;width:560px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.18);transform:scale(.95);transition:transform .25s cubic-bezier(.22,.68,0,1.1)}
+  .desktop-list-overlay.show .desktop-list-modal{transform:scale(1)}
+  .dlm-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+  .dlm-title{font-size:16px;font-weight:800}
+  .dlm-count{font-size:12px;color:var(--muted)}
+  .dlm-close{width:30px;height:30px;border-radius:50%;border:none;background:#F1F5F9;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+  .dlm-list{flex:1;overflow-y:auto;padding:8px 12px}
+}
+@media(max-width:767px){
+  .desktop-sidebar{display:none}
+  .desktop-modal-overlay{display:none!important}
+  .desktop-list-overlay{display:none!important}
+}
 </style>
 </head>
 <body>
@@ -183,6 +270,66 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
     <div class="results-count" id="resultsCount"></div>
   </div>
   <div class="results-list" id="resultsList"></div>
+</div>
+
+<!-- ===== DESKTOP SIDEBAR ===== -->
+<div class="desktop-sidebar" id="desktopSidebar">
+  <div class="ds-header">
+    <div class="ds-logo">
+      <div class="ds-logo-box">
+        <svg width="22" height="22" viewBox="0 0 48 48"><path d="M30.8 8.2C34.9 8.4 38.5 9.9 41.5 13.9 43 16.6 43 19.3 43 19.3L37.7 20.6C38.2 18.6 36.3 14.5 28 13.7 22.3 20 20.6 26.4 20.1 27.8 19.5 29.4 17.6 30.2 15.7 29.9 14.9 28.5 14.9 28 16.9 20.6 19.2 13.8 23.1 10.6 26.3 9.1 27.7 8.7 28.9 8.4 30.4 8.2L30.8 8.2Z" fill="#00579C"/><path d="M10.9 12.9C12.8 13 13.6 14.8 12.2 20.2 11.4 23.2 10 29.2 10 29.8 10.2 31.3 11.1 32.9 12.3 33.4 14.4 34.7 16.9 34.9 21.3 33.7 25.3 29.6 27.3 21.9 27.8 20.3 28.6 18.9 31.3 17.9 33.1 18.9 33.1 20 31.7 25 29.9 31.7 28.7 33.9 27.8 35 25.7 36.8 23.3 38.2 21 39.1 19.3 39.5 17.7 39.8 15.4 39.8 14.5 39.7 12.3 39.3 9.5 37.7 7.5 36.3 5.4 33.1 5 30.3 5 28.3 5.5 25.8 6.6 21.6 7.4 18.3 8.2 15.3 8.9 13.9 10.9 12.9Z" fill="#DA251C"/></svg>
+      </div>
+      <div>
+        <div class="ds-title">Branch Navigator</div>
+        <div class="ds-sub">Union Bank of India · Chennai Zone</div>
+      </div>
+    </div>
+    <div class="ds-stats">
+      <div class="ds-stat"><div class="ds-stat-n">271</div><div class="ds-stat-l">Branches</div></div>
+      <div class="ds-stat"><div class="ds-stat-n">14</div><div class="ds-stat-l">Districts</div></div>
+      <div class="ds-stat"><div class="ds-stat-n">4</div><div class="ds-stat-l">Regions</div></div>
+    </div>
+  </div>
+  <div class="ds-search">
+    <div class="ds-search-wrap">
+      <input type="text" id="dsSearchInput" placeholder="Search branch, SOL ID, pincode..." />
+    </div>
+  </div>
+  <div class="ds-filters">
+    <button class="ds-chip active" data-r="all">All 271 Branches</button>
+    <button class="ds-chip" data-r="r:Chennai North">🔴 Chennai North (67)</button>
+    <button class="ds-chip" data-r="r:Chennai South">🟢 Chennai South (76)</button>
+    <button class="ds-chip" data-r="r:Kancheepuram">🟡 Kancheepuram (68)</button>
+    <button class="ds-chip" data-r="r:Salem">🟣 Salem (59)</button>
+    <button class="ds-chip" data-r="nearby" id="dsNearbyBtn">📍 Nearest Branches</button>
+  </div>
+  <div class="ds-results" id="dsResults">
+    <div class="ds-empty">Select a region or search to explore branches</div>
+  </div>
+</div>
+
+<!-- ===== DESKTOP BRANCH MODAL ===== -->
+<div class="desktop-modal-overlay" id="dmOverlay">
+  <div class="desktop-modal" id="dmModal">
+    <button class="dm-close" id="dmClose">✕</button>
+    <div class="dm-header" id="dmHeader"></div>
+    <div class="dm-body" id="dmBody"></div>
+    <div class="dm-actions" id="dmActions"></div>
+  </div>
+</div>
+
+<!-- ===== DESKTOP LIST MODAL ===== -->
+<div class="desktop-list-overlay" id="dlOverlay">
+  <div class="desktop-list-modal">
+    <div class="dlm-header">
+      <div>
+        <div class="dlm-title" id="dlTitle">Nearest Branches</div>
+        <div class="dlm-count" id="dlCount"></div>
+      </div>
+      <button class="dlm-close" id="dlClose">✕</button>
+    </div>
+    <div class="dlm-list" id="dlList"></div>
+  </div>
 </div>
 
 </div>
@@ -722,6 +869,133 @@ document.getElementById('sheet').addEventListener('touchstart',e=>{touchStartY=e
 document.getElementById('sheet').addEventListener('touchmove',e=>{
   if(e.touches[0].clientY-touchStartY>60)closeSheet();
 });
+
+// ===== DESKTOP RESPONSIVE LOGIC =====
+// Guard: only wire desktop events if desktop elements exist in DOM
+function isMobile(){return window.innerWidth<768}
+
+function openDesktopModal(b){
+  const pc=PC[b.pop]||'#068F48';
+  const pl=popLabel[b.pop]||b.pop;
+  const dist=userLat?haversine(userLat,userLon,b.lat,b.lon):null;
+  const popCls=b.pop==='METRO'?'METRO':b.pop==='URBAN'?'URBAN':b.pop==='SEMI URBAN'?'SEMI':'RURAL';
+  document.getElementById('dmHeader').innerHTML=`
+    <div class="dm-sol">SOL ${b.sol} · ${b.ifsc}</div>
+    <div class="dm-name">${b.name}</div>
+    <div class="dm-district">${b.district} · ${b.region}${dist?` · <b>${dist.toFixed(1)} km away</b>`:''}</div>`;
+  document.getElementById('dmBody').innerHTML=`
+    <div class="dm-row"><div class="dm-icon" style="background:${pc}15">📍</div><div><div class="dm-label">Address</div><div class="dm-value">${b.addr}</div></div></div>
+    <div class="dm-row"><div class="dm-icon" style="background:#F0FDF4">📮</div><div><div class="dm-label">Pincode</div><div class="dm-value">${b.pin}</div></div></div>
+    <div class="dm-row"><div class="dm-icon" style="background:${pc}15">🏷️</div><div><div class="dm-label">Branch Type</div><div class="dm-value"><span class="pop-label pop-${popCls}">${pl}</span></div></div></div>
+    <div class="dm-row"><div class="dm-icon" style="background:#EFF6FF">🏦</div><div><div class="dm-label">IFSC Code</div><div class="dm-value" style="font-family:monospace;font-weight:700">${b.ifsc}</div></div></div>
+    <div class="dm-row"><div class="dm-icon" style="background:#F8FAFC">🌐</div><div><div class="dm-label">Coordinates</div><div class="dm-value" style="font-family:monospace;font-size:11px">${b.lat.toFixed(6)}, ${b.lon.toFixed(6)}</div></div></div>`;
+  document.getElementById('dmActions').innerHTML=`
+    <button class="dm-btn dm-btn-nav" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lon}','_blank')">🧭 Navigate</button>
+    <button class="dm-btn dm-btn-find" onclick="window.open('https://www.google.com/maps/search/Union+Bank+of+India+${encodeURIComponent(b.name)}/@${b.lat},${b.lon},17z','_blank')">🔍 Find</button>
+    <button class="dm-btn dm-btn-copy" onclick="navigator.clipboard.writeText('${b.sol} - ${b.name} - ${b.ifsc}');this.textContent='✓ Copied'">📋 Copy</button>`;
+  document.getElementById('dmOverlay').classList.add('show');
+  map.setView([b.lat,b.lon],15,{animate:true});
+}
+function closeDesktopModal(){document.getElementById('dmOverlay').classList.remove('show')}
+document.getElementById('dmClose')?.addEventListener('click',closeDesktopModal);
+document.getElementById('dmOverlay')?.addEventListener('click',e=>{if(e.target===document.getElementById('dmOverlay'))closeDesktopModal()});
+
+function showDesktopList(list,title){
+  document.getElementById('dlTitle').textContent=title;
+  document.getElementById('dlCount').textContent=list.length+' branches';
+  const el=document.getElementById('dlList');
+  el.innerHTML=list.map(b=>{
+    const c=PC[b.pop]||'#068F48';
+    const d=b.dist?`<span style="font-size:10px;font-weight:700;color:#00589C;margin-left:auto">${b.dist.toFixed(1)} km</span>`:'';
+    return `<div class="ds-card" data-sol="${b.sol}" style="margin-bottom:6px">
+      <div style="width:22px;height:28px;flex-shrink:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.15))">${ICONS_INLINE[b.pop]||ICONS_INLINE['RURAL']}</div>
+      <div class="ds-card-info"><div class="ds-card-name">${b.name}</div><div class="ds-card-meta">SOL ${b.sol} · ${b.district}</div></div>
+      ${d}</div>`;
+  }).join('');
+  el.querySelectorAll('.ds-card').forEach(card=>{
+    card.addEventListener('click',()=>{
+      const b=branches.find(x=>x.sol===card.dataset.sol);
+      if(b){closeDesktopList();openDesktopModal(b);}
+    });
+  });
+  document.getElementById('dlOverlay').classList.add('show');
+}
+function closeDesktopList(){document.getElementById('dlOverlay').classList.remove('show')}
+document.getElementById('dlClose')?.addEventListener('click',closeDesktopList);
+document.getElementById('dlOverlay')?.addEventListener('click',e=>{if(e.target===document.getElementById('dlOverlay'))closeDesktopList()});
+
+// Sidebar search
+let dsQuery='',dsFilter='all',dsTimer;
+document.getElementById('dsSearchInput')?.addEventListener('input',e=>{
+  dsQuery=e.target.value;
+  clearTimeout(dsTimer);
+  dsTimer=setTimeout(()=>renderSidebar(),250);
+});
+
+// Sidebar filter chips
+document.querySelectorAll('.ds-chip')?.forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    const r=chip.dataset.r;
+    if(r==='nearby'){
+      if(!userLat){getLocation();setTimeout(()=>{if(userLat)showNearbyDesktop()},2000);return}
+      showNearbyDesktop();return;
+    }
+    document.querySelectorAll('.ds-chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    dsFilter=r;dsQuery='';
+    document.getElementById('dsSearchInput').value='';
+    renderSidebar();
+    const fl=getDsFiltered();
+    if(fl.length)map.fitBounds(fl.map(b=>[b.lat,b.lon]),{padding:[40,40]});
+  });
+});
+
+function showNearbyDesktop(){
+  if(!userLat)return;
+  const list=branches.map(b=>({...b,dist:haversine(userLat,userLon,b.lat,b.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,15);
+  showDesktopList(list,'Nearest Branches');
+  map.setView([userLat,userLon],13);
+}
+
+function getDsFiltered(){
+  let list=branches;
+  if(dsFilter!=='all'&&dsFilter.startsWith('r:')){const r=dsFilter.slice(2);list=list.filter(b=>b.region===r);}
+  if(dsQuery){const q=dsQuery.toLowerCase();list=list.filter(b=>b.sol.includes(q)||b.name.toLowerCase().includes(q)||b.district.toLowerCase().includes(q)||b.pin.includes(q)||b.ifsc.toLowerCase().includes(q));}
+  return list;
+}
+
+function renderSidebar(){
+  const el=document.getElementById('dsResults');
+  if(!el)return;
+  const fl=getDsFiltered();
+  if(!fl.length){el.innerHTML='<div class="ds-empty">No branches found</div>';return}
+  if(dsFilter==='all'&&!dsQuery){el.innerHTML='<div class="ds-empty">Select a region or search<br>to see branches here</div>';return}
+  el.innerHTML=fl.map(b=>{
+    const c=PC[b.pop]||'#068F48';
+    return `<div class="ds-card" data-sol="${b.sol}">
+      <div style="width:20px;height:26px;flex-shrink:0">${ICONS_INLINE[b.pop]||ICONS_INLINE['RURAL']}</div>
+      <div class="ds-card-info"><div class="ds-card-name">${b.name}</div><div class="ds-card-meta">SOL ${b.sol} · ${b.district} · ${b.pin}</div></div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.ds-card').forEach(card=>{
+    card.addEventListener('click',()=>{
+      const b=branches.find(x=>x.sol===card.dataset.sol);
+      if(b)openDesktopModal(b);
+    });
+  });
+}
+
+// Override openSheet to be responsive
+const _origOpenSheet=openSheet;
+window.openSheet=function(b){
+  if(isMobile()){_origOpenSheet(b);}else{openDesktopModal(b);}
+};
+// Override marker clicks to use responsive handler
+allMarkers.eachLayer(m=>{
+  // markers were already bound via m.on('click') in the loop
+  // we need to rebind - handled via the openSheet override above
+});
+
 </script>
 </body>
 </html>
