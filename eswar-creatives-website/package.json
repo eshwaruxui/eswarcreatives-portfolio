@@ -7,7 +7,8 @@
     "build": "vite build && node prerender.mjs",
     "dev": "vite",
     "optimise-images": "node scripts/optimise-images.mjs",
-    "seed:phase1": "node --env-file=.env scripts/seed-phase1.mjs"
+    "seed:phase1": "node --env-file=.env scripts/seed-phase1.mjs",
+    "seed:catalog": "node --env-file=.env scripts/seed-catalog.mjs"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
