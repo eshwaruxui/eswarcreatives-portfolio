@@ -43,14 +43,15 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 .chip[data-r="r:Salem"].active{background:#7C3AED}
 
 /* Map */
-.map-container{flex:1;position:relative}
+.map-container{flex:1;position:relative;z-index:1}
 #map{width:100%;height:100%}
+.leaflet-pane,.leaflet-top,.leaflet-bottom{z-index:400 !important}
 
 /* Bottom Sheet */
-.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:200;opacity:0;pointer-events:none;transition:opacity .3s}
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99998;opacity:0;pointer-events:none;transition:opacity .3s}
 .sheet-overlay.show{opacity:1;pointer-events:auto}
-.sheet{position:fixed;bottom:0;left:0;right:0;background:#fff;border-radius:24px 24px 0 0;z-index:300;transform:translateY(100%);transition:transform .35s cubic-bezier(.22,.68,0,1.04);max-height:75vh;display:flex;flex-direction:column;box-shadow:0 -4px 30px rgba(0,0,0,.12)}
-.sheet.show{transform:translateY(0)}
+.sheet{position:fixed;bottom:0;left:0;right:0;background:#fff;border-radius:24px 24px 0 0;z-index:99999;transform:translateY(100%);transition:transform .35s cubic-bezier(.22,.68,0,1.04);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.2);will-change:transform}
+.sheet.show{transform:translateY(0) !important;visibility:visible !important}
 .sheet-handle{width:40px;height:4px;background:#CBD5E1;border-radius:2px;margin:10px auto 0}
 .sheet-header{padding:12px 20px 10px;border-bottom:1px solid var(--border)}
 .sheet-sol{font-size:11px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace;letter-spacing:.5px}
@@ -71,7 +72,7 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 .btn-copy{background:#F1F5F9;color:var(--text)}
 
 /* Branch List (when sheet shows results) */
-.results{position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:150;transform:translateY(100%);transition:transform .3s cubic-bezier(.22,.68,0,1.04);display:flex;flex-direction:column}
+.results{position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:99997;transform:translateY(100%);transition:transform .3s cubic-bezier(.22,.68,0,1.04);display:flex;flex-direction:column}
 .results.show{transform:translateY(0)}
 .results-header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fff}
 .results-back{width:36px;height:36px;border-radius:12px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;background:#fff}
@@ -496,7 +497,7 @@ branches.forEach(b=>{
     className:'',iconSize:[12,12],iconAnchor:[6,6]
   });
   const m=L.marker([b.lat,b.lon],{icon});
-  m.on('click',()=>openSheet(b));
+  m.on('click',(e)=>{L.DomEvent.stopPropagation(e);openSheet(b);});
   markers[b.sol]=m;
   allMarkers.addLayer(m);
 });
@@ -601,8 +602,12 @@ function openSheet(b){
     <button class="sheet-btn btn-copy" onclick="navigator.clipboard.writeText('${b.sol} - ${b.name} - ${b.ifsc}');this.textContent='✓ Copied'">📋 Copy</button>
   `;
 
-  document.getElementById('sheetOverlay').classList.add('show');
-  document.getElementById('sheet').classList.add('show');
+  const sheetEl = document.getElementById('sheet');
+  const overlayEl = document.getElementById('sheetOverlay');
+  overlayEl.classList.add('show');
+  // Force reflow before adding show class so transition fires
+  sheetEl.getBoundingClientRect();
+  sheetEl.classList.add('show');
   map.setView([b.lat,b.lon],15,{animate:true});
 }
 
