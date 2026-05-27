@@ -3,16 +3,18 @@ import type { ReactNode } from "react";
 // Brand Identity Discovery — wording packs
 //
 // The questionnaire form reads one pack at a time, selected via the `?pack=`
-// URL query param. Default is `creative` (the original wedding-florist wording),
-// so existing links keep working unchanged.
+// URL query param. With no param (or an unknown one) the form loads the
+// `default` pack — industry-neutral copy that suits any brand identity client.
 //
-// To serve a different client vertical: pick a pack key (`?pack=industrial`)
-// or add a new pack below.
+// Pack keys currently shipped:
+//   ?pack=default      (or no param) — generic / industry-neutral
+//   ?pack=creative     — wedding & florist wording (the legacy default)
+//   ?pack=industrial   — B2B industrial / hardware
 //
-// Currently English-only. Tamil translations in BrandIdentityDiscoveryPage.tsx
-// are not pack-aware — toggling to தமிழ் shows the original florist wording.
-// The logo-type modal mockups (Palam Silks, Sabyasachi etc.) also remain
-// gated to the creative pack only.
+// Tamil overrides live on each pack via the `*Tamil` fields. The logo-type
+// modal mockup in BrandIdentityDiscoveryPage.tsx is also pack-aware:
+// `default` shows neutral example brands; other packs show the creative-leaning
+// Palam Silks / Jasmine Events / JE set.
 
 export interface MotifOption {
   label: string;
@@ -40,6 +42,11 @@ export interface QuestionnairePack {
 
   // Section 5 — "Any symbols, motifs, or … elements" question label
   q27Label: string;
+
+  // Section 3 (step 03) — section heading. Pack-aware so the default pack
+  // can drop the creative "Brand Soul" framing for plain wording.
+  s2Title: string;
+  s2TitleTamil: string;
 
   // Section 2 — "Where do clients find you?" checkbox options
   clientChannels: string[];
@@ -326,7 +333,203 @@ const industrialCultureCards: CultureCardOption[] = [
   },
 ];
 
+// Default / industry-neutral motif icons — geometric shapes only, no
+// cultural or sector-specific references.
+const defaultMotifs: MotifOption[] = [
+  {
+    label: "Geometric star",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <path d="M14 2L16.5 11.5L26 14L16.5 16.5L14 26L11.5 16.5L2 14L11.5 11.5Z" stroke={motifStroke} strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    label: "Diamond / frame",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <path d="M14 3L25 14L14 25L3 14Z" stroke={motifStroke} strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    label: "Honeycomb / hex",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <path d="M14 3L23.5 8.5V19.5L14 25L4.5 19.5V8.5Z" stroke={motifStroke} strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  { label: "Infinity / flow", icon: <span style={{ fontSize: 28, lineHeight: "1" }}>∞</span> },
+  {
+    label: "Circle / orbit",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <circle cx="14" cy="14" r="10" stroke={motifStroke} strokeWidth="1.5" />
+        <circle cx="14" cy="14" r="3" stroke={motifStroke} strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
+    label: "Triangle / peak",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <path d="M14 4l10 18H4L14 4z" stroke={motifStroke} strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    label: "Abstract / minimal",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 28 28" fill={motifStroke}>
+        <circle cx="10" cy="10" r="2.5" /><circle cx="18" cy="10" r="2.5" />
+        <circle cx="10" cy="18" r="2.5" /><circle cx="18" cy="18" r="2.5" />
+        <circle cx="14" cy="14" r="1.5" />
+      </svg>
+    ),
+  },
+  {
+    label: "Geometric mark",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <path d="M14 4l8 14H6L14 4z" stroke={motifStroke} strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M14 24l-8-14h16L14 24z" stroke={motifStroke} strokeWidth="1.5" strokeLinejoin="round" opacity="0.5" />
+      </svg>
+    ),
+  },
+];
+
+// Default culture cards — plain (text + simple SVG), no moodboard images.
+// Covers the four common visual-tone directions without leaning into any
+// particular industry.
+const defaultCultureCards: CultureCardOption[] = [
+  {
+    title: "Modern & minimal",
+    desc: "Clean type, generous space, restrained colour — confident without shouting.",
+    visual: (
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <rect x="6" y="6" width="28" height="28" rx="2" stroke="#1a1a1a" strokeWidth="1.5" />
+        <line x1="12" y1="16" x2="28" y2="16" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="12" y1="22" x2="22" y2="22" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    title: "Warm & approachable",
+    desc: "Softer shapes, friendly colour, human tone — easy to talk to, easy to choose.",
+    visual: (
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="14" stroke="#1a1a1a" strokeWidth="1.5" />
+        <circle cx="15" cy="18" r="1.5" fill="#1a1a1a" />
+        <circle cx="25" cy="18" r="1.5" fill="#1a1a1a" />
+        <path d="M14 24c2 2 4 3 6 3s4-1 6-3" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    title: "Bold & confident",
+    desc: "Strong type, high contrast, decisive shapes — for brands that want to lead the room.",
+    visual: (
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <path d="M8 6h10l-4 14h6l-12 14 4-14H6L8 6z" stroke="#1a1a1a" strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    title: "Classic & established",
+    desc: "Serif type, considered detail, institutional feel — built to look at home in any decade.",
+    visual: (
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <path d="M6 34h28M10 34V14M30 34V14M14 14V10h12v4M8 14h24" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+];
+
 export const questionnairePacks: Record<string, QuestionnairePack> = {
+  // ── Default / industry-neutral (loaded when no ?pack= is set) ─────
+  default: {
+    pageSubtitle:
+      "This brief helps us understand your business, your audience, and the direction your brand should take. Take your time — there are no wrong answers.",
+    q12Hint:
+      "Industry, role, company size, budget, what they value most when choosing a partner.",
+    q27Label: "Any icons, shapes, or visual elements you'd like explored?",
+    s2Title: "What your brand stands for",
+    s2TitleTamil: "உங்க brand எதை represent பண்றது",
+    clientChannels: [
+      "Referrals & word of mouth",
+      "Social media",
+      "Search (Google)",
+      "Industry events",
+      "Existing network",
+      "Other",
+    ],
+    clientFeelings: [
+      "Confident and assured",
+      "Clear and well-informed",
+      "Excited about working together",
+      "Professional and respected",
+      "Seen and understood",
+      "Something else",
+    ],
+    brandAsPlaceOptions: [
+      "A modern, well-designed office",
+      "A welcoming hotel lobby",
+      "A quiet library or atelier",
+      "A vibrant co-working space",
+      "A trusted family establishment",
+      "Other",
+    ],
+    motifsLightboxTitle: "Icons, shapes, and visual elements",
+    logoTypeExampleIntro: "Here's how the three common logo types work",
+    businessNamePlaceholder: "e.g. Sunrise Consulting",
+    taglinePlaceholder: "e.g. Built for what's next",
+    brandWordsPlaceholder: "e.g. Clear, Trusted, Modern",
+    examples: {
+      whatYouDo:
+        "We help mid-sized businesses streamline their operations through process design and digital tools. Our clients are typically founders or operations leads at companies with 20–200 employees who want to scale without losing their culture.",
+      successIn3Years:
+        "We are the go-to operations partner for growing businesses in our region. We have a team of 6, a clear methodology that clients can learn from, and a waiting list rather than a sales pipeline.",
+      idealClient:
+        "A founder or operations lead at a 30–150-person business that has outgrown its early scrappy phase. They're in their late 30s to mid-40s, value clarity over jargon, and want a partner who will challenge their thinking — not just nod along.",
+      clientFrustrations:
+        "Most consultants drop in, run a workshop, leave a deck, and disappear. Clients feel like they paid for documentation, not change. They want someone who will stay until the work actually sticks.",
+      brandAsPerson:
+        "She's a senior operator in her 40s — direct without being blunt, deeply experienced but always curious. She listens before she speaks, gives credit publicly, and never makes anyone feel small for not knowing something.",
+      brandPromise:
+        "We don't just tell you what to do — we help you build the muscle to keep doing it long after we leave.",
+      differentFrom:
+        "We're one of the few firms our size with a structured handover phase built into every engagement — we don't get paid the final installment until the client team has run the new process for a full quarter without us.",
+      logosAdmired:
+        "1. Stripe — the wordmark feels engineered and confident without being cold.\n2. Notion — the icon is friendly and the brand feels approachable without losing precision.\n3. Linear — the typography says 'serious tool for serious teams' without shouting.",
+      personalSymbolic:
+        "Our first office was in a converted printing press, and we kept one of the old type drawers as a shelf. I'd love if the brand quietly carried that idea of craft and care — the way good typesetters never rushed a layout.",
+      competitorReasons:
+        "Clients sometimes choose larger firms because they assume the brand-name backing is safer for board sign-off. They also occasionally pick competitors who promise a faster, lighter engagement — we're known for depth, not speed.",
+      neverThink:
+        "That we're a generic consultancy with a polished deck. Or that what we deliver could be googled. We never want to feel interchangeable with the dozens of other firms offering 'transformation'.",
+    },
+    motifOptions: defaultMotifs,
+    culturalCueLabel: "Overall visual tone",
+    culturalCueHint: "Choose the tone that feels closest to how your brand should present.",
+    culturalCueLightboxTitle: "Overall visual tone",
+    culturalCueTriggerPlaceholder: "Choose your tone →",
+    culturalCueRenderStyle: "plain",
+    culturalCueCards: defaultCultureCards,
+    pageSubtitleTamil:
+      "உங்க business, audience, brand-க்கான direction-ஐ புரிஞ்சுக்க இந்த brief உதவும். நேரம் எடுத்துக்கோங்க — தப்பான answer இல்ல.",
+    q12HintTamil:
+      "Industry, role, company size, budget — partner choose பண்றப்போ அவங்களுக்கு மிக முக்கியமான விஷயம்.",
+    q27LabelTamil:
+      "என்ன icons, shapes, இல்லன்னா visual elements explore பண்ணணும்னு நினைக்கீங்க?",
+    culturalCueLabelTamil: "Overall visual tone",
+    culturalCueHintTamil:
+      "உங்க brand எப்படி present ஆகணும்னு close-ஆ feel ஆகற tone-ஐ choose பண்ணுங்க.",
+    q36HintTamil:
+      "Family name, ஒரு city, ஒரு material, ஒரு memory, ஒரு number — உங்களுக்கு meaningful-ஆ இருக்கற எதுவும்.",
+  },
+
+
   // ── Creative / consumer (current wedding-florist wording) ─────────
   creative: {
     pageSubtitle:
@@ -334,6 +537,8 @@ export const questionnairePacks: Record<string, QuestionnairePack> = {
     q12Hint:
       "Age range, budget range, city, lifestyle, profession, what they value most.",
     q27Label: "Any symbols, motifs, or floral elements you'd like explored?",
+    s2Title: "The Brand Soul",
+    s2TitleTamil: "Brand-ஓட Soul",
     clientChannels: [
       "Instagram",
       "Word of mouth",
@@ -416,6 +621,8 @@ export const questionnairePacks: Record<string, QuestionnairePack> = {
       "e.g. contractors, dealers, factories, hardware retailers — who buys from you and why.",
     q27Label:
       "Any symbols or motifs you'd like explored? (e.g. tools, gears, strength, precision)",
+    s2Title: "The Brand Soul",
+    s2TitleTamil: "Brand-ஓட Soul",
     clientChannels: [
       "Referrals & word of mouth",
       "Dealer / distributor network",
@@ -493,8 +700,8 @@ export const questionnairePacks: Record<string, QuestionnairePack> = {
   },
 };
 
-// Reads the `?pack=` URL query param. Falls back to `creative` if missing
-// or unknown — so existing links keep working.
+// Reads the `?pack=` URL query param. Falls back to `default` (the
+// industry-neutral pack) if missing or unknown.
 export function getPackKeyFromSearch(search: string): string {
   try {
     const key = new URLSearchParams(search).get("pack");
@@ -502,7 +709,7 @@ export function getPackKeyFromSearch(search: string): string {
   } catch {
     // ignore — bad URL, fall through to default
   }
-  return "creative";
+  return "default";
 }
 
 export function getPackFromSearch(search: string): QuestionnairePack {

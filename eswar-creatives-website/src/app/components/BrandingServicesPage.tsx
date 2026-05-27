@@ -308,7 +308,7 @@ function BrandingTierCard({ tier, delay }: { tier: ServiceTier; delay: number })
         </ul>
 
         <PortfolioButton
-          href="/branding/brand-identity-discovery"
+          href={`/branding/brand-identity-discovery?tier=${tier.tier_name.toLowerCase()}`}
           variant={recommended ? "primary" : "secondary"}
           size="md"
           fullWidth
