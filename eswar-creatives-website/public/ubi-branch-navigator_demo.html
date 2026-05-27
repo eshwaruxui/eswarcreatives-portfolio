@@ -111,6 +111,52 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 
 .leaflet-popup-content-wrapper{border-radius:14px!important;border:1px solid #E2E8F0!important;box-shadow:0 4px 20px rgba(0,0,0,.1)!important}
 .leaflet-popup-tip{background:#fff!important}
+
+/* Sidebar results panel — desktop only, populated by showResults() default mode */
+.sidebar-results{display:none}
+
+/* ── Desktop (>= 768px) ── Sidebar layout via CSS Grid + modal lightboxes */
+@media (min-width:768px){
+  .app{display:grid;grid-template-columns:300px 1fr;grid-template-rows:auto auto auto 1fr;grid-template-areas:"header  map" "search  map" "filters map" "results map"}
+  .header{grid-area:header;box-shadow:none;border-bottom:1px solid rgba(255,255,255,.08)}
+  .search-area{grid-area:search;border-right:1px solid var(--border)}
+  .filters{grid-area:filters;flex-direction:column;overflow-x:hidden;padding:8px 16px 16px;align-items:stretch;border-right:1px solid var(--border)}
+  .chip{width:100%;text-align:left;padding:10px 14px;border-radius:12px;font-size:13px}
+  .map-container{grid-area:map}
+  .sidebar-results{grid-area:results;display:none;flex-direction:column;background:#fff;border-right:1px solid var(--border);overflow:hidden;min-height:0}
+  .sidebar-results.show{display:flex}
+  .sidebar-results .results-header{padding:12px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:#fff;flex-shrink:0}
+  .sidebar-results .results-back{width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+  .sidebar-results .results-back:hover{background:var(--light);color:var(--text)}
+  .sidebar-results .results-title{font-size:13px;font-weight:700}
+  .sidebar-results .results-count{font-size:11px;color:var(--muted);margin-left:auto}
+  .sidebar-results .results-list{flex:1;overflow-y:auto;padding:8px}
+  .sidebar-results .result-card{background:var(--light);cursor:pointer}
+  .sidebar-results .result-card:hover{background:#EFF6FF;border-color:var(--blue)}
+
+  /* Hide mobile-only chrome */
+  .fab{display:none}
+  .sheet,.sheet-overlay,.results{display:none!important}
+
+  /* Modal lightboxes — branch detail (480px) + nearest list (560px) */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;display:none}
+  .modal-overlay.show{display:block}
+  .modal-card{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:480px;max-width:calc(100vw - 48px);max-height:85vh;background:#fff;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.2);z-index:99999;display:none;flex-direction:column;overflow:hidden}
+  .modal-card.show{display:flex}
+  .modal-card.modal-list{width:560px}
+  .modal-close{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;background:#F1F5F9;border:none;cursor:pointer;font-size:18px;line-height:1;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:2;transition:background .15s}
+  .modal-close:hover{background:#E2E8F0;color:var(--text)}
+  .modal-card .sheet-header{padding:24px 56px 14px 24px;border-bottom:1px solid var(--border)}
+  .modal-card .sheet-name{font-size:22px}
+  .modal-card .sheet-body{padding:18px 24px;overflow-y:auto;flex:1}
+  .modal-card .sheet-actions{padding:14px 24px 24px;border-top:1px solid var(--border)}
+  .modal-card .modal-list-header{padding:22px 56px 14px 24px;border-bottom:1px solid var(--border)}
+  .modal-card .modal-list-title{font-size:18px;font-weight:700;color:var(--dark)}
+  .modal-card .modal-list-count{font-size:12px;color:var(--muted);margin-top:4px}
+  .modal-card .results-list{flex:1;overflow-y:auto;padding:12px 16px 18px}
+  .modal-card .result-card{background:var(--light);cursor:pointer}
+  .modal-card .result-card:hover{background:#EFF6FF;border-color:var(--blue)}
+}
 </style>
 </head>
 <body>
@@ -158,6 +204,16 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
   <div class="chip" data-r="nearby">📍 Nearby</div>
 </div>
 
+<!-- Sidebar results (desktop only — populated by showResults() when not nearest-mode) -->
+<div class="sidebar-results" id="sidebarResults">
+  <div class="results-header">
+    <button class="results-back" id="sidebarResultsBack" type="button" aria-label="Clear results">×</button>
+    <div class="results-title" id="sidebarResultsTitle">Results</div>
+    <div class="results-count" id="sidebarResultsCount"></div>
+  </div>
+  <div class="results-list" id="sidebarResultsList"></div>
+</div>
+
 <!-- Map -->
 <div class="map-container">
   <div id="map"></div>
@@ -183,6 +239,25 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
     <div class="results-count" id="resultsCount"></div>
   </div>
   <div class="results-list" id="resultsList"></div>
+</div>
+
+<!-- Desktop modal lightboxes -->
+<div class="modal-overlay" id="modalOverlay"></div>
+
+<div class="modal-card" id="branchModal" role="dialog" aria-modal="true" aria-labelledby="modalSheetHeader">
+  <button class="modal-close" id="branchModalClose" type="button" aria-label="Close">×</button>
+  <div class="sheet-header" id="modalSheetHeader"></div>
+  <div class="sheet-body" id="modalSheetBody"></div>
+  <div class="sheet-actions" id="modalSheetActions"></div>
+</div>
+
+<div class="modal-card modal-list" id="listModal" role="dialog" aria-modal="true" aria-labelledby="listModalTitle">
+  <button class="modal-close" id="listModalClose" type="button" aria-label="Close">×</button>
+  <div class="modal-list-header">
+    <div class="modal-list-title" id="listModalTitle">Nearest Branches</div>
+    <div class="modal-list-count" id="listModalCount"></div>
+  </div>
+  <div class="results-list" id="listModalList"></div>
 </div>
 
 </div>
@@ -547,19 +622,22 @@ function updateMap(){
   if(fl.length)map.fitBounds(fl.map(b=>[b.lat,b.lon]),{padding:[40,40]});
 }
 
-// Sheet
+// Viewport helper — used by openSheet() + showResults() to pick the right DOM.
+function isMobile(){return window.innerWidth<768}
+
+// Sheet — branches to mobile bottom sheet OR desktop modal lightbox
 function openSheet(b){
   const pc=PC[b.pop]||'#16A34A';
   const pl=popLabel[b.pop]||b.pop;
   const dist=userLat?haversine(userLat,userLon,b.lat,b.lon):null;
   const popCls=b.pop==='METRO'?'METRO':b.pop==='URBAN'?'URBAN':b.pop==='SEMI URBAN'?'SEMI':'RURAL';
 
-  document.getElementById('sheetHeader').innerHTML=`
+  const headerHTML=`
     <div class="sheet-sol">SOL ${b.sol} · ${b.ifsc}</div>
     <div class="sheet-name">${b.name}</div>
     <div class="sheet-district">${b.district} · ${b.region}${dist?` · <b>${dist.toFixed(1)} km away</b>`:''}</div>
   `;
-  document.getElementById('sheetBody').innerHTML=`
+  const bodyHTML=`
     <div class="sheet-row">
       <div class="sheet-row-icon" style="background:${pc}15;color:${pc}">📍</div>
       <div class="sheet-row-text">
@@ -596,32 +674,52 @@ function openSheet(b){
       </div>
     </div>
   `;
-  document.getElementById('sheetActions').innerHTML=`
+  const actionsHTML=`
     <button class="sheet-btn btn-navigate" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lon}','_blank')">🧭 Navigate</button>
     <button class="sheet-btn btn-call" onclick="window.open('https://www.google.com/maps/search/Union+Bank+of+India+${encodeURIComponent(b.name)}/@${b.lat},${b.lon},17z','_blank')">🔍 Find</button>
     <button class="sheet-btn btn-copy" onclick="navigator.clipboard.writeText('${b.sol} - ${b.name} - ${b.ifsc}');this.textContent='✓ Copied'">📋 Copy</button>
   `;
 
-  const sheetEl = document.getElementById('sheet');
-  const overlayEl = document.getElementById('sheetOverlay');
-  overlayEl.classList.add('show');
-  // Force reflow before adding show class so transition fires
-  sheetEl.getBoundingClientRect();
-  sheetEl.classList.add('show');
+  if(isMobile()){
+    document.getElementById('sheetHeader').innerHTML=headerHTML;
+    document.getElementById('sheetBody').innerHTML=bodyHTML;
+    document.getElementById('sheetActions').innerHTML=actionsHTML;
+    const sheetEl=document.getElementById('sheet');
+    document.getElementById('sheetOverlay').classList.add('show');
+    // Force reflow before adding show class so transition fires
+    sheetEl.getBoundingClientRect();
+    sheetEl.classList.add('show');
+  }else{
+    document.getElementById('modalSheetHeader').innerHTML=headerHTML;
+    document.getElementById('modalSheetBody').innerHTML=bodyHTML;
+    document.getElementById('modalSheetActions').innerHTML=actionsHTML;
+    document.getElementById('modalOverlay').classList.add('show');
+    document.getElementById('branchModal').classList.add('show');
+  }
   map.setView([b.lat,b.lon],15,{animate:true});
 }
 
 function closeSheet(){
   document.getElementById('sheetOverlay').classList.remove('show');
   document.getElementById('sheet').classList.remove('show');
+  document.getElementById('branchModal').classList.remove('show');
+  // Only drop the modal overlay if no list modal is also open
+  if(!document.getElementById('listModal').classList.contains('show')){
+    document.getElementById('modalOverlay').classList.remove('show');
+  }
 }
 document.getElementById('sheetOverlay').addEventListener('click',closeSheet);
 
-// Results list
-function showResults(list,title){
-  const el=document.getElementById('resultsList');
-  document.getElementById('resultsTitle').textContent=title;
-  document.getElementById('resultsCount').textContent=list.length+' branches';
+// Results list — desktop routes search → sidebar, nearest → modal lightbox
+function showResults(list,title,asModal){
+  const mobile=isMobile();
+  const listId  = mobile ? 'resultsList'   : (asModal ? 'listModalList'   : 'sidebarResultsList');
+  const titleId = mobile ? 'resultsTitle'  : (asModal ? 'listModalTitle'  : 'sidebarResultsTitle');
+  const countId = mobile ? 'resultsCount'  : (asModal ? 'listModalCount'  : 'sidebarResultsCount');
+
+  const el=document.getElementById(listId);
+  document.getElementById(titleId).textContent=title;
+  document.getElementById(countId).textContent=list.length+' branches';
   el.innerHTML=list.map(b=>{
     const c=PC[b.pop]||'#16A34A';
     const d=b.dist?`<div class="result-dist">${b.dist.toFixed(1)} km</div>`:'';
@@ -638,13 +736,38 @@ function showResults(list,title){
   el.querySelectorAll('.result-card').forEach(card=>{
     card.addEventListener('click',()=>{
       const b=branches.find(x=>x.sol===card.dataset.sol);
-      if(b){closeResults();openSheet(b)}
+      if(b){
+        // On desktop modal-list mode, close the list before opening the branch detail.
+        // On desktop sidebar mode, leave the list visible so the user can pick another.
+        if(mobile || asModal) closeResults();
+        openSheet(b);
+      }
     });
   });
-  document.getElementById('results').classList.add('show');
+
+  if(mobile){
+    document.getElementById('results').classList.add('show');
+  }else if(asModal){
+    document.getElementById('modalOverlay').classList.add('show');
+    document.getElementById('listModal').classList.add('show');
+  }else{
+    document.getElementById('sidebarResults').classList.add('show');
+  }
 }
-function closeResults(){document.getElementById('results').classList.remove('show')}
+function closeResults(){
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('sidebarResults').classList.remove('show');
+  document.getElementById('listModal').classList.remove('show');
+  // Only drop the modal overlay if the branch detail modal isn't also open
+  if(!document.getElementById('branchModal').classList.contains('show')){
+    document.getElementById('modalOverlay').classList.remove('show');
+  }
+}
 document.getElementById('resultsBack').addEventListener('click',closeResults);
+document.getElementById('sidebarResultsBack').addEventListener('click',closeResults);
+document.getElementById('branchModalClose').addEventListener('click',closeSheet);
+document.getElementById('listModalClose').addEventListener('click',closeResults);
+document.getElementById('modalOverlay').addEventListener('click',()=>{closeSheet();closeResults();});
 
 // Search
 let searchTimer;
@@ -675,7 +798,7 @@ document.querySelectorAll('.chip').forEach(chip=>{
     if(activeFilter==='nearby'){
       if(!userLat){getLocation();return}
       const fl=getFiltered();
-      showResults(fl,'Nearest Branches');
+      showResults(fl,'Nearest Branches',true);
     }else{
       closeResults();
     }
@@ -690,13 +813,13 @@ document.getElementById('fabNearby').addEventListener('click',()=>{
     setTimeout(()=>{
       if(userLat){
         const list=branches.map(b=>({...b,dist:haversine(userLat,userLon,b.lat,b.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,10);
-        showResults(list,'Nearest Branches');
+        showResults(list,'Nearest Branches',true);
       }
     },2000);
     return;
   }
   const list=branches.map(b=>({...b,dist:haversine(userLat,userLon,b.lat,b.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,10);
-  showResults(list,'Nearest Branches');
+  showResults(list,'Nearest Branches',true);
   map.setView([userLat,userLon],13);
 });
 
