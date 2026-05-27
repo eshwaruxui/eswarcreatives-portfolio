@@ -1,1 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+/* Phase 2 — Atelier vertical typefaces */
+/* Fraunces: warm serif for Brand Identity pages (cream/gold treatment). */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap');
+/* JetBrains Mono: code-style mono for SaaS Design Systems pages (dark/technical). */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&display=swap');
