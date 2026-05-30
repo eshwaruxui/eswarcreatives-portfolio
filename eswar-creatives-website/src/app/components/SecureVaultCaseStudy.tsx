@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { ArrowRight, ChevronRight, ExternalLink, Download } from "lucide-react";
+import { ArrowRight, ChevronRight, ExternalLink, Download, Lock } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { Tag } from "./ui/tag";
@@ -299,6 +299,33 @@ export function SecureVaultCaseStudy() {
             risk-based scoring.
           </motion.p>
 
+          {/* NDA notice — inline pill */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className="inline-flex items-start gap-2 mb-10"
+            style={{
+              background: "#EAF3F3",
+              color: "#024C4F",
+              borderRadius: "6px",
+              padding: "8px 14px",
+              fontFamily: "Inter, var(--font-family-primary), sans-serif",
+              fontSize: "12px",
+              lineHeight: "1.5",
+              maxWidth: "640px",
+            }}
+            role="note"
+            aria-label="NDA notice"
+          >
+            <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <span>
+              Screens and interface details in this case study are representative mockups.
+              Original CYGNVS product UI is protected under a mutual NDA. All metrics shared
+              with permission.
+            </span>
+          </motion.div>
+
           {/* Role strip */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -489,6 +516,22 @@ export function SecureVaultCaseStudy() {
         </div>
 
         <BH>Three key design decisions</BH>
+        <p
+          className="mt-2 mb-4"
+          style={{
+            color: "#3D6163",
+            fontFamily: "Inter, var(--font-family-primary), sans-serif",
+            fontSize: "13px",
+            fontStyle: "italic",
+            lineHeight: "1.6",
+            borderLeft: "3px solid #D8E8E8",
+            paddingLeft: "12px",
+          }}
+        >
+          The following screens are representative mockups created for portfolio purposes.
+          Original interface designs remain confidential under a mutual NDA with the client
+          organisation.
+        </p>
         <div className="space-y-4 my-6">
           <DecisionCard
             num={1}
