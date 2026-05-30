@@ -255,8 +255,8 @@ export function SecureVaultCaseStudy() {
             <img
               src="/assets/securevault/cover.webp"
               alt="SecureVault — Cut through the noise. Catch what matters. Cover graphic showing a glowing security shield with −32% time-to-triage and +18% analyst satisfaction metrics."
-              width={1402}
-              height={1122}
+              width={1600}
+              height={1194}
               loading="eager"
               decoding="async"
               className="w-full h-auto block"
