@@ -38,7 +38,7 @@ export function FlagshipCase() {
             <div className="grid md:grid-cols-2 gap-0 md:items-stretch">
               {/* Image */}
               <div
-                className="relative rounded-2xl overflow-hidden bg-gray-100 aspect-[4/3] md:aspect-[1200/896]"
+                className="relative rounded-2xl overflow-hidden bg-gray-100 aspect-[4/3] md:aspect-[16/9]"
               >
                 <ImageWithFallback
                   src={CASE_IMG}
