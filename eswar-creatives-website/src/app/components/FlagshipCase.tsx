@@ -8,8 +8,7 @@ import { Tag } from "./ui/tag";
 import { BulletItem } from "./ui/bullet-item";
 import { PortfolioButton } from "./ui/portfolio-button";
 
-const CASE_IMG =
-  "https://images.unsplash.com/photo-1720962158937-7ea890052166?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjeWJlcnNlY3VyaXR5JTIwZGFzaGJvYXJkJTIwZGFyayUyMGludGVyZmFjZXxlbnwxfHx8fDE3NzM1NjA2Nzd8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral";
+const CASE_IMG = "/assets/securevault/cover-card.webp";
 
 export function FlagshipCase() {
   const ref = useRef(null);

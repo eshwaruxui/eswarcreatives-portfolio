@@ -244,6 +244,25 @@ export function SecureVaultCaseStudy() {
       <header className="pt-20 md:pt-24">
         <div className="max-w-5xl mx-auto px-6 pb-14 md:pb-16" style={{ borderBottom: "1px solid #d4cfc8" }}>
 
+          {/* Cover image */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="rounded-2xl overflow-hidden mt-6 md:mt-8"
+            style={{ border: "1px solid #d4cfc8", background: "#0a0f1d" }}
+          >
+            <img
+              src="/assets/securevault/cover.webp"
+              alt="SecureVault — Cut through the noise. Catch what matters. Cover graphic showing a glowing security shield with −32% time-to-triage and +18% analyst satisfaction metrics."
+              width={1402}
+              height={1122}
+              loading="eager"
+              decoding="async"
+              className="w-full h-auto block"
+            />
+          </motion.div>
+
           {/* Breadcrumb */}
           <nav
             className="flex items-center gap-1.5 text-gray-400 mb-8 pt-6 md:pt-8"
