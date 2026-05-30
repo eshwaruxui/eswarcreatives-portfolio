@@ -6,7 +6,8 @@
   --foreground: oklch(0.145 0 0);
 
   /* ── Typography Font Family ── */
-  --font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-primary:  'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-headings: 'Fraunces', Georgia, 'Times New Roman', serif;
 
   /* ══════════════════════════════════════════════════════════════════
      TYPOGRAPHY TOKENS — 43 styles · 4px grid · Inter Variable
@@ -537,6 +538,14 @@
 
   html {
     font-size: var(--font-size);
+  }
+
+  body {
+    font-family: var(--font-family-primary);
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-family-headings);
   }
 
   h1 {
