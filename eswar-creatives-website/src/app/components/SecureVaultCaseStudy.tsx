@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { Tag } from "./ui/tag";
 import { PortfolioButton } from "./ui/portfolio-button";
+import { ProgressiveImage } from "./ProgressiveImage";
 import { useResumeDownload } from "./useResumeDownload";
 
 // ── Inline callout block ─────────────────────────────────────
@@ -52,14 +53,12 @@ function DecisionCard({
   rationale,
   tradeoff,
   impact,
-  links,
 }: {
   num: number;
   title: string;
   rationale: string;
   tradeoff: string;
   impact: string;
-  links?: { label: string }[];
 }) {
   return (
     <div
@@ -101,20 +100,6 @@ function DecisionCard({
           </p>
         </div>
       </div>
-      {links && links.length > 0 && (
-        <div className="flex flex-wrap gap-x-5 gap-y-2 px-5 py-3" style={{ borderTop: "1px solid #d4cfc8", background: "#faf8f4" }}>
-          {links.map((l) => (
-            <span
-              key={l.label}
-              className="inline-flex items-center gap-1.5 text-[#0d9488] font-medium"
-              style={{ fontSize: "var(--typo-p-xs-size)" }}
-            >
-              {l.label}
-              <span aria-hidden="true">→</span>
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -210,7 +195,7 @@ export function SecureVaultCaseStudy() {
       );
     }
     const prevBg = document.documentElement.style.background;
-    document.documentElement.style.background = "#f5f3f0";
+    document.documentElement.style.background = "#ffffff";
     document.body.style.background = "transparent";
     return () => {
       document.documentElement.style.background = prevBg;
@@ -236,7 +221,7 @@ export function SecureVaultCaseStudy() {
   return (
     <div
       className="min-h-screen w-full"
-      style={{ background: "#f5f3f0", fontFamily: "var(--font-family-primary)" }}
+      style={{ background: "#ffffff", fontFamily: "var(--font-family-primary)" }}
     >
       <Navbar />
 
@@ -515,6 +500,14 @@ export function SecureVaultCaseStudy() {
           ))}
         </div>
 
+        <ProgressiveImage
+          previewSrc="/assets/securevault/triage-flow-preview.webp"
+          fullSrc="/assets/securevault/triage-flow.webp"
+          alt="Triage flow diagram — Alert Ingestion (SIEM, EDR, IDS/IPS, Firewall, Cloud) → Triage Queue (sorted by severity) → Incident Resolution lifecycle with severity legend."
+          caption="Triage flow — Alert Ingestion → Triage Queue → Incident Resolution"
+          className="my-8"
+        />
+
         <BH>Three key design decisions</BH>
         <p
           className="mt-2 mb-4"
@@ -532,36 +525,73 @@ export function SecureVaultCaseStudy() {
           Original interface designs remain confidential under a mutual NDA with the client
           organisation.
         </p>
-        <div className="space-y-4 my-6">
-          <DecisionCard
-            num={1}
-            title="Consolidate alerts into a single incident view"
-            rationale="Reduced context-switching by integrating all relevant information — live actions on one screen, aligned with analysts' mental models."
-            tradeoff="Accepted a denser interface to minimise navigation overhead. Ran multiple rapid prototyping sessions and design critiques to optimise information density."
-            impact="Enabled leaner triage and improved audit log accuracy."
-            links={[{ label: "View flow diagram" }, { label: "View prototype screen" }]}
-          />
-          <DecisionCard
-            num={2}
-            title="Allow critical alerts to break through Do-Not-Disturb"
-            rationale="Integrated filtering to surface urgent security alerts even when analyst devices were in Do-Not-Disturb mode — to avoid missed critical incidents."
-            tradeoff="Required users to configure notification preferences explicitly. Implemented clear escalation design patterns to set expectations appropriately."
-            impact="Ensured timely alert delivery to mobile SOC analysts, reducing the risk of missed critical alerts."
-            links={[{ label: "View mobile prototype" }]}
-          />
-          <DecisionCard
-            num={3}
-            title="Visually separate alerts from routine pushes"
-            rationale="Developed a distinct visual language using colour, iconography, and typography to separate security alert notifications from routine system pushes — while respecting existing design system consistency."
-            tradeoff="Carefully balanced user fatigue and contrast — alerts had to be clearly distinguished from routine productivity notifications."
-            impact="Improved analyst ability to prioritise and respond appropriately, increasing overall efficiency."
-            links={[{ label: "View notification design components" }]}
-          />
+
+        <div className="space-y-8 my-6">
+          {/* Decision 1 */}
+          <div className="space-y-4">
+            <DecisionCard
+              num={1}
+              title="Consolidate alerts into a single incident view"
+              rationale="Reduced context-switching by integrating all relevant information — live actions on one screen, aligned with analysts' mental models."
+              tradeoff="Accepted a denser interface to minimise navigation overhead. Ran multiple rapid prototyping sessions and design critiques to optimise information density."
+              impact="Enabled leaner triage and improved audit log accuracy."
+            />
+            <ProgressiveImage
+              previewSrc="/assets/securevault/consolidated-view-preview.webp"
+              fullSrc="/assets/securevault/consolidated-view.webp"
+              alt="Consolidated incident view — single screen showing incident detail, timeline of events, analyst assignment, actions (acknowledge / escalate / resolve), and analyst profile in one workspace."
+              caption="Decision 1 — consolidated incident view (queue, timeline, actions, and assignment in one workspace)"
+            />
+          </div>
+
+          {/* Decision 2 */}
+          <div className="space-y-4">
+            <DecisionCard
+              num={2}
+              title="Allow critical alerts to break through Do-Not-Disturb"
+              rationale="Integrated filtering to surface urgent security alerts even when analyst devices were in Do-Not-Disturb mode — to avoid missed critical incidents."
+              tradeoff="Required users to configure notification preferences explicitly. Implemented clear escalation design patterns to set expectations appropriately."
+              impact="Ensured timely alert delivery to mobile SOC analysts, reducing the risk of missed critical alerts."
+            />
+            <div className="max-w-[300px] mx-auto">
+              <ProgressiveImage
+                previewSrc="/assets/securevault/mobile-dnd-preview.webp"
+                fullSrc="/assets/securevault/mobile-dnd.webp"
+                alt="Mobile lock screen showing a CRITICAL ALERT — Unauthorised access detected on AWS root account — breaking through Do-Not-Disturb mode with red banner, swipe-to-view-incident affordance, and incident reference number."
+                caption="Decision 2 — critical alerts surface on lock screen even with DND enabled"
+              />
+            </div>
+          </div>
+
+          {/* Decision 3 */}
+          <div className="space-y-4">
+            <DecisionCard
+              num={3}
+              title="Visually separate alerts from routine pushes"
+              rationale="Developed a distinct visual language using colour, iconography, and typography to separate security alert notifications from routine system pushes — while respecting existing design system consistency."
+              tradeoff="Carefully balanced user fatigue and contrast — alerts had to be clearly distinguished from routine productivity notifications."
+              impact="Improved analyst ability to prioritise and respond appropriately, increasing overall efficiency."
+            />
+            <ProgressiveImage
+              previewSrc="/assets/securevault/severity-system-preview.webp"
+              fullSrc="/assets/securevault/severity-system.webp"
+              alt="Severity-level notification design system — Critical / High / Medium / Routine alert components with anatomy, status, action chips, and underlying design token references for color, icon, and text."
+              caption="Decision 3 — severity-level notification system, anatomy, and the design tokens behind each variant"
+            />
+          </div>
         </div>
       </CsSection>
 
       {/* ── SECTION 04: THE RESULT ────────────────────────── */}
       <CsSection id="cs-result" num="04" title="The Result">
+        <ProgressiveImage
+          previewSrc="/assets/securevault/before-after-preview.webp"
+          fullSrc="/assets/securevault/before-after.webp"
+          alt="Before/after comparison — Before: disjointed tools (SIEM alert list, Team Chat threads, ITSM ticketing) requiring constant context switching. After: one consolidated incident workspace with full context, faster response, and lower mean-time-to-respond."
+          caption="Before vs after — from disjointed tools and constant context switching to one consolidated workspace"
+          className="mb-6"
+        />
+
         <BH>Before &amp; after</BH>
 
         <div className="overflow-x-auto -mx-2 px-2 my-6 rounded-lg overflow-hidden bg-white" style={{ border: "1px solid #d4cfc8" }}>

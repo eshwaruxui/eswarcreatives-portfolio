@@ -174,7 +174,7 @@ export function DsAuditCaseStudy() {
       );
     }
     const prevBg = document.documentElement.style.background;
-    document.documentElement.style.background = "#f5f3f0";
+    document.documentElement.style.background = "#ffffff";
     document.body.style.background = "transparent";
     return () => {
       document.documentElement.style.background = prevBg;
@@ -200,7 +200,7 @@ export function DsAuditCaseStudy() {
   return (
     <div
       className="min-h-screen w-full"
-      style={{ background: "#f5f3f0", fontFamily: "var(--font-family-primary)" }}
+      style={{ background: "#ffffff", fontFamily: "var(--font-family-primary)" }}
     >
       <Navbar />
 
