@@ -149,10 +149,11 @@ function DecisionCard({
 
 // ── Section progress nav data ─────────────────────────────────
 const CS_SECTIONS = [
-  { id: "cs-problem",  label: "Problem",  num: "01" },
-  { id: "cs-process",  label: "Process",  num: "02" },
-  { id: "cs-outcome",  label: "Outcome",  num: "03" },
-  { id: "cs-learning", label: "Learning", num: "04" },
+  { id: "cs-brief",    label: "Quick Brief",  num: "01" },
+  { id: "cs-problem",  label: "The Problem",  num: "02" },
+  { id: "cs-process",  label: "The Approach", num: "03" },
+  { id: "cs-outcome",  label: "The Result",   num: "04" },
+  { id: "cs-learning", label: "Learning",     num: "05" },
 ];
 
 // ── Case section layout ──────────────────────────────────────
@@ -344,10 +345,10 @@ export function TtxCaseStudy() {
             style={{ background: "#d4cfc8", border: "1.5px solid #d4cfc8" }}
           >
             {[
-              { val: "−32%",   label: "Median triage time for critical alerts" },
-              { val: "+18%",   label: "Analyst satisfaction with workflows" },
-              { val: "↓ sig.", label: "Facilitator orientation overhead" },
-              { val: "12 wks", label: "End-to-end delivery across 3 platforms" },
+              { val: "Faster",   label: "Participant orientation — facilitators reported faster onboarding for first-time and late-joining participants" },
+              { val: "Drop",     label: `Support overhead — noticeable reduction in "What should I do now?" questions during live exercises` },
+              { val: "$3.25M+",  label: "ARR contribution — AI-assisted TTX Player became a key driver in the CYGNVS mobile offering" },
+              { val: "Reusable", label: "Platform pattern — state-aware navigation formalised as a reusable interaction pattern for future features" },
             ].map((m) => (
               <div key={m.val} className="bg-white px-6 py-5">
                 <p
@@ -422,8 +423,18 @@ export function TtxCaseStudy() {
         </div>
       </nav>
 
-      {/* ── SECTION 01: PROBLEM ───────────────────────────── */}
-      <CsSection id="cs-problem" num="01" title="Problem">
+      {/* ── SECTION 01: QUICK BRIEF ───────────────────────── */}
+      <CsSection id="cs-brief" num="01" title="Quick Brief">
+        <BP>
+          Participants in a live cyber crisis exercise couldn't tell if the exercise was
+          running, paused, or over. Facilitators were narrating the UI instead of running
+          the scenario. I redesigned the entire TTX experience — from the state model up —
+          across Web, iOS, and Android.
+        </BP>
+      </CsSection>
+
+      {/* ── SECTION 02: THE PROBLEM ───────────────────────── */}
+      <CsSection id="cs-problem" num="02" title="The Problem">
         <BH>The tool was fighting the exercise</BH>
         <BP>
           A tabletop exercise (TTX) is a structured rehearsal for a cyberattack. Leadership,
@@ -498,8 +509,8 @@ export function TtxCaseStudy() {
         />
       </CsSection>
 
-      {/* ── SECTION 02: PROCESS ───────────────────────────── */}
-      <CsSection id="cs-process" num="02" title="Process">
+      {/* ── SECTION 03: THE APPROACH ──────────────────────── */}
+      <CsSection id="cs-process" num="03" title="The Approach">
         <BH>Start from the state model, not the screen</BH>
         <BP>
           The instinct was to redesign the navigation. I pushed back — you can't design the
@@ -614,8 +625,8 @@ export function TtxCaseStudy() {
         </Callout>
       </CsSection>
 
-      {/* ── SECTION 03: OUTCOME ───────────────────────────── */}
-      <CsSection id="cs-outcome" num="03" title="Outcome">
+      {/* ── SECTION 04: THE RESULT ────────────────────────── */}
+      <CsSection id="cs-outcome" num="04" title="The Result">
         <BH>Measured results, 8 weeks post-launch</BH>
         <BP>
           Data from product analytics, SOC operational reports, facilitator debriefs, and pilot
@@ -765,8 +776,8 @@ export function TtxCaseStudy() {
         </div>
       </CsSection>
 
-      {/* ── SECTION 04: LEARNING ──────────────────────────── */}
-      <CsSection id="cs-learning" num="04" title="Learning">
+      {/* ── SECTION 05: LEARNING ──────────────────────────── */}
+      <CsSection id="cs-learning" num="05" title="Learning">
         <BH>What I'd keep</BH>
         <BP>
           Starting with the state model rather than the screen was the right call — and the
