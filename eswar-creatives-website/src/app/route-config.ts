@@ -18,6 +18,7 @@ export const routeConfig = [
       { path: "/contact",                           Component: ContactPage },
       { path: "/branding/brand-identity-discovery", Component: BrandIdentityDiscoveryPage },
       { path: "/work/cygnvs-ttx",                   Component: TtxCaseStudy },
+      { path: "/work/securevault",                  Component: TtxCaseStudy },
       { path: "/services",                          Component: ServicesPage },
       { path: "*",                                  Component: NotFound },
     ],

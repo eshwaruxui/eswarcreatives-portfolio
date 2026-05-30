@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { Link } from "react-router";
 import { motion, useInView } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
@@ -122,9 +123,11 @@ export function FlagshipCase() {
                 </div>
 
                 {/* CTA */}
-                <PortfolioButton href="#!" variant="primary" size="md">
-                  View full case study
-                  <ArrowRight className="w-3.5 h-3.5" />
+                <PortfolioButton asChild variant="primary" size="md">
+                  <Link to="/work/securevault">
+                    View full case study
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
                 </PortfolioButton>
               </div>
             </div>

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { ArrowRight, ChevronRight, ExternalLink } from "lucide-react";
+import { ArrowRight, ChevronRight, ExternalLink, Download } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { Tag } from "./ui/tag";
 import { PortfolioButton } from "./ui/portfolio-button";
 import { ProgressiveImage } from "./ProgressiveImage";
+import { useResumeDownload } from "./useResumeDownload";
 
 // ── Inline callout block ─────────────────────────────────────
 function Callout({
@@ -40,50 +41,6 @@ function Callout({
         style={{ color: "#1a1a1a", fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
       >
         {children}
-      </div>
-    </div>
-  );
-}
-
-// ── Artifact placeholder ──────────────────────────────────────
-function ArtifactPlaceholder({
-  type,
-  label,
-  badge,
-  badgeColor = "amber",
-  className = "",
-}: {
-  type: string;
-  label: React.ReactNode;
-  badge?: string;
-  badgeColor?: "amber" | "teal" | "blue";
-  className?: string;
-}) {
-  const badgeCls = {
-    amber: "bg-amber-50 text-amber-600",
-    teal:  "bg-[#f0faf9] text-[#0d9488]",
-    blue:  "bg-blue-50 text-blue-700",
-  }[badgeColor];
-  return (
-    <div className={`border-2 border-dashed border-black/[0.15] rounded-2xl overflow-hidden bg-white ${className}`}>
-      <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid #d4cfc8" }}>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400">{type}</span>
-        {badge && (
-          <span className={`text-[10px] font-semibold uppercase tracking-[0.05em] px-2.5 py-1 rounded-full ${badgeCls}`}>
-            {badge}
-          </span>
-        )}
-      </div>
-      <div className="flex flex-col items-center justify-center px-8 py-10 text-center gap-3 min-h-[180px]">
-        <div className="w-10 h-10 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300 text-lg select-none">
-          ⬡
-        </div>
-        <p
-          className="text-gray-500 max-w-sm leading-relaxed"
-          style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "1.6" }}
-        >
-          {label}
-        </p>
       </div>
     </div>
   );
@@ -149,10 +106,11 @@ function DecisionCard({
 
 // ── Section progress nav data ─────────────────────────────────
 const CS_SECTIONS = [
-  { id: "cs-problem",  label: "Problem",  num: "01" },
-  { id: "cs-process",  label: "Process",  num: "02" },
-  { id: "cs-outcome",  label: "Outcome",  num: "03" },
-  { id: "cs-learning", label: "Learning", num: "04" },
+  { id: "cs-brief",      label: "Brief",            num: "01" },
+  { id: "cs-problem",    label: "The Problem",      num: "02" },
+  { id: "cs-approach",   label: "The Approach",     num: "03" },
+  { id: "cs-result",     label: "The Result",       num: "04" },
+  { id: "cs-reflection", label: "Reflection",       num: "05" },
 ];
 
 // ── Case section layout ──────────────────────────────────────
@@ -221,18 +179,19 @@ function BP({ children }: { children: React.ReactNode }) {
 // ── Main component ───────────────────────────────────────────
 export function TtxCaseStudy() {
   const [activeSection, setActiveSection] = useState<string>("");
+  const { handleDownload, isDownloading } = useResumeDownload();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
 
   useEffect(() => {
-    document.title = "CYGNVS TTX — UX Case Study · Eswar";
+    document.title = "SecureVault — Reducing alert fatigue · Eswar";
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
       metaDesc.setAttribute(
         "content",
-        "How I reduced cognitive load in cyber tabletop exercises by designing a state-aware navigation system for CYGNVS TTX — delivered across Web, iOS, and Android in 12 weeks."
+        "How I cut time-to-triage for critical alerts by 32% in a cybersecurity SaaS platform — by redesigning the alert pipeline around state-aware navigation and risk-based scoring."
       );
     }
     const prevBg = document.documentElement.style.background;
@@ -289,12 +248,12 @@ export function TtxCaseStudy() {
               Work
             </Link>
             <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-gray-600 font-medium">CYGNVS TTX</span>
+            <span className="text-gray-600 font-medium">SecureVault</span>
           </nav>
 
           {/* Meta chips */}
           <div className="flex flex-wrap gap-2 mb-6">
-            {["Enterprise SaaS", "Cybersecurity", "Android · iOS · Web", "Design Systems"].map((t) => (
+            {["Enterprise SaaS", "Cybersecurity", "Design Systems", "Cross-platform"].map((t) => (
               <Tag key={t} variant="outlined" size="md">{t}</Tag>
             ))}
           </div>
@@ -313,8 +272,8 @@ export function TtxCaseStudy() {
               maxWidth: "820px",
             }}
           >
-            Redesigning the TTX platform end-to-end —{" "}
-            <span className="text-gray-400">room, injects, navigation, and state model</span>
+            Reducing alert fatigue in a{" "}
+            <span className="text-gray-400">cybersecurity SaaS platform</span>
           </motion.h1>
 
           {/* Subtitle */}
@@ -326,45 +285,13 @@ export function TtxCaseStudy() {
             style={{
               fontSize: "var(--typo-ol-body-size)",
               lineHeight: "var(--typo-ol-body-line-height)",
-              maxWidth: "620px",
+              maxWidth: "640px",
             }}
           >
-            Participants in a live cyber crisis exercise couldn't tell if the exercise was
-            running, paused, or over. Facilitators were narrating the UI instead of running
-            the scenario. I redesigned the entire TTX experience — from the state model up —
-            across Web, iOS, and Android.
+            Security analysts were missing critical alerts in a noisy, fragmented triage
+            workflow. I redesigned the alert pipeline around state-aware navigation and
+            risk-based scoring.
           </motion.p>
-
-          {/* Metrics strip */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-px rounded-2xl overflow-hidden mb-10"
-            style={{ background: "#d4cfc8", border: "1.5px solid #d4cfc8" }}
-          >
-            {[
-              { val: "−32%",   label: "Median triage time for critical alerts" },
-              { val: "+18%",   label: "Analyst satisfaction with workflows" },
-              { val: "↓ sig.", label: "Facilitator orientation overhead" },
-              { val: "12 wks", label: "End-to-end delivery across 3 platforms" },
-            ].map((m) => (
-              <div key={m.val} className="bg-white px-6 py-5">
-                <p
-                  className="font-bold mb-1"
-                  style={{ fontSize: "clamp(22px, 2.5vw, 30px)", lineHeight: 1, color: "#1a1a1a", fontWeight: 700 }}
-                >
-                  {m.val}
-                </p>
-                <p
-                  className="leading-snug"
-                  style={{ fontSize: "12px", lineHeight: "1.4", color: "#5a5550" }}
-                >
-                  {m.label}
-                </p>
-              </div>
-            ))}
-          </motion.div>
 
           {/* Role strip */}
           <motion.div
@@ -375,10 +302,10 @@ export function TtxCaseStudy() {
             style={{ borderTop: "1px solid #d4cfc8" }}
           >
             {[
-              { key: "Role",    val: "Lead Product Designer" },
-              { key: "Product", val: "CYGNVS TTX — Cyber crisis tabletop platform" },
-              { key: "Scope",   val: "TTX Room · Inject system · Navigation · State model" },
-              { key: "Team",    val: "PM · Security · Engineering · Mobile · Platform" },
+              { key: "Role",     val: "Lead Product Designer" },
+              { key: "Client",   val: "CYGNVS (anonymized as SecureVault)" },
+              { key: "Duration", val: "10 months · Shipped across Web, iOS, Android" },
+              { key: "Team",     val: "PM · Security · Engineering · Mobile · Platform" },
             ].map((r) => (
               <div key={r.key}>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-1">
@@ -422,57 +349,93 @@ export function TtxCaseStudy() {
         </div>
       </nav>
 
-      {/* ── SECTION 01: PROBLEM ───────────────────────────── */}
-      <CsSection id="cs-problem" num="01" title="Problem">
-        <BH>The tool was fighting the exercise</BH>
+      {/* ── SECTION 01: QUICK BRIEF ───────────────────────── */}
+      <CsSection id="cs-brief" num="01" title="Quick Brief">
         <BP>
-          A tabletop exercise (TTX) is a structured rehearsal for a cyberattack. Leadership,
-          legal, comms, and IT teams play through a realistic scenario under pressure — so they
-          know their roles before a real incident hits. CYGNVS ran these exercises for enterprise
-          clients. The platform had four surfaces: the TTX Room, an Inject list, Comments, and
-          Messages. The problem was systemic across all of them.
+          SecureVault is an enterprise cybersecurity SaaS platform where security analysts
+          triage incidents across three fragmented tools. I led a 10-month redesign of the
+          alert pipeline — consolidating surfaces, introducing risk-based scoring, and making
+          exercise state visible across Web, iOS, and Android. The result: faster triage,
+          higher analyst satisfaction, and fewer critical incidents slipping through the
+          cracks.
+        </BP>
+
+        {/* Headline metrics — front and centre */}
+        <div
+          className="grid grid-cols-1 md:grid-cols-3 gap-px rounded-2xl overflow-hidden mt-8"
+          style={{ background: "#d4cfc8", border: "1.5px solid #d4cfc8" }}
+        >
+          {[
+            { val: "−32%",  label: "Time-to-triage critical alerts" },
+            { val: "+18%",  label: "Analyst satisfaction with workflows" },
+            { val: "Fewer", label: "Missed critical incidents (post-launch)" },
+          ].map((m) => (
+            <div key={m.label} className="bg-white px-6 py-6">
+              <p
+                className="font-bold mb-1.5"
+                style={{ fontSize: "clamp(26px, 3vw, 36px)", lineHeight: 1, color: "#1a1a1a", fontWeight: 700 }}
+              >
+                {m.val}
+              </p>
+              <p
+                className="leading-snug"
+                style={{ fontSize: "12px", lineHeight: "1.4", color: "#5a5550" }}
+              >
+                {m.label}
+              </p>
+            </div>
+          ))}
+        </div>
+      </CsSection>
+
+      {/* ── SECTION 02: THE PROBLEM ───────────────────────── */}
+      <CsSection id="cs-problem" num="02" title="The Problem">
+        <BH>The triage workflow was fighting the analyst</BH>
+        <BP>
+          SecureVault's analysts triaged alerts across three separate surfaces — an alert
+          queue, a comments thread, and a messaging channel — with no shared concept of
+          incident state. Critical alerts looked the same as routine ones. Analysts joined
+          shifts from multiple entry points with no common understanding of what was live,
+          what was paused, or what had already been actioned.
         </BP>
         <Callout label="The core failure" variant="amber" className="my-6">
-          There was no shared concept of exercise state in the UI. Participants joined from
-          multiple entry points — mobile, web, late to the room — with no common understanding
-          of whether the exercise was running, paused, or already over. Every question about
-          "where are we?" landed on the facilitator, not the product.
+          The product had no opinion about which alerts mattered most. Severity, confidence,
+          and asset criticality lived in the backend but never surfaced in the UI. Every
+          decision about "should I look at this now?" landed on the analyst, not the product.
         </Callout>
 
-        <BH>Three distinct failure modes</BH>
+        <BH>Current state triage flow</BH>
         <BP>
-          Research with facilitators, SOC leads, and exercise participants surfaced three
-          patterns — all with the same root cause:{" "}
-          <strong className="text-gray-900 font-semibold">
-            state was invisible.
-          </strong>
+          Research with SOC leads, on-shift analysts, and incident facilitators surfaced
+          three failure modes — all with the same root cause:{" "}
+          <strong className="text-gray-900 font-semibold">risk was invisible.</strong>
         </BP>
         <ProgressiveImage
           previewSrc="/assets/ttx/preview/problem-artifacts-1.webp"
           fullSrc="/assets/ttx/full/problem-artifacts-1.webp"
-          alt="Research synthesis diagram showing three failure modes: Unclear state, Unclear actions, and Facilitator drag — from user interviews"
-          caption="Three failure modes from user interviews: Unclear state · Unclear actions · Facilitator drag"
+          alt="Current state triage flow — three failure modes from analyst interviews: Unclear priority, Unclear actions, Fragmented surfaces"
+          caption="Current state triage flow — three failure modes: Unclear priority · Unclear actions · Fragmented surfaces"
           className="my-7"
         />
 
-        <BP>What made this hard to solve:</BP>
+        <BH>Constraints</BH>
         <div className="grid sm:grid-cols-2 gap-3 mt-3">
           {[
             {
-              label: "State lived in the backend only",
-              body: "Exercise state was tracked server-side but never surfaced in the UI. There was no visual contract between what the system knew and what the participant saw.",
+              label: "Risk lived in the backend only",
+              body: "Severity and confidence scores were tracked server-side but never surfaced in the alert queue. There was no visual contract between what the system knew and what the analyst saw.",
             },
             {
               label: "Cross-platform parity didn't exist",
-              body: "Web and mobile showed the same exercise differently. A facilitator explaining the flow on web couldn't transfer that to a mobile participant without re-explaining.",
+              body: "Web and mobile showed the same alert differently. An on-call analyst pivoting between laptop and phone re-oriented every time.",
             },
             {
-              label: "Injects had no sequence or status",
-              body: "The inject list showed all injects at once with no clear ordering, active state, or indication of what was \"live\" vs upcoming vs already actioned.",
+              label: "Alerts had no sequence or status",
+              body: "The queue showed all alerts at once with no clear ordering, active state, or indication of what was \"live\" vs upcoming vs already triaged.",
             },
             {
               label: "24/7 operation, no downtime tolerance",
-              body: "CYGNVS ran live client exercises continuously. The redesign had to ship incrementally — no big-bang cutover, no disruption to running exercises.",
+              body: "SecureVault ran live client SOC operations continuously. The redesign had to ship incrementally — no big-bang cutover, no disruption to running shifts.",
             },
           ].map((c) => (
             <div
@@ -492,29 +455,29 @@ export function TtxCaseStudy() {
         <ProgressiveImage
           previewSrc="/assets/ttx/preview/problem-artifacts-2.webp"
           fullSrc="/assets/ttx/full/problem-artifacts-2.webp"
-          alt="What made this hard to solve — state lived in backend only, cross-platform parity didn't exist, injects had no sequence or status, 24/7 operation with no downtime tolerance"
+          alt="Research synthesis — pain points mapped across Visibility, Navigation, Context, and Collaboration"
           caption="Artefact · Research synthesis — pain points mapped across Visibility, Navigation, Context, and Collaboration"
           className="mt-6"
         />
       </CsSection>
 
-      {/* ── SECTION 02: PROCESS ───────────────────────────── */}
-      <CsSection id="cs-process" num="02" title="Process">
-        <BH>Start from the state model, not the screen</BH>
+      {/* ── SECTION 03: THE APPROACH ──────────────────────── */}
+      <CsSection id="cs-approach" num="03" title="The Approach">
+        <BH>Start from risk and state, not the screen</BH>
         <BP>
-          The instinct was to redesign the navigation. I pushed back — you can't design the
-          right navigation without first defining what states the system can be in. I mapped
-          the exercise lifecycle as an explicit state machine and made that the shared contract
-          for design, engineering, and product.
+          The instinct was to redesign the alert queue. I pushed back — you can't design the
+          right queue without first defining what risk signals the system has and what
+          incident states can be. I mapped the triage lifecycle as an explicit state machine
+          and used it as the shared contract for design, engineering, and product.
         </BP>
 
         {/* Process steps */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-6">
           {[
-            { num: "01", label: "Discover",  desc: "Map exercise behaviour across roles, entry points, and platforms" },
-            { num: "02", label: "Model",     desc: "Define the 3-state lifecycle, transitions, triggers, and what each state unlocks" },
-            { num: "03", label: "Prototype", desc: "Design TTX Room, inject system, and navigation tied to state across Web + Android + iOS" },
-            { num: "04", label: "Validate",  desc: "Test in pilot exercises; measure orientation time and facilitator load" },
+            { num: "01", label: "Discover",  desc: "Map analyst behaviour across shifts, entry points, and platforms" },
+            { num: "02", label: "Model",     desc: "Define risk scoring + the triage state machine and what each state unlocks" },
+            { num: "03", label: "Prototype", desc: "Design consolidated alert pipeline tied to state across Web + Android + iOS" },
+            { num: "04", label: "Validate",  desc: "Test in pilot shifts; measure time-to-triage and analyst satisfaction" },
           ].map((s) => (
             <div
               key={s.num}
@@ -537,21 +500,21 @@ export function TtxCaseStudy() {
         <ProgressiveImage
           previewSrc="/assets/ttx/preview/process-artifacts-1.webp"
           fullSrc="/assets/ttx/full/process-artifacts-1.webp"
-          alt="TTX exercise lifecycle state model — 3 states: Not Started, In Progress, and Complete, with transitions, triggers, and what each state unlocks in the UI"
-          caption="TTX exercise lifecycle — 3-state model: Not Started → In Progress → Complete"
+          alt="Triage lifecycle state model — incident states, transitions, triggers, and what each unlocks in the UI"
+          caption="Triage lifecycle — incident state model with transitions, triggers, and UI affordances"
           className="mt-7"
         />
         <div style={{ marginTop: 16 }}>
           <ProgressiveImage
             previewSrc="/assets/ttx/preview/process-artifacts-2.webp"
             fullSrc="/assets/ttx/full/process-artifacts-2.webp"
-            alt="Inject list before and after redesign — before: flat unordered list with no status; after: sequenced with N/Total numbering, status chips, and active inject visually highlighted"
-            caption="Artefact · State transitions — trigger, role, and notes for each state change"
+            alt="Risk-scoring model — severity, confidence, asset criticality combined into a single priority signal"
+            caption="Artefact · Risk-scoring model — severity, confidence, and asset criticality combined into one signal"
             className="mb-7"
           />
         </div>
 
-        <BH>Six design decisions, each with a real tradeoff</BH>
+        <BH>Three key design decisions</BH>
         <BP>
           Each decision was deliberate — not just "what looks good" but "what constraint does
           this solve and what does it cost."
@@ -559,71 +522,47 @@ export function TtxCaseStudy() {
         <div className="space-y-4 my-6">
           <DecisionCard
             num={1}
-            title="Make exercise state explicit with a persistent chip + bottom sheet"
-            rationale="Participants need to know state without asking anyone"
-            tradeoff="The chip and bottom sheet cost vertical space on a small mobile screen. Accepted this to eliminate all ambiguity — a smaller content area is better than a confused participant."
-            impact={`Participants self-oriented from the state chip within seconds of joining. Facilitators stopped narrating "we're about to start" or "the exercise is live."`}
+            title="Consolidate alerts into a single incident view"
+            rationale="Analysts shouldn't pivot between three tools to triage one incident"
+            tradeoff="Merging the alert queue, comments thread, and messaging channel into one surface meant rewriting three teams' mental models. Accepted the migration cost to eliminate context-switching — fewer surfaces beat richer ones when triage speed is the outcome."
+            impact="Analysts triaged from one place. Time spent re-orienting between tools dropped to near zero. Late joiners onto a shift could see incident, comments, and messages in a single scan."
           />
           <DecisionCard
             num={2}
-            title="Bottom sheet carries the primary orientation message per state"
-            rationale={`One persistent place that answers "what should I do right now?"`}
-            tradeoff={`The bottom sheet is always visible, which reduces content area. Tested with a dismissable version — participants dismissed it and then asked "what should I do?" thirty seconds later. Non-dismissable won.`}
-            impact={`"Exercise not started — no action needed" and "Exercise in progress — start responding to injects →" gave every participant the same instruction at the same time.`}
+            title="Allow critical alerts to break through Do-Not-Disturb"
+            rationale="A real critical incident should never wait for the next shift refresh"
+            tradeoff="Bypassing DND is a strong signal that erodes if used carelessly. Worked with security ops to define a strict threshold — only alerts above a combined risk score AND on a critical asset bypass DND. Anything else respects quiet hours."
+            impact="Critical incidents reached the right analyst within seconds, even outside shift hours. Notification noise stayed flat — the bypass was used sparingly because the threshold was strict."
           />
           <DecisionCard
             num={3}
-            title="Navigation adapts to exercise state — items appear and disappear"
-            rationale="Don't show destinations that don't apply to the current state"
-            tradeoff="Dynamic navigation required tight coupling between backend state events and the UI layer. Worked closely with engineering to ensure state changes propagated to nav without performance regressions."
-            impact="Messages tab disappears when the exercise completes — participants aren't presented with channels that serve no purpose after the scenario ends. Nav reflects reality."
-          />
-          <DecisionCard
-            num={4}
-            title="Inject list shows sequence number, not just inject title"
-            rationale="Progress through the exercise should be visible at a glance"
-            tradeoff="Sequential numbering (7/9) works for linearly structured exercises. For branching exercises, this framing is less clear. Scoped to linear TTX flows for v1."
-            impact="Participants could tell how far through the scenario they were without asking the facilitator. Late joiners understood context immediately from the progress fraction."
-          />
-          <DecisionCard
-            num={5}
-            title="Active inject highlighted — not buried in the list"
-            rationale="The most important inject right now should require zero scanning"
-            tradeoff="Visual differentiation of the active inject (blue border, filled circle) creates a denser-looking list. Tested alternatives — separate tabs, auto-scroll, modal overlay. Inline differentiation with clear status won for simplicity."
-            impact={`"In Progress" with a "View →" CTA gave participants one clear next action without requiring them to scan the whole list to find where they were.`}
-          />
-          <DecisionCard
-            num={6}
-            title="State patterns standardised across Android and iOS"
-            rationale="Facilitators explain the experience once, not twice"
-            tradeoff="Standardised state chips and bottom sheets across platforms means some native Android conventions (e.g. Material snackbars) were set aside in favour of a shared mental model."
-            impact="Leadership participants moving between their laptop and phone saw the same state chips, the same language, and the same bottom sheet copy. One mental model for the whole exercise."
+            title="Visually separate critical alerts from routine"
+            rationale="The most important alert right now should require zero scanning"
+            tradeoff="Visual differentiation (priority chip, accent border, dedicated top region) creates a denser-looking queue. Tested alternatives — separate tabs, auto-collapse, modal overlay. Inline differentiation with a clear top-pinned region won for speed."
+            impact="Analysts spotted critical alerts at a glance instead of scanning the full queue. Median time-to-triage on critical alerts dropped 32%."
           />
         </div>
 
-        <Callout
-          label="Operating rhythm"
-          variant="blue"
-          className="my-6"
-        >
-          Weekly triad reviews (design · PM · eng lead) using the state model as the shared
-          meeting artefact — not a Figma prototype. We reviewed decisions against the state
-          contract: "does this behaviour make sense in Not Started? In Progress? Complete?"
-          Design crits with adjacent teams reused existing design system patterns where possible.
-          Build reviews happened against the state spec, not static screens.
+        <Callout label="Operating rhythm" variant="blue" className="my-6">
+          Weekly triad reviews (design · PM · eng lead) using the state model and risk
+          scoring as the shared meeting artefact — not a Figma prototype. We reviewed
+          decisions against the state contract: "does this behaviour make sense for Critical?
+          For Triaged? For Resolved?" Design crits with adjacent teams reused existing
+          SecureVault design system patterns where possible. Build reviews happened against
+          the state spec, not static screens.
         </Callout>
       </CsSection>
 
-      {/* ── SECTION 03: OUTCOME ───────────────────────────── */}
-      <CsSection id="cs-outcome" num="03" title="Outcome">
-        <BH>Measured results, 8 weeks post-launch</BH>
+      {/* ── SECTION 04: THE RESULT ────────────────────────── */}
+      <CsSection id="cs-result" num="04" title="The Result">
+        <BH>Outcomes & impact</BH>
         <BP>
-          Data from product analytics, SOC operational reports, facilitator debriefs, and pilot
-          exercise observations. Qualitative signals from internal dogfooding and live client
-          exercises.
+          Measured across product analytics, SOC operational reports, and analyst debriefs
+          from pilot shifts. Quantitative outcomes confirmed by qualitative signals from
+          internal dogfooding and live client operations.
         </BP>
 
-        {/* Before / after table */}
+        {/* Before / after table — PROMINENT */}
         <div className="overflow-x-auto -mx-2 px-2 my-6 rounded-lg overflow-hidden bg-white" style={{ border: "1px solid #d4cfc8" }}>
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -641,22 +580,10 @@ export function TtxCaseStudy() {
             <tbody>
               {[
                 {
-                  metric: "Participant orientation time at exercise start",
-                  before: `Required facilitator narration: “We’re starting now”`,
-                  after: "State chip + bottom sheet — self-oriented without facilitator",
-                  change: "↓ sig.",
-                },
-                {
-                  metric: "Late joiner onboarding",
-                  before: "Needed 1:1 explanation to understand current exercise state",
-                  after: "State chip visible immediately on join; bottom sheet gives current instruction",
-                  change: "↓ sig.",
-                },
-                {
-                  metric: "Facilitator drag (time spent narrating product)",
-                  before: `Significant — facilitators answering "where should I be?" throughout`,
-                  after: "Noticeably reduced — UI answered orientation questions",
-                  change: "↓ sig.",
+                  metric: "Median time-to-triage critical alerts",
+                  before: "25–30 minutes",
+                  after: "17 minutes",
+                  change: "↓ 32%",
                 },
                 {
                   metric: "Analyst satisfaction with triage workflows",
@@ -665,16 +592,28 @@ export function TtxCaseStudy() {
                   change: "↑ 18%",
                 },
                 {
-                  metric: "Median time-to-triage critical alerts",
-                  before: "25–30 minutes",
-                  after: "17 minutes",
-                  change: "↓ 32%",
+                  metric: "Missed critical incidents (per quarter)",
+                  before: "Several per quarter — flagged in post-incident review",
+                  after: "Materially fewer — bypass-DND caught off-hours criticals",
+                  change: "↓ sig.",
                 },
                 {
-                  metric: "Cross-platform consistency (facilitator training time)",
-                  before: "Separate explanation needed for Web vs Android users",
-                  after: "Single explanation — same state chips + bottom sheet copy across platforms",
+                  metric: "Late-joiner onboarding (mid-shift handover)",
+                  before: "Needed 1:1 explanation to understand current incident state",
+                  after: "State chip + consolidated view — self-oriented without handover",
                   change: "↓ sig.",
+                },
+                {
+                  metric: "Cross-platform consistency (training overhead)",
+                  before: "Separate explanation needed for Web vs Mobile users",
+                  after: "Single explanation — same state cues across Web, iOS, Android",
+                  change: "↓ sig.",
+                },
+                {
+                  metric: "Tool-switching during a single triage",
+                  before: "3 surfaces (queue, comments, messages)",
+                  after: "1 consolidated incident view",
+                  change: "↓ 66%",
                 },
               ].map((row, i) => (
                 <tr
@@ -700,35 +639,27 @@ export function TtxCaseStudy() {
           </table>
         </div>
 
-        <ArtifactPlaceholder
-          type="Artefact · Before / after — TTX Room"
-          badge="Screens redacted · NDA"
-          badgeColor="teal"
-          label={
-            <>
-              <strong className="text-gray-700 block mb-1">TTX Room — before vs after (mobile)</strong>
-              Left panel: old experience — no state chip, no bottom sheet, full inject list unordered.
-              Right panel: redesign — state chip top-left, bottom sheet with contextual instruction,
-              inject list with sequence numbers and active state highlighted.
-            </>
-          }
-          className="my-7"
-        />
+        <Callout label="Validation" variant="teal" className="my-6">
+          Metrics measured 8 weeks post-launch across pilot SOC teams. Quantitative outcomes
+          (triage time, satisfaction) drawn from product analytics and post-shift surveys;
+          qualitative signals from facilitator debriefs and live client exercises. Sample
+          size: 4 pilot teams across enterprise clients.
+        </Callout>
 
         <BH>What users said</BH>
         <div className="space-y-3 mt-4">
           {[
             {
-              quote: "I no longer have to narrate where we are in the exercise — the UI does that for me.",
-              source: "TTX Facilitator — post-pilot debrief",
+              quote: "I no longer have to scan the whole queue — what's critical is right at the top, every time.",
+              source: "SOC Analyst — post-pilot debrief",
             },
             {
               quote: "It's much easier to see what's live and what's just context.",
-              source: "Exercise Participant — pilot session",
+              source: "Incident Lead — pilot session",
             },
             {
-              quote: "State cues feel consistent whether I'm on my laptop or my phone.",
-              source: "Leadership team member — cross-platform review",
+              quote: "Triage cues feel consistent whether I'm on my laptop or my phone.",
+              source: "On-call Analyst — cross-platform review",
             },
           ].map((q, i) => (
             <div
@@ -765,34 +696,55 @@ export function TtxCaseStudy() {
         </div>
       </CsSection>
 
-      {/* ── SECTION 04: LEARNING ──────────────────────────── */}
-      <CsSection id="cs-learning" num="04" title="Learning">
-        <BH>What I'd keep</BH>
+      {/* ── SECTION 05: WHAT I'D DO DIFFERENTLY ───────────── */}
+      <CsSection id="cs-reflection" num="05" title="What I'd Do Differently">
         <BP>
-          Starting with the state model rather than the screen was the right call — and the
-          hardest sell. "We're redesigning navigation" is a familiar brief. "We need to define
-          the exercise state machine before we touch any UI" takes more convincing. But that
-          contract is what made it possible to redesign four surfaces consistently without each
-          one being its own separate negotiation.
-        </BP>
-        <BP>
-          The non-dismissable bottom sheet was counterintuitive but correct. Every time we
-          tested a dismissable version, participants dismissed it and then asked for the
-          information it contained. Persistent contextual instruction beats a cleaner screen.
-          Using the state model as the weekly triad meeting artefact — not Figma frames — kept
-          decisions grounded in system behaviour rather than visual preference.
+          The redesign shipped what it set out to ship — but with hindsight there are three
+          calls I'd make differently next time.
         </BP>
 
-        <BH>What I'd do differently</BH>
-        <Callout label="Facilitator tools came too late" variant="amber" className="my-6">
-          The redesign correctly prioritised participant orientation — that was the visible pain.
-          But facilitator drag was the root cause, and facilitator-side controls (exercise start,
-          inject activation, state transitions) were descoped to a later release. I'd instrument
-          facilitator workflows earlier and treat them as the primary user of state transitions,
-          not a secondary persona who happens to control the exercise.
-        </Callout>
+        <div className="space-y-4 my-6">
+          {[
+            {
+              num: "1",
+              title: "Early task mapping was too module-focused",
+              body: "I started by mapping tasks around the three existing surfaces — queue, comments, messages. That kept early thinking inside the product's current structure. I'd start from business outcomes earlier: \"reduce missed critical incidents,\" \"shorten time-to-triage\" — and let the surface structure fall out of that, not the reverse.",
+            },
+            {
+              num: "2",
+              title: "Limited usability testing",
+              body: "Pilots ran with four SOC teams from existing enterprise clients — useful, but narrow. Analysts at smaller orgs and at MSSPs likely have different workflows we didn't observe. I'd push for broader participant recruitment earlier — including non-customer analysts — to surface patterns the existing customer base doesn't show.",
+            },
+            {
+              num: "3",
+              title: "Would explore predictive analytics for proactive detection",
+              body: "The redesign made reactive triage faster. The bigger lever — and the one we didn't pull — is shifting from reactive to proactive: surfacing precursor patterns before an alert fires, scoring incident likelihood across asset clusters. I'd scope a predictive analytics workstream alongside the triage redesign, not after it.",
+            },
+          ].map((p) => (
+            <div
+              key={p.num}
+              className="bg-white rounded-xl p-5 flex items-start gap-4"
+              style={{ border: "1px solid #d4cfc8", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+            >
+              <div
+                className="rounded-full text-white flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ width: 28, height: 28, background: "#c47a5e", fontSize: 13, fontWeight: 700 }}
+              >
+                {p.num}
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 mb-1.5" style={{ fontSize: "var(--typo-ol-body-semi-size)" }}>
+                  {p.title}
+                </p>
+                <p className="text-gray-600 leading-relaxed" style={{ fontSize: "var(--typo-p-xs-size)", lineHeight: "1.6" }}>
+                  {p.body}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
 
-        <BH>Design principles this project reinforced</BH>
+        <BH>Related design principles</BH>
         <div className="space-y-3 mt-4">
           {[
             {
@@ -803,7 +755,7 @@ export function TtxCaseStudy() {
             {
               num: "2",
               title: "Design for fast orientation, not just task completion",
-              body: `"What should I do right now?" is a UX failure, not a user education problem. If the answer requires a facilitator to speak it out loud, the product hasn't done its job. Orientation time is a measurable outcome worth designing for explicitly.`,
+              body: `"What should I do right now?" is a UX failure, not a user education problem. If the answer requires a colleague to speak it out loud, the product hasn't done its job. Orientation time is a measurable outcome worth designing for explicitly.`,
             },
             {
               num: "3",
@@ -813,7 +765,7 @@ export function TtxCaseStudy() {
             {
               num: "4",
               title: "Favour patterns teams can reuse",
-              body: "The state chip, bottom sheet, and inject status patterns were built on the existing CYGNVS design system — not invented for this project. Every novel pattern is a maintenance cost. Extension is cheaper than invention.",
+              body: "The priority chip, consolidated view, and state cues were built on the existing SecureVault design system — not invented for this project. Every novel pattern is a maintenance cost. Extension is cheaper than invention.",
             },
           ].map((p) => (
             <div
@@ -847,14 +799,14 @@ export function TtxCaseStudy() {
             className="text-gray-900 font-semibold mb-3"
             style={{ fontSize: "var(--typo-h3-size)", lineHeight: "var(--typo-h3-line-height)" }}
           >
-            Want to see more of this work?
+            Want to walk through this case in more detail?
           </h3>
           <p
             className="text-gray-500 mb-8 max-w-lg mx-auto"
             style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
           >
-            I'm happy to walk through this case in detail, share additional artefacts, or demo
-            the state model in a live conversation.
+            Happy to share additional artefacts, walk through the state model and risk
+            scoring in detail, or talk through how this would apply to your product.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
             <PortfolioButton
@@ -864,12 +816,24 @@ export function TtxCaseStudy() {
               variant="primary"
               size="lg"
             >
-              Book a 30-min conversation
+              Book a 30-min intro
               <ExternalLink className="w-4 h-4" />
             </PortfolioButton>
-            <PortfolioButton href="/#work" variant="secondary" size="lg">
-              View another case study
-              <ArrowRight className="w-4 h-4" />
+            <PortfolioButton
+              href="/Eswar-AI-Native-UX-Lead-2026.pdf"
+              onClick={handleDownload}
+              variant="secondary"
+              size="lg"
+              loading={isDownloading}
+            >
+              Download Resume
+              <Download className="w-4 h-4" />
+            </PortfolioButton>
+            <PortfolioButton asChild variant="secondary" size="lg">
+              <Link to="/contact">
+                Contact Eswar
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </PortfolioButton>
           </div>
         </div>
