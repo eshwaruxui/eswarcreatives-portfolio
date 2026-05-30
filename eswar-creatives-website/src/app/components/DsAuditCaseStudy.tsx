@@ -193,6 +193,54 @@ export function DsAuditCaseStudy() {
             faster, and contribution guidelines write themselves."
           </blockquote>
 
+          {/* Atomic visual row — 4 illustrations */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-10">
+            {[
+              { src: "/assets/ds-audit/atomic-atoms.webp",     label: "Atoms",     sublabel: "Tokens · single button" },
+              { src: "/assets/ds-audit/atomic-molecules.webp", label: "Molecules", sublabel: "Search bar · form field" },
+              { src: "/assets/ds-audit/atomic-organisms.webp", label: "Organisms", sublabel: "Nav · data table · card grid" },
+              { src: "/assets/ds-audit/atomic-templates.webp", label: "Templates", sublabel: "Dashboards · forms · pages" },
+            ].map((a) => (
+              <div
+                key={a.label}
+                className="rounded-2xl p-4 text-center"
+                style={{ background: "#ffffff", border: "1px solid rgba(2, 76, 79, 0.12)" }}
+              >
+                <div
+                  className="flex items-center justify-center mb-3 rounded-xl"
+                  style={{ background: "#FAFCFC", aspectRatio: "1 / 0.8" }}
+                >
+                  <img
+                    src={a.src}
+                    alt={`Illustration representing ${a.label} in atomic design`}
+                    width={600}
+                    height={481}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-contain"
+                    style={{ maxHeight: 120 }}
+                  />
+                </div>
+                <p
+                  className="font-semibold mb-1"
+                  style={{ fontSize: "14px", color: "#0A1A1B" }}
+                >
+                  {a.label}
+                </p>
+                <p
+                  style={{
+                    fontSize: "11px",
+                    lineHeight: 1.45,
+                    color: "#024C4F",
+                    opacity: 0.7,
+                  }}
+                >
+                  {a.sublabel}
+                </p>
+              </div>
+            ))}
+          </div>
+
           {/* Atomic table */}
           <div className="overflow-x-auto -mx-1 px-1">
             <table
@@ -421,7 +469,7 @@ export function DsAuditCaseStudy() {
             Ship tokens before components
           </h2>
           <p
-            className="mb-10"
+            className="mb-8"
             style={{
               fontSize: "clamp(15px, 1.4vw, 18px)",
               lineHeight: 1.5,
@@ -429,8 +477,40 @@ export function DsAuditCaseStudy() {
               maxWidth: "640px",
             }}
           >
-            Three-tier architecture.
+            Three-tier architecture — from raw hex values to user-facing surfaces.
           </p>
+
+          {/* Token flow diagram — Hexes → Primitives → Semantic → UI */}
+          <figure
+            className="mb-10 rounded-xl overflow-hidden"
+            style={{
+              background: "#ffffff",
+              padding: "20px",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <img
+              src="/assets/ds-audit/token-flow.webp"
+              alt="Token flow diagram — Hexes (raw values) connect to Primitives (primitive.B500 = #1773D1), which map to Semantic tokens (fill-brand-default, fill-brand-hover, icon-brand-hover, text-link-hover, brand-border-focus), which appear in the User Interface as Sign Up buttons, hover states, icons, hyperlinks, and focus states."
+              width={1800}
+              height={939}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-auto block"
+            />
+            <figcaption
+              className="mt-3"
+              style={{
+                fontSize: "12px",
+                lineHeight: 1.5,
+                color: "#64748b",
+                fontStyle: "italic",
+                textAlign: "center",
+              }}
+            >
+              Hexes → Primitives → Semantic → User Interface — each layer is referenced by the next.
+            </figcaption>
+          </figure>
 
           {/* Code block */}
           <pre
