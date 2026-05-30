@@ -35,12 +35,14 @@ export function FlagshipCase() {
           className="bg-white rounded-3xl border border-black/[0.06] shadow-xl shadow-black/[0.03] overflow-hidden"
         >
           <div className="p-2">
-            <div className="grid md:grid-cols-2 gap-0">
+            <div className="grid md:grid-cols-2 gap-0 md:items-stretch">
               {/* Image */}
-              <div className="relative rounded-2xl overflow-hidden bg-gray-100 min-h-[260px] md:min-h-[400px]">
+              <div
+                className="relative rounded-2xl overflow-hidden bg-gray-100 aspect-[4/3] md:aspect-[1200/896]"
+              >
                 <ImageWithFallback
                   src={CASE_IMG}
-                  alt="Cybersecurity SaaS Dashboard"
+                  alt="SecureVault — Cut through the noise. Catch what matters."
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute top-4 left-4">
@@ -49,9 +51,9 @@ export function FlagshipCase() {
               </div>
 
               {/* Content */}
-              <div className="p-8 md:p-10 lg:p-12 flex flex-col justify-center">
+              <div className="p-7 md:p-9 lg:p-10 flex flex-col justify-center">
                 <h3
-                  className="text-text-primary mb-3"
+                  className="text-text-primary mb-4"
                   style={{
                     fontSize: "var(--typo-h3-size)",
                     fontWeight: "var(--typo-h3-weight)",
@@ -61,25 +63,15 @@ export function FlagshipCase() {
                 >
                   Reducing alert fatigue in a cybersecurity SaaS platform
                 </h3>
-                <p
-                  className="text-text-tertiary mb-6"
-                  style={{
-                    fontSize: "var(--typo-p-base-size)",
-                    lineHeight: "var(--typo-p-base-line-height)",
-                    fontWeight: "var(--typo-p-base-weight)",
-                  }}
-                >
-                  Security analysts were missing critical alerts in a noisy, fragmented triage workflow.
-                </p>
 
                 {/* Tags */}
-                <div className="flex flex-wrap gap-2 mb-8">
+                <div className="flex flex-wrap gap-2 mb-5">
                   {["Enterprise SaaS", "Cybersecurity", "High-risk / NDA"].map((tag) => (
                     <Tag key={tag} variant="outlined" size="md">{tag}</Tag>
                   ))}
                 </div>
 
-                {/* Key decisions */}
+                {/* Highlights — merged decisions + outcomes */}
                 <div className="mb-6">
                   <h4
                     className="text-text-quaternary mb-2 uppercase"
@@ -90,33 +82,13 @@ export function FlagshipCase() {
                       letterSpacing: "var(--typo-h9-letter-spacing)",
                     }}
                   >
-                    Key decisions
+                    Highlights
                   </h4>
                   <ul className="space-y-1.5">
                     <BulletItem>
-                      Merged 3 tools into a single incident view aligned to analyst mental model.
+                      Merged 3 tools into a single incident view with risk-based scoring.
                     </BulletItem>
-                    <BulletItem>
-                      Re-prioritised alerts using risk-based scoring and clear confidence labels.
-                    </BulletItem>
-                  </ul>
-                </div>
-
-                {/* Outcomes */}
-                <div className="mb-8">
-                  <h4
-                    className="text-text-quaternary mb-2 uppercase"
-                    style={{
-                      fontSize: "var(--typo-h9-size)",
-                      lineHeight: "var(--typo-h9-line-height)",
-                      fontWeight: "var(--typo-h9-weight)",
-                      letterSpacing: "var(--typo-h9-letter-spacing)",
-                    }}
-                  >
-                    Outcomes & metrics
-                  </h4>
-                  <ul className="space-y-1.5">
-                    <BulletItem>–32% time-to-triage critical alerts.</BulletItem>
+                    <BulletItem>−32% time-to-triage critical alerts.</BulletItem>
                     <BulletItem>+18% analyst satisfaction with workflows.</BulletItem>
                   </ul>
                 </div>
