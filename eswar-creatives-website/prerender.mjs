@@ -18,12 +18,12 @@ const routeMeta = {
     description: 'Tell us about your business, your vision, and the soul of the work you do. Eswar Creatives will review your brief within three working days.',
   },
   '/work/cygnvs-ttx': {
-    title: 'SecureVault — Reducing alert fatigue · Eswar',
-    description: 'How I cut time-to-triage for critical alerts by 32% in a cybersecurity SaaS platform — by redesigning the alert pipeline around state-aware navigation and risk-based scoring.',
+    title: 'CYGNVS TTX — UX Case Study · Eswar',
+    description: 'How I reduced cognitive load in cyber tabletop exercises by designing a state-aware navigation system for CYGNVS TTX — delivered across Web, iOS, and Android in 12 weeks.',
   },
   '/work/securevault': {
     title: 'SecureVault — Reducing alert fatigue · Eswar',
-    description: 'How I cut time-to-triage for critical alerts by 32% in a cybersecurity SaaS platform — by redesigning the alert pipeline around state-aware navigation and risk-based scoring.',
+    description: 'How I cut time-to-triage for critical alerts by 32% in a cybersecurity SaaS platform — by redesigning the alert pipeline around consolidated incident views and risk-based scoring.',
   },
 };
 

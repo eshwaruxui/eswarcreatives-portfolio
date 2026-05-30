@@ -5,6 +5,7 @@ import { DesignSystemPage } from "./components/DesignSystemPage";
 import { ContactPage } from "./components/ContactPage";
 import { BrandIdentityDiscoveryPage } from "./components/BrandIdentityDiscoveryPage";
 import { TtxCaseStudy } from "./components/TtxCaseStudy";
+import { SecureVaultCaseStudy } from "./components/SecureVaultCaseStudy";
 import { ServicesPage } from "./components/ServicesPage";
 import { NotFound } from "./components/NotFound";
 
@@ -18,7 +19,7 @@ export const routeConfig = [
       { path: "/contact",                           Component: ContactPage },
       { path: "/branding/brand-identity-discovery", Component: BrandIdentityDiscoveryPage },
       { path: "/work/cygnvs-ttx",                   Component: TtxCaseStudy },
-      { path: "/work/securevault",                  Component: TtxCaseStudy },
+      { path: "/work/securevault",                  Component: SecureVaultCaseStudy },
       { path: "/services",                          Component: ServicesPage },
       { path: "*",                                  Component: NotFound },
     ],
