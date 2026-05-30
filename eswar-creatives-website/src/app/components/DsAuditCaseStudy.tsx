@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Link } from "react-router";
 import { ArrowRight, ChevronRight, ExternalLink, Download } from "lucide-react";
 import { motion } from "motion/react";
@@ -7,157 +7,8 @@ import { Tag } from "./ui/tag";
 import { PortfolioButton } from "./ui/portfolio-button";
 import { useResumeDownload } from "./useResumeDownload";
 
-// ── Inline callout block ─────────────────────────────────────
-function Callout({
-  label,
-  children,
-  variant = "teal",
-  className = "",
-}: {
-  label?: string;
-  children: React.ReactNode;
-  variant?: "teal" | "amber" | "blue";
-  className?: string;
-}) {
-  const styles: Record<string, { border: string; bg: string; borderWidth: string; italic: boolean }> = {
-    teal:  { border: "#0d9488", bg: "#f0faf9",  borderWidth: "4px", italic: false },
-    amber: { border: "#c47a5e", bg: "#fdf6f0",  borderWidth: "3px", italic: true  },
-    blue:  { border: "#1773D1", bg: "#eff6ff",  borderWidth: "4px", italic: false },
-  };
-  const { border, bg, borderWidth, italic } = styles[variant];
-  return (
-    <div
-      className={`rounded-r-xl px-5 py-4 ${className}`}
-      style={{ borderLeft: `${borderWidth} solid ${border}`, background: bg }}
-    >
-      {label && (
-        <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-gray-400 mb-2">
-          {label}
-        </p>
-      )}
-      <div
-        className={`leading-relaxed${italic ? " italic" : ""}`}
-        style={{ color: "#1a1a1a", fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ── Section progress nav data ─────────────────────────────────
-const CS_SECTIONS = [
-  { id: "cs-brief",      label: "Quick Brief",  num: "01" },
-  { id: "cs-problem",    label: "The Problem",  num: "02" },
-  { id: "cs-approach",   label: "The Approach", num: "03" },
-  { id: "cs-result",     label: "The Result",   num: "04" },
-  { id: "cs-learning",   label: "Learning",     num: "05" },
-];
-
-// ── Case section layout ──────────────────────────────────────
-function CsSection({
-  num,
-  title,
-  children,
-  id,
-}: {
-  num: string;
-  title: string;
-  children: React.ReactNode;
-  id?: string;
-}) {
-  return (
-    <section id={id} className="border-t border-[#d4cfc8] py-16 md:py-20">
-      <div className="max-w-5xl mx-auto px-6">
-        <div className="grid md:grid-cols-[200px_1fr] gap-8 md:gap-14">
-          <div className="flex-shrink-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-400 mb-2">{num}</p>
-            <h2
-              className="text-gray-900 font-semibold md:sticky md:top-24"
-              style={{
-                fontSize: "var(--typo-h3-size)",
-                lineHeight: "var(--typo-h3-line-height)",
-                letterSpacing: "var(--typo-h3-letter-spacing)",
-              }}
-            >
-              {title}
-            </h2>
-          </div>
-          <div className="min-w-0 space-y-0">{children}</div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── Section body heading ──────────────────────────────────────
-function BH({ children }: { children: React.ReactNode }) {
-  return (
-    <h3
-      className="text-gray-900 font-semibold mt-8 mb-3 first:mt-0"
-      style={{ fontSize: "var(--typo-ol-body-semi-size)", lineHeight: "1.4" }}
-    >
-      {children}
-    </h3>
-  );
-}
-
-// ── Body paragraph ───────────────────────────────────────────
-function BP({ children }: { children: React.ReactNode }) {
-  return (
-    <p
-      className="text-gray-600 mb-4 last:mb-0"
-      style={{
-        fontSize: "var(--typo-p-base-size)",
-        lineHeight: "var(--typo-p-base-line-height)",
-      }}
-    >
-      {children}
-    </p>
-  );
-}
-
-// ── Numbered step card (vertical) ────────────────────────────
-function StepCard({
-  num,
-  title,
-  children,
-}: {
-  num: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="bg-white rounded-2xl p-6 md:p-7"
-      style={{ border: "1px solid #d4cfc8", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
-    >
-      <div className="flex items-start gap-4">
-        <div
-          className="rounded-full text-white flex items-center justify-center flex-shrink-0"
-          style={{ width: 32, height: 32, background: "#1773D1", fontSize: 13, fontWeight: 700 }}
-        >
-          {num}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p
-            className="font-semibold leading-snug mb-3"
-            style={{ fontSize: "var(--typo-ol-body-semi-size)", lineHeight: "1.4", color: "#1a1a1a" }}
-          >
-            {title}
-          </p>
-          <div className="text-gray-600 leading-relaxed" style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}>
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main component ───────────────────────────────────────────
 export function DsAuditCaseStudy() {
-  const [activeSection, setActiveSection] = useState<string>("");
   const { handleDownload, isDownloading } = useResumeDownload();
 
   useEffect(() => {
@@ -170,7 +21,7 @@ export function DsAuditCaseStudy() {
     if (metaDesc) {
       metaDesc.setAttribute(
         "content",
-        "A structured 30-day plan to take a broken Figma library from zero trust to full adoption — token architecture, Figma-to-code handoff, and documentation strategy."
+        "A structured 30-day plan to take a broken Figma library from zero trust to full adoption — atomic foundation, token architecture, Figma-to-code handoff, and documentation strategy."
       );
     }
     const prevBg = document.documentElement.style.background;
@@ -182,21 +33,6 @@ export function DsAuditCaseStudy() {
     };
   }, []);
 
-  useEffect(() => {
-    const observers: IntersectionObserver[] = [];
-    CS_SECTIONS.forEach(({ id }) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const obs = new IntersectionObserver(
-        ([entry]) => { if (entry.isIntersecting) setActiveSection(id); },
-        { rootMargin: "-20% 0px -70% 0px", threshold: 0 }
-      );
-      obs.observe(el);
-      observers.push(obs);
-    });
-    return () => observers.forEach((o) => o.disconnect());
-  }, []);
-
   return (
     <div
       className="min-h-screen w-full"
@@ -204,9 +40,11 @@ export function DsAuditCaseStudy() {
     >
       <Navbar />
 
-      {/* ── HERO ──────────────────────────────────────────── */}
+      {/* ══════════════════════════════════════════════════════
+          SECTION 1 — COVER
+          ══════════════════════════════════════════════════════ */}
       <header className="pt-20 md:pt-24">
-        <div className="max-w-5xl mx-auto px-6 pb-14 md:pb-16" style={{ borderBottom: "1px solid #d4cfc8" }}>
+        <div className="max-w-5xl mx-auto px-6 pb-16 md:pb-20">
 
           {/* Breadcrumb */}
           <nav
@@ -221,7 +59,7 @@ export function DsAuditCaseStudy() {
             <span className="text-gray-600 font-medium">Design System Audit &amp; Roadmap</span>
           </nav>
 
-          {/* Context badge — teal pill */}
+          {/* Context badge */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -240,7 +78,7 @@ export function DsAuditCaseStudy() {
             role="note"
           >
             <span aria-hidden="true">●</span>
-            <span>Process case study — no client data. Based on a DS Manager assignment brief.</span>
+            <span>Process case study — based on a DS Manager assignment brief</span>
           </motion.div>
 
           {/* Meta chips */}
@@ -257,11 +95,11 @@ export function DsAuditCaseStudy() {
             transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
             className="text-gray-900 mb-5"
             style={{
-              fontSize: "clamp(26px, 4vw, 46px)",
+              fontSize: "clamp(28px, 4.4vw, 50px)",
               fontWeight: 700,
-              lineHeight: 1.15,
+              lineHeight: 1.1,
               letterSpacing: "-0.02em",
-              maxWidth: "820px",
+              maxWidth: "880px",
             }}
           >
             Design System Audit &amp;{" "}
@@ -312,438 +150,648 @@ export function DsAuditCaseStudy() {
         </div>
       </header>
 
-      {/* ── SECTION PROGRESS NAV ──────────────────────────── */}
-      <nav
-        className="sticky z-40 bg-white/95 backdrop-blur-sm"
-        style={{ top: 57, borderBottom: "1px solid #d4cfc8" }}
-        aria-label="Case study sections"
-      >
-        <div className="max-w-5xl mx-auto px-6 overflow-x-auto">
-          <div className="flex min-w-max">
-            {CS_SECTIONS.map(({ id, label, num }) => {
-              const isActive = activeSection === id;
-              return (
-                <a
-                  key={id}
-                  href={`#${id}`}
-                  className={`flex items-center gap-2 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] border-b-2 transition-all duration-200 whitespace-nowrap ${
-                    isActive
-                      ? "border-[#0d9488] text-[#0d9488]"
-                      : "border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300"
-                  }`}
-                >
-                  <span className={isActive ? "text-[#0d9488]" : "text-gray-300"}>{num}</span>
-                  {label}
-                </a>
-              );
-            })}
-          </div>
-        </div>
-      </nav>
-
-      {/* ── SECTION 01: QUICK BRIEF ───────────────────────── */}
-      <CsSection id="cs-brief" num="01" title="Quick Brief">
-        {/* Three outcome cards */}
-        <div
-          className="grid grid-cols-1 md:grid-cols-3 gap-px rounded-2xl overflow-hidden"
-          style={{ background: "#d4cfc8", border: "1.5px solid #d4cfc8" }}
-        >
-          {[
-            { val: "30 days", label: "Time-to-trust roadmap" },
-            { val: "3-tier",  label: "Token architecture (primitive → semantic → component)" },
-            { val: "Zero",    label: "Hard-coded values in stable components" },
-          ].map((m) => (
-            <div key={m.label} className="bg-white px-6 py-6">
-              <p
-                className="font-bold mb-1.5"
-                style={{ fontSize: "clamp(26px, 3vw, 36px)", lineHeight: 1, color: "#1a1a1a", fontWeight: 700 }}
-              >
-                {m.val}
-              </p>
-              <p
-                className="leading-snug"
-                style={{ fontSize: "12px", lineHeight: "1.4", color: "#5a5550" }}
-              >
-                {m.label}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Pull quote */}
-        <div
-          className="relative mt-8 mb-2"
-          style={{
-            background: "#ffffff",
-            border: "1px solid #d4cfc8",
-            borderLeft: "3px solid #1773D1",
-            borderRadius: "0 10px 10px 0",
-            padding: "22px 24px",
-          }}
-        >
-          <span
-            className="text-gray-200 absolute top-3 left-4 text-5xl leading-none select-none font-serif"
-            aria-hidden="true"
-          >
-            "
-          </span>
+      {/* ══════════════════════════════════════════════════════
+          SECTION 2 — THE FOUNDATION  (light teal bg)
+          ══════════════════════════════════════════════════════ */}
+      <section className="py-16 md:py-24" style={{ background: "#EAF3F3" }}>
+        <div className="max-w-5xl mx-auto px-6">
           <p
-            className="pl-6 leading-relaxed"
-            style={{ color: "#1a1a1a", fontStyle: "italic", fontSize: "17px", lineHeight: "1.6" }}
+            className="text-[11px] font-semibold uppercase tracking-[0.12em] mb-3"
+            style={{ color: "#024C4F", opacity: 0.7 }}
           >
-            The real problem isn't broken components — it's invisible ones. Teams stop using
-            a design system when they can't trust it. My first 30 days are about earning
-            trust through quick, visible fixes, not a six-week audit report nobody reads.
+            The Foundation
           </p>
-        </div>
-      </CsSection>
+          <h2
+            className="mb-8"
+            style={{
+              fontSize: "clamp(26px, 3.6vw, 40px)",
+              fontWeight: 600,
+              lineHeight: 1.15,
+              letterSpacing: "-0.02em",
+              color: "#0A1A1B",
+              maxWidth: "780px",
+            }}
+          >
+            Atomic Design — not just a filing system
+          </h2>
 
-      {/* ── SECTION 02: THE PROBLEM ───────────────────────── */}
-      <CsSection id="cs-problem" num="02" title="The Problem">
-        <BH>What a broken design system actually looks like</BH>
-        <BP>
-          I've rebuilt a design system from scratch at CYGNVS — cross-platform (Web / iOS /
-          Android). The recurring pattern: systems don't fail because of bad components,
-          they fail because of invisible ones. Hard-coded hex values, raw spacing numbers,
-          no token adoption, documentation nobody reads, and engineers who stopped trusting
-          Figma three sprints ago.
-        </BP>
+          {/* Pull quote — full width */}
+          <blockquote
+            className="mb-12"
+            style={{
+              fontSize: "clamp(18px, 1.9vw, 24px)",
+              lineHeight: 1.45,
+              color: "#024C4F",
+              fontStyle: "italic",
+              borderLeft: "3px solid #024C4F",
+              paddingLeft: "20px",
+              maxWidth: "960px",
+            }}
+          >
+            "Atomic Design isn't just a filing system — it's a shared mental model. When
+            designers and engineers use the same vocabulary, handoffs shrink, reviews get
+            faster, and contribution guidelines write themselves."
+          </blockquote>
 
-        <BH>Three failure modes</BH>
-        <div className="grid sm:grid-cols-3 gap-3 mt-3">
-          {[
-            {
-              num: "1",
-              label: "Token adoption gap",
-              body: "Hard-coded hex values, raw spacing numbers, and inline font sizes scattered across components. Figma Analytics reveals the true scale.",
-            },
-            {
-              num: "2",
-              label: "Invisible broken components",
-              body: "Teams build workarounds rather than flag issues. The system appears stable while quietly diverging from production.",
-            },
-            {
-              num: "3",
-              label: "Documentation nobody reads",
-              body: "Written for completeness, not for the person searching at 11 PM with a deadline. No clear reader type, no rationale, no ownership.",
-            },
-          ].map((c) => (
-            <div
-              key={c.num}
-              className="bg-white rounded-xl px-4 py-4"
-              style={{ border: "1px solid #d4cfc8", borderLeft: "4px solid #1773D1", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
-            >
-              <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-gray-400 mb-1.5">
-                Failure mode {c.num}
-              </p>
-              <p className="font-semibold text-gray-900 mb-1.5" style={{ fontSize: "13px" }}>
-                {c.label}
-              </p>
-              <p className="text-gray-600 leading-relaxed" style={{ fontSize: "var(--typo-p-xs-size)", lineHeight: "1.6" }}>
-                {c.body}
-              </p>
-            </div>
-          ))}
-        </div>
-      </CsSection>
-
-      {/* ── SECTION 03: THE APPROACH ──────────────────────── */}
-      <CsSection id="cs-approach" num="03" title="The Approach">
-        <BH>First 30 days — earn trust, then scale</BH>
-        <BP>
-          Rather than disappearing for a month and re-emerging with "v2," I fix P1 issues in
-          the live library with a clear changelog, open a #design-system Slack channel, and
-          make progress visible weekly.
-        </BP>
-
-        <div className="space-y-4 mt-6">
-          <StepCard num="1" title="Audit fast (Week 1)">
-            <p className="mb-3">Two parallel tracks:</p>
-            <ul className="space-y-2 mb-4" style={{ paddingLeft: "1.1em" }}>
-              <li style={{ listStyle: "disc" }}>
-                <strong className="text-gray-800">Figma Analytics + codebase scan:</strong>{" "}
-                how many hard-coded hex values, raw spacing numbers, or inline font sizes
-                exist? This reveals the true "token adoption gap."
-              </li>
-              <li style={{ listStyle: "disc" }}>
-                <strong className="text-gray-800">20-minute interviews</strong> with 3–4
-                designers and 2 engineers. Question: "What's the one thing in the system
-                that costs you the most time?" Listen for patterns, not feature requests.
-              </li>
-            </ul>
-            <p className="mb-3">
-              Score every issue against two axes:{" "}
-              <strong className="text-gray-800">frequency and effort.</strong>{" "}
-              High-frequency, low-effort issues become Week 3 fixes. Everything else gets
-              sequenced.
-            </p>
-            <p>
-              Critically: map each issue to its Atomic level — is this broken at the
-              token/atom level, or a molecule/organism that's only broken because its
-              underlying atom is wrong? Fixing a token fixes every component that inherits it.
-            </p>
-          </StepCard>
-
-          <StepCard num="2" title="Ship tokens before components (Week 2–3)">
-            <p className="mb-3">Three-tier token architecture:</p>
-            <ul className="space-y-1.5 mb-4" style={{ paddingLeft: "1.1em" }}>
-              <li style={{ listStyle: "disc" }}>
-                <strong className="text-gray-800">Primitive:</strong>{" "}
-                <code style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "13px", color: "#1773D1" }}>
-                  color.primitive.B500 = #1773D1
-                </code>
-              </li>
-              <li style={{ listStyle: "disc" }}>
-                <strong className="text-gray-800">Semantic:</strong>{" "}
-                <code style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "13px", color: "#1773D1" }}>
-                  color.semantic.surface.default → color.primitive.B500
-                </code>
-              </li>
-              <li style={{ listStyle: "disc" }}>
-                <strong className="text-gray-800">Component:</strong>{" "}
-                <code style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "13px", color: "#1773D1" }}>
-                  color.component.button.bg.primary → color.semantic.surface.default
-                </code>
-              </li>
-            </ul>
-
-            <p className="mb-2">Output per platform:</p>
-            <pre
-              className="overflow-x-auto rounded-lg p-4 mb-4"
+          {/* Atomic table */}
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table
+              className="w-full"
               style={{
-                background: "#0f172a",
-                color: "#e2e8f0",
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                borderCollapse: "collapse",
+                fontFamily: "Inter, var(--font-family-primary), sans-serif",
                 fontSize: "13px",
-                lineHeight: "1.65",
               }}
             >
-              <code>
-                <span style={{ color: "#7dd3c0" }}>{"// CSS"}</span>{"\n"}
-                <span style={{ color: "#cbd5e1" }}>{"--ds-button-bg-primary: "}</span>
-                <span style={{ color: "#93c5fd" }}>{"#1773D1"}</span>
-                <span style={{ color: "#cbd5e1" }}>{";"}</span>{"\n\n"}
-                <span style={{ color: "#7dd3c0" }}>{"// Swift"}</span>{"\n"}
-                <span style={{ color: "#cbd5e1" }}>{"DSColor."}</span>
-                <span style={{ color: "#fcd34d" }}>{"buttonBgPrimary"}</span>
-              </code>
-            </pre>
-
-            <p>
-              <strong className="text-gray-800">Verifying developer implementation:</strong>{" "}
-              visual QA session with Figma frame and live build side-by-side, plus a token
-              audit script that confirms no hard-coded values remain. Run before every
-              component is marked "stable."
-            </p>
-          </StepCard>
-
-          <StepCard num="3" title="Fix high-impact components (Week 3–4)">
-            <p>
-              <strong className="text-gray-800">Before "shipped" checklist:</strong> token
-              parity, responsive breakpoints, dark mode, keyboard a11y, motion. No
-              exceptions — a component without documentation is "beta," not "stable."
-            </p>
-          </StepCard>
-
-          <StepCard num="4" title="Atomic structure as shared mental model">
-            <p className="mb-4">
-              Atomic Design isn't just a filing system — it's a shared mental model. When
-              designers and engineers use the same vocabulary (atoms, molecules, organisms),
-              handoffs shrink, reviews get faster, and contribution guidelines write themselves.
-            </p>
-
-            <div
-              className="overflow-x-auto rounded-lg overflow-hidden bg-white"
-              style={{ border: "1px solid #d4cfc8" }}
-            >
-              <table className="w-full border-collapse" style={{ fontFamily: "Inter, var(--font-family-primary), sans-serif" }}>
-                <thead>
-                  <tr style={{ background: "#f0ede8", borderBottom: "2px solid #d4cfc8" }}>
-                    {["Atomic level", "Contents", "Audit focus"].map((h) => (
-                      <th
-                        key={h}
-                        className="text-left py-3 px-4 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    {
-                      level: "Foundations / Atoms",
-                      contents: "Tokens, typography, spacing, icons, single button, input field",
-                      focus: "Token consistency",
-                    },
-                    {
-                      level: "Molecules",
-                      contents: "Search bar, form field — simple testable combos",
-                      focus: "Composition",
-                    },
-                    {
-                      level: "Organisms",
-                      contents: "Nav bar, data table, card grid",
-                      focus: "Responsive behaviour",
-                    },
-                    {
-                      level: "Templates / Pages",
-                      contents: "Dashboards, forms, empty states — usage guidelines only",
-                      focus: "Handoff boundary",
-                    },
-                  ].map((row, i) => (
-                    <tr
-                      key={i}
-                      className="last:border-0"
-                      style={{ borderBottom: "1px solid #e8e3dc", fontSize: "13px" }}
+              <thead>
+                <tr style={{ borderBottom: "2px solid #024C4F" }}>
+                  {["Level", "Contents", "Audit focus"].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left py-3 px-4 text-[10px] font-semibold uppercase tracking-[0.06em]"
+                      style={{ color: "#024C4F" }}
                     >
-                      <td className="py-3 px-4 font-semibold align-top" style={{ color: "#1a1a1a" }}>
-                        {row.level}
-                      </td>
-                      <td className="py-3 px-4 align-top" style={{ color: "#5a5550" }}>
-                        {row.contents}
-                      </td>
-                      <td className="py-3 px-4 align-top font-medium" style={{ color: "#1773D1" }}>
-                        {row.focus}
-                      </td>
-                    </tr>
+                      {h}
+                    </th>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </StepCard>
-        </div>
-      </CsSection>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  {
+                    level: "Foundations / Atoms",
+                    contents:
+                      "Tokens, typography, spacing, icons, single button, input — cannot be broken down further. This is where tokens live.",
+                    focus: "Token consistency",
+                  },
+                  {
+                    level: "Molecules",
+                    contents:
+                      "Search field + button = search bar. Label + input + error = form field. Simple, testable, reusable.",
+                    focus: "Composition",
+                  },
+                  {
+                    level: "Organisms",
+                    contents:
+                      "Navigation bar, data table with filters, card grid — what product designers compose directly in Figma.",
+                    focus: "Responsive behaviour",
+                  },
+                  {
+                    level: "Templates / Pages",
+                    contents:
+                      "Dashboards, forms, empty states. Usage guidelines in Notion/Storybook, not live components. The system's handoff boundary.",
+                    focus: "Handoff boundary",
+                  },
+                ].map((row) => (
+                  <tr
+                    key={row.level}
+                    style={{ borderBottom: "1px solid rgba(2, 76, 79, 0.18)" }}
+                  >
+                    <td className="py-4 px-4 align-top font-semibold" style={{ color: "#0A1A1B" }}>
+                      {row.level}
+                    </td>
+                    <td className="py-4 px-4 align-top" style={{ color: "#0A1A1B", opacity: 0.78, lineHeight: 1.6 }}>
+                      {row.contents}
+                    </td>
+                    <td className="py-4 px-4 align-top font-medium" style={{ color: "#024C4F", whiteSpace: "nowrap" }}>
+                      {row.focus}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-      {/* ── SECTION 04: THE RESULT ────────────────────────── */}
-      <CsSection id="cs-result" num="04" title="The Result">
-        <BH>Documentation strategy</BH>
-        <BP>
-          Documentation fails when it's written for completeness, not for the person
-          searching at 11 PM with a deadline. I write for two reader types: the designer
-          asking <em>"when do I use this?"</em> and the engineer asking{" "}
-          <em>"how do I build this?"</em>
-        </BP>
-
-        {/* 3-column structure card */}
-        <div className="grid md:grid-cols-3 gap-3 mt-6">
-          {[
-            {
-              label: "Foundations",
-              body: "Tokens, typography scale, colour system, spacing, motion principles. The “why” behind every visual decision.",
-            },
-            {
-              label: "Components (Molecules & Organisms)",
-              body: "Anatomy, states, usage do/don't, props/variants, a11y notes, code snippet. Each page declares its Atomic level and links to consuming organisms.",
-            },
-            {
-              label: "Patterns (Templates & Pages)",
-              body: "“Use a ghost button when the action is secondary to the primary CTA on the same surface” — not “A ghost button has a transparent background.” Every rule has a rationale.",
-            },
-          ].map((c) => (
-            <div
-              key={c.label}
-              className="bg-white rounded-xl p-5"
-              style={{ border: "1px solid #d4cfc8", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
-            >
-              <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-gray-400 mb-2">
-                Doc layer
-              </p>
-              <p className="font-semibold text-gray-900 mb-2" style={{ fontSize: "14px" }}>
-                {c.label}
-              </p>
-              <p className="text-gray-600 leading-relaxed" style={{ fontSize: "var(--typo-p-xs-size)", lineHeight: "1.6" }}>
-                {c.body}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Dual-tool approach */}
-        <Callout label="Dual-tool approach" variant="blue" className="my-6">
-          <p className="mb-2">
-            <strong className="text-gray-900">Notion</strong> hosts decision logs, principles,
-            and visual usage guidance — the "why" layer Storybook can't carry.
+          {/* Footnote */}
+          <p
+            className="mt-8"
+            style={{
+              fontSize: "13px",
+              lineHeight: 1.6,
+              color: "#024C4F",
+              fontStyle: "italic",
+              opacity: 0.85,
+              maxWidth: "760px",
+            }}
+          >
+            Atomic structure makes audits structural — scan atoms for token consistency,
+            molecules for composition, organisms for responsive behaviour.
           </p>
-          <p>
-            A Storybook component page links to Notion rationale. A Notion component page
-            links to the live Storybook story.
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          SECTION 3 — THE AUDIT APPROACH  (white)
+          ══════════════════════════════════════════════════════ */}
+      <section className="py-16 md:py-24">
+        <div className="max-w-5xl mx-auto px-6">
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-3"
+          >
+            The Audit Approach
           </p>
-        </Callout>
+          <h2
+            className="mb-3 text-gray-900"
+            style={{
+              fontSize: "clamp(26px, 3.6vw, 40px)",
+              fontWeight: 600,
+              lineHeight: 1.15,
+              letterSpacing: "-0.02em",
+              maxWidth: "780px",
+            }}
+          >
+            First 30 days — earn trust, then scale
+          </h2>
+          <p
+            className="mb-6"
+            style={{
+              fontSize: "clamp(17px, 1.7vw, 21px)",
+              lineHeight: 1.4,
+              color: "#1773D1",
+              fontWeight: 500,
+              maxWidth: "780px",
+            }}
+          >
+            The real problem isn't broken components — it's invisible ones.
+          </p>
+          <p
+            className="text-gray-600 mb-12"
+            style={{
+              fontSize: "var(--typo-p-base-size)",
+              lineHeight: "var(--typo-p-base-line-height)",
+              maxWidth: "760px",
+            }}
+          >
+            Teams stop using a design system when they can't trust it. My first 30 days are
+            about earning trust through quick, visible fixes — not a six-week audit report
+            nobody reads. Rather than disappearing for a month and re-emerging with "v2," I
+            fix P1 issues in the live library with a clear changelog and open a
+            #design-system Slack channel.
+          </p>
 
-        {/* Quality gates */}
-        <BH>Quality gates</BH>
-        <ul className="space-y-2 mt-2" style={{ paddingLeft: "1.1em" }}>
-          <li style={{ listStyle: "disc", color: "#5a5550", fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}>
-            A component without documentation is{" "}
-            <strong className="text-gray-900">not "stable" — it's "beta."</strong> No exceptions.
-          </li>
-          <li style={{ listStyle: "disc", color: "#5a5550", fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}>
-            <strong className="text-gray-900">Quarterly doc review sprint:</strong> every
-            component page has a one-click "Flag as outdated" link that creates a Jira ticket.
-          </li>
-        </ul>
-      </CsSection>
-
-      {/* ── SECTION 05: LEARNING ──────────────────────────── */}
-      <CsSection id="cs-learning" num="05" title="Learning">
-        <BH>What I'd do differently</BH>
-        <BP>
-          A roadmap is a hypothesis. These are the three calls I'd revisit if I were briefed
-          on a new system tomorrow.
-        </BP>
-
-        <div className="space-y-4 my-6">
-          {[
-            {
-              num: "1",
-              title: "Start with engineer pain, not designer pain",
-              body: "The token adoption gap is always wider on the engineering side. I'd run the codebase scan before the designer interviews — it reframes every conversation that follows.",
-            },
-            {
-              num: "2",
-              title: "Ship a “system health” dashboard on day 1",
-              body: "A visible, auto-updating metric (% token adoption, % components documented) changes the team's relationship with the system. Progress you can see compounds faster than progress you report in a slide deck.",
-            },
-            {
-              num: "3",
-              title: "Contribution model needs teeth, not guidelines",
-              body: "“Anyone can contribute” doesn't work without a clear review SLA and an owner for each Atomic level. I'd assign molecule/organism ownership in week 1, not week 6.",
-            },
-          ].map((p) => (
-            <div
-              key={p.num}
-              className="bg-white rounded-xl p-5 flex items-start gap-4"
-              style={{ border: "1px solid #d4cfc8", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
-            >
+          {/* Two-track audit card */}
+          <div className="grid md:grid-cols-2 gap-4 mb-8">
+            {[
+              {
+                badge: "Track 1",
+                title: "Figma Analytics + codebase scan",
+                body: "How many hard-coded hex values, raw spacing numbers, or inline font sizes exist? This reveals the true \"token adoption gap.\"",
+              },
+              {
+                badge: "Track 2",
+                title: "20-minute interviews",
+                body: "3–4 designers and 2 engineers. One question: \"What's the one thing in the system that costs you the most time?\" Listen for patterns, not feature requests.",
+              },
+            ].map((t) => (
               <div
-                className="rounded-full text-white flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ width: 28, height: 28, background: "#c47a5e", fontSize: 13, fontWeight: 700 }}
+                key={t.badge}
+                className="bg-white rounded-2xl p-6 md:p-7"
+                style={{ border: "1px solid #d4cfc8", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
               >
-                {p.num}
-              </div>
-              <div>
-                <p className="font-semibold text-gray-900 mb-1.5" style={{ fontSize: "var(--typo-ol-body-semi-size)" }}>
-                  {p.title}
+                <p
+                  className="inline-block text-[10px] font-semibold uppercase tracking-[0.08em] mb-3 px-2.5 py-1 rounded-full"
+                  style={{ background: "#EAF3F3", color: "#024C4F" }}
+                >
+                  {t.badge}
                 </p>
-                <p className="text-gray-600 leading-relaxed" style={{ fontSize: "var(--typo-p-xs-size)", lineHeight: "1.6" }}>
-                  {p.body}
+                <h3
+                  className="font-semibold text-gray-900 mb-2"
+                  style={{ fontSize: "18px", lineHeight: 1.3 }}
+                >
+                  {t.title}
+                </h3>
+                <p
+                  className="text-gray-600"
+                  style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
+                >
+                  {t.body}
                 </p>
               </div>
-            </div>
-          ))}
-        </div>
-      </CsSection>
+            ))}
+          </div>
 
-      {/* ── FOOTER CTA ────────────────────────────────────── */}
+          {/* Scoring note */}
+          <div
+            className="rounded-xl p-6"
+            style={{
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderLeft: "4px solid #1773D1",
+            }}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-gray-400 mb-2">
+              Scoring
+            </p>
+            <p
+              className="text-gray-700"
+              style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
+            >
+              I score every issue against two axes:{" "}
+              <strong className="text-gray-900 font-semibold">frequency and effort.</strong>{" "}
+              High-frequency, low-effort issues become Week 3 fixes. Everything else gets
+              sequenced. Critically, I map each issue to its Atomic level — fixing a token
+              fixes every component that inherits it.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          SECTION 4 — TOKEN ARCHITECTURE  (dark bg)
+          ══════════════════════════════════════════════════════ */}
+      <section className="py-16 md:py-24" style={{ background: "#0f1117", color: "#e2e8f0" }}>
+        <div className="max-w-5xl mx-auto px-6">
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.12em] mb-3"
+            style={{ color: "#7dd3c0" }}
+          >
+            Token Architecture
+          </p>
+          <h2
+            className="mb-3"
+            style={{
+              fontSize: "clamp(26px, 3.6vw, 40px)",
+              fontWeight: 600,
+              lineHeight: 1.15,
+              letterSpacing: "-0.02em",
+              color: "#ffffff",
+              maxWidth: "780px",
+            }}
+          >
+            Ship tokens before components
+          </h2>
+          <p
+            className="mb-10"
+            style={{
+              fontSize: "clamp(15px, 1.4vw, 18px)",
+              lineHeight: 1.5,
+              color: "#94a3b8",
+              maxWidth: "640px",
+            }}
+          >
+            Three-tier architecture.
+          </p>
+
+          {/* Code block */}
+          <pre
+            className="overflow-x-auto rounded-xl p-5 md:p-6 mb-8"
+            style={{
+              background: "#0a0d14",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: "#e2e8f0",
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+              fontSize: "13px",
+              lineHeight: 1.75,
+            }}
+          >
+            <code>
+              <span style={{ color: "#7dd3c0" }}>{"/* Primitive — raw values */"}</span>{"\n"}
+              <span style={{ color: "#cbd5e1" }}>{"color.primitive.B500 = "}</span>
+              <span style={{ color: "#93c5fd" }}>{"#1773D1"}</span>{"\n\n"}
+              <span style={{ color: "#7dd3c0" }}>{"/* Semantic token layer — role-based */"}</span>{"\n"}
+              <span style={{ color: "#cbd5e1" }}>{"color.semantic.surface.default "}</span>
+              <span style={{ color: "#fcd34d" }}>{"→"}</span>
+              <span style={{ color: "#cbd5e1" }}>{" color.primitive.B500"}</span>{"\n\n"}
+              <span style={{ color: "#7dd3c0" }}>{"/* Component token — purpose-specific */"}</span>{"\n"}
+              <span style={{ color: "#cbd5e1" }}>{"color.component.button.bg.primary "}</span>
+              <span style={{ color: "#fcd34d" }}>{"→"}</span>
+              <span style={{ color: "#cbd5e1" }}>{" color.semantic.surface.default"}</span>{"\n\n"}
+              <span style={{ color: "#7dd3c0" }}>{"/* Output per platform */"}</span>{"\n"}
+              <span style={{ color: "#cbd5e1" }}>{"CSS:    --ds-button-bg-primary: "}</span>
+              <span style={{ color: "#93c5fd" }}>{"#1773D1"}</span>
+              <span style={{ color: "#cbd5e1" }}>{";"}</span>{"\n"}
+              <span style={{ color: "#cbd5e1" }}>{"Swift:  DSColor."}</span>
+              <span style={{ color: "#fcd34d" }}>{"buttonBgPrimary"}</span>
+            </code>
+          </pre>
+
+          {/* Verification note */}
+          <p
+            className="mb-10"
+            style={{
+              fontSize: "15px",
+              lineHeight: 1.7,
+              color: "#cbd5e1",
+              maxWidth: "780px",
+            }}
+          >
+            I use two checks in parallel — (1) a visual QA session with a Figma frame and
+            the live build side-by-side, and (2) a token audit script that confirms no
+            hard-coded values remain. Run before every component is marked "stable."
+          </p>
+
+          {/* Before "shipped" checklist — pill row */}
+          <p
+            className="text-[10px] font-semibold uppercase tracking-[0.12em] mb-3"
+            style={{ color: "#7dd3c0" }}
+          >
+            Before "shipped" checklist
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {["Token parity", "Responsive breakpoints", "Dark mode", "Keyboard a11y", "Motion"].map((p) => (
+              <span
+                key={p}
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full"
+                style={{
+                  background: "rgba(125, 211, 192, 0.08)",
+                  border: "1px solid rgba(125, 211, 192, 0.35)",
+                  color: "#e2e8f0",
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  fontFamily: "Inter, var(--font-family-primary), sans-serif",
+                }}
+              >
+                <span style={{ color: "#7dd3c0", fontWeight: 700 }} aria-hidden="true">✓</span>
+                {p}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          SECTION 5 — DOCUMENTATION STRATEGY  (white)
+          ══════════════════════════════════════════════════════ */}
+      <section className="py-16 md:py-24">
+        <div className="max-w-5xl mx-auto px-6">
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-3"
+          >
+            Documentation Strategy
+          </p>
+          <h2
+            className="text-gray-900 mb-8"
+            style={{
+              fontSize: "clamp(26px, 3.6vw, 40px)",
+              fontWeight: 600,
+              lineHeight: 1.15,
+              letterSpacing: "-0.02em",
+              maxWidth: "780px",
+            }}
+          >
+            Documentation that gets read
+          </h2>
+
+          {/* Large quote */}
+          <blockquote
+            className="mb-12"
+            style={{
+              fontSize: "clamp(20px, 2.2vw, 28px)",
+              lineHeight: 1.4,
+              color: "#0A1A1B",
+              fontStyle: "italic",
+              borderLeft: "3px solid #1773D1",
+              paddingLeft: "20px",
+              maxWidth: "960px",
+            }}
+          >
+            "Documentation fails when it's written for completeness, not for the person
+            searching at 11 PM with a deadline."
+          </blockquote>
+
+          {/* Two reader types */}
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-3">
+            Two reader types
+          </p>
+          <div className="grid md:grid-cols-2 gap-4 mb-12">
+            {[
+              { who: "Designer", question: "When do I use this?" },
+              { who: "Engineer", question: "How do I build this?" },
+            ].map((r) => (
+              <div
+                key={r.who}
+                className="rounded-2xl p-6"
+                style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 mb-2">
+                  {r.who}
+                </p>
+                <p
+                  className="text-gray-900"
+                  style={{ fontSize: "20px", lineHeight: 1.35, fontStyle: "italic" }}
+                >
+                  "{r.question}"
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* 3-column doc structure */}
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-3">
+            Three documentation layers
+          </p>
+          <div className="grid md:grid-cols-3 gap-3 mb-12">
+            {[
+              {
+                label: "Foundations",
+                body: "Tokens, typography scale, colour system, spacing, motion. The \"why\" behind every visual decision.",
+              },
+              {
+                label: "Components",
+                body: "Anatomy, states, usage do/don't, props/variants, a11y notes, code snippet. Each page declares its Atomic level.",
+              },
+              {
+                label: "Patterns",
+                body: "\"Use a ghost button when the action is secondary to the primary CTA\" — not \"A ghost button has a transparent background.\" Every rule has a rationale.",
+              },
+            ].map((c) => (
+              <div
+                key={c.label}
+                className="bg-white rounded-xl p-5"
+                style={{ border: "1px solid #d4cfc8", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
+              >
+                <p className="font-semibold text-gray-900 mb-2" style={{ fontSize: "15px" }}>
+                  {c.label}
+                </p>
+                <p className="text-gray-600 leading-relaxed" style={{ fontSize: "13px", lineHeight: 1.6 }}>
+                  {c.body}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Dual-tool row */}
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-3">
+            Dual-tool approach
+          </p>
+          <div className="grid md:grid-cols-2 gap-4 mb-4">
+            {[
+              {
+                tool: "Notion",
+                body: "Decision logs, principles, visual usage — the \"why\" layer Storybook can't carry.",
+              },
+              {
+                tool: "Storybook",
+                body: "Live stories, component props, interactive states.",
+              },
+            ].map((t) => (
+              <div
+                key={t.tool}
+                className="rounded-2xl p-6"
+                style={{
+                  background: "#ffffff",
+                  border: "1px solid #d4cfc8",
+                  borderLeft: "4px solid #1773D1",
+                }}
+              >
+                <p className="font-semibold text-gray-900 mb-2" style={{ fontSize: "16px" }}>
+                  {t.tool}
+                </p>
+                <p
+                  className="text-gray-600"
+                  style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
+                >
+                  {t.body}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p
+            className="text-center mb-12"
+            style={{
+              fontSize: "13px",
+              fontStyle: "italic",
+              color: "#5a5550",
+            }}
+          >
+            A Storybook page links to Notion rationale. A Notion page links to the live
+            Storybook story.
+          </p>
+
+          {/* Quality gates */}
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-3">
+            Quality gates
+          </p>
+          <div className="space-y-3">
+            {[
+              "A component without documentation is not “stable” — it's “beta.” No exceptions.",
+              "Quarterly doc review sprint: one-click “Flag as outdated” link → Jira ticket. Teams stay engaged when they see their flags get resolved.",
+            ].map((q, i) => (
+              <div
+                key={i}
+                className="rounded-r-xl py-4 px-5"
+                style={{
+                  background: "#f0faf9",
+                  borderLeft: "4px solid #0d9488",
+                }}
+              >
+                <p
+                  className="text-gray-900"
+                  style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
+                >
+                  {q}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          SECTION 6 — PROOF  (teal bg)
+          ══════════════════════════════════════════════════════ */}
+      <section className="py-16 md:py-24" style={{ background: "#024C4F", color: "#ffffff" }}>
+        <div className="max-w-5xl mx-auto px-6">
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.12em] mb-3"
+            style={{ color: "#7dd3c0" }}
+          >
+            Proof
+          </p>
+          <h2
+            className="mb-5"
+            style={{
+              fontSize: "clamp(26px, 3.6vw, 40px)",
+              fontWeight: 600,
+              lineHeight: 1.15,
+              letterSpacing: "-0.02em",
+              color: "#ffffff",
+            }}
+          >
+            Applied at CYGNVS
+          </h2>
+          <p
+            className="mb-10"
+            style={{
+              fontSize: "clamp(16px, 1.6vw, 19px)",
+              lineHeight: 1.55,
+              color: "#FAF8F4",
+              maxWidth: "780px",
+            }}
+          >
+            I've shipped this end-to-end — not as a consultant, but as the sole designer
+            owning a cross-platform design system in a high-stakes cybersecurity SaaS
+            product.
+          </p>
+
+          {/* Stats row */}
+          <div
+            className="grid grid-cols-2 md:grid-cols-4 gap-px rounded-2xl overflow-hidden mb-8"
+            style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.15)" }}
+          >
+            {[
+              { val: "60+",  label: "Components" },
+              { val: "180+", label: "Semantic tokens" },
+              { val: "3",    label: "Platforms — Web + iOS + Android" },
+              { val: "Live", label: "Shipped in production" },
+            ].map((s) => (
+              <div
+                key={s.label}
+                className="px-5 py-5"
+                style={{ background: "#024C4F" }}
+              >
+                <p
+                  className="font-bold mb-1.5"
+                  style={{ fontSize: "clamp(22px, 2.4vw, 30px)", lineHeight: 1, color: "#ffffff" }}
+                >
+                  {s.val}
+                </p>
+                <p
+                  className="leading-snug"
+                  style={{ fontSize: "12px", lineHeight: 1.4, color: "rgba(255,255,255,0.7)" }}
+                >
+                  {s.label}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* NDA note */}
+          <div
+            className="inline-flex items-start gap-2"
+            style={{
+              fontSize: "12px",
+              lineHeight: 1.5,
+              color: "rgba(250, 248, 244, 0.7)",
+              fontFamily: "Inter, var(--font-family-primary), sans-serif",
+            }}
+          >
+            <span aria-hidden="true">🔒</span>
+            <span>
+              Original interface details are NDA-protected.{" "}
+              <Link
+                to="/work/securevault"
+                style={{ color: "#7dd3c0", textDecoration: "underline", textUnderlineOffset: "2px" }}
+              >
+                See the SecureVault case study
+              </Link>{" "}
+              for published outcomes.
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          FOOTER CTA  (white)
+          ══════════════════════════════════════════════════════ */}
       <div className="py-16 md:py-20 bg-white" style={{ borderTop: "1px solid #d4cfc8" }}>
         <div className="max-w-5xl mx-auto px-6 text-center">
-          <h3
-            className="text-gray-900 font-semibold mb-3"
-            style={{ fontSize: "var(--typo-h3-size)", lineHeight: "var(--typo-h3-line-height)" }}
+          <h2
+            className="text-gray-900 mb-3"
+            style={{ fontSize: "var(--typo-h3-size)", lineHeight: "var(--typo-h3-line-height)", fontWeight: 600 }}
           >
             Want to see how this applies to your system?
-          </h3>
+          </h2>
           <p
             className="text-gray-500 mb-8 max-w-lg mx-auto"
             style={{ fontSize: "var(--typo-p-base-size)", lineHeight: "var(--typo-p-base-line-height)" }}
