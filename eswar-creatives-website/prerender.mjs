@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const routes = ['/', '/about', '/design-system', '/contact', '/services', '/branding/brand-identity-discovery', '/work/cygnvs-ttx', '/work/securevault'];
+const routes = ['/', '/about', '/design-system', '/contact', '/services', '/branding/brand-identity-discovery', '/work/cygnvs-ttx', '/work/securevault', '/work/ds-audit-roadmap'];
 
 const routeMeta = {
   '/services': {
@@ -24,6 +24,10 @@ const routeMeta = {
   '/work/securevault': {
     title: 'SecureVault — Reducing alert fatigue · Eswar',
     description: 'How I cut time-to-triage for critical alerts by 32% in a cybersecurity SaaS platform — by redesigning the alert pipeline around consolidated incident views and risk-based scoring.',
+  },
+  '/work/ds-audit-roadmap': {
+    title: 'Design System Audit & Roadmap — Case Study · Eswar',
+    description: 'A structured 30-day plan to take a broken Figma library from zero trust to full adoption — token architecture, Figma-to-code handoff, and documentation strategy.',
   },
 };
 

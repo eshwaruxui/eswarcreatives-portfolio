@@ -31,6 +31,17 @@ const projects: {
     href: "/work/cygnvs-ttx",
   },
   {
+    title: "Design System Audit & Roadmap",
+    tags: ["Process case study", "Design Systems", "Documentation"],
+    role: "DS Manager Assignment",
+    context:
+      '"Systems don’t fail because of bad components, they fail because of invisible ones — hard-coded values, no token adoption, and documentation nobody reads."',
+    result: "First 30 days, token architecture, and documentation strategy for a broken Figma library.",
+    image: "/assets/ds-audit/cover.webp",
+    flagship: false,
+    href: "/work/ds-audit-roadmap",
+  },
+  {
     title: "Streamlining onboarding for a subscription billing platform",
     tags: ["Enterprise SaaS", "Productivity", "Web & Mobile"],
     role: "Product designer",
