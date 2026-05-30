@@ -35,10 +35,10 @@ export function FlagshipCase() {
           className="bg-white rounded-3xl border border-black/[0.06] shadow-xl shadow-black/[0.03] overflow-hidden"
         >
           <div className="p-2">
-            <div className="grid md:grid-cols-2 gap-0 md:items-stretch">
+            <div className="grid md:grid-cols-2 gap-0">
               {/* Image */}
               <div
-                className="relative rounded-2xl overflow-hidden bg-gray-100 aspect-[4/3] md:aspect-[16/9]"
+                className="relative rounded-2xl overflow-hidden bg-gray-100 aspect-[4/3] md:aspect-auto md:h-full md:min-h-[300px]"
               >
                 <ImageWithFallback
                   src={CASE_IMG}
