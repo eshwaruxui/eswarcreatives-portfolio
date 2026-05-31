@@ -264,7 +264,7 @@ export function SelectedWorks() {
 
                     {/* CTA — styled div, not a nested anchor */}
                     <div
-                      className="mt-auto flex items-center gap-1.5 w-fit rounded-lg border border-black/[0.1] px-3 py-2 text-xs font-medium text-gray-600 group-hover:border-[#0d9488] group-hover:text-[#0d9488] transition-colors duration-200"
+                      className="mt-auto flex items-center gap-1.5 w-fit rounded-lg border border-black/[0.1] px-3 py-2 text-xs font-medium text-gray-600 group-hover:border-[#0d9488] group-hover:text-[#0f766e] transition-colors duration-200"
                     >
                       View case study
                       <ArrowRight className="w-3 h-3" />

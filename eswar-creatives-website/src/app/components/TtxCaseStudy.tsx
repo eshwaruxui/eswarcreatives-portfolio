@@ -60,8 +60,8 @@ function ArtifactPlaceholder({
   className?: string;
 }) {
   const badgeCls = {
-    amber: "bg-amber-50 text-amber-600",
-    teal:  "bg-[#f0faf9] text-[#0d9488]",
+    amber: "bg-amber-50 text-amber-700",
+    teal:  "bg-[#f0faf9] text-[#0f766e]",
     blue:  "bg-blue-50 text-blue-700",
   }[badgeColor];
   return (
@@ -282,7 +282,7 @@ export function TtxCaseStudy() {
 
           {/* Breadcrumb */}
           <nav
-            className="flex items-center gap-1.5 text-gray-400 mb-8 pt-6 md:pt-8"
+            className="flex items-center gap-1.5 text-gray-500 mb-8 pt-6 md:pt-8"
             aria-label="Breadcrumb"
             style={{ fontSize: "var(--typo-p-xs-size)" }}
           >
@@ -308,7 +308,7 @@ export function TtxCaseStudy() {
             className="text-gray-900 mb-5"
             style={{
               fontSize: "clamp(26px, 4vw, 46px)",
-              fontWeight: 700,
+              fontWeight: 600,
               lineHeight: 1.15,
               letterSpacing: "-0.02em",
               maxWidth: "820px",
@@ -410,11 +410,11 @@ export function TtxCaseStudy() {
                   href={`#${id}`}
                   className={`flex items-center gap-2 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] border-b-2 transition-all duration-200 whitespace-nowrap ${
                     isActive
-                      ? "border-[#0d9488] text-[#0d9488]"
+                      ? "border-[#0d9488] text-[#0f766e]"
                       : "border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300"
                   }`}
                 >
-                  <span className={isActive ? "text-[#0d9488]" : "text-gray-300"}>{num}</span>
+                  <span className={isActive ? "text-[#0f766e]" : "text-gray-300"}>{num}</span>
                   {label}
                 </a>
               );

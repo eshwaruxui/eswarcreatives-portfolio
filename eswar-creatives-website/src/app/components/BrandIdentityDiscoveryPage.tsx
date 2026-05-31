@@ -212,7 +212,7 @@ function ExampleModal({
                 <p style={{ display: "none", fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 400, letterSpacing: "4px", textTransform: "uppercase", color: "#1a1a1a", margin: "0 0 12px", lineHeight: 1.2 }}>
                   SABYASACHI
                 </p>
-                <span style={{ fontSize: 10, color: "#9ca3af", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
+                <span style={{ fontSize: 10, color: "#6b7280", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
                 <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1.5px", margin: "6px 0 0" }}>
                   SABYASACHI
                 </p>
@@ -234,7 +234,7 @@ function ExampleModal({
                 <p style={{ display: "none", fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 400, letterSpacing: "6px", textTransform: "uppercase", color: "#1a1a1a", margin: "0 0 12px", lineHeight: 1.2 }}>
                   THE LEELA
                 </p>
-                <span style={{ fontSize: 10, color: "#9ca3af", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
+                <span style={{ fontSize: 10, color: "#6b7280", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
                 <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1.5px", margin: "6px 0 0" }}>
                   THE LEELA HOTELS
                 </p>
@@ -256,7 +256,7 @@ function ExampleModal({
                 <p style={{ display: "none", fontFamily: "'DM Serif Display', serif", fontSize: 26, fontWeight: 400, letterSpacing: "1px", color: "#1a1a1a", margin: "0 0 12px", lineHeight: 1.2 }}>
                   Tanishq
                 </p>
-                <span style={{ fontSize: 10, color: "#9ca3af", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
+                <span style={{ fontSize: 10, color: "#6b7280", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
                 <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1.5px", margin: "6px 0 0" }}>
                   TANISHQ
                 </p>
@@ -2126,7 +2126,7 @@ export function BrandIdentityDiscoveryPage() {
           <path d="M14 19V9M9 14l5-5 5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <p style={{ fontSize: 14, color: "#4a4a4a", margin: 0 }}>Drag files here or click to browse</p>
-        <p style={{ fontSize: 12, color: "#9ca3af", margin: 0, marginTop: 4 }}>JPG, PNG, PDF, GIF · Up to 5 files · 10MB each</p>
+        <p style={{ fontSize: 12, color: "#6b7280", margin: 0, marginTop: 4 }}>JPG, PNG, PDF, GIF · Up to 5 files · 10MB each</p>
         <input
           type="file"
           accept=".jpg,.jpeg,.png,.pdf,.gif"

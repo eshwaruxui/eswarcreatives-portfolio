@@ -111,7 +111,7 @@ export function FooterSection() {
             </div>
 
             {/* CUA Certification — inline credential */}
-            <div className="flex items-center gap-2.5 mb-4 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06] w-fit">
+            <div className="flex items-center gap-2.5 mb-4 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.12] w-fit">
               <div className="w-[22px] h-[22px] rounded-[5px] overflow-hidden shrink-0 ring-1 ring-white/[0.08]">
                 <img
                   src={hfiLogo}
@@ -226,7 +226,7 @@ export function FooterSection() {
         </motion.div>
 
         {/* Bottom */}
-        <div className="mt-16 pt-6 border-t border-white/[0.08] flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="mt-16 pt-6 border-t border-white/[0.12] flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <p
             className="text-text-inverse-quaternary"
             style={{
@@ -248,7 +248,7 @@ export function FooterSection() {
                 key={link.label}
                 href={link.href}
                 className="hover:text-gray-300 transition-colors"
-                style={{ fontSize: "13px", color: "#6b7280", textDecoration: "none" }}
+                style={{ fontSize: "13px", color: "#aeb1af", textDecoration: "none" }}
               >
                 {link.label}
               </a>

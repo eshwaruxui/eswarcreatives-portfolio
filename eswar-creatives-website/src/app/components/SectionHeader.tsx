@@ -15,7 +15,7 @@ export function SectionHeader({
   description?: string;
 }) {
   return (
-    <div className="mb-8">
+    <div className="mb-10">
       <SectionLabel className="mb-2">{label}</SectionLabel>
       <h2
         className="text-text-primary"
@@ -30,7 +30,7 @@ export function SectionHeader({
       </h2>
       {description && (
         <p
-          className="text-text-tertiary mt-2"
+          className="text-text-tertiary mt-3"
           style={{
             fontSize: "var(--typo-p-base-size)",
             lineHeight: "var(--typo-p-base-line-height)",

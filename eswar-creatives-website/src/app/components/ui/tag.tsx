@@ -25,13 +25,13 @@ const tagVariants = cva(
         subtle:
           "bg-black/[0.04] text-text-tertiary tracking-wide",
         outlined:
-          "border border-gray-200 text-text-tertiary",
+          "border border-black/[0.12] text-text-tertiary",
         filled:
           "bg-gray-100 text-text-tertiary",
         "overlay-dark":
           "bg-black/70 backdrop-blur-sm text-text-on-bold",
         "overlay-light":
-          "bg-white/90 backdrop-blur-sm text-text-secondary border border-black/5",
+          "bg-white/90 backdrop-blur-sm text-text-secondary border border-black/[0.10]",
       },
       size: {
         sm: "px-2 py-0.5",

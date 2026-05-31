@@ -79,7 +79,7 @@ export function HeroSection() {
               </PortfolioButton>
               <a
                 href="/design-system/"
-                className="demo-cta inline-flex items-center justify-center w-fit rounded-xl cursor-pointer whitespace-nowrap border border-gray-300 text-text-secondary hover:bg-gray-50 hover:-translate-y-0.5 px-6 py-3"
+                className="demo-cta inline-flex items-center justify-center w-fit rounded-xl cursor-pointer whitespace-nowrap border border-gray-400 text-text-secondary hover:bg-gray-50 hover:-translate-y-0.5 px-6 py-3"
                 style={{
                   fontSize: 'var(--typo-btn-med-size)',
                   lineHeight: 'var(--typo-btn-med-line-height)',
@@ -147,7 +147,7 @@ export function HeroSection() {
             </PortfolioButton>
             <a
               href="/design-system/"
-              className="demo-cta inline-flex items-center justify-center w-full rounded-xl cursor-pointer whitespace-nowrap border border-gray-300 text-text-secondary hover:bg-gray-50 hover:-translate-y-0.5 px-6 py-3"
+              className="demo-cta inline-flex items-center justify-center w-full rounded-xl cursor-pointer whitespace-nowrap border border-gray-400 text-text-secondary hover:bg-gray-50 hover:-translate-y-0.5 px-6 py-3"
               style={{
                 fontSize: 'var(--typo-btn-med-size)',
                 lineHeight: 'var(--typo-btn-med-line-height)',

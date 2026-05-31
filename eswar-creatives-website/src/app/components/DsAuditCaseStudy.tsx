@@ -48,7 +48,7 @@ export function DsAuditCaseStudy() {
 
           {/* Breadcrumb */}
           <nav
-            className="flex items-center gap-1.5 text-gray-400 mb-6 pt-6 md:pt-8"
+            className="flex items-center gap-1.5 text-gray-500 mb-6 pt-6 md:pt-8"
             aria-label="Breadcrumb"
             style={{ fontSize: "var(--typo-p-xs-size)" }}
           >
@@ -96,7 +96,7 @@ export function DsAuditCaseStudy() {
             className="text-gray-900 mb-5"
             style={{
               fontSize: "clamp(28px, 4.4vw, 50px)",
-              fontWeight: 700,
+              fontWeight: 600,
               lineHeight: 1.1,
               letterSpacing: "-0.02em",
               maxWidth: "880px",

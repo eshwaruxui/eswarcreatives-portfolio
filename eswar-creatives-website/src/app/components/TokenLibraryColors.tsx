@@ -957,7 +957,7 @@ function SizeTokenRow({
             {token.usage}
           </span>
           {copied && (
-            <span className="text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded" style={{ fontSize: "var(--typo-pointer-size)", lineHeight: "var(--typo-pointer-line-height)", fontWeight: "var(--typo-h9-weight)" }}>
+            <span className="text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded" style={{ fontSize: "var(--typo-pointer-size)", lineHeight: "var(--typo-pointer-line-height)", fontWeight: "var(--typo-h9-weight)" }}>
               Copied!
             </span>
           )}
@@ -1093,7 +1093,7 @@ function CornerTokenRow({
             {token.usage}
           </span>
           {copied && (
-            <span className="text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded" style={{ fontSize: "var(--typo-pointer-size)", lineHeight: "var(--typo-pointer-line-height)", fontWeight: "var(--typo-h9-weight)" }}>
+            <span className="text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded" style={{ fontSize: "var(--typo-pointer-size)", lineHeight: "var(--typo-pointer-line-height)", fontWeight: "var(--typo-h9-weight)" }}>
               Copied!
             </span>
           )}
@@ -1522,7 +1522,7 @@ export function TokenLibraryColors() {
                   Dimension
                 </span>
                 <span
-                  className="uppercase px-2 py-0.5 rounded bg-teal-50 text-teal-600 border border-teal-200"
+                  className="uppercase px-2 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200"
                   style={{ fontSize: "var(--typo-pointer-size)", lineHeight: "var(--typo-pointer-line-height)", fontWeight: "var(--typo-h9-weight)", letterSpacing: "var(--typo-h9-letter-spacing)" }}
                 >
                   8px Grid

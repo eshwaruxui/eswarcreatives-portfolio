@@ -50,8 +50,8 @@ export function Navbar() {
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 w-full ${
         scrolled
-          ? "bg-white/80 backdrop-blur-xl shadow-lg shadow-black/5 border-b border-black/5"
-          : "bg-white/60 backdrop-blur-md border-b border-black/[0.03]"
+          ? "bg-white/80 backdrop-blur-xl shadow-lg shadow-black/5 border-b border-black/[0.08]"
+          : "bg-white/60 backdrop-blur-md border-b border-black/[0.05]"
       }`}
     >
       <div className="flex items-center justify-between px-6 py-3 max-w-6xl mx-auto">
@@ -148,7 +148,7 @@ export function Navbar() {
       {mobileOpen && (
         <div
           id="mobile-nav-menu"
-          className="md:hidden border-t border-black/5 px-4 pb-4 pt-2 space-y-1 max-w-6xl mx-auto"
+          className="md:hidden border-t border-black/[0.08] px-4 pb-4 pt-2 space-y-1 max-w-6xl mx-auto"
           role="menu"
           aria-label="Navigation menu"
         >

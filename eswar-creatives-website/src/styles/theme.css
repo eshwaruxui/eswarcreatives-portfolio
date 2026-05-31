@@ -16,16 +16,16 @@
   /* ── Heading Category (17 tokens) ── */
 
   /* D — Display */
-  --typo-display-size: 48px;
-  --typo-display-weight: 700;
-  --typo-display-line-height: 56px;
-  --typo-display-letter-spacing: -0.02em;
+  --typo-display-size: 52px;
+  --typo-display-weight: 600;
+  --typo-display-line-height: 58px;
+  --typo-display-letter-spacing: -0.025em;
   --typo-display-transform: none;
 
   /* H1 — Heading XL */
   --typo-h1-size: 36px;
   --typo-h1-weight: 600;
-  --typo-h1-line-height: 44px;
+  --typo-h1-line-height: 46px;
   --typo-h1-letter-spacing: -0.02em;
   --typo-h1-transform: none;
 
@@ -39,7 +39,7 @@
   /* H2 — Heading L */
   --typo-h2-size: 30px;
   --typo-h2-weight: 600;
-  --typo-h2-line-height: 36px;
+  --typo-h2-line-height: 38px;
   --typo-h2-letter-spacing: -0.02em;
   --typo-h2-transform: none;
 
@@ -298,8 +298,8 @@
   /* ── Semantic Text Color Tokens (21) ── */
   --text-primary: #181a19;
   --text-secondary: #4b4f4e;
-  --text-tertiary: #6f7371;
-  --text-quaternary: #727674;
+  --text-tertiary: #5e625f;
+  --text-quaternary: #5e625f;
   --text-placeholder: #cacccb;
   --text-disabled: #d9dbda;
   --text-disabled-alpha: rgba(0, 0, 0, 0.30);
@@ -332,7 +332,7 @@
   /* ── Semantic Text Color Tokens (Inverse Surface — 4) ── */
   --text-inverse-secondary: #d9dbda;
   --text-inverse-tertiary: #aeb1af;
-  --text-inverse-quaternary: #7c807e;
+  --text-inverse-quaternary: #9a9d9b;
   --text-inverse-disabled: #4b4f4e;
 
   /* ── Semantic Text Color Token (Inverse Link) ── */
@@ -345,9 +345,9 @@
   --state-inverse-hover: rgba(255,255,255,0.06);
 
   /* ── Semantic Border Color Tokens (Alpha-based · 3) ── */
-  --border-light-alpha: rgba(0, 0, 0, 0.06);
-  --border-medium-alpha: rgba(0, 0, 0, 0.12);
-  --border-deep-alpha: rgba(0, 0, 0, 0.22);
+  --border-light-alpha: rgba(0, 0, 0, 0.09);
+  --border-medium-alpha: rgba(0, 0, 0, 0.16);
+  --border-deep-alpha: rgba(0, 0, 0, 0.26);
 
   /* ── Corner Radius Token — Pill ── */
   --corner-pill: 9999px;
@@ -366,7 +366,7 @@
   --accent-foreground: #030213;
   --destructive: #d4183d;
   --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
+  --border: rgba(0, 0, 0, 0.14);
   --input: transparent;
   --input-background: #f3f3f5;
   --switch-background: #cbced4;

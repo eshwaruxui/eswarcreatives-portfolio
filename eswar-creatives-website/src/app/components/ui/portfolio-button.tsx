@@ -28,11 +28,11 @@ const portfolioButtonVariants = cva(
         primary:
           "bg-interactive-primary text-text-primary hover:bg-interactive-primary-hover active:bg-interactive-primary-active hover:shadow-md hover:shadow-interactive-primary/20 hover:-translate-y-0.5",
         secondary:
-          "border border-gray-300 text-text-secondary hover:border-gray-400 hover:bg-gray-50 hover:-translate-y-0.5",
+          "border border-gray-400 text-text-secondary hover:border-gray-500 hover:bg-gray-50 hover:-translate-y-0.5",
         ghost:
           "text-text-primary hover:text-black",
         inverse:
-          "border border-white/[0.15] text-text-inverse-secondary hover:bg-state-inverse-hover transition-all duration-200",
+          "border border-white/[0.22] text-text-inverse-secondary hover:bg-state-inverse-hover transition-all duration-200",
       },
       size: {
         sm: "px-4 py-2 [&_svg]:w-3 [&_svg]:h-3",
