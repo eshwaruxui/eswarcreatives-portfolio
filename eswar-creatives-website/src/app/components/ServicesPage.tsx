@@ -61,7 +61,7 @@ const services = [
 
 export function ServicesPage() {
   useEffect(() => {
-    document.title = "Services — Eswar Creatives";
+    document.title = "How I work with scaling SaaS teams — Eswar Creatives";
     document.documentElement.style.background = "#f5f3f0";
     document.body.style.background = "transparent";
     return () => {
