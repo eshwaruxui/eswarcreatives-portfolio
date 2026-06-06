@@ -9,28 +9,33 @@ import { cn } from "./utils";
  * Extracted from 8+ instances across HeroSection, FlagshipCase,
  * SelectedWorks, FooterSection, and Navbar.
  *
- * Variants:
- *   primary   → teal CTA (View Flagship Case, Download Resume, WhatsApp)
- *   secondary → outlined ghost (Download Resume alt, View case study)
- *   ghost     → text-only with arrow (Read full profile, accordion links)
- *   inverse   → outlined on dark surface (FooterSection "Read full profile")
+ * Design System v1 variants:
+ *   primary   → dark CTA (Book a 30-min intro, View full case study)
+ *   accent    → gold CTA (footer Book a 30-min intro)
+ *   secondary → outlined ghost (See design system demo, View case study)
+ *   ghost     → text-only with arrow (accordion links)
+ *   inverse   → outlined on dark surface (footer)
  *
  * Sizes:
  *   sm → 12px text, compact   (card-level CTAs)
  *   md → 13px text, standard  (section-level CTAs, navbar)
- *   lg → 14px text, prominent (hero CTAs)
+ *   lg → 15px text, prominent (hero CTAs)
  */
 const portfolioButtonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 rounded-md transition-all duration-200 cursor-pointer whitespace-nowrap [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         primary:
-          "bg-interactive-primary text-text-primary hover:bg-interactive-primary-hover active:bg-interactive-primary-active hover:shadow-md hover:shadow-interactive-primary/20 hover:-translate-y-0.5",
+          "bg-bg-inverse text-text-inverse hover:-translate-y-0.5 hover:shadow-md",
+        brand:
+          "bg-teal-500 text-text-on-primary hover:bg-teal-600 hover:-translate-y-0.5",
+        accent:
+          "bg-gold-400 text-text-on-accent hover:bg-gold-500 hover:-translate-y-0.5",
         secondary:
-          "border border-gray-400 text-text-secondary hover:border-gray-500 hover:bg-gray-50 hover:-translate-y-0.5",
+          "border border-border-medium text-text-secondary hover:border-border-strong hover:bg-bg-subtle hover:-translate-y-0.5",
         ghost:
-          "text-text-primary hover:text-black",
+          "text-text-primary hover:text-text-secondary",
         inverse:
           "border border-white/[0.22] text-text-inverse-secondary hover:bg-state-inverse-hover transition-all duration-200",
       },

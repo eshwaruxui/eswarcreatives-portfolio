@@ -2,8 +2,13 @@
  * Reusable section header used across portfolio sections.
  * Enforces consistent typography hierarchy and semantic token usage.
  * Uses the SectionLabel primitive for the overline text.
+ *
+ * Design System v1: Fraunces italic title (34px), 12px bold overline,
+ * 15px secondary description.
  */
 import { SectionLabel } from "./ui/section-label";
+
+const fraunces = { fontVariationSettings: '"SOFT" 0, "WONK" 1' } as const;
 
 export function SectionHeader({
   label,
@@ -15,27 +20,23 @@ export function SectionHeader({
   description?: string;
 }) {
   return (
-    <div className="mb-10">
-      <SectionLabel className="mb-2">{label}</SectionLabel>
+    <div className="mb-8 flex flex-col gap-1">
+      <SectionLabel>{label}</SectionLabel>
       <h2
-        className="text-text-primary"
+        className="font-heading font-semibold italic text-text-primary"
         style={{
-          fontSize: "var(--typo-h2-size)",
-          fontWeight: "var(--typo-h2-weight)",
-          lineHeight: "var(--typo-h2-line-height)",
-          letterSpacing: "var(--typo-h2-letter-spacing)",
+          fontSize: "var(--ds-text-3xl)",
+          lineHeight: "44px",
+          letterSpacing: "0",
+          ...fraunces,
         }}
       >
         {title}
       </h2>
       {description && (
         <p
-          className="text-text-tertiary mt-3"
-          style={{
-            fontSize: "var(--typo-p-base-size)",
-            lineHeight: "var(--typo-p-base-line-height)",
-            fontWeight: "var(--typo-p-base-weight)",
-          }}
+          className="text-text-secondary mt-1"
+          style={{ fontSize: "var(--ds-text-md)", lineHeight: "20px", letterSpacing: "-0.23px" }}
         >
           {description}
         </p>

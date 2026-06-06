@@ -23,15 +23,17 @@ const tagVariants = cva(
     variants: {
       variant: {
         subtle:
-          "bg-black/[0.04] text-text-tertiary tracking-wide",
+          "bg-bg-muted text-text-secondary tracking-wide",
         outlined:
-          "border border-black/[0.12] text-text-tertiary",
+          "border border-border-default bg-bg-surface text-text-primary",
         filled:
-          "bg-gray-100 text-text-tertiary",
+          "bg-bg-muted text-text-secondary",
+        brand:
+          "border border-teal-200 bg-teal-50 text-text-primary",
         "overlay-dark":
           "bg-black/70 backdrop-blur-sm text-text-on-bold",
         "overlay-light":
-          "bg-white/90 backdrop-blur-sm text-text-secondary border border-black/[0.10]",
+          "bg-white/90 backdrop-blur-sm text-text-secondary border border-border-default",
       },
       size: {
         sm: "px-2 py-0.5",

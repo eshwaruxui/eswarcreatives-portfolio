@@ -73,7 +73,7 @@ export function HeroSection() {
               transition={{ duration: 0.5, delay: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="md:hidden"
             >
-              <CuaBadge accent="warning" />
+              <CuaBadge />
             </motion.div>
 
             {/* Buttons — desktop */}
@@ -126,7 +126,7 @@ export function HeroSection() {
                 transition={{ duration: 0.5, delay: 0.55, ease: [0.25, 0.46, 0.45, 0.94] }}
                 className="hidden md:block absolute bottom-[10%] right-[-8%] z-20"
               >
-                <CuaBadge accent="warning" variant="elevated" />
+                <CuaBadge variant="elevated" />
               </motion.div>
             </div>
           </motion.div>
