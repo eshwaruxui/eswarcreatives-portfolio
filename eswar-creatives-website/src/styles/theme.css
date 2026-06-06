@@ -387,6 +387,216 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* ══════════════════════════════════════════════════════════════════
+     DESIGN SYSTEM v1 — "Eswarcreatives, Design System Master"
+     Single source of truth. Palette values are defined here; semantic
+     tokens alias the palette; components consume semantic tokens (never
+     raw hex). 84% corner smoothing (squircle) applies in Figma only;
+     CSS falls back to standard border-radius.
+     Mirrored, value-free, in src/app/theme.ts for JS/inline-style use.
+     ══════════════════════════════════════════════════════════════════ */
+
+  /* ── Palette · Teal (brand) · 10 lightest → 950 darkest ── */
+  --teal-10:  #f0f7f6;
+  --teal-50:  #e3f0ef;
+  --teal-100: #c7e2df;
+  --teal-200: #9fcfca;
+  --teal-300: #5fb0a9;
+  --teal-400: #1a938b;
+  --teal-450: #007872;   /* hover / icon */
+  --teal-500: #005f5a;   /* brand anchor */
+  --teal-600: #00524e;
+  --teal-700: #004542;
+  --teal-800: #003b38;
+  --teal-900: #00302e;
+  --teal-950: #00211f;
+
+  /* ── Palette · Gold (accent) · anchor 400 ── */
+  --gold-50:  #fbf6e9;
+  --gold-100: #f5e9c7;
+  --gold-200: #ead49b;
+  --gold-300: #dfc282;
+  --gold-400: #d5b067;   /* anchor */
+  --gold-500: #be9748;
+  --gold-600: #9c7a30;
+  --gold-700: #7a5e20;
+
+  /* ── Palette · Neutral · 0 white → 900 near-black ── */
+  --neutral-0:   #ffffff;
+  --neutral-50:  #f9fafa;
+  --neutral-100: #f2f3f3;
+  --neutral-150: #eaebeb;
+  --neutral-200: #e1e2e2;
+  --neutral-250: #d5d6d6;
+  --neutral-300: #c6c7c7;
+  --neutral-400: #9d9e9e;
+  --neutral-450: #888989;
+  --neutral-500: #6f7070;
+  --neutral-600: #565757;
+  --neutral-700: #3f4040;
+  --neutral-800: #292a2a;
+  --neutral-900: #111111;
+
+  /* ── Palette · Ruby (danger) · anchor 600 ── */
+  --ruby-50:  #fce9ed;
+  --ruby-100: #f7cad3;
+  --ruby-200: #ee99a8;
+  --ruby-300: #e16077;
+  --ruby-400: #d12f4e;
+  --ruby-500: #c01a39;
+  --ruby-600: #b00d2d;   /* anchor */
+  --ruby-700: #8e0a24;
+  --ruby-800: #6b0719;
+
+  /* ── Palette · Success · anchor 600 ── */
+  --success-50:  #e8f4ee;
+  --success-100: #c5e5d4;
+  --success-200: #92cdae;
+  --success-300: #5bb084;
+  --success-400: #2e8e60;
+  --success-500: #237a52;
+  --success-600: #1b6b4a;   /* anchor */
+  --success-700: #14543a;
+  --success-800: #0e3d2a;
+
+  /* ── Palette · Warning · anchor 500 ── */
+  --warning-50:  #fcf0e5;
+  --warning-100: #f8dabb;
+  --warning-200: #f0b679;
+  --warning-300: #e68f3c;
+  --warning-400: #d67414;
+  --warning-500: #c45c00;   /* anchor */
+  --warning-600: #a34c00;
+  --warning-700: #7e3b00;
+
+  /* ── Semantic · Background ── */
+  --bg-page:           var(--neutral-0);
+  --bg-subtle:         var(--neutral-50);
+  --bg-muted:          var(--neutral-100);
+  --bg-surface:        var(--neutral-0);
+  --bg-raised:         var(--neutral-0);
+  --bg-overlay:        rgba(17, 17, 17, 0.50);
+  --bg-inverse:        var(--neutral-900);
+  --bg-inverse-subtle: var(--neutral-800);
+  --bg-sunken:         var(--neutral-100);
+  --bg-tint-1:         var(--teal-10);
+  --bg-tint-2:         var(--teal-50);
+  --bg-tint-3:         var(--teal-100);
+  --bg-dark-1:         var(--teal-800);
+  --bg-dark-2:         var(--teal-900);
+  --bg-dark-3:         var(--teal-950);
+
+  /* ── Semantic · Border ── */
+  --border-subtle:   var(--neutral-100);
+  --border-default:  var(--neutral-150);
+  --border-medium:   var(--neutral-250);
+  --border-strong:   var(--neutral-300);
+  --border-emphasis: var(--neutral-400);
+  --border-focus:    var(--teal-500);
+  --border-brand:    var(--teal-500);
+  --border-danger:   var(--ruby-600);
+  --border-success:  var(--success-600);
+  --border-warning:  var(--warning-500);
+
+  /* ── Semantic · Text · DS values override the legacy block above ── */
+  --text-primary:    var(--neutral-900);
+  --text-secondary:  var(--neutral-600);
+  --text-muted:      var(--neutral-450);
+  --text-tertiary:   var(--neutral-450);   /* legacy alias → muted */
+  --text-quaternary: var(--neutral-450);   /* legacy alias → muted */
+  --text-disabled:   var(--neutral-300);
+  --text-inverse:    var(--neutral-0);
+  --text-on-primary: var(--neutral-0);     /* on teal-500 */
+  --text-on-accent:  var(--neutral-900);   /* on gold-400 */
+
+  /* ── Semantic · Icon (21) ── */
+  --icon-primary:              var(--neutral-900);
+  --icon-primary-hover:        var(--neutral-700);
+  --icon-primary-active:       var(--neutral-800);
+  --icon-primary-disabled:     var(--neutral-300);
+  --icon-secondary:            var(--neutral-600);   /* overrides legacy */
+  --icon-secondary-hover:      var(--neutral-700);
+  --icon-secondary-active:     var(--neutral-800);
+  --icon-secondary-disabled:   var(--neutral-300);
+  --icon-tertiary:             var(--neutral-450);
+  --icon-inverse:              var(--neutral-0);
+  --icon-brand:                var(--teal-450);
+  --icon-brand-hover:          var(--teal-400);
+  --icon-brand-active:         var(--teal-600);
+  --icon-brand-disabled:       var(--neutral-300);
+  --icon-danger:               var(--ruby-600);
+  --icon-success:              var(--success-600);
+  --icon-warning:              var(--warning-500);
+  --icon-interactive:          var(--teal-500);
+  --icon-interactive-hover:    var(--teal-450);
+  --icon-interactive-active:   var(--teal-600);
+  --icon-interactive-disabled: var(--neutral-300);
+
+  /* ── Semantic · Skeleton ── */
+  --skeleton-base:      var(--neutral-150);
+  --skeleton-highlight: var(--neutral-50);
+  --skeleton-border:    var(--neutral-100);
+
+  /* ── Typography · Families ── */
+  --font-heading: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-body:    'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:    'SF Mono', 'Fira Code', ui-monospace, monospace;
+
+  /* ── Typography · Size scale (aliased to Tailwind text-* in @theme) ── */
+  --ds-text-xs:   11px;
+  --ds-text-sm:   12px;
+  --ds-text-base: 13.5px;
+  --ds-text-md:   15px;
+  --ds-text-lg:   18px;
+  --ds-text-xl:   22px;
+  --ds-text-2xl:  28px;
+  --ds-text-3xl:  34px;
+  --ds-text-4xl:  42px;
+
+  /* ── Elevation · brand-tinted teal shadow rgb(2,4,4) ── */
+  --ds-shadow-sm:    0 1px 2px 0 rgba(2, 4, 4, 0.06);
+  --ds-shadow:       0 1px 3px 0 rgba(2, 4, 4, 0.10), 0 1px 2px -1px rgba(2, 4, 4, 0.10);
+  --ds-shadow-md:    0 4px 6px -1px rgba(2, 4, 4, 0.10), 0 2px 4px -2px rgba(2, 4, 4, 0.10);
+  --ds-shadow-lg:    0 10px 15px -3px rgba(2, 4, 4, 0.10), 0 4px 6px -4px rgba(2, 4, 4, 0.10);
+  --ds-shadow-xl:    0 20px 25px -5px rgba(2, 4, 4, 0.12), 0 8px 10px -6px rgba(2, 4, 4, 0.10);
+  --ds-shadow-2xl:   0 25px 50px -12px rgba(2, 4, 4, 0.30);
+  --ds-shadow-inner: inset 0 2px 4px 0 rgba(2, 4, 4, 0.06);
+  --ds-focus-ring:   0 0 0 3px rgba(0, 95, 90, 0.35);
+
+  /* ── Spacing · base-8 semantic groups ── */
+  --space-component-gap-xs:     4px;
+  --space-component-gap-sm:     8px;
+  --space-component-gap-md:     12px;
+  --space-component-gap-lg:     16px;
+  --space-component-gap-xl:     24px;
+  --space-component-padding-xs:  4px;
+  --space-component-padding-sm:  8px;
+  --space-component-padding-md:  12px;
+  --space-component-padding-lg:  16px;
+  --space-component-padding-xl:  24px;
+  --space-component-padding-2xl: 32px;
+  --space-layout-section-sm:  48px;
+  --space-layout-section-md:  64px;
+  --space-layout-section-lg:  96px;
+  --space-layout-section-xl: 128px;
+  --space-layout-stack-xs:  8px;
+  --space-layout-stack-sm: 16px;
+  --space-layout-stack-md: 24px;
+  --space-layout-stack-lg: 32px;
+  --space-layout-stack-xl: 48px;
+  --space-layout-inline-xs:  4px;
+  --space-layout-inline-sm:  8px;
+  --space-layout-inline-md: 12px;
+  --space-layout-inline-lg: 16px;
+  --space-layout-inline-xl: 24px;
+  --space-touch-min:         44px;
+  --space-touch-comfortable: 48px;
+  --space-portal-gutter:  24px;   /* portal deferred — defined for parity */
+  --space-portal-section: 40px;
+  --space-page-gutter: 24px;
+  --space-page-margin: 16px;
+  --space-page-max: 1152px;
 }
 
 .dark {
@@ -507,10 +717,16 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* Radius — Design System v1 scale (overrides the legacy calc scale) */
+  --radius-none: 0px;
+  --radius-xs:    2px;
+  --radius-sm:    4px;
+  --radius-md:    8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  20px;
+  --radius-3xl:  28px;
+  --radius-full: 9999px;
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -519,6 +735,173 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ══ DESIGN SYSTEM v1 → Tailwind utilities ══════════════════════════
+     Palette → bg-/text-/border-{palette}-{step}
+     Semantic → bg-bg-*, border-border-*, text-text-*, text-icon-*, etc.
+     Note: teal-* and neutral-* intentionally override Tailwind's built-in
+     palettes of the same name so brand values flow through every utility.
+     ─────────────────────────────────────────────────────────────────── */
+
+  /* Palette · Teal */
+  --color-teal-10:  var(--teal-10);
+  --color-teal-50:  var(--teal-50);
+  --color-teal-100: var(--teal-100);
+  --color-teal-200: var(--teal-200);
+  --color-teal-300: var(--teal-300);
+  --color-teal-400: var(--teal-400);
+  --color-teal-450: var(--teal-450);
+  --color-teal-500: var(--teal-500);
+  --color-teal-600: var(--teal-600);
+  --color-teal-700: var(--teal-700);
+  --color-teal-800: var(--teal-800);
+  --color-teal-900: var(--teal-900);
+  --color-teal-950: var(--teal-950);
+
+  /* Palette · Gold */
+  --color-gold-50:  var(--gold-50);
+  --color-gold-100: var(--gold-100);
+  --color-gold-200: var(--gold-200);
+  --color-gold-300: var(--gold-300);
+  --color-gold-400: var(--gold-400);
+  --color-gold-500: var(--gold-500);
+  --color-gold-600: var(--gold-600);
+  --color-gold-700: var(--gold-700);
+
+  /* Palette · Neutral */
+  --color-neutral-0:   var(--neutral-0);
+  --color-neutral-50:  var(--neutral-50);
+  --color-neutral-100: var(--neutral-100);
+  --color-neutral-150: var(--neutral-150);
+  --color-neutral-200: var(--neutral-200);
+  --color-neutral-250: var(--neutral-250);
+  --color-neutral-300: var(--neutral-300);
+  --color-neutral-400: var(--neutral-400);
+  --color-neutral-450: var(--neutral-450);
+  --color-neutral-500: var(--neutral-500);
+  --color-neutral-600: var(--neutral-600);
+  --color-neutral-700: var(--neutral-700);
+  --color-neutral-800: var(--neutral-800);
+  --color-neutral-900: var(--neutral-900);
+
+  /* Palette · Ruby (danger) */
+  --color-ruby-50:  var(--ruby-50);
+  --color-ruby-100: var(--ruby-100);
+  --color-ruby-200: var(--ruby-200);
+  --color-ruby-300: var(--ruby-300);
+  --color-ruby-400: var(--ruby-400);
+  --color-ruby-500: var(--ruby-500);
+  --color-ruby-600: var(--ruby-600);
+  --color-ruby-700: var(--ruby-700);
+  --color-ruby-800: var(--ruby-800);
+
+  /* Palette · Success */
+  --color-success-50:  var(--success-50);
+  --color-success-100: var(--success-100);
+  --color-success-200: var(--success-200);
+  --color-success-300: var(--success-300);
+  --color-success-400: var(--success-400);
+  --color-success-500: var(--success-500);
+  --color-success-600: var(--success-600);
+  --color-success-700: var(--success-700);
+  --color-success-800: var(--success-800);
+
+  /* Palette · Warning */
+  --color-warning-50:  var(--warning-50);
+  --color-warning-100: var(--warning-100);
+  --color-warning-200: var(--warning-200);
+  --color-warning-300: var(--warning-300);
+  --color-warning-400: var(--warning-400);
+  --color-warning-500: var(--warning-500);
+  --color-warning-600: var(--warning-600);
+  --color-warning-700: var(--warning-700);
+
+  /* Semantic · Background → bg-bg-* */
+  --color-bg-page:           var(--bg-page);
+  --color-bg-subtle:         var(--bg-subtle);
+  --color-bg-muted:          var(--bg-muted);
+  --color-bg-surface:        var(--bg-surface);
+  --color-bg-raised:         var(--bg-raised);
+  --color-bg-overlay:        var(--bg-overlay);
+  --color-bg-inverse:        var(--bg-inverse);
+  --color-bg-inverse-subtle: var(--bg-inverse-subtle);
+  --color-bg-sunken:         var(--bg-sunken);
+  --color-bg-tint-1:         var(--bg-tint-1);
+  --color-bg-tint-2:         var(--bg-tint-2);
+  --color-bg-tint-3:         var(--bg-tint-3);
+  --color-bg-dark-1:         var(--bg-dark-1);
+  --color-bg-dark-2:         var(--bg-dark-2);
+  --color-bg-dark-3:         var(--bg-dark-3);
+
+  /* Semantic · Border → border-border-* */
+  --color-border-subtle:   var(--border-subtle);
+  --color-border-default:  var(--border-default);
+  --color-border-medium:   var(--border-medium);
+  --color-border-strong:   var(--border-strong);
+  --color-border-emphasis: var(--border-emphasis);
+  --color-border-focus:    var(--border-focus);
+  --color-border-brand:    var(--border-brand);
+  --color-border-danger:   var(--border-danger);
+  --color-border-success:  var(--border-success);
+  --color-border-warning:  var(--border-warning);
+
+  /* Semantic · Text (additions; primary/secondary aliased via :root) */
+  --color-text-muted:      var(--text-muted);
+  --color-text-on-primary: var(--text-on-primary);
+  --color-text-on-accent:  var(--text-on-accent);
+
+  /* Semantic · Icon → text-icon-* (currentColor-driven SVGs) */
+  --color-icon-primary:              var(--icon-primary);
+  --color-icon-primary-hover:        var(--icon-primary-hover);
+  --color-icon-primary-active:       var(--icon-primary-active);
+  --color-icon-primary-disabled:     var(--icon-primary-disabled);
+  --color-icon-secondary-hover:      var(--icon-secondary-hover);
+  --color-icon-secondary-active:     var(--icon-secondary-active);
+  --color-icon-secondary-disabled:   var(--icon-secondary-disabled);
+  --color-icon-tertiary:             var(--icon-tertiary);
+  --color-icon-inverse:              var(--icon-inverse);
+  --color-icon-brand:                var(--icon-brand);
+  --color-icon-brand-hover:          var(--icon-brand-hover);
+  --color-icon-brand-active:         var(--icon-brand-active);
+  --color-icon-brand-disabled:       var(--icon-brand-disabled);
+  --color-icon-danger:               var(--icon-danger);
+  --color-icon-success:              var(--icon-success);
+  --color-icon-warning:              var(--icon-warning);
+  --color-icon-interactive:          var(--icon-interactive);
+  --color-icon-interactive-hover:    var(--icon-interactive-hover);
+  --color-icon-interactive-active:   var(--icon-interactive-active);
+  --color-icon-interactive-disabled: var(--icon-interactive-disabled);
+
+  /* Semantic · Skeleton */
+  --color-skeleton-base:      var(--skeleton-base);
+  --color-skeleton-highlight: var(--skeleton-highlight);
+  --color-skeleton-border:    var(--skeleton-border);
+
+  /* Typography · Families → font-heading / font-body / font-mono */
+  --font-heading: var(--font-heading);
+  --font-body:    var(--font-body);
+  --font-mono:    var(--font-mono);
+
+  /* Typography · Size scale → text-xs … text-4xl (adds text-md) */
+  --text-xs:   var(--ds-text-xs);
+  --text-sm:   var(--ds-text-sm);
+  --text-base: var(--ds-text-base);
+  --text-md:   var(--ds-text-md);
+  --text-lg:   var(--ds-text-lg);
+  --text-xl:   var(--ds-text-xl);
+  --text-2xl:  var(--ds-text-2xl);
+  --text-3xl:  var(--ds-text-3xl);
+  --text-4xl:  var(--ds-text-4xl);
+
+  /* Elevation → shadow-* (brand-tinted) + focus-ring */
+  --shadow-sm:         var(--ds-shadow-sm);
+  --shadow:            var(--ds-shadow);
+  --shadow-md:         var(--ds-shadow-md);
+  --shadow-lg:         var(--ds-shadow-lg);
+  --shadow-xl:         var(--ds-shadow-xl);
+  --shadow-2xl:        var(--ds-shadow-2xl);
+  --shadow-inner:      var(--ds-shadow-inner);
+  --shadow-focus-ring: var(--ds-focus-ring);
 }
 
 @layer base {
