@@ -65,17 +65,16 @@ export function PortfolioHome() {
     );
     if (existingMeta) existingMeta.remove();
 
-    const bg = "#f5f3f0";
+    const bg = "#ffffff";
     document.documentElement.style.background = bg;
     document.body.style.background = "transparent";
   }, []);
 
   return (
     <div
-      className="min-h-screen w-full"
+      className="min-h-screen w-full bg-bg-page"
       style={{
-        fontFamily: "var(--font-family-primary)",
-        background: "#f5f3f0",
+        fontFamily: "var(--font-body)",
       }}
     >
       <Navbar />

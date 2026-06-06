@@ -71,7 +71,7 @@ export function Testimonials() {
             onMouseLeave={() => setIsPaused(false)}
           >
             {/* Left — Active Quote Card */}
-            <div className="bg-white rounded-3xl border border-black/[0.06] shadow-lg shadow-black/[0.02] p-8 md:p-12 flex flex-col justify-between min-h-[340px]">
+            <div className="bg-bg-surface rounded-3xl border border-gold-200 shadow-lg p-8 md:p-12 flex flex-col justify-between min-h-[340px]">
               <div>
                 <Quote className="w-7 h-7 text-text-disabled mb-6" />
 
@@ -82,7 +82,7 @@ export function Testimonials() {
                   transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
                 >
                   <p
-                    className="text-text-secondary mb-8"
+                    className="text-text-primary mb-8"
                     style={{
                       fontSize: "var(--typo-p-lg-size)",
                       lineHeight: "var(--typo-p-lg-line-height)",
@@ -100,7 +100,7 @@ export function Testimonials() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
-                className="flex items-center gap-3 pt-6 border-t border-gray-100"
+                className="flex items-center gap-3 pt-6 border-t border-border-default"
               >
                 <img
                   src={testimonials[active].avatar}
@@ -145,8 +145,8 @@ export function Testimonials() {
                   onClick={() => setActive(i)}
                   className={`relative text-left rounded-2xl border p-5 transition-all duration-300 cursor-pointer group ${
                     i === active
-                      ? "bg-white border-black/[0.06] shadow-md shadow-black/[0.03]"
-                      : "bg-transparent border-transparent hover:bg-white/60 hover:border-black/[0.04]"
+                      ? "bg-bg-surface border-gold-400 shadow-md"
+                      : "bg-transparent border-transparent hover:bg-bg-subtle hover:border-border-subtle"
                   }`}
                 >
                   {/* Accent bar */}
