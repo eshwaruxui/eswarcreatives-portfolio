@@ -453,7 +453,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
                           ) : thumbs.length === 0 ? (
                             <p style={styles.muted}>No sketches in this set yet.</p>
                           ) : (
-                            <div style={styles.thumbGrid}>
+                            <div className="sketch-thumb-grid">
                               {thumbs.map((t) => (
                                 <div key={t.name} style={styles.thumbCell}>
                                   <div style={styles.thumbWrap}>
@@ -650,11 +650,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 14,
-  },
-  thumbGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
-    gap: 12,
   },
   thumbCell: { display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' },
   thumbWrap: { position: 'relative', width: 80, height: 80 },
