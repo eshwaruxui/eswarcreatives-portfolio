@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { tokens, fonts } from './theme'
@@ -54,6 +55,10 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
   const [selectedSetId, setSelectedSetId] = useState('')
   const [newSetName, setNewSetName] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  const [expandedSetId, setExpandedSetId] = useState<string | null>(null)
+  const [thumbs, setThumbs] = useState<{ name: string; url: string }[]>([])
+  const [thumbsLoading, setThumbsLoading] = useState(false)
+  const [working, setWorking] = useState(false)
 
   const [loadingClients, setLoadingClients] = useState(true)
   const [loadingSets, setLoadingSets] = useState(false)
@@ -135,6 +140,94 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
     setToast(null)
     const client = clients.find((c) => c.clientId === clientId)
     if (client) void loadSets(client)
+  }
+
+  // ── Expand / collapse a set and load its thumbnails ────────────────
+  function toggleExpand(s: SketchSet) {
+    if (expandedSetId === s.id) {
+      setExpandedSetId(null)
+      return
+    }
+    setSelectedSetId(s.id)
+    setExpandedSetId(s.id)
+    void loadThumbs(s.id)
+  }
+
+  async function loadThumbs(setId: string) {
+    setThumbsLoading(true)
+    setThumbs([])
+    try {
+      const { data, error: err } = await supabase.storage
+        .from(BUCKET)
+        .list(setId, { limit: 1000, sortBy: { column: 'name', order: 'asc' } })
+      if (err) throw err
+      const visible = (data ?? []).filter((f) => f.name && !f.name.startsWith('.'))
+      setThumbs(
+        visible.map((f) => ({
+          name: f.name,
+          url: supabase.storage.from(BUCKET).getPublicUrl(`${setId}/${f.name}`).data.publicUrl,
+        }))
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setThumbsLoading(false)
+    }
+  }
+
+  // ── Delete a single sketch ─────────────────────────────────────────
+  async function handleDeleteFile(s: SketchSet, fileName: string) {
+    if (!window.confirm('Delete this sketch?')) return
+    setWorking(true)
+    setError(null)
+    setToast(null)
+    try {
+      const { error: rmErr } = await supabase.storage.from(BUCKET).remove([`${s.id}/${fileName}`])
+      if (rmErr) throw rmErr
+      const { error: updErr } = await supabase
+        .from('logo_sketch_sets')
+        .update({ total_count: Math.max(0, s.total_count - 1) })
+        .eq('id', s.id)
+      if (updErr) throw updErr
+      await loadThumbs(s.id)
+      if (selectedClient) await loadSets(selectedClient)
+      setToast('Sketch deleted')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  // ── Delete an entire set and all its sketches ──────────────────────
+  async function handleDeleteSet(s: SketchSet) {
+    if (!window.confirm('Delete entire set and all sketches? This cannot be undone.')) return
+    setWorking(true)
+    setError(null)
+    setToast(null)
+    try {
+      const { data: list, error: listErr } = await supabase.storage
+        .from(BUCKET)
+        .list(s.id, { limit: 1000 })
+      if (listErr) throw listErr
+      const paths = (list ?? [])
+        .filter((f) => f.name && !f.name.startsWith('.'))
+        .map((f) => `${s.id}/${f.name}`)
+      if (paths.length > 0) {
+        const { error: rmErr } = await supabase.storage.from(BUCKET).remove(paths)
+        if (rmErr) throw rmErr
+      }
+      const { error: delErr } = await supabase.from('logo_sketch_sets').delete().eq('id', s.id)
+      if (delErr) throw delErr
+      if (expandedSetId === s.id) setExpandedSetId(null)
+      if (selectedSetId === s.id) setSelectedSetId('')
+      if (selectedClient) await loadSets(selectedClient)
+      setToast('Set deleted')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setWorking(false)
+    }
   }
 
   // ── Create a new set ───────────────────────────────────────────────
@@ -316,22 +409,81 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
               <div style={styles.setList}>
                 {sets.map((s) => {
                   const active = s.id === selectedSetId
+                  const expanded = s.id === expandedSetId
                   return (
-                    <button
+                    <div
                       key={s.id}
-                      type="button"
-                      onClick={() => setSelectedSetId(s.id)}
                       style={{
                         ...styles.setCard,
                         borderColor: active ? tokens.accent : tokens.border,
                         boxShadow: active ? `0 0 0 1px ${tokens.accent}` : 'none',
                       }}
                     >
-                      <span style={styles.setName}>{setLabel(s)}</span>
-                      <span style={styles.setMeta}>
-                        {s.total_count} {s.total_count === 1 ? 'sketch' : 'sketches'} · {formatDate(s.created_at)}
-                      </span>
-                    </button>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleExpand(s)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            toggleExpand(s)
+                          }
+                        }}
+                        style={styles.setHeader}
+                      >
+                        <div style={styles.setHeaderText}>
+                          <span style={styles.setName}>{setLabel(s)}</span>
+                          <span style={styles.setMeta}>
+                            {s.total_count} {s.total_count === 1 ? 'sketch' : 'sketches'} · {formatDate(s.created_at)}
+                          </span>
+                        </div>
+                        {expanded ? (
+                          <ChevronUp size={18} style={styles.chevron} />
+                        ) : (
+                          <ChevronDown size={18} style={styles.chevron} />
+                        )}
+                      </div>
+
+                      {expanded && (
+                        <div style={styles.expandPanel}>
+                          {thumbsLoading ? (
+                            <div style={styles.spinnerWrap}>
+                              <div style={styles.spinner} />
+                            </div>
+                          ) : thumbs.length === 0 ? (
+                            <p style={styles.muted}>No sketches in this set yet.</p>
+                          ) : (
+                            <div style={styles.thumbGrid}>
+                              {thumbs.map((t) => (
+                                <div key={t.name} style={styles.thumbCell}>
+                                  <div style={styles.thumbWrap}>
+                                    <img src={t.url} alt={t.name} style={styles.thumbImg} />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteFile(s, t.name)}
+                                      disabled={working}
+                                      style={styles.thumbDelete}
+                                      aria-label={`Delete ${t.name}`}
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                  <span style={styles.thumbName}>{t.name}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSet(s)}
+                            disabled={working}
+                            style={styles.deleteSetBtn}
+                          >
+                            Delete set
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -469,17 +621,22 @@ const styles: Record<string, React.CSSProperties> = {
 
   setList: { display: 'flex', flexDirection: 'column', gap: 10 },
   setCard: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-    textAlign: 'left',
     background: tokens.bg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 10,
-    padding: '14px 16px',
-    cursor: 'pointer',
+    overflow: 'hidden',
     transition: 'border-color 0.15s, box-shadow 0.15s',
   },
+  setHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '14px 16px',
+    cursor: 'pointer',
+  },
+  setHeaderText: { display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' },
+  chevron: { color: tokens.textMuted, flexShrink: 0 },
   setName: {
     fontFamily: fonts.heading,
     fontSize: 16,
@@ -487,6 +644,75 @@ const styles: Record<string, React.CSSProperties> = {
     color: tokens.text,
   },
   setMeta: { fontSize: 12, color: tokens.textMuted },
+
+  expandPanel: {
+    padding: '0 16px 16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
+  },
+  thumbGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+    gap: 12,
+  },
+  thumbCell: { display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' },
+  thumbWrap: { position: 'relative', width: 80, height: 80 },
+  thumbImg: {
+    width: 80,
+    height: 80,
+    objectFit: 'cover',
+    borderRadius: 8,
+    border: `1px solid ${tokens.border}`,
+    display: 'block',
+  },
+  thumbDelete: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: '50%',
+    border: 'none',
+    background: tokens.ruby,
+    color: tokens.surface,
+    fontSize: 13,
+    lineHeight: 1,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+  },
+  thumbName: {
+    fontSize: 10,
+    color: tokens.textMuted,
+    maxWidth: 80,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    textAlign: 'center',
+  },
+  spinnerWrap: { display: 'flex', justifyContent: 'center', padding: '16px 0' },
+  spinner: {
+    width: 24,
+    height: 24,
+    borderRadius: '50%',
+    border: `2.5px solid ${tokens.tealLight}`,
+    borderTopColor: tokens.accent,
+    animation: 'spin 0.8s linear infinite',
+  },
+  deleteSetBtn: {
+    alignSelf: 'flex-start',
+    background: 'transparent',
+    border: 'none',
+    color: tokens.ruby,
+    fontSize: 13,
+    fontWeight: 600,
+    fontFamily: fonts.body,
+    cursor: 'pointer',
+    padding: 0,
+  },
 
   uploadBlock: {
     marginTop: 18,
