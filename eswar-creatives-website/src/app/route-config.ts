@@ -10,11 +10,13 @@ import { NotFound } from "./components/NotFound";
 import { LoginPage } from "../portal/LoginPage";
 import { VerifyPage } from "../portal/VerifyPage";
 import { SketchReviewPage } from "../portal/SketchReviewPage";
+import { AdminSketchUpload } from "../portal/AdminSketchUpload";
 
 export const routeConfig = [
-  { path: "/portal/login",         Component: LoginPage  },
-  { path: "/portal/verify",        Component: VerifyPage },
-  { path: "/portal/sketch-review", Component: SketchReviewPage },
+  { path: "/portal/login",          Component: LoginPage  },
+  { path: "/portal/verify",         Component: VerifyPage },
+  { path: "/portal/sketch-review",  Component: SketchReviewPage },
+  { path: "/portal/admin/sketches", Component: AdminSketchUpload },
   {
     Component: RootLayout,
     children: [

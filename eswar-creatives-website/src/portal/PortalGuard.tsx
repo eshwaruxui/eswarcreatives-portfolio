@@ -6,7 +6,7 @@ import { tokens, fonts } from './theme'
 export type PortalProfile = {
   id: string
   email: string
-  role: 'owner' | 'client'
+  role: 'owner' | 'admin' | 'client'
 }
 
 type State =
@@ -19,7 +19,7 @@ export function PortalGuard({
   requireRole,
 }: {
   children: (profile: PortalProfile) => React.ReactNode
-  requireRole?: 'owner' | 'client'
+  requireRole?: 'owner' | 'admin' | 'client'
 }) {
   const [state, setState] = useState<State>({ status: 'loading' })
   const location = useLocation()
