@@ -184,9 +184,18 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
     try {
       const { error: rmErr } = await supabase.storage.from(BUCKET).remove([`${s.id}/${fileName}`])
       if (rmErr) throw rmErr
+      // Recount actual files in storage and set total_count to that, so the
+      // stored total can never drift from what is really in the bucket.
+      const { data: list, error: listErr } = await supabase.storage
+        .from(BUCKET)
+        .list(s.id, { limit: 1000 })
+      if (listErr) throw listErr
+      const actualCount = (list ?? []).filter(
+        (f) => f.name && !f.name.startsWith('.')
+      ).length
       const { error: updErr } = await supabase
         .from('logo_sketch_sets')
-        .update({ total_count: Math.max(0, s.total_count - 1) })
+        .update({ total_count: actualCount })
         .eq('id', s.id)
       if (updErr) throw updErr
       await loadThumbs(s.id)
