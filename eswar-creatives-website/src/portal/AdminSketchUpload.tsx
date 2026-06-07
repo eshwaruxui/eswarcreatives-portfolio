@@ -314,9 +314,18 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
       }
 
       if (uploaded > 0) {
+        // Recount the actual files in storage and set total_count to that, so
+        // re-uploading an existing filename (upsert) never double-counts.
+        const { data: list, error: listErr } = await supabase.storage
+          .from(BUCKET)
+          .list(selectedSet.id, { limit: 1000 })
+        if (listErr) throw listErr
+        const actualCount = (list ?? []).filter(
+          (f) => f.name && !f.name.startsWith('.')
+        ).length
         const { error: updErr } = await supabase
           .from('logo_sketch_sets')
-          .update({ total_count: selectedSet.total_count + uploaded })
+          .update({ total_count: actualCount })
           .eq('id', selectedSet.id)
         if (updErr) throw updErr
         await loadSets(selectedClient)
