@@ -23,7 +23,7 @@ export function VerifyPage() {
   const [identity, setIdentity] = useState<Identity | null>(null)
   const [checks,   setChecks]   = useState<Check[]>([])
   const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState<string | null>(null)
+  const [error,    setError]    = useState<unknown>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -87,7 +87,11 @@ export function VerifyPage() {
         </div>
 
         {loading && <div style={styles.muted}>Running checks…</div>}
-        {error   && <div style={styles.error}>Error: {error instanceof Error ? error.message : JSON.stringify(error)}</div>}
+        {error && (
+          <div style={styles.error}>
+            Error: {error instanceof Error ? error.message : typeof error === 'string' ? error : JSON.stringify(error, null, 2)}
+          </div>
+        )}
 
         {identity && (
           <div style={styles.card}>
