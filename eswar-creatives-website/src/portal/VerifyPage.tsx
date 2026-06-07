@@ -87,7 +87,7 @@ export function VerifyPage() {
         </div>
 
         {loading && <div style={styles.muted}>Running checks…</div>}
-        {error   && <div style={styles.error}>Error: {error}</div>}
+        {error   && <div style={styles.error}>Error: {error instanceof Error ? error.message : JSON.stringify(error)}</div>}
 
         {identity && (
           <div style={styles.card}>
