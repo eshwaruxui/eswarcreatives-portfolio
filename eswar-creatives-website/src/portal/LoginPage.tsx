@@ -17,10 +17,28 @@ export function LoginPage() {
   useEffect(() => {
     let cancelled = false
     supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled && data.session) navigate('/portal/verify', { replace: true })
+      if (!cancelled && data.session) void redirectByRole(data.session.user.id)
     })
     return () => { cancelled = true }
   }, [navigate])
+
+  // Route a signed-in user to the right landing page by profile role.
+  // owner / unknown roles fall back to the verify page (prior behaviour).
+  async function redirectByRole(userId: string) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+    const role = profile?.role
+    if (role === 'admin') {
+      navigate('/portal/admin/sketches', { replace: true })
+    } else if (role === 'client') {
+      navigate('/portal/sketch-review', { replace: true })
+    } else {
+      navigate('/portal/verify', { replace: true })
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -29,9 +47,9 @@ export function LoginPage() {
     setBusy(true)
     try {
       if (mode === 'password') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        navigate('/portal/verify', { replace: true })
+        await redirectByRole(data.user.id)
       } else {
         const { error } = await supabase.auth.signInWithOtp({
           email,
