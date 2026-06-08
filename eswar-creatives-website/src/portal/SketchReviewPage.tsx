@@ -112,8 +112,7 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
         if (cancelled) return
         if (prof?.full_name) setDisplayName(prof.full_name as string)
 
-        // 1. All sets for this client, in display order. Sets with no sketches
-        //    yet (total_count = 0) are never shown or reviewable, so drop them.
+        // 1. All sets for this client, in display order.
         const { data: setRows, error: setErr } = await supabase
           .from('logo_sketch_sets')
           .select('id, name, project_slug, set_number, total_count, created_at')
@@ -121,7 +120,29 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
           .order('set_number', { ascending: true })
         if (setErr) throw setErr
         if (cancelled) return
-        const all = ((setRows ?? []) as SketchSet[]).filter((s) => s.total_count > 0)
+
+        // 1b. A set is only shown if BOTH its total_count > 0 AND it actually
+        //     has image files in storage. Verify the storage side per set so a
+        //     stale total_count with an empty bucket never shows an empty deck.
+        const candidates = ((setRows ?? []) as SketchSet[]).filter(
+          (s) => s.total_count > 0
+        )
+        const storageCounts = await Promise.all(
+          candidates.map(async (s) => {
+            const { data: files } = await supabase.storage
+              .from(BUCKET)
+              .list(s.id, { limit: 1000 })
+            const count = (files ?? []).filter(
+              (f) => f.name && !f.name.startsWith('.')
+            ).length
+            return { id: s.id, count }
+          })
+        )
+        if (cancelled) return
+        const hasImages = new Set(
+          storageCounts.filter((x) => x.count > 0).map((x) => x.id)
+        )
+        const all = candidates.filter((s) => hasImages.has(s.id))
         setSets(all)
         if (all.length === 0) {
           setLoading(false)
@@ -202,19 +223,9 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
     incompleteOthers[0] ??
     null
 
-  // ── Progress across all of the client's sets ───────────────────────
-  // A set is "completed" if it has a submission record; "in progress" if it
-  // has at least one review but is not yet completed; "remaining" otherwise.
+  // ── Set position, e.g. "Set 2 of 3" across the visible sets ────────
   const totalSets = sets.length
   const currentPosition = curIdx >= 0 ? curIdx + 1 : 1
-  const completedSetIds = new Set(submissions.map((s) => s.set_id))
-  const reviewCountFor = (s: SketchSet) =>
-    s.id === currentSetId ? reviewedCount : otherCounts[s.id] ?? 0
-  const completedSets = sets.filter((s) => completedSetIds.has(s.id)).length
-  const inProgressSets = sets.filter(
-    (s) => !completedSetIds.has(s.id) && reviewCountFor(s) > 0
-  ).length
-  const remainingSets = totalSets - completedSets - inProgressSets
 
   // ── Persistence ────────────────────────────────────────────────────
   // Upsert on the (set_id, sketch_index) unique constraint (migration 0015)
@@ -451,9 +462,8 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
             Hi {displayName}, here are your sketches.
           </p>
         )}
-        <p style={styles.progressLine}>
-          Set {currentPosition} of {totalSets} - {completedSets} completed,{' '}
-          {remainingSets} remaining, {inProgressSets} in progress
+        <p style={styles.setLabel}>
+          Set {currentPosition} of {totalSets}
         </p>
       </div>
 
@@ -959,12 +969,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 17,
     fontWeight: 600,
     color: tokens.text,
-  },
-  progressLine: {
-    margin: '8px 0 0',
-    fontSize: 13,
-    fontWeight: 500,
-    color: tokens.textMuted,
   },
 
   // Progress
