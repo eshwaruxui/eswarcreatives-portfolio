@@ -475,16 +475,43 @@ function SwipeCard({
       })}
       whileTap={{ cursor: 'grabbing' }}
     >
-      <motion.span
-        style={{ ...styles.stamp, ...styles.acceptStamp, opacity: acceptOpacity }}
-      >
-        Accept
-      </motion.span>
-      <motion.span
-        style={{ ...styles.stamp, ...styles.rejectStamp, opacity: rejectOpacity }}
-      >
-        Pass
-      </motion.span>
+      <motion.div style={{ ...styles.iconOverlay, opacity: acceptOpacity }}>
+        <div style={{ ...styles.iconCircle, background: tokens.green }}>
+          <svg
+            width="36"
+            height="36"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={tokens.surface}
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        </div>
+      </motion.div>
+      <motion.div style={{ ...styles.iconOverlay, opacity: rejectOpacity }}>
+        <div
+          style={{
+            ...styles.iconCircle,
+            background: '#EF4444', // TODO: replace with tokens.red when ds-merge
+          }}
+        >
+          <svg
+            width="36"
+            height="36"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={tokens.surface}
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </div>
+      </motion.div>
 
       <img
         src={sketch.url}
@@ -705,33 +732,23 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardFootText: { fontSize: 13, color: tokens.textMuted, fontWeight: 500 },
 
-  // Swipe stamps
-  stamp: {
+  // Swipe icon overlay (centered on the card)
+  iconOverlay: {
     position: 'absolute',
-    top: 20,
-    padding: '6px 14px',
-    borderRadius: 8,
-    fontFamily: fonts.heading,
-    fontSize: 18,
-    fontWeight: 600,
-    letterSpacing: '0.02em',
-    textTransform: 'uppercase',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 2,
     pointerEvents: 'none',
   },
-  acceptStamp: {
-    right: 20,
-    color: tokens.green,
-    border: `2px solid ${tokens.green}`,
-    background: tokens.greenLight,
-    transform: 'rotate(8deg)',
-  },
-  rejectStamp: {
-    left: 20,
-    color: tokens.ruby,
-    border: `2px solid ${tokens.ruby}`,
-    background: tokens.rubyLight,
-    transform: 'rotate(-8deg)',
+  iconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Controls
