@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   motion,
   AnimatePresence,
@@ -8,6 +8,7 @@ import {
 } from 'motion/react'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
+import { PortalNav } from './PortalNav'
 import { tokens, fonts } from './theme'
 
 // ── Data shapes ──────────────────────────────────────────────────────
@@ -99,6 +100,11 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false) // gate while a card animates out
   const [lastDir, setLastDir] = useState<1 | -1>(1) // exit direction for the leaving card
+  // A rightward (accept) exit flies the card off-screen, which can grow the
+  // page and bump the scroll position. Capture scrollY before that card leaves
+  // and restore it once the next card has mounted. Refs avoid a re-render.
+  const scrollYRef = useRef(0)
+  const restoreScrollRef = useRef(false)
 
   const currentSet = sets.find((s) => s.id === currentSetId) ?? null
 
@@ -351,6 +357,12 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
       setPending(true)
       setError(null)
       setLastDir(accepted ? 1 : -1)
+      // Only the rightward (accept) exit causes the scroll jump; capture the
+      // position now, before the leaving card unmounts.
+      if (accepted) {
+        scrollYRef.current = window.scrollY
+        restoreScrollRef.current = true
+      }
       setReviews((prev) => ({ ...prev, [current.index]: accepted }))
       setHistory((prev) => [...prev, current.index])
       void persistReview(current, accepted)
@@ -588,7 +600,19 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
               </div>
             )}
 
-            <AnimatePresence custom={lastDir} onExitComplete={() => setPending(false)}>
+            <AnimatePresence
+              custom={lastDir}
+              onExitComplete={() => {
+                setPending(false)
+                // The next card is mounted by now; put the scroll back where it
+                // was before the accept exit so the page does not jump.
+                if (restoreScrollRef.current) {
+                  const y = scrollYRef.current
+                  restoreScrollRef.current = false
+                  requestAnimationFrame(() => window.scrollTo(0, y))
+                }
+              }}
+            >
               {current && (
                 <SwipeCard
                   key={current.index}
@@ -862,6 +886,7 @@ function Shell({
   const [selectionsOpen, setSelectionsOpen] = useState(false)
   return (
     <div style={styles.page}>
+      <PortalNav showSignOut />
       <main style={styles.container}>
         {children}
         <div style={styles.footerRow}>

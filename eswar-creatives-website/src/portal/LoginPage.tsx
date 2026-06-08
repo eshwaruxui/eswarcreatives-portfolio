@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { tokens, fonts } from './theme'
+import { PortalNav } from './PortalNav'
 
 type Mode = 'password' | 'magic'
 
@@ -68,13 +69,9 @@ export function LoginPage() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.shell}>
-        <header style={styles.brand}>
-          <div style={styles.brandName}>Eswar Creatives</div>
-          <div style={styles.brandSub}>Client Portal</div>
-          <hr style={styles.brandRule} />
-        </header>
-
+      <PortalNav />
+      <div style={styles.center}>
+        <div style={styles.shell}>
         <div style={styles.card}>
         <div style={styles.tabs}>
           <button
@@ -124,6 +121,7 @@ export function LoginPage() {
           </button>
         </form>
         </div>
+        </div>
       </div>
     </div>
   )
@@ -133,11 +131,16 @@ const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: '100vh',
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: 'column',
     background: tokens.bg, // Atelier cream
     color: tokens.text,
     fontFamily: fonts.body,
+  },
+  center: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 24,
   },
   shell: {
@@ -145,30 +148,6 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 380,
     display: 'flex',
     flexDirection: 'column',
-  },
-
-  // Branding above the card
-  brand: { textAlign: 'center', marginBottom: 22 },
-  brandName: {
-    margin: 0,
-    fontFamily: fonts.heading,
-    fontSize: 22,
-    fontWeight: 600,
-    color: tokens.primary,
-    letterSpacing: '-0.01em',
-  },
-  brandSub: {
-    margin: '4px 0 0',
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: tokens.textMuted,
-  },
-  brandRule: {
-    width: 40,
-    height: 1,
-    margin: '14px auto 0',
-    border: 'none',
-    background: tokens.border,
   },
 
   card: {

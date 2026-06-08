@@ -3,6 +3,7 @@ import { Navigate, Link } from 'react-router'
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
+import { PortalNav } from './PortalNav'
 import { tokens, fonts } from './theme'
 
 // NOTE: the spec referenced src/app/theme.ts, which only exists on the
@@ -508,6 +509,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
   // ── Render ─────────────────────────────────────────────────────────
   return (
     <div style={styles.page}>
+      <PortalNav showSignOut />
       <main style={styles.container}>
         <header style={styles.headerBlock}>
           <h1 style={styles.title}>Upload logo sketches</h1>
