@@ -9,8 +9,18 @@ import { SecureVaultCaseStudy } from "./components/SecureVaultCaseStudy";
 import { DsAuditCaseStudy } from "./components/DsAuditCaseStudy";
 import { ServicesPage } from "./components/ServicesPage";
 import { NotFound } from "./components/NotFound";
+import { LoginPage } from "../portal/LoginPage";
+import { VerifyPage } from "../portal/VerifyPage";
+import { SketchReviewPage } from "../portal/SketchReviewPage";
+import { AdminSketchUpload } from "../portal/AdminSketchUpload";
+import { AccountPage } from "../portal/AccountPage";
 
 export const routeConfig = [
+  { path: "/portal/login",          Component: LoginPage  },
+  { path: "/portal/verify",         Component: VerifyPage },
+  { path: "/portal/sketch-review",  Component: SketchReviewPage },
+  { path: "/portal/admin/sketches", Component: AdminSketchUpload },
+  { path: "/portal/account",        Component: AccountPage },
   {
     Component: RootLayout,
     children: [
