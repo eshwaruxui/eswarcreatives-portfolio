@@ -6,6 +6,7 @@ import {
   useTransform,
   type PanInfo,
 } from 'motion/react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { PortalNav } from './PortalNav'
@@ -970,55 +971,183 @@ function SelectionsModal({
   setNames: Record<string, string>
   onClose: () => void
 }) {
+  // Accepted-sketches lightbox. `lightbox` is the set being viewed (null when
+  // closed); `viewIndex` is null for the grid and a number for full-size.
+  const [lightbox, setLightbox] = useState<{ setId: string; label: string } | null>(null)
+  const [images, setImages] = useState<{ name: string; url: string }[]>([])
+  const [lightboxLoading, setLightboxLoading] = useState(false)
+  const [viewIndex, setViewIndex] = useState<number | null>(null)
+
+  // Reviews are keyed per set (one set belongs to one client), so the accepted
+  // sketches for a submission are that set's rows where accepted = true. We use
+  // the stored file_name to build the public URL, the same pattern as the deck.
+  async function openAccepted(setId: string, label: string) {
+    setLightbox({ setId, label })
+    setViewIndex(null)
+    setImages([])
+    setLightboxLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('logo_sketch_reviews')
+        .select('sketch_index, file_name, accepted')
+        .eq('set_id', setId)
+        .eq('accepted', true)
+        .order('sketch_index', { ascending: true })
+      if (error) throw error
+      const imgs = (data ?? [])
+        .filter((r) => r.file_name)
+        .map((r) => ({
+          name: r.file_name as string,
+          url: supabase.storage
+            .from(BUCKET)
+            .getPublicUrl(`${setId}/${r.file_name as string}`).data.publicUrl,
+        }))
+      setImages(imgs)
+    } catch (err) {
+      console.error('Failed to load accepted sketches:', err)
+    } finally {
+      setLightboxLoading(false)
+    }
+  }
+
+  function closeLightbox() {
+    setLightbox(null)
+    setViewIndex(null)
+    setImages([])
+  }
+
   return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div
-        style={styles.sheet}
-        role="dialog"
-        aria-modal="true"
-        aria-label="My selections"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={styles.sheetHead}>
-          <h2 style={styles.sheetTitle}>My selections</h2>
+    <>
+      <div style={styles.overlay} onClick={onClose}>
+        <div
+          style={styles.sheet}
+          role="dialog"
+          aria-modal="true"
+          aria-label="My selections"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={styles.sheetHead}>
+            <h2 style={styles.sheetTitle}>My selections</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              style={styles.sheetClose}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          {submissions.length === 0 ? (
+            <p style={styles.mutedBody}>No completed sets yet.</p>
+          ) : (
+            <div style={styles.selectionList}>
+              {submissions.map((s, i) => {
+                const label = setNames[s.set_id] ?? 'Set'
+                return (
+                  <div key={`${s.set_id}-${i}`} style={styles.selectionRow}>
+                    <div style={styles.selectionTop}>
+                      <span style={styles.selectionName}>{label}</span>
+                      <span style={styles.selectionDate}>
+                        {formatDate(s.completed_at)}
+                      </span>
+                    </div>
+                    <div style={styles.selectionBottom}>
+                      <div style={styles.selectionCounts}>
+                        <span style={{ color: tokens.green, fontWeight: 600 }}>
+                          {s.accepted_count} accepted
+                        </span>
+                        <span style={styles.counterDivider}>·</span>
+                        <span style={{ color: tokens.ruby, fontWeight: 600 }}>
+                          {s.passed_count} passed
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openAccepted(s.set_id, label)}
+                        style={styles.viewAcceptedLink}
+                      >
+                        View accepted sketches
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {lightbox && (
+        <div
+          style={styles.lbOverlay}
+          onClick={viewIndex === null ? closeLightbox : () => setViewIndex(null)}
+        >
+          <div style={styles.lbTitle}>{lightbox.label}</div>
           <button
             type="button"
-            onClick={onClose}
-            style={styles.sheetClose}
+            onClick={(e) => {
+              e.stopPropagation()
+              closeLightbox()
+            }}
+            style={styles.lbClose}
             aria-label="Close"
           >
-            ×
+            <X size={22} />
           </button>
+
+          {lightboxLoading ? (
+            <p style={styles.lbEmpty}>Loading accepted sketches...</p>
+          ) : images.length === 0 ? (
+            <p style={styles.lbEmpty}>No accepted sketches for this set.</p>
+          ) : viewIndex === null ? (
+            <div style={styles.lbGrid} onClick={(e) => e.stopPropagation()}>
+              {images.map((img, i) => (
+                <button
+                  key={img.name}
+                  type="button"
+                  style={styles.lbThumbBtn}
+                  onClick={() => setViewIndex(i)}
+                >
+                  <img src={img.url} alt={img.name} style={styles.lbThumb} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div style={styles.lbStage} onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() =>
+                  setViewIndex((i) => ((i as number) - 1 + images.length) % images.length)
+                }
+                style={styles.lbNav}
+                aria-label="Previous"
+              >
+                <ChevronLeft size={28} />
+              </button>
+              <img
+                src={images[viewIndex].url}
+                alt={images[viewIndex].name}
+                style={styles.lbFull}
+              />
+              <button
+                type="button"
+                onClick={() => setViewIndex((i) => ((i as number) + 1) % images.length)}
+                style={styles.lbNav}
+                aria-label="Next"
+              >
+                <ChevronRight size={28} />
+              </button>
+            </div>
+          )}
+
+          {viewIndex !== null && images.length > 0 && (
+            <div style={styles.lbCounter}>
+              {viewIndex + 1} / {images.length}
+            </div>
+          )}
         </div>
-        {submissions.length === 0 ? (
-          <p style={styles.mutedBody}>No completed sets yet.</p>
-        ) : (
-          <div style={styles.selectionList}>
-            {submissions.map((s, i) => (
-              <div key={`${s.set_id}-${i}`} style={styles.selectionRow}>
-                <div style={styles.selectionTop}>
-                  <span style={styles.selectionName}>
-                    {setNames[s.set_id] ?? 'Set'}
-                  </span>
-                  <span style={styles.selectionDate}>
-                    {formatDate(s.completed_at)}
-                  </span>
-                </div>
-                <div style={styles.selectionCounts}>
-                  <span style={{ color: tokens.green, fontWeight: 600 }}>
-                    {s.accepted_count} accepted
-                  </span>
-                  <span style={styles.counterDivider}>·</span>
-                  <span style={{ color: tokens.ruby, fontWeight: 600 }}>
-                    {s.passed_count} passed
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+      )}
+    </>
   )
 }
 
@@ -1507,10 +1636,115 @@ const styles: Record<string, React.CSSProperties> = {
     color: tokens.text,
   },
   selectionDate: { fontSize: 12, color: tokens.textMuted },
+  selectionBottom: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
   selectionCounts: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
+    fontSize: 13,
+  },
+  viewAcceptedLink: {
+    background: 'transparent',
+    border: 'none',
+    color: tokens.primary, // teal
+    fontSize: 12,
+    fontFamily: fonts.body,
+    fontWeight: 600,
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    padding: 0,
+  },
+
+  // Accepted sketches lightbox
+  lbOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0, 0, 0, 0.9)',
+    zIndex: 110,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  lbTitle: {
+    position: 'absolute',
+    top: 18,
+    left: 20,
+    color: tokens.surface,
+    fontFamily: fonts.heading,
+    fontSize: 15,
+    fontWeight: 600,
+  },
+  lbClose: {
+    position: 'absolute',
+    top: 14,
+    right: 16,
+    background: 'transparent',
+    border: 'none',
+    color: tokens.surface,
+    cursor: 'pointer',
+    padding: 8,
+    display: 'flex',
+    zIndex: 2,
+  },
+  lbEmpty: { color: tokens.surface, fontSize: 14 },
+  lbGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+    gap: 12,
+    width: '100%',
+    maxWidth: 900,
+    maxHeight: '82vh',
+    overflowY: 'auto',
+    padding: '8px 4px',
+  },
+  lbThumbBtn: { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' },
+  lbThumb: {
+    width: '100%',
+    aspectRatio: '1 / 1',
+    objectFit: 'cover',
+    borderRadius: 8,
+    display: 'block',
+  },
+  lbStage: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    width: '100%',
+    maxWidth: 1000,
+  },
+  lbFull: {
+    maxWidth: '78vw',
+    maxHeight: '82vh',
+    objectFit: 'contain',
+    borderRadius: 8,
+  },
+  lbNav: {
+    background: 'rgba(255, 255, 255, 0.12)',
+    border: 'none',
+    color: tokens.surface,
+    cursor: 'pointer',
+    borderRadius: '50%',
+    width: 44,
+    height: 44,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  lbCounter: {
+    position: 'absolute',
+    bottom: 20,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    color: tokens.surface,
     fontSize: 13,
   },
 
