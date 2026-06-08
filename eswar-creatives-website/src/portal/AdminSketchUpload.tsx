@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, Link } from 'react-router'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { tokens, fonts } from './theme'
@@ -71,6 +71,11 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
   const [orderDirty, setOrderDirty] = useState(false)
   const [setsBackup, setSetsBackup] = useState<SketchSet[] | null>(null)
   const [submissions, setSubmissions] = useState<Submission[]>([])
+  // Inline set rename. renamingSetId is the row being edited; the blur-skip ref
+  // stops an Escape cancel from also firing the blur commit on unmount.
+  const [renamingSetId, setRenamingSetId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const skipRenameBlur = useRef(false)
 
   const [loadingClients, setLoadingClients] = useState(true)
   const [loadingSets, setLoadingSets] = useState(false)
@@ -243,7 +248,10 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
 
   // ── Delete an entire set and all its sketches ──────────────────────
   async function handleDeleteSet(s: SketchSet) {
-    if (!window.confirm('Delete entire set and all sketches? This cannot be undone.')) return
+    if (
+      !window.confirm(`Delete ${setLabel(s)} and all its sketches? This cannot be undone.`)
+    )
+      return
     setWorking(true)
     setError(null)
     setToast(null)
@@ -259,16 +267,58 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
         const { error: rmErr } = await supabase.storage.from(BUCKET).remove(paths)
         if (rmErr) throw rmErr
       }
+      // Reviews reference the set without ON DELETE CASCADE, so clear them
+      // first; submissions cascade automatically when the set row is removed.
+      const { error: revErr } = await supabase
+        .from('logo_sketch_reviews')
+        .delete()
+        .eq('set_id', s.id)
+      if (revErr) throw revErr
       const { error: delErr } = await supabase.from('logo_sketch_sets').delete().eq('id', s.id)
       if (delErr) throw delErr
       if (expandedSetId === s.id) setExpandedSetId(null)
       if (selectedSetId === s.id) setSelectedSetId('')
+      if (renamingSetId === s.id) setRenamingSetId(null)
       if (selectedClient) await loadSets(selectedClient)
       setToast('Set deleted')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setWorking(false)
+    }
+  }
+
+  // ── Inline set rename ──────────────────────────────────────────────
+  function startRename(s: SketchSet) {
+    skipRenameBlur.current = false
+    setRenamingSetId(s.id)
+    setRenameValue(s.name ?? `Set ${s.set_number}`)
+  }
+
+  function cancelRename() {
+    skipRenameBlur.current = true
+    setRenamingSetId(null)
+  }
+
+  async function commitRename(s: SketchSet) {
+    if (skipRenameBlur.current) {
+      skipRenameBlur.current = false
+      return
+    }
+    const name = renameValue.trim()
+    setRenamingSetId(null)
+    if (!name || name === (s.name ?? '')) return
+    setError(null)
+    try {
+      const { error: updErr } = await supabase
+        .from('logo_sketch_sets')
+        .update({ name })
+        .eq('id', s.id)
+      if (updErr) throw updErr
+      setSets((prev) => prev.map((x) => (x.id === s.id ? { ...x, name } : x)))
+      setToast('Set renamed')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -567,7 +617,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
                       <div
                         role="button"
                         tabIndex={0}
-                        draggable
+                        draggable={renamingSetId !== s.id}
                         onDragStart={() => setDragIndex(i)}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={() => handleDropOnSet(i)}
@@ -585,7 +635,54 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
                           ⠿
                         </span>
                         <div style={styles.setHeaderText}>
-                          <span style={styles.setName}>{setLabel(s)}</span>
+                          <div style={styles.setNameRow}>
+                            {renamingSetId === s.id ? (
+                              <input
+                                autoFocus
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => {
+                                  e.stopPropagation()
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    ;(e.target as HTMLInputElement).blur()
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault()
+                                    cancelRename()
+                                  }
+                                }}
+                                onBlur={() => commitRename(s)}
+                                style={styles.renameInput}
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  startRename(s)
+                                }}
+                                style={styles.setNameBtn}
+                                title="Rename set"
+                              >
+                                {setLabel(s)}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteSet(s)
+                              }}
+                              disabled={working}
+                              style={styles.setDeleteBtn}
+                              aria-label={`Delete ${setLabel(s)}`}
+                              title="Delete set"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
                           <span style={styles.setMeta}>
                             {s.total_count} {s.total_count === 1 ? 'sketch' : 'sketches'} · {formatDate(s.created_at)}
                           </span>
@@ -626,15 +723,6 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
                               ))}
                             </div>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteSet(s)}
-                            disabled={working}
-                            style={styles.deleteSetBtn}
-                          >
-                            Delete set
-                          </button>
-
                           {submissions.length > 0 && (
                             <div style={styles.history}>
                               <h4 style={styles.historyTitle}>Submission history</h4>
@@ -876,6 +964,46 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     color: tokens.text,
   },
+  setNameRow: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
+  setNameBtn: {
+    background: 'transparent',
+    border: 'none',
+    padding: 0,
+    margin: 0,
+    fontFamily: fonts.heading,
+    fontSize: 16,
+    fontWeight: 600,
+    color: tokens.text,
+    cursor: 'text',
+    textAlign: 'left',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  setDeleteBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: 'none',
+    color: tokens.ruby,
+    cursor: 'pointer',
+    padding: 4,
+    flexShrink: 0,
+    lineHeight: 0,
+  },
+  renameInput: {
+    flex: 1,
+    minWidth: 0,
+    padding: '6px 10px',
+    borderRadius: 6,
+    border: `1px solid ${tokens.accent}`,
+    background: tokens.surface,
+    color: tokens.text,
+    fontFamily: fonts.heading,
+    fontSize: 16,
+    fontWeight: 600,
+  },
   setMeta: { fontSize: 12, color: tokens.textMuted },
 
   expandPanel: {
@@ -930,18 +1058,6 @@ const styles: Record<string, React.CSSProperties> = {
     borderTopColor: tokens.accent,
     animation: 'spin 0.8s linear infinite',
   },
-  deleteSetBtn: {
-    alignSelf: 'flex-start',
-    background: 'transparent',
-    border: 'none',
-    color: tokens.ruby,
-    fontSize: 13,
-    fontWeight: 600,
-    fontFamily: fonts.body,
-    cursor: 'pointer',
-    padding: 0,
-  },
-
   uploadBlock: {
     marginTop: 18,
     paddingTop: 18,

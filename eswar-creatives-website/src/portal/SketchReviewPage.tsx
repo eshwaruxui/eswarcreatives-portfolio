@@ -6,7 +6,6 @@ import {
   useTransform,
   type PanInfo,
 } from 'motion/react'
-import { Link } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { tokens, fonts } from './theme'
@@ -25,6 +24,14 @@ type SketchSet = {
 }
 
 type Sketch = { index: number; fileName: string; url: string }
+
+// A completed set, as recorded in logo_sketch_submissions.
+type Submission = {
+  set_id: string
+  accepted_count: number
+  passed_count: number
+  completed_at: string
+}
 
 const BUCKET = 'logo-sketches'
 const SWIPE_THRESHOLD = 120 // px of horizontal travel that commits a decision
@@ -78,6 +85,12 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
   const [history, setHistory] = useState<number[]>([])
   // Snapshot of review counts per set, used to tell which OTHER sets remain.
   const [otherCounts, setOtherCounts] = useState<Record<string, number>>({})
+  // Completed sets for this client, for the progress line and My selections.
+  const [submissions, setSubmissions] = useState<Submission[]>([])
+  // The client's display name, for the greeting.
+  const [displayName, setDisplayName] = useState<string>('')
+  // Theme-styled confirmation dialog config. null means no dialog is open.
+  const [confirm, setConfirm] = useState<ConfirmConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [switching, setSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,7 +103,17 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
     let cancelled = false
     ;(async () => {
       try {
-        // 1. All sets for this client, in display order.
+        // 0. The client's display name, for the greeting.
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', profile.id)
+          .single()
+        if (cancelled) return
+        if (prof?.full_name) setDisplayName(prof.full_name as string)
+
+        // 1. All sets for this client, in display order. Sets with no sketches
+        //    yet (total_count = 0) are never shown or reviewable, so drop them.
         const { data: setRows, error: setErr } = await supabase
           .from('logo_sketch_sets')
           .select('id, name, project_slug, set_number, total_count, created_at')
@@ -98,7 +121,7 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
           .order('set_number', { ascending: true })
         if (setErr) throw setErr
         if (cancelled) return
-        const all = (setRows ?? []) as SketchSet[]
+        const all = ((setRows ?? []) as SketchSet[]).filter((s) => s.total_count > 0)
         setSets(all)
         if (all.length === 0) {
           setLoading(false)
@@ -119,12 +142,20 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
         }
         setOtherCounts(counts)
 
-        // 3. Start on the first reviewable, not-yet-complete set. If every set
-        //    is complete, land on the last reviewable one (shows the summary).
-        const reviewable = all.filter((s) => s.total_count > 0)
+        // 2b. Completed sets (submission history) for progress and My selections.
+        const { data: subRows } = await supabase
+          .from('logo_sketch_submissions')
+          .select('set_id, accepted_count, passed_count, completed_at')
+          .eq('client_id', profile.id)
+          .order('completed_at', { ascending: false })
+        if (cancelled) return
+        setSubmissions((subRows ?? []) as Submission[])
+
+        // 3. Start on the first not-yet-complete set. If every set is complete,
+        //    land on the last one (which shows the summary).
         const chosen =
-          reviewable.find((s) => (counts[s.id] ?? 0) < s.total_count) ??
-          reviewable[reviewable.length - 1] ??
+          all.find((s) => (counts[s.id] ?? 0) < s.total_count) ??
+          all[all.length - 1] ??
           null
         if (!chosen) {
           setLoading(false)
@@ -170,6 +201,20 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
     incompleteOthers.find((s) => sets.indexOf(s) > curIdx) ??
     incompleteOthers[0] ??
     null
+
+  // ── Progress across all of the client's sets ───────────────────────
+  // A set is "completed" if it has a submission record; "in progress" if it
+  // has at least one review but is not yet completed; "remaining" otherwise.
+  const totalSets = sets.length
+  const currentPosition = curIdx >= 0 ? curIdx + 1 : 1
+  const completedSetIds = new Set(submissions.map((s) => s.set_id))
+  const reviewCountFor = (s: SketchSet) =>
+    s.id === currentSetId ? reviewedCount : otherCounts[s.id] ?? 0
+  const completedSets = sets.filter((s) => completedSetIds.has(s.id)).length
+  const inProgressSets = sets.filter(
+    (s) => !completedSetIds.has(s.id) && reviewCountFor(s) > 0
+  ).length
+  const remainingSets = totalSets - completedSets - inProgressSets
 
   // ── Persistence ────────────────────────────────────────────────────
   // Upsert on the (set_id, sketch_index) unique constraint (migration 0015)
@@ -294,9 +339,8 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
   }, [nextSet, switching, currentSetId, reviewedCount])
 
   // ── Reset all decisions for the current set ─────────────────────────
-  const handleStartOver = useCallback(async () => {
+  const doStartOver = useCallback(async () => {
     if (!currentSetId) return
-    if (!window.confirm('Start over and clear your decisions for this set?')) return
     setError(null)
     try {
       const { error: delErr } = await supabase
@@ -311,14 +355,17 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
     }
   }, [currentSetId])
 
+  const handleStartOver = useCallback(() => {
+    setConfirm({
+      title: 'Reset this set?',
+      body: 'This will clear all your decisions for this set. This action cannot be undone.',
+      confirmLabel: 'Reset',
+      onConfirm: doStartOver,
+    })
+  }, [doStartOver])
+
   // ── Clear every review across all sets and return to the start ──────
-  const handleResetAll = useCallback(async () => {
-    if (
-      !window.confirm(
-        'This will clear all your sketch reviews and start fresh. This cannot be undone. Continue?'
-      )
-    )
-      return
+  const doResetAll = useCallback(async () => {
     setError(null)
     try {
       const ids = sets.map((s) => s.id)
@@ -346,6 +393,15 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
       setError(err instanceof Error ? err.message : String(err))
     }
   }, [sets])
+
+  const handleResetAll = useCallback(() => {
+    setConfirm({
+      title: 'Reset all reviews?',
+      body: 'This will clear all your decisions across every set. This action cannot be undone.',
+      confirmLabel: 'Reset all',
+      onConfirm: doResetAll,
+    })
+  }, [doResetAll])
 
   // ── Render ─────────────────────────────────────────────────────────
   if (loading) {
@@ -379,13 +435,26 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
   }
 
   return (
-    <Shell>
+    <Shell
+      submissions={submissions}
+      setNames={Object.fromEntries(
+        sets.map((s) => [s.id, s.name ?? `Set ${s.set_number}`])
+      )}
+    >
       <div style={styles.header}>
         <h1 style={styles.title}>Review your logo sketches</h1>
         <p style={styles.subtitle}>
           Swipe right to accept, swipe left to pass. You can undo any decision.
         </p>
-        {currentSet.name && <p style={styles.setLabel}>{currentSet.name}</p>}
+        {displayName && (
+          <p style={styles.greeting}>
+            Hi {displayName}, here are your sketches.
+          </p>
+        )}
+        <p style={styles.progressLine}>
+          Set {currentPosition} of {totalSets} - {completedSets} completed,{' '}
+          {remainingSets} remaining, {inProgressSets} in progress
+        </p>
       </div>
 
       {/* Progress */}
@@ -496,6 +565,13 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
           Reset all reviews
         </button>
       </div>
+
+      {confirm && (
+        <ConfirmDialog
+          config={confirm}
+          onClose={() => setConfirm(null)}
+        />
+      )}
     </Shell>
   )
 }
@@ -679,19 +755,162 @@ function SummaryStat({
 }
 
 // ── Page shell ───────────────────────────────────────────────────────
-function Shell({ children }: { children: React.ReactNode }) {
+// The footer link opens an inline "My selections" sheet (no page navigation)
+// listing every set this client has completed. Shell owns the open state so
+// every render branch shares one implementation.
+function Shell({
+  children,
+  submissions = [],
+  setNames = {},
+}: {
+  children: React.ReactNode
+  submissions?: Submission[]
+  setNames?: Record<string, string>
+}) {
+  const [selectionsOpen, setSelectionsOpen] = useState(false)
   return (
     <div style={styles.page}>
       <main style={styles.container}>
         {children}
         <div style={styles.accountFooter}>
-          <Link to="/portal/account" style={styles.accountLink}>
-            Account
-          </Link>
+          <button
+            type="button"
+            onClick={() => setSelectionsOpen(true)}
+            style={styles.accountLink}
+          >
+            My selections
+          </button>
         </div>
       </main>
+      {selectionsOpen && (
+        <SelectionsModal
+          submissions={submissions}
+          setNames={setNames}
+          onClose={() => setSelectionsOpen(false)}
+        />
+      )}
     </div>
   )
+}
+
+// ── My selections sheet ──────────────────────────────────────────────
+function SelectionsModal({
+  submissions,
+  setNames,
+  onClose,
+}: {
+  submissions: Submission[]
+  setNames: Record<string, string>
+  onClose: () => void
+}) {
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      <div
+        style={styles.sheet}
+        role="dialog"
+        aria-modal="true"
+        aria-label="My selections"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={styles.sheetHead}>
+          <h2 style={styles.sheetTitle}>My selections</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            style={styles.sheetClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        {submissions.length === 0 ? (
+          <p style={styles.mutedBody}>No completed sets yet.</p>
+        ) : (
+          <div style={styles.selectionList}>
+            {submissions.map((s, i) => (
+              <div key={`${s.set_id}-${i}`} style={styles.selectionRow}>
+                <div style={styles.selectionTop}>
+                  <span style={styles.selectionName}>
+                    {setNames[s.set_id] ?? 'Set'}
+                  </span>
+                  <span style={styles.selectionDate}>
+                    {formatDate(s.completed_at)}
+                  </span>
+                </div>
+                <div style={styles.selectionCounts}>
+                  <span style={{ color: tokens.green, fontWeight: 600 }}>
+                    {s.accepted_count} accepted
+                  </span>
+                  <span style={styles.counterDivider}>·</span>
+                  <span style={{ color: tokens.ruby, fontWeight: 600 }}>
+                    {s.passed_count} passed
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Theme-styled confirmation dialog (replaces window.confirm) ───────
+type ConfirmConfig = {
+  title: string
+  body: string
+  confirmLabel: string
+  onConfirm: () => void | Promise<void>
+}
+
+function ConfirmDialog({
+  config,
+  onClose,
+}: {
+  config: ConfirmConfig
+  onClose: () => void
+}) {
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      <div
+        style={styles.dialog}
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={config.title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 style={styles.dialogTitle}>{config.title}</h2>
+        <p style={styles.dialogBody}>{config.body}</p>
+        <div style={styles.dialogActions}>
+          <button type="button" onClick={onClose} style={styles.dialogCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void config.onConfirm()
+              onClose()
+            }}
+            style={styles.dialogConfirm}
+          >
+            {config.confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+  } catch {
+    return iso
+  }
 }
 
 // ── Styles (theme tokens only) ───────────────────────────────────────
@@ -733,6 +952,19 @@ const styles: Record<string, React.CSSProperties> = {
     background: tokens.tealLight,
     borderRadius: 999,
     padding: '4px 14px',
+  },
+  greeting: {
+    margin: '12px 0 0',
+    fontFamily: fonts.heading,
+    fontSize: 17,
+    fontWeight: 600,
+    color: tokens.text,
+  },
+  progressLine: {
+    margin: '8px 0 0',
+    fontSize: 13,
+    fontWeight: 500,
+    color: tokens.textMuted,
   },
 
   // Progress
@@ -953,7 +1185,16 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
   },
   accountFooter: { textAlign: 'center', marginTop: 32 },
-  accountLink: { fontSize: 13, color: tokens.textMuted, textDecoration: 'underline' },
+  accountLink: {
+    fontSize: 13,
+    color: tokens.textMuted,
+    textDecoration: 'underline',
+    background: 'transparent',
+    border: 'none',
+    fontFamily: fonts.body,
+    cursor: 'pointer',
+    padding: 0,
+  },
   resetAllWrap: { textAlign: 'left', marginTop: 24 },
   resetAllBtn: {
     background: 'transparent',
@@ -973,5 +1214,133 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     border: `1px solid ${tokens.ruby}33`,
     marginBottom: 16,
+  },
+
+  // Overlay shared by the selections sheet and confirm dialog
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(10, 26, 27, 0.45)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    zIndex: 50,
+  },
+
+  // My selections sheet
+  sheet: {
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '80vh',
+    overflowY: 'auto',
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 16,
+    padding: 24,
+    boxShadow: '0 16px 48px rgba(2, 76, 79, 0.22)',
+  },
+  sheetHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    margin: 0,
+    fontFamily: fonts.heading,
+    fontSize: 20,
+    fontWeight: 600,
+    color: tokens.text,
+  },
+  sheetClose: {
+    background: 'transparent',
+    border: 'none',
+    color: tokens.textMuted,
+    fontSize: 24,
+    lineHeight: 1,
+    cursor: 'pointer',
+    padding: 0,
+  },
+  selectionList: { display: 'flex', flexDirection: 'column', gap: 12 },
+  selectionRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    padding: '12px 14px',
+    borderRadius: 10,
+    background: tokens.bg,
+    border: `1px solid ${tokens.border}`,
+  },
+  selectionTop: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  selectionName: {
+    fontFamily: fonts.heading,
+    fontSize: 15,
+    fontWeight: 600,
+    color: tokens.text,
+  },
+  selectionDate: { fontSize: 12, color: tokens.textMuted },
+  selectionCounts: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    fontSize: 13,
+  },
+
+  // Confirm dialog
+  dialog: {
+    width: '100%',
+    maxWidth: 380,
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 16,
+    padding: 24,
+    boxShadow: '0 16px 48px rgba(2, 76, 79, 0.22)',
+  },
+  dialogTitle: {
+    margin: '0 0 8px',
+    fontFamily: fonts.heading,
+    fontSize: 19,
+    fontWeight: 600,
+    color: tokens.text,
+  },
+  dialogBody: {
+    margin: 0,
+    fontSize: 14,
+    lineHeight: '21px',
+    color: tokens.textMuted,
+  },
+  dialogActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 22,
+  },
+  dialogCancel: {
+    background: 'transparent',
+    border: `1px solid ${tokens.border}`,
+    color: tokens.primary,
+    borderRadius: 10,
+    padding: '10px 18px',
+    fontSize: 14,
+    fontWeight: 500,
+    fontFamily: fonts.body,
+    cursor: 'pointer',
+  },
+  dialogConfirm: {
+    background: tokens.ruby,
+    border: '1px solid transparent',
+    color: tokens.surface,
+    borderRadius: 10,
+    padding: '10px 18px',
+    fontSize: 14,
+    fontWeight: 600,
+    fontFamily: fonts.body,
+    cursor: 'pointer',
   },
 }
