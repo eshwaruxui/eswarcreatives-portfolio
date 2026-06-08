@@ -82,6 +82,7 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
   const [switching, setSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false) // gate while a card animates out
+  const [lastDir, setLastDir] = useState<1 | -1>(1) // exit direction for the leaving card
 
   const currentSet = sets.find((s) => s.id === currentSetId) ?? null
 
@@ -204,16 +205,43 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
     [currentSetId]
   )
 
+  // Record a completed set to the submission history (best-effort).
+  const recordSubmission = useCallback(
+    async (accepted: number, passed: number) => {
+      if (!currentSetId) return
+      try {
+        await supabase.from('logo_sketch_submissions').upsert(
+          {
+            set_id: currentSetId,
+            client_id: profile.id,
+            accepted_count: accepted,
+            passed_count: passed,
+            completed_at: new Date().toISOString(),
+          },
+          { onConflict: 'set_id,client_id,completed_at', ignoreDuplicates: true }
+        )
+      } catch {
+        // History is best-effort, never block the review flow.
+      }
+    },
+    [currentSetId, profile.id]
+  )
+
   const decide = useCallback(
     (accepted: boolean) => {
       if (pending || !current) return
       setPending(true)
       setError(null)
+      setLastDir(accepted ? 1 : -1)
+      const completesSet = remaining.length === 1
+      const finalAccepted = acceptedCount + (accepted ? 1 : 0)
+      const finalPassed = rejectedCount + (accepted ? 0 : 1)
       setReviews((prev) => ({ ...prev, [current.index]: accepted }))
       setHistory((prev) => [...prev, current.index])
       void persistReview(current, accepted)
+      if (completesSet) void recordSubmission(finalAccepted, finalPassed)
     },
-    [pending, current, persistReview]
+    [pending, current, persistReview, remaining.length, acceptedCount, rejectedCount, recordSubmission]
   )
 
   const undo = useCallback(async () => {
@@ -282,6 +310,42 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
       setError(err instanceof Error ? err.message : String(err))
     }
   }, [currentSetId])
+
+  // ── Clear every review across all sets and return to the start ──────
+  const handleResetAll = useCallback(async () => {
+    if (
+      !window.confirm(
+        'This will clear all your sketch reviews and start fresh. This cannot be undone. Continue?'
+      )
+    )
+      return
+    setError(null)
+    try {
+      const ids = sets.map((s) => s.id)
+      if (ids.length > 0) {
+        const { error: delErr } = await supabase
+          .from('logo_sketch_reviews')
+          .delete()
+          .in('set_id', ids)
+        if (delErr) throw delErr
+      }
+      setOtherCounts({})
+      // Return to Set 1, sketch 1.
+      const first = sets.find((s) => s.total_count > 0) ?? null
+      if (first) {
+        const deck = await fetchSetDeck(first.id)
+        setCurrentSetId(first.id)
+        setSketches(deck.sketches)
+        setReviews(deck.map) // empty after the delete
+        setHistory(deck.order)
+      } else {
+        setReviews({})
+        setHistory([])
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [sets])
 
   // ── Render ─────────────────────────────────────────────────────────
   if (loading) {
@@ -381,10 +445,7 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
               </div>
             )}
 
-            <AnimatePresence
-              custom={reviews[current?.index ?? -1]}
-              onExitComplete={() => setPending(false)}
-            >
+            <AnimatePresence custom={lastDir} onExitComplete={() => setPending(false)}>
               {current && (
                 <SwipeCard
                   key={current.index}
@@ -429,6 +490,12 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
           </div>
         </div>
       )}
+
+      <div style={styles.resetAllWrap}>
+        <button type="button" onClick={handleResetAll} style={styles.resetAllBtn}>
+          Reset all reviews
+        </button>
+      </div>
     </Shell>
   )
 }
@@ -449,33 +516,41 @@ function SwipeCard({
   const rotate = useTransform(x, [-200, 200], [-12, 12])
   const acceptOpacity = useTransform(x, [40, 140], [0, 1])
   const rejectOpacity = useTransform(x, [-140, -40], [1, 0])
+  // Once a swipe crosses the threshold we lock the direction: the overlay icon
+  // sticks, drag is disabled (no spring back), and the card flies off-screen.
+  const [committed, setCommitted] = useState<0 | 1 | -1>(0)
+  const screenW = typeof window !== 'undefined' ? window.innerWidth : 1000
 
   function handleDragEnd(_: unknown, info: PanInfo) {
-    if (info.offset.x > SWIPE_THRESHOLD || info.velocity.x > 600) {
-      onDecide(true)
-    } else if (info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -600) {
-      onDecide(false)
-    }
+    if (committed !== 0) return
+    const goRight = info.offset.x > SWIPE_THRESHOLD || info.velocity.x > 600
+    const goLeft = info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -600
+    if (!goRight && !goLeft) return // under threshold: drag springs back
+    const dir = goRight ? 1 : -1
+    setCommitted(dir)
+    onDecide(dir === 1)
   }
+
+  const acceptOp = committed === 1 ? 1 : committed === -1 ? 0 : acceptOpacity
+  const rejectOp = committed === -1 ? 1 : committed === 1 ? 0 : rejectOpacity
 
   return (
     <motion.div
       style={{ ...styles.card, x, rotate }}
-      drag="x"
+      drag={committed === 0 ? 'x' : false}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.6}
       onDragEnd={handleDragEnd}
       initial={{ scale: 0.96, opacity: 0, y: 8 }}
       animate={{ scale: 1, opacity: 1, y: 0 }}
-      exit={(accepted: boolean) => ({
-        x: accepted ? 480 : -480,
+      exit={(dir: number) => ({
+        x: dir * (screenW + 240),
         opacity: 0,
-        rotate: accepted ? 16 : -16,
         transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] },
       })}
       whileTap={{ cursor: 'grabbing' }}
     >
-      <motion.div style={{ ...styles.iconOverlay, opacity: acceptOpacity }}>
+      <motion.div style={{ ...styles.iconOverlay, opacity: acceptOp }}>
         <div style={{ ...styles.iconCircle, background: tokens.green }}>
           <svg
             width="36"
@@ -491,7 +566,7 @@ function SwipeCard({
           </svg>
         </div>
       </motion.div>
-      <motion.div style={{ ...styles.iconOverlay, opacity: rejectOpacity }}>
+      <motion.div style={{ ...styles.iconOverlay, opacity: rejectOp }}>
         <div
           style={{
             ...styles.iconCircle,
@@ -879,6 +954,17 @@ const styles: Record<string, React.CSSProperties> = {
   },
   accountFooter: { textAlign: 'center', marginTop: 32 },
   accountLink: { fontSize: 13, color: tokens.textMuted, textDecoration: 'underline' },
+  resetAllWrap: { textAlign: 'left', marginTop: 24 },
+  resetAllBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: tokens.ruby,
+    fontSize: 13,
+    fontFamily: fonts.body,
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    padding: 0,
+  },
   error: {
     background: tokens.rubyLight,
     color: tokens.ruby,

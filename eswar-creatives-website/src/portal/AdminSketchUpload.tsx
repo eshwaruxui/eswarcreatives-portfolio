@@ -33,6 +33,14 @@ type SketchSet = {
   created_at: string
 }
 
+type Submission = {
+  set_id: string
+  client_id: string
+  accepted_count: number
+  passed_count: number
+  completed_at: string
+}
+
 // ── Route entry: auth via PortalGuard, then admin-only gate ──────────
 export function AdminSketchUpload() {
   return (
@@ -60,6 +68,9 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
   const [thumbsLoading, setThumbsLoading] = useState(false)
   const [working, setWorking] = useState(false)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [orderDirty, setOrderDirty] = useState(false)
+  const [setsBackup, setSetsBackup] = useState<SketchSet[] | null>(null)
+  const [submissions, setSubmissions] = useState<Submission[]>([])
 
   const [loadingClients, setLoadingClients] = useState(true)
   const [loadingSets, setLoadingSets] = useState(false)
@@ -139,6 +150,10 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
     setSets([])
     setFiles([])
     setToast(null)
+    setExpandedSetId(null)
+    setSubmissions([])
+    setOrderDirty(false)
+    setSetsBackup(null)
     const client = clients.find((c) => c.clientId === clientId)
     if (client) void loadSets(client)
   }
@@ -147,11 +162,28 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
   function toggleExpand(s: SketchSet) {
     if (expandedSetId === s.id) {
       setExpandedSetId(null)
+      setSubmissions([])
       return
     }
     setSelectedSetId(s.id)
     setExpandedSetId(s.id)
+    setSubmissions([])
     void loadThumbs(s.id)
+    void loadSubmissions(s.id)
+  }
+
+  async function loadSubmissions(setId: string) {
+    try {
+      const { data, error: err } = await supabase
+        .from('logo_sketch_submissions')
+        .select('set_id, client_id, accepted_count, passed_count, completed_at')
+        .eq('set_id', setId)
+        .order('completed_at', { ascending: false })
+      if (err) throw err
+      setSubmissions((data ?? []) as Submission[])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
   }
 
   async function loadThumbs(setId: string) {
@@ -241,28 +273,71 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
   }
 
   // ── Drag-to-reorder sets (HTML5 DnD, no library) ───────────────────
-  async function handleDropOnSet(targetIndex: number) {
+  // Reorder locally only; nothing persists until the admin presses Save.
+  function handleDropOnSet(targetIndex: number) {
     if (dragIndex === null || dragIndex === targetIndex) {
       setDragIndex(null)
       return
     }
+    if (!orderDirty) setSetsBackup(sets) // snapshot the saved order once
     const reordered = [...sets]
     const [moved] = reordered.splice(dragIndex, 1)
     reordered.splice(targetIndex, 0, moved)
-    // Renumber 1..n in the new order and persist every row.
-    const renumbered = reordered.map((s, i) => ({ ...s, set_number: i + 1 }))
-    setSets(renumbered)
+    setSets(reordered.map((s, i) => ({ ...s, set_number: i + 1 })))
+    setOrderDirty(true)
     setDragIndex(null)
+  }
+
+  async function handleSaveOrder() {
+    if (!window.confirm('Save new set order?')) return
     setError(null)
     try {
       await Promise.all(
-        renumbered.map((s) =>
+        sets.map((s) =>
           supabase.from('logo_sketch_sets').update({ set_number: s.set_number }).eq('id', s.id)
         )
       )
+      setOrderDirty(false)
+      setSetsBackup(null)
+      setToast('Set order saved')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       if (selectedClient) await loadSets(selectedClient) // reload true order on failure
+    }
+  }
+
+  function handleCancelOrder() {
+    if (setsBackup) setSets(setsBackup)
+    setSetsBackup(null)
+    setOrderDirty(false)
+  }
+
+  // ── Reset every review for the selected client ─────────────────────
+  async function handleResetClientReviews() {
+    if (!selectedClient) return
+    if (
+      !window.confirm(
+        `Reset all sketch reviews for ${selectedClient.name}? This cannot be undone.`
+      )
+    )
+      return
+    setWorking(true)
+    setError(null)
+    setToast(null)
+    try {
+      const ids = sets.map((s) => s.id)
+      if (ids.length > 0) {
+        const { error: delErr } = await supabase
+          .from('logo_sketch_reviews')
+          .delete()
+          .in('set_id', ids)
+        if (delErr) throw delErr
+      }
+      setToast('Client reviews reset')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setWorking(false)
     }
   }
 
@@ -415,6 +490,16 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
               ))}
             </select>
           )}
+          {selectedClient && (
+            <button
+              type="button"
+              onClick={handleResetClientReviews}
+              disabled={working}
+              style={styles.resetClientBtn}
+            >
+              Reset client reviews
+            </button>
+          )}
         </section>
 
         {/* Section 2 — Create new set */}
@@ -445,6 +530,20 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
         {selectedClient && (
           <section style={styles.card}>
             <h2 style={styles.h2}>3. Upload to set</h2>
+
+            {orderDirty && (
+              <div style={styles.orderBar}>
+                <span style={styles.orderBarText}>Set order changed</span>
+                <div style={styles.orderBarBtns}>
+                  <button type="button" onClick={handleCancelOrder} style={styles.orderCancelBtn}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={handleSaveOrder} style={styles.orderSaveBtn}>
+                    Save order
+                  </button>
+                </div>
+              </div>
+            )}
 
             {loadingSets ? (
               <p style={styles.muted}>Loading sets...</p>
@@ -535,6 +634,36 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
                           >
                             Delete set
                           </button>
+
+                          {submissions.length > 0 && (
+                            <div style={styles.history}>
+                              <h4 style={styles.historyTitle}>Submission history</h4>
+                              {groupSubmissionsByDate(submissions).map(([day, rows]) => (
+                                <div key={day} style={styles.historyGroup}>
+                                  <div style={styles.historyDate}>{day}</div>
+                                  {rows.map((r, ri) => (
+                                    <div key={ri} style={styles.historyRow}>
+                                      <span style={styles.historyName}>
+                                        {selectedClient?.name ?? 'Client'}
+                                      </span>
+                                      <span style={styles.historyCounts}>
+                                        <span style={{ color: tokens.green }}>
+                                          {r.accepted_count} accepted
+                                        </span>
+                                        {' · '}
+                                        <span style={{ color: tokens.ruby }}>
+                                          {r.passed_count} passed
+                                        </span>
+                                      </span>
+                                      <span style={styles.historyTime}>
+                                        {formatTime(r.completed_at)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -605,6 +734,42 @@ function formatDate(iso: string): string {
   } catch {
     return iso
   }
+}
+
+// DD MMM YYYY, e.g. 08 Jun 2026
+function formatDay(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+  } catch {
+    return iso
+  }
+}
+
+function formatTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
+}
+
+// Group submissions into [DD MMM YYYY, rows] preserving recency order.
+function groupSubmissionsByDate(subs: Submission[]): [string, Submission[]][] {
+  const order: string[] = []
+  const groups: Record<string, Submission[]> = {}
+  for (const s of subs) {
+    const day = formatDay(s.completed_at)
+    if (!groups[day]) {
+      groups[day] = []
+      order.push(day)
+    }
+    groups[day].push(s)
+  }
+  return order.map((d) => [d, groups[d]])
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -831,4 +996,87 @@ const styles: Record<string, React.CSSProperties> = {
   },
   accountFooter: { textAlign: 'center', marginTop: 32 },
   accountLink: { fontSize: 13, color: tokens.textMuted, textDecoration: 'underline' },
+
+  // Reset client reviews (admin)
+  resetClientBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    background: 'transparent',
+    border: 'none',
+    color: tokens.ruby,
+    fontSize: 13,
+    fontWeight: 600,
+    fontFamily: fonts.body,
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    padding: 0,
+  },
+
+  // Save / cancel reorder bar
+  orderBar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '10px 14px',
+    marginBottom: 12,
+    borderRadius: 10,
+    background: tokens.tealLight,
+    border: `1px solid ${tokens.accent}`,
+  },
+  orderBarText: { fontSize: 13, fontWeight: 600, color: tokens.primary },
+  orderBarBtns: { display: 'flex', gap: 8 },
+  orderSaveBtn: {
+    background: tokens.accent,
+    color: tokens.surface,
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 14px',
+    fontSize: 13,
+    fontWeight: 600,
+    fontFamily: fonts.body,
+    cursor: 'pointer',
+  },
+  orderCancelBtn: {
+    background: 'transparent',
+    border: `1px solid ${tokens.border}`,
+    color: tokens.primary,
+    borderRadius: 8,
+    padding: '8px 14px',
+    fontSize: 13,
+    fontWeight: 500,
+    fontFamily: fonts.body,
+    cursor: 'pointer',
+  },
+
+  // Submission history
+  history: {
+    marginTop: 6,
+    paddingTop: 14,
+    borderTop: `1px solid ${tokens.border}`,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+  },
+  historyTitle: {
+    margin: 0,
+    fontSize: 12,
+    fontWeight: 600,
+    color: tokens.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  historyGroup: { display: 'flex', flexDirection: 'column', gap: 6 },
+  historyDate: { fontSize: 12, fontWeight: 600, color: tokens.text },
+  historyRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
+    fontSize: 13,
+  },
+  historyName: { color: tokens.text, fontWeight: 500 },
+  historyCounts: { color: tokens.textMuted, fontWeight: 500 },
+  historyTime: { color: tokens.textMuted, fontSize: 12 },
 }
