@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate } from 'react-router'
+import { Navigate, Link } from 'react-router'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
@@ -584,6 +584,12 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
             )}
           </section>
         )}
+
+        <div style={styles.accountFooter}>
+          <Link to="/portal/account" style={styles.accountLink}>
+            Account
+          </Link>
+        </div>
       </main>
     </div>
   )
@@ -823,4 +829,6 @@ const styles: Record<string, React.CSSProperties> = {
     border: `1px solid ${tokens.ruby}33`,
     marginBottom: 16,
   },
+  accountFooter: { textAlign: 'center', marginTop: 32 },
+  accountLink: { fontSize: 13, color: tokens.textMuted, textDecoration: 'underline' },
 }

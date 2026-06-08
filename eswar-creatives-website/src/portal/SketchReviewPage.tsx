@@ -6,6 +6,7 @@ import {
   useTransform,
   type PanInfo,
 } from 'motion/react'
+import { Link } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { tokens, fonts } from './theme'
@@ -579,7 +580,14 @@ function SummaryStat({
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div style={styles.page}>
-      <main style={styles.container}>{children}</main>
+      <main style={styles.container}>
+        {children}
+        <div style={styles.accountFooter}>
+          <Link to="/portal/account" style={styles.accountLink}>
+            Account
+          </Link>
+        </div>
+      </main>
     </div>
   )
 }
@@ -852,6 +860,8 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: '22px',
     margin: 0,
   },
+  accountFooter: { textAlign: 'center', marginTop: 32 },
+  accountLink: { fontSize: 13, color: tokens.textMuted, textDecoration: 'underline' },
   error: {
     background: tokens.rubyLight,
     color: tokens.ruby,
