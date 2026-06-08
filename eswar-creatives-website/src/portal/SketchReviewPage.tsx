@@ -260,6 +260,16 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
     setSubmitting(true)
     setError(null)
     try {
+      // client_id must match auth.uid() exactly for the RLS insert policy, so
+      // read it straight from the session rather than the clients/profiles table.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      const authUserId = session?.user?.id
+      if (!authUserId) {
+        setError('Your session has expired. Please sign in again.')
+        return
+      }
       const ids = sets.map((s) => s.id)
       const { data: revRows, error: revErr } = await supabase
         .from('logo_sketch_reviews')
@@ -284,7 +294,7 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
         .filter((s) => s.total_count > 0 && (agg[s.id]?.total ?? 0) >= s.total_count)
         .map((s) => ({
           set_id: s.id,
-          client_id: profile.id,
+          client_id: authUserId,
           accepted_count: agg[s.id].accepted,
           passed_count: agg[s.id].passed,
           completed_at: now,
@@ -292,7 +302,7 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
       if (rows.length === 0) return
       const { error: upErr } = await supabase
         .from('logo_sketch_submissions')
-        .upsert(rows, { onConflict: 'set_id,client_id,completed_at' })
+        .insert(rows)
       if (upErr) {
         console.error('Failed to submit selections:', upErr)
         setError(upErr.message)
