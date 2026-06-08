@@ -259,7 +259,11 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
         .from('logo_sketch_reviews')
         .select('set_id, accepted')
         .in('set_id', ids)
-      if (revErr) throw revErr
+      if (revErr) {
+        console.error('Failed to load reviews for submission:', revErr)
+        setError(revErr.message)
+        return
+      }
       const agg: Record<string, { accepted: number; passed: number; total: number }> = {}
       for (const r of revRows ?? []) {
         const id = r.set_id as string
@@ -279,14 +283,15 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
           passed_count: agg[s.id].passed,
           completed_at: now,
         }))
-      if (rows.length === 0) {
-        setSubmitting(false)
-        return
-      }
+      if (rows.length === 0) return
       const { error: upErr } = await supabase
         .from('logo_sketch_submissions')
         .upsert(rows, { onConflict: 'set_id,client_id,completed_at' })
-      if (upErr) throw upErr
+      if (upErr) {
+        console.error('Failed to submit selections:', upErr)
+        setError(upErr.message)
+        return
+      }
       setSubmissions((prev) => [
         ...rows.map((r) => ({
           set_id: r.set_id,
@@ -299,6 +304,7 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
       setJustSubmitted(true)
       setToast('Selections submitted. We will be in touch soon.')
     } catch (err) {
+      console.error('Unexpected error submitting selections:', err)
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setSubmitting(false)
@@ -503,6 +509,7 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
       setNames={Object.fromEntries(
         sets.map((s) => [s.id, s.name ?? `Set ${s.set_number}`])
       )}
+      onResetAll={handleResetAll}
     >
       <div style={styles.header}>
         <h1 style={styles.title}>Review your logo sketches</h1>
@@ -626,12 +633,6 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
           </div>
         </div>
       )}
-
-      <div style={styles.resetAllWrap}>
-        <button type="button" onClick={handleResetAll} style={styles.resetAllBtn}>
-          Reset all reviews
-        </button>
-      </div>
 
       {confirm && (
         <ConfirmDialog
@@ -843,30 +844,40 @@ function SummaryStat({
 }
 
 // ── Page shell ───────────────────────────────────────────────────────
-// The footer link opens an inline "My selections" sheet (no page navigation)
-// listing every set this client has completed. Shell owns the open state so
-// every render branch shares one implementation.
+// The footer row carries "Reset all reviews" on the left and a "View
+// selections" link on the right, which opens an inline sheet (no page
+// navigation) listing every set this client has completed. Shell owns the
+// sheet's open state so every render branch shares one implementation.
 function Shell({
   children,
   submissions = [],
   setNames = {},
+  onResetAll,
 }: {
   children: React.ReactNode
   submissions?: Submission[]
   setNames?: Record<string, string>
+  onResetAll?: () => void
 }) {
   const [selectionsOpen, setSelectionsOpen] = useState(false)
   return (
     <div style={styles.page}>
       <main style={styles.container}>
         {children}
-        <div style={styles.accountFooter}>
+        <div style={styles.footerRow}>
+          {onResetAll ? (
+            <button type="button" onClick={onResetAll} style={styles.resetAllBtn}>
+              Reset all reviews
+            </button>
+          ) : (
+            <span />
+          )}
           <button
             type="button"
             onClick={() => setSelectionsOpen(true)}
-            style={styles.accountLink}
+            style={styles.viewSelectionsLink}
           >
-            My selections
+            View selections
           </button>
         </div>
       </main>
@@ -1278,8 +1289,14 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: '22px',
     margin: 0,
   },
-  accountFooter: { textAlign: 'center', marginTop: 32 },
-  accountLink: {
+  footerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 32,
+  },
+  viewSelectionsLink: {
     fontSize: 13,
     color: tokens.textMuted,
     textDecoration: 'underline',
@@ -1289,7 +1306,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     padding: 0,
   },
-  resetAllWrap: { textAlign: 'left', marginTop: 24 },
   resetAllBtn: {
     background: 'transparent',
     border: 'none',
