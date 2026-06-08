@@ -59,6 +59,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
   const [thumbs, setThumbs] = useState<{ name: string; url: string }[]>([])
   const [thumbsLoading, setThumbsLoading] = useState(false)
   const [working, setWorking] = useState(false)
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
 
   const [loadingClients, setLoadingClients] = useState(true)
   const [loadingSets, setLoadingSets] = useState(false)
@@ -122,7 +123,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
         .from('logo_sketch_sets')
         .select('id, name, set_number, total_count, created_at')
         .eq('client_id', client.profileId)
-        .order('created_at', { ascending: false })
+        .order('set_number', { ascending: true })
       if (err) throw err
       setSets((data ?? []) as SketchSet[])
     } catch (err) {
@@ -236,6 +237,32 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setWorking(false)
+    }
+  }
+
+  // ── Drag-to-reorder sets (HTML5 DnD, no library) ───────────────────
+  async function handleDropOnSet(targetIndex: number) {
+    if (dragIndex === null || dragIndex === targetIndex) {
+      setDragIndex(null)
+      return
+    }
+    const reordered = [...sets]
+    const [moved] = reordered.splice(dragIndex, 1)
+    reordered.splice(targetIndex, 0, moved)
+    // Renumber 1..n in the new order and persist every row.
+    const renumbered = reordered.map((s, i) => ({ ...s, set_number: i + 1 }))
+    setSets(renumbered)
+    setDragIndex(null)
+    setError(null)
+    try {
+      await Promise.all(
+        renumbered.map((s) =>
+          supabase.from('logo_sketch_sets').update({ set_number: s.set_number }).eq('id', s.id)
+        )
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      if (selectedClient) await loadSets(selectedClient) // reload true order on failure
     }
   }
 
@@ -425,7 +452,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
               <p style={styles.muted}>No sets yet. Create one above to get started.</p>
             ) : (
               <div style={styles.setList}>
-                {sets.map((s) => {
+                {sets.map((s, i) => {
                   const active = s.id === selectedSetId
                   const expanded = s.id === expandedSetId
                   return (
@@ -435,11 +462,17 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
                         ...styles.setCard,
                         borderColor: active ? tokens.accent : tokens.border,
                         boxShadow: active ? `0 0 0 1px ${tokens.accent}` : 'none',
+                        opacity: dragIndex === i ? 0.5 : 1,
                       }}
                     >
                       <div
                         role="button"
                         tabIndex={0}
+                        draggable
+                        onDragStart={() => setDragIndex(i)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => handleDropOnSet(i)}
+                        onDragEnd={() => setDragIndex(null)}
                         onClick={() => toggleExpand(s)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
@@ -449,6 +482,9 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
                         }}
                         style={styles.setHeader}
                       >
+                        <span style={styles.dragHandle} aria-hidden title="Drag to reorder">
+                          ⠿
+                        </span>
                         <div style={styles.setHeaderText}>
                           <span style={styles.setName}>{setLabel(s)}</span>
                           <span style={styles.setMeta}>
@@ -653,7 +689,15 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '14px 16px',
     cursor: 'pointer',
   },
-  setHeaderText: { display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' },
+  setHeaderText: { display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', flex: 1, minWidth: 0 },
+  dragHandle: {
+    color: tokens.textMuted,
+    cursor: 'grab',
+    fontSize: 16,
+    lineHeight: 1,
+    flexShrink: 0,
+    userSelect: 'none',
+  },
   chevron: { color: tokens.textMuted, flexShrink: 0 },
   setName: {
     fontFamily: fonts.heading,
