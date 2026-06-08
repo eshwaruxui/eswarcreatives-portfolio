@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { supabase } from '../lib/supabase'
+import { tokens, fonts } from './theme'
 
 type Mode = 'password' | 'magic'
 
@@ -67,10 +68,14 @@ export function LoginPage() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>Client Portal</h1>
-        <p style={styles.subtitle}>Eswar Creatives · Phase 1</p>
+      <div style={styles.shell}>
+        <header style={styles.brand}>
+          <div style={styles.brandName}>Eswar Creatives</div>
+          <div style={styles.brandSub}>Client Portal</div>
+          <hr style={styles.brandRule} />
+        </header>
 
+        <div style={styles.card}>
         <div style={styles.tabs}>
           <button
             type="button"
@@ -118,6 +123,7 @@ export function LoginPage() {
             {busy ? 'Working…' : mode === 'password' ? 'Sign in' : 'Send magic link'}
           </button>
         </form>
+        </div>
       </div>
     </div>
   )
@@ -129,28 +135,127 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: '#0e0e10',
-    color: '#eaeaea',
-    fontFamily: 'system-ui, -apple-system, sans-serif',
+    background: tokens.bg, // Atelier cream
+    color: tokens.text,
+    fontFamily: fonts.body,
     padding: 24,
   },
-  card: {
+  shell: {
     width: '100%',
     maxWidth: 380,
-    background: '#1a1a1d',
-    border: '1px solid #2a2a2e',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+
+  // Branding above the card
+  brand: { textAlign: 'center', marginBottom: 22 },
+  brandName: {
+    margin: 0,
+    fontFamily: fonts.heading,
+    fontSize: 22,
+    fontWeight: 600,
+    color: tokens.primary,
+    letterSpacing: '-0.01em',
+  },
+  brandSub: {
+    margin: '4px 0 0',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: tokens.textMuted,
+  },
+  brandRule: {
+    width: 40,
+    height: 1,
+    margin: '14px auto 0',
+    border: 'none',
+    background: tokens.border,
+  },
+
+  card: {
+    width: '100%',
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
     borderRadius: 12,
     padding: 32,
+    boxShadow: '0 12px 32px rgba(2, 76, 79, 0.08)',
   },
-  title:    { margin: 0, fontSize: 22, fontWeight: 600 },
-  subtitle: { margin: '4px 0 24px', fontSize: 13, color: '#9a9a9f' },
-  tabs:     { display: 'flex', gap: 4, marginBottom: 20, background: '#0e0e10', padding: 4, borderRadius: 8 },
-  tab:      { flex: 1, padding: '8px 12px', background: 'transparent', color: '#9a9a9f', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 },
-  tabActive:{ flex: 1, padding: '8px 12px', background: '#2a2a2e', color: '#eaeaea', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 },
-  form:     { display: 'flex', flexDirection: 'column', gap: 14 },
-  label:    { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: '#cfcfd2' },
-  input:    { background: '#0e0e10', color: '#eaeaea', border: '1px solid #2a2a2e', borderRadius: 6, padding: '10px 12px', fontSize: 14, outline: 'none' },
-  submit:   { background: '#eaeaea', color: '#0e0e10', border: 'none', borderRadius: 6, padding: '10px 14px', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 },
-  error:    { background: '#3a1518', color: '#ff9ea0', padding: '10px 12px', borderRadius: 6, fontSize: 13 },
-  info:     { background: '#13301f', color: '#7fdca4', padding: '10px 12px', borderRadius: 6, fontSize: 13 },
+  tabs: {
+    display: 'flex',
+    gap: 4,
+    marginBottom: 20,
+    background: tokens.bg,
+    padding: 4,
+    borderRadius: 8,
+  },
+  tab: {
+    flex: 1,
+    padding: '8px 12px',
+    background: 'transparent',
+    color: tokens.textMuted,
+    border: 'none',
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontSize: 13,
+    fontFamily: fonts.body,
+    fontWeight: 500,
+  },
+  tabActive: {
+    flex: 1,
+    padding: '8px 12px',
+    background: tokens.surface,
+    color: tokens.primary,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontSize: 13,
+    fontFamily: fonts.body,
+    fontWeight: 600,
+  },
+  form: { display: 'flex', flexDirection: 'column', gap: 14 },
+  label: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    fontSize: 13,
+    fontWeight: 500,
+    color: tokens.text,
+  },
+  input: {
+    background: tokens.inputBg,
+    color: tokens.text,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 8,
+    padding: '10px 12px',
+    fontSize: 14,
+    fontFamily: fonts.body,
+    outline: 'none',
+  },
+  submit: {
+    background: tokens.primary,
+    color: tokens.surface,
+    border: 'none',
+    borderRadius: 8,
+    padding: '12px 14px',
+    fontSize: 14,
+    fontWeight: 600,
+    fontFamily: fonts.body,
+    cursor: 'pointer',
+    marginTop: 4,
+  },
+  error: {
+    background: tokens.rubyLight,
+    color: tokens.ruby,
+    padding: '10px 12px',
+    borderRadius: 8,
+    fontSize: 13,
+    border: `1px solid ${tokens.ruby}33`,
+  },
+  info: {
+    background: tokens.greenLight,
+    color: tokens.green,
+    padding: '10px 12px',
+    borderRadius: 8,
+    fontSize: 13,
+    border: `1px solid ${tokens.green}33`,
+  },
 }

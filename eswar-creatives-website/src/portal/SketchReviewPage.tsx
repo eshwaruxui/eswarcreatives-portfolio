@@ -91,6 +91,9 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
   const [displayName, setDisplayName] = useState<string>('')
   // Theme-styled confirmation dialog config. null means no dialog is open.
   const [confirm, setConfirm] = useState<ConfirmConfig | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [justSubmitted, setJustSubmitted] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [switching, setSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -227,6 +230,81 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
   const totalSets = sets.length
   const currentPosition = curIdx >= 0 ? curIdx + 1 : 1
 
+  // ── Submission ─────────────────────────────────────────────────────
+  // Already submitted if a submission row exists for this client today, or we
+  // just submitted in this session. Used to lock the Submit button.
+  const todayStr = new Date().toDateString()
+  const submittedToday = submissions.some(
+    (s) => new Date(s.completed_at).toDateString() === todayStr
+  )
+  const submitDone = justSubmitted || submittedToday
+
+  // Toasts auto-dismiss after a few seconds.
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  // Upsert one submission row per fully-reviewed set with its accepted/passed
+  // tallies. We read the live review rows so every completed set is counted,
+  // not just the one on screen.
+  const handleSubmitSelections = useCallback(async () => {
+    if (submitting || submitDone) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const ids = sets.map((s) => s.id)
+      const { data: revRows, error: revErr } = await supabase
+        .from('logo_sketch_reviews')
+        .select('set_id, accepted')
+        .in('set_id', ids)
+      if (revErr) throw revErr
+      const agg: Record<string, { accepted: number; passed: number; total: number }> = {}
+      for (const r of revRows ?? []) {
+        const id = r.set_id as string
+        const a = agg[id] ?? { accepted: 0, passed: 0, total: 0 }
+        if (r.accepted) a.accepted++
+        else a.passed++
+        a.total++
+        agg[id] = a
+      }
+      const now = new Date().toISOString()
+      const rows = sets
+        .filter((s) => s.total_count > 0 && (agg[s.id]?.total ?? 0) >= s.total_count)
+        .map((s) => ({
+          set_id: s.id,
+          client_id: profile.id,
+          accepted_count: agg[s.id].accepted,
+          passed_count: agg[s.id].passed,
+          completed_at: now,
+        }))
+      if (rows.length === 0) {
+        setSubmitting(false)
+        return
+      }
+      const { error: upErr } = await supabase
+        .from('logo_sketch_submissions')
+        .upsert(rows, { onConflict: 'set_id,client_id,completed_at' })
+      if (upErr) throw upErr
+      setSubmissions((prev) => [
+        ...rows.map((r) => ({
+          set_id: r.set_id,
+          accepted_count: r.accepted_count,
+          passed_count: r.passed_count,
+          completed_at: r.completed_at,
+        })),
+        ...prev,
+      ])
+      setJustSubmitted(true)
+      setToast('Selections submitted. We will be in touch soon.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }, [submitting, submitDone, sets, profile.id])
+
   // ── Persistence ────────────────────────────────────────────────────
   // Upsert on the (set_id, sketch_index) unique constraint (migration 0015)
   // so re-reviewing a sketch overwrites its prior decision.
@@ -261,43 +339,17 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
     [currentSetId]
   )
 
-  // Record a completed set to the submission history (best-effort).
-  const recordSubmission = useCallback(
-    async (accepted: number, passed: number) => {
-      if (!currentSetId) return
-      try {
-        await supabase.from('logo_sketch_submissions').upsert(
-          {
-            set_id: currentSetId,
-            client_id: profile.id,
-            accepted_count: accepted,
-            passed_count: passed,
-            completed_at: new Date().toISOString(),
-          },
-          { onConflict: 'set_id,client_id,completed_at', ignoreDuplicates: true }
-        )
-      } catch {
-        // History is best-effort, never block the review flow.
-      }
-    },
-    [currentSetId, profile.id]
-  )
-
   const decide = useCallback(
     (accepted: boolean) => {
       if (pending || !current) return
       setPending(true)
       setError(null)
       setLastDir(accepted ? 1 : -1)
-      const completesSet = remaining.length === 1
-      const finalAccepted = acceptedCount + (accepted ? 1 : 0)
-      const finalPassed = rejectedCount + (accepted ? 0 : 1)
       setReviews((prev) => ({ ...prev, [current.index]: accepted }))
       setHistory((prev) => [...prev, current.index])
       void persistReview(current, accepted)
-      if (completesSet) void recordSubmission(finalAccepted, finalPassed)
     },
-    [pending, current, persistReview, remaining.length, acceptedCount, rejectedCount, recordSubmission]
+    [pending, current, persistReview]
   )
 
   const undo = useCallback(async () => {
@@ -507,6 +559,11 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
           nextSet={nextSet}
           onReviewNext={handleReviewNext}
           onStartOver={handleStartOver}
+          onSubmit={handleSubmitSelections}
+          submitDisabled={submitDone || submitting}
+          submitLabel={
+            submitDone ? 'Submitted' : submitting ? 'Submitting…' : 'Submit my selections'
+          }
         />
       ) : (
         <div style={styles.deckWrap}>
@@ -582,6 +639,8 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
           onClose={() => setConfirm(null)}
         />
       )}
+
+      {toast && <div style={styles.toast}>{toast}</div>}
     </Shell>
   )
 }
@@ -699,6 +758,9 @@ function DoneScreen({
   nextSet,
   onReviewNext,
   onStartOver,
+  onSubmit,
+  submitDisabled,
+  submitLabel,
 }: {
   total: number
   accepted: number
@@ -708,6 +770,9 @@ function DoneScreen({
   nextSet: SketchSet | null
   onReviewNext: () => void
   onStartOver: () => void
+  onSubmit: () => void
+  submitDisabled: boolean
+  submitLabel: string
 }) {
   return (
     <div style={styles.done}>
@@ -728,6 +793,19 @@ function DoneScreen({
           Review next set
         </button>
       )}
+
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={submitDisabled}
+        style={{
+          ...styles.submitBtn,
+          opacity: submitDisabled ? 0.6 : 1,
+          cursor: submitDisabled ? 'default' : 'pointer',
+        }}
+      >
+        {submitLabel}
+      </button>
 
       <div style={styles.doneActions}>
         <button
@@ -1148,6 +1226,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: fonts.body,
     cursor: 'pointer',
   },
+  submitBtn: {
+    width: '100%',
+    background: tokens.primary,
+    color: tokens.surface,
+    border: 'none',
+    borderRadius: 12,
+    padding: '14px 20px',
+    fontSize: 15,
+    fontWeight: 600,
+    fontFamily: fonts.body,
+    marginTop: 12,
+  },
   doneActions: {
     display: 'flex',
     justifyContent: 'center',
@@ -1218,6 +1308,24 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     border: `1px solid ${tokens.ruby}33`,
     marginBottom: 16,
+  },
+
+  // Toast (auto-dismissing, fixed to the bottom of the viewport)
+  toast: {
+    position: 'fixed',
+    left: '50%',
+    bottom: 28,
+    transform: 'translateX(-50%)',
+    background: tokens.primary,
+    color: tokens.surface,
+    padding: '12px 20px',
+    borderRadius: 999,
+    fontSize: 14,
+    fontWeight: 500,
+    boxShadow: '0 8px 24px rgba(2, 76, 79, 0.28)',
+    zIndex: 60,
+    maxWidth: '90vw',
+    textAlign: 'center',
   },
 
   // Overlay shared by the selections sheet and confirm dialog
