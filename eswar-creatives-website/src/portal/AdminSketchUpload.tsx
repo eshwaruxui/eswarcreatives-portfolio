@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, Link } from 'react-router'
-import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Trash2, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { PortalNav } from './PortalNav'
@@ -86,6 +86,13 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
+  // Accepted-sketches lightbox. `lightbox` is the set being viewed (null when
+  // closed); `lightboxIndex` is null for the grid and a number for full-size.
+  const [lightbox, setLightbox] = useState<{ setId: string; label: string } | null>(null)
+  const [lightboxImages, setLightboxImages] = useState<{ name: string; url: string }[]>([])
+  const [lightboxLoading, setLightboxLoading] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+
   const selectedClient = clients.find((c) => c.clientId === selectedClientId) ?? null
   const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null
 
@@ -161,35 +168,76 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
     setOrderDirty(false)
     setSetsBackup(null)
     const client = clients.find((c) => c.clientId === clientId)
-    if (client) void loadSets(client)
+    if (client) {
+      void loadSets(client)
+      void loadClientSubmissions(client.profileId)
+    }
   }
 
   // ── Expand / collapse a set and load its thumbnails ────────────────
   function toggleExpand(s: SketchSet) {
     if (expandedSetId === s.id) {
       setExpandedSetId(null)
-      setSubmissions([])
       return
     }
     setSelectedSetId(s.id)
     setExpandedSetId(s.id)
-    setSubmissions([])
     void loadThumbs(s.id)
-    void loadSubmissions(s.id)
   }
 
-  async function loadSubmissions(setId: string) {
+  // Every submission this client has made, across all of their sets. Drives the
+  // always-visible Submission History card below the set accordion.
+  async function loadClientSubmissions(profileId: string) {
     try {
       const { data, error: err } = await supabase
         .from('logo_sketch_submissions')
         .select('set_id, client_id, accepted_count, passed_count, completed_at')
-        .eq('set_id', setId)
+        .eq('client_id', profileId)
         .order('completed_at', { ascending: false })
       if (err) throw err
       setSubmissions((data ?? []) as Submission[])
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
+  }
+
+  // ── Accepted sketches lightbox ─────────────────────────────────────
+  // Reviews live per set (one set belongs to one client), so the accepted
+  // sketches for a submission are just that set's rows where accepted = true.
+  // We use the stored file_name to build the public URL directly.
+  async function openSelections(setId: string, label: string) {
+    setLightbox({ setId, label })
+    setLightboxIndex(null)
+    setLightboxImages([])
+    setLightboxLoading(true)
+    try {
+      const { data, error: err } = await supabase
+        .from('logo_sketch_reviews')
+        .select('sketch_index, file_name, accepted')
+        .eq('set_id', setId)
+        .eq('accepted', true)
+        .order('sketch_index', { ascending: true })
+      if (err) throw err
+      const images = (data ?? [])
+        .filter((r) => r.file_name)
+        .map((r) => ({
+          name: r.file_name as string,
+          url: supabase.storage
+            .from(BUCKET)
+            .getPublicUrl(`${setId}/${r.file_name as string}`).data.publicUrl,
+        }))
+      setLightboxImages(images)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLightboxLoading(false)
+    }
+  }
+
+  function closeSelections() {
+    setLightbox(null)
+    setLightboxIndex(null)
+    setLightboxImages([])
   }
 
   async function loadThumbs(setId: string) {
@@ -280,7 +328,11 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
       if (expandedSetId === s.id) setExpandedSetId(null)
       if (selectedSetId === s.id) setSelectedSetId('')
       if (renamingSetId === s.id) setRenamingSetId(null)
-      if (selectedClient) await loadSets(selectedClient)
+      if (lightbox?.setId === s.id) closeSelections()
+      if (selectedClient) {
+        await loadSets(selectedClient)
+        await loadClientSubmissions(selectedClient.profileId)
+      }
       setToast('Set deleted')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -725,35 +777,6 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
                               ))}
                             </div>
                           )}
-                          {submissions.length > 0 && (
-                            <div style={styles.history}>
-                              <h4 style={styles.historyTitle}>Submission history</h4>
-                              {groupSubmissionsByDate(submissions).map(([day, rows]) => (
-                                <div key={day} style={styles.historyGroup}>
-                                  <div style={styles.historyDate}>{day}</div>
-                                  {rows.map((r, ri) => (
-                                    <div key={ri} style={styles.historyRow}>
-                                      <span style={styles.historyName}>
-                                        {selectedClient?.name ?? 'Client'}
-                                      </span>
-                                      <span style={styles.historyCounts}>
-                                        <span style={{ color: tokens.green }}>
-                                          {r.accepted_count} accepted
-                                        </span>
-                                        {' · '}
-                                        <span style={{ color: tokens.ruby }}>
-                                          {r.passed_count} passed
-                                        </span>
-                                      </span>
-                                      <span style={styles.historyTime}>
-                                        {formatTime(r.completed_at)}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -804,12 +827,131 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
           </section>
         )}
 
+        {/* Submission history (always visible for the selected client) */}
+        {selectedClient && submissions.length > 0 && (
+          <section style={styles.card}>
+            <h2 style={styles.historyTitle}>Submission History</h2>
+            <div style={styles.historyList}>
+              {groupSubmissionsByDate(submissions).map(([day, rows]) => (
+                <div key={day} style={styles.historyGroup}>
+                  <div style={styles.historyDate}>{day}</div>
+                  {rows.map((r, ri) => {
+                    const st = sets.find((x) => x.id === r.set_id)
+                    const label = st ? setLabel(st) : 'Set'
+                    return (
+                      <div key={ri} style={styles.historyRow}>
+                        <span style={styles.historyName}>
+                          {selectedClient.name}
+                          <span style={styles.historySet}>{label}</span>
+                        </span>
+                        <span style={styles.historyCounts}>
+                          <span style={{ color: tokens.green }}>
+                            {r.accepted_count} accepted
+                          </span>
+                          {' · '}
+                          <span style={{ color: tokens.ruby }}>
+                            {r.passed_count} passed
+                          </span>
+                        </span>
+                        <span style={styles.historyTime}>{formatTime(r.completed_at)}</span>
+                        <button
+                          type="button"
+                          onClick={() => openSelections(r.set_id, label)}
+                          style={styles.viewSelectionsBtn}
+                        >
+                          View selections
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         <div style={styles.accountFooter}>
           <Link to="/portal/account" style={styles.accountLink}>
             Account
           </Link>
         </div>
       </main>
+
+      {/* Accepted sketches lightbox */}
+      {lightbox && (
+        <div
+          style={styles.lbOverlay}
+          onClick={lightboxIndex === null ? closeSelections : () => setLightboxIndex(null)}
+        >
+          <div style={styles.lbTitle}>{lightbox.label}</div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              closeSelections()
+            }}
+            style={styles.lbClose}
+            aria-label="Close"
+          >
+            <X size={22} />
+          </button>
+
+          {lightboxLoading ? (
+            <div style={styles.lbSpinner} />
+          ) : lightboxImages.length === 0 ? (
+            <p style={styles.lbEmpty}>No accepted sketches for this set.</p>
+          ) : lightboxIndex === null ? (
+            <div style={styles.lbGrid} onClick={(e) => e.stopPropagation()}>
+              {lightboxImages.map((img, i) => (
+                <button
+                  key={img.name}
+                  type="button"
+                  style={styles.lbThumbBtn}
+                  onClick={() => setLightboxIndex(i)}
+                >
+                  <img src={img.url} alt={img.name} style={styles.lbThumb} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div style={styles.lbStage} onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() =>
+                  setLightboxIndex(
+                    (i) => ((i as number) - 1 + lightboxImages.length) % lightboxImages.length
+                  )
+                }
+                style={styles.lbNav}
+                aria-label="Previous"
+              >
+                <ChevronLeft size={28} />
+              </button>
+              <img
+                src={lightboxImages[lightboxIndex].url}
+                alt={lightboxImages[lightboxIndex].name}
+                style={styles.lbFull}
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setLightboxIndex((i) => ((i as number) + 1) % lightboxImages.length)
+                }
+                style={styles.lbNav}
+                aria-label="Next"
+              >
+                <ChevronRight size={28} />
+              </button>
+            </div>
+          )}
+
+          {lightboxIndex !== null && lightboxImages.length > 0 && (
+            <div style={styles.lbCounter}>
+              {lightboxIndex + 1} / {lightboxImages.length}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1168,22 +1310,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   // Submission history
-  history: {
-    marginTop: 6,
-    paddingTop: 14,
-    borderTop: `1px solid ${tokens.border}`,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-  },
   historyTitle: {
-    margin: 0,
-    fontSize: 12,
+    margin: '0 0 14px',
+    fontSize: 11,
     fontWeight: 600,
     color: tokens.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
+  historyList: { display: 'flex', flexDirection: 'column', gap: 14 },
   historyGroup: { display: 'flex', flexDirection: 'column', gap: 6 },
   historyDate: { fontSize: 12, fontWeight: 600, color: tokens.text },
   historyRow: {
@@ -1194,7 +1329,119 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
     fontSize: 13,
   },
-  historyName: { color: tokens.text, fontWeight: 500 },
+  historyName: {
+    display: 'flex',
+    flexDirection: 'column',
+    color: tokens.text,
+    fontWeight: 500,
+  },
+  historySet: { fontSize: 11, fontWeight: 400, color: tokens.textMuted },
   historyCounts: { color: tokens.textMuted, fontWeight: 500 },
   historyTime: { color: tokens.textMuted, fontSize: 12 },
+  viewSelectionsBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: tokens.primary, // teal
+    fontSize: 12,
+    fontFamily: fonts.body,
+    fontWeight: 600,
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    padding: 0,
+  },
+
+  // Accepted sketches lightbox
+  lbOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0, 0, 0, 0.9)',
+    zIndex: 100,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  lbTitle: {
+    position: 'absolute',
+    top: 18,
+    left: 20,
+    color: tokens.surface,
+    fontFamily: fonts.heading,
+    fontSize: 15,
+    fontWeight: 600,
+  },
+  lbClose: {
+    position: 'absolute',
+    top: 14,
+    right: 16,
+    background: 'transparent',
+    border: 'none',
+    color: tokens.surface,
+    cursor: 'pointer',
+    padding: 8,
+    display: 'flex',
+    zIndex: 2,
+  },
+  lbSpinner: {
+    width: 28,
+    height: 28,
+    borderRadius: '50%',
+    border: '3px solid rgba(255, 255, 255, 0.25)',
+    borderTopColor: tokens.surface,
+    animation: 'spin 0.8s linear infinite',
+  },
+  lbEmpty: { color: tokens.surface, fontSize: 14 },
+  lbGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+    gap: 12,
+    width: '100%',
+    maxWidth: 900,
+    maxHeight: '82vh',
+    overflowY: 'auto',
+    padding: '8px 4px',
+  },
+  lbThumbBtn: { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' },
+  lbThumb: {
+    width: '100%',
+    aspectRatio: '1 / 1',
+    objectFit: 'cover',
+    borderRadius: 8,
+    display: 'block',
+  },
+  lbStage: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    width: '100%',
+    maxWidth: 1000,
+  },
+  lbFull: {
+    maxWidth: '78vw',
+    maxHeight: '82vh',
+    objectFit: 'contain',
+    borderRadius: 8,
+  },
+  lbNav: {
+    background: 'rgba(255, 255, 255, 0.12)',
+    border: 'none',
+    color: tokens.surface,
+    cursor: 'pointer',
+    borderRadius: '50%',
+    width: 44,
+    height: 44,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  lbCounter: {
+    position: 'absolute',
+    bottom: 20,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    color: tokens.surface,
+    fontSize: 13,
+  },
 }
