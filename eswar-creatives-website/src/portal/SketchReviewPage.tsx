@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, createContext, useContext } from 'react'
 import {
   motion,
   AnimatePresence,
@@ -10,6 +10,9 @@ import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { PortalNav } from './PortalNav'
 import { tokens, fonts } from './theme'
+
+// Lets content inside Shell open the "My selections" sheet that Shell owns.
+const OpenSelectionsContext = createContext<(() => void) | null>(null)
 
 // ── Data shapes ──────────────────────────────────────────────────────
 // logo_sketch_sets.client_id references profiles.id, and the table's RLS
@@ -94,7 +97,6 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
   const [confirm, setConfirm] = useState<ConfirmConfig | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [justSubmitted, setJustSubmitted] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [switching, setSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -244,13 +246,8 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
     (s) => new Date(s.completed_at).toDateString() === todayStr
   )
   const submitDone = justSubmitted || submittedToday
-
-  // Toasts auto-dismiss after a few seconds.
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 4000)
-    return () => clearTimeout(t)
-  }, [toast])
+  // After a submit, the done card is replaced by a success state.
+  const showSuccess = done && submitDone
 
   // Upsert one submission row per fully-reviewed set with its accepted/passed
   // tallies. We read the live review rows so every completed set is counted,
@@ -318,7 +315,6 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
         ...prev,
       ])
       setJustSubmitted(true)
-      setToast('Selections submitted. We will be in touch soon.')
     } catch (err) {
       console.error('Unexpected error submitting selections:', err)
       setError(err instanceof Error ? err.message : String(err))
@@ -548,36 +544,40 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
         </p>
       </div>
 
-      {/* Progress */}
-      <div style={styles.progressBlock}>
-        <div style={styles.progressMeta}>
-          <span style={styles.progressLabel}>
-            {reviewedCount} of {total} reviewed
-          </span>
-          <span style={styles.counters}>
-            <span style={{ ...styles.counter, color: tokens.green }}>
-              {acceptedCount} accepted
+      {/* Progress (hidden once submitted) */}
+      {!showSuccess && (
+        <div style={styles.progressBlock}>
+          <div style={styles.progressMeta}>
+            <span style={styles.progressLabel}>
+              {reviewedCount} of {total} reviewed
             </span>
-            <span style={styles.counterDivider}>·</span>
-            <span style={{ ...styles.counter, color: tokens.ruby }}>
-              {rejectedCount} passed
+            <span style={styles.counters}>
+              <span style={{ ...styles.counter, color: tokens.green }}>
+                {acceptedCount} accepted
+              </span>
+              <span style={styles.counterDivider}>·</span>
+              <span style={{ ...styles.counter, color: tokens.ruby }}>
+                {rejectedCount} passed
+              </span>
             </span>
-          </span>
+          </div>
+          <div style={styles.track}>
+            <div
+              style={{
+                ...styles.fill,
+                width: `${total ? (reviewedCount / total) * 100 : 0}%`,
+              }}
+            />
+          </div>
         </div>
-        <div style={styles.track}>
-          <div
-            style={{
-              ...styles.fill,
-              width: `${total ? (reviewedCount / total) * 100 : 0}%`,
-            }}
-          />
-        </div>
-      </div>
+      )}
 
       {error && <div style={styles.error}>Error: {error}</div>}
 
       {switching ? (
         <p style={styles.muted}>Loading set...</p>
+      ) : showSuccess ? (
+        <SubmittedScreen />
       ) : done ? (
         <DoneScreen
           total={total}
@@ -674,9 +674,40 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
           onClose={() => setConfirm(null)}
         />
       )}
-
-      {toast && <div style={styles.toast}>{toast}</div>}
     </Shell>
+  )
+}
+
+// ── Post-submit success state ────────────────────────────────────────
+function SubmittedScreen() {
+  const openSelections = useContext(OpenSelectionsContext)
+  return (
+    <div style={styles.success}>
+      <div style={styles.successCircle}>
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={tokens.surface}
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      </div>
+      <h2 style={styles.successTitle}>Selections submitted.</h2>
+      <p style={styles.successBody}>We will be in touch soon.</p>
+      <button
+        type="button"
+        onClick={() => openSelections?.()}
+        style={styles.successLink}
+      >
+        View your selections
+      </button>
+    </div>
   )
 }
 
@@ -898,7 +929,9 @@ function Shell({
     <div style={styles.page}>
       <PortalNav showSignOut />
       <main style={styles.container}>
-        {children}
+        <OpenSelectionsContext.Provider value={() => setSelectionsOpen(true)}>
+          {children}
+        </OpenSelectionsContext.Provider>
         <div style={styles.footerRow}>
           {onResetAll ? (
             <button type="button" onClick={onResetAll} style={styles.resetAllBtn}>
@@ -1361,22 +1394,48 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 16,
   },
 
-  // Toast (auto-dismissing, fixed to the bottom of the viewport)
-  toast: {
-    position: 'fixed',
-    left: '50%',
-    bottom: 28,
-    transform: 'translateX(-50%)',
-    background: tokens.primary,
-    color: tokens.surface,
-    padding: '12px 20px',
-    borderRadius: 999,
-    fontSize: 14,
-    fontWeight: 500,
-    boxShadow: '0 8px 24px rgba(2, 76, 79, 0.28)',
-    zIndex: 60,
-    maxWidth: '90vw',
+  // Post-submit success card
+  success: {
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 16,
+    padding: 32,
     textAlign: 'center',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  successCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: '50%',
+    background: tokens.green,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  successTitle: {
+    margin: 0,
+    fontFamily: fonts.heading,
+    fontSize: 22,
+    fontWeight: 600,
+    color: tokens.text,
+  },
+  successBody: {
+    margin: '8px 0 24px',
+    fontSize: 14,
+    color: tokens.textMuted,
+  },
+  successLink: {
+    background: 'transparent',
+    border: 'none',
+    color: tokens.primary, // teal
+    fontSize: 13,
+    fontFamily: fonts.body,
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    padding: 0,
   },
 
   // Overlay shared by the selections sheet and confirm dialog

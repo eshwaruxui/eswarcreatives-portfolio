@@ -139,9 +139,9 @@ const styles: Record<string, React.CSSProperties> = {
   center: {
     flex: 1,
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
-    padding: 24,
+    padding: '48px 24px 24px',
   },
   shell: {
     width: '100%',
