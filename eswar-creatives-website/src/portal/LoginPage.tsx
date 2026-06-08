@@ -55,7 +55,7 @@ export function LoginPage() {
       } else {
         const { error } = await supabase.auth.signInWithOtp({
           email,
-          options: { emailRedirectTo: `${window.location.origin}/portal/verify` },
+          options: { emailRedirectTo: `${window.location.origin}/portal/sketch-review` },
         })
         if (error) throw error
         setInfo(`Magic link sent to ${email}. Check your inbox.`)
