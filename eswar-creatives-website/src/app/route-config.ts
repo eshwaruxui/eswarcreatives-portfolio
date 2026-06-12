@@ -9,8 +9,11 @@ import { SecureVaultCaseStudy } from "./components/SecureVaultCaseStudy";
 import { DsAuditCaseStudy } from "./components/DsAuditCaseStudy";
 import { ServicesPage } from "./components/ServicesPage";
 import { NotFound } from "./components/NotFound";
+import { SecuronixPrototype } from "./components/SecuronixPrototype";
 
 export const routeConfig = [
+  // Full-screen iframe prototype — rendered outside RootLayout so it gets no site chrome.
+  { path: "/work/securonix-prototype", Component: SecuronixPrototype },
   {
     Component: RootLayout,
     children: [

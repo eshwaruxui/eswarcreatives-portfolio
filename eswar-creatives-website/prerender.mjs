@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const routes = ['/', '/about', '/design-system', '/contact', '/services', '/branding/brand-identity-discovery', '/work/cygnvs-ttx', '/work/securevault', '/work/ds-audit-roadmap'];
+const routes = ['/', '/about', '/design-system', '/contact', '/services', '/branding/brand-identity-discovery', '/work/cygnvs-ttx', '/work/securevault', '/work/ds-audit-roadmap', '/work/securonix-prototype'];
 
 const routeMeta = {
   '/services': {
