@@ -102,32 +102,31 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
     ;(async () => {
       try {
         const { data, error: err } = await supabase
-          .from('projects')
+          .from('clients')
           .select(
-            'slug, created_at, status, clients!inner(id, profile_id, company_name, contact_name)'
+            'id, profile_id, company_name, contact_name, created_at, projects(slug, status, created_at)'
           )
-          .neq('status', 'delivered')
           .order('created_at', { ascending: false })
         if (err) throw err
         if (cancelled) return
 
-        const byClient = new Map<string, ClientOption>()
-        for (const row of (data ?? []) as any[]) {
-          const c = row.clients
-          if (!c) continue
-          const existing = byClient.get(c.id)
-          if (!existing) {
-            byClient.set(c.id, {
-              clientId: c.id,
-              profileId: c.profile_id,
-              name: c.contact_name || c.company_name || '(unnamed client)',
-              projectSlug: row.slug ?? null,
-            })
-          } else if (!existing.projectSlug && row.slug) {
-            existing.projectSlug = row.slug
-          }
+        const options: ClientOption[] = []
+        for (const c of (data ?? []) as any[]) {
+          const projects = (c.projects ?? []) as any[]
+          const nonDelivered = projects
+            .filter((p) => p.status !== 'delivered')
+            .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+          // Include clients with no project yet, or with at least one non-delivered
+          // project. A client whose only projects are delivered stays hidden, as before.
+          if (projects.length > 0 && nonDelivered.length === 0) continue
+          options.push({
+            clientId: c.id,
+            profileId: c.profile_id,
+            name: c.contact_name || c.company_name || '(unnamed client)',
+            projectSlug: nonDelivered.find((p) => p.slug)?.slug ?? null,
+          })
         }
-        setClients(Array.from(byClient.values()))
+        setClients(options)
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err))
       } finally {
