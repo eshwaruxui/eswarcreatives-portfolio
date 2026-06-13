@@ -355,7 +355,7 @@ function renderResults(){
   <nav>
     <span class="nav-logo">eswar</span>
     <span class="nav-center">Admin &middot; Results</span>
-    <button class="btn-outline btn-sm" onclick="previewVote('${c.id}')">Preview voting page</button>
+    <button class="btn-outline btn-sm" onclick="window.location.href=getVoteUrl('${c.id}')">Preview voting page</button>
   </nav>
   <div class="page">
     <div class="back-link" onclick="view='admin';render()">&#8592; All campaigns</div>
@@ -398,8 +398,15 @@ function renderResults(){
         }).join('')}
       </table>`}
     </div>
-    <div style="margin-top:24px">
+    <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <button class="btn-outline" onclick="copySummary('${c.id}')">Copy summary</button>
+    </div>
+    <div style="margin-top:16px">
+      <div class="section-label" style="margin-bottom:8px">Voting link</div>
+      <div class="copy-box">
+        <span id="vote-url">${getVoteUrl(c.id)}</span>
+        <button class="btn-teal btn-sm" onclick="copyVoteUrl('${c.id}')">Copy link</button>
+      </div>
     </div>
   </div>`;
 }
@@ -600,6 +607,9 @@ function showMyVotes(){
   activeCampaignId=activeCampaignId;
   view='results';render();
 }
+
+function getVoteUrl(id){return location.origin+'/feedback.html?vote='+id}
+function copyVoteUrl(id){navigator.clipboard.writeText(getVoteUrl(id));alert('Link copied.')}
 
 async function copySummary(cid){
   const c=campaigns.find(x=>x.id===cid);
