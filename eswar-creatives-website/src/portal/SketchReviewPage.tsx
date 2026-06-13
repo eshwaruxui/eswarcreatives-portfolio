@@ -222,6 +222,15 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
   const next = remaining[1] ?? null
   const done = total > 0 && remaining.length === 0
 
+  // Finishing a set swaps the deck out for DoneScreen, which unmounts the
+  // AnimatePresence mid-exit — so the onExitComplete that normally clears
+  // `pending` never fires and the gate stays stuck true. Clear it here, or the
+  // next set's first card (and Undo on the done screen) would be frozen behind
+  // a stale gate until a full reload.
+  useEffect(() => {
+    if (done) setPending(false)
+  }, [done])
+
   // Next reviewable set other than the current one that is not complete.
   const curIdx = sets.findIndex((s) => s.id === currentSetId)
   const incompleteOthers = sets.filter(
