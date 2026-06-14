@@ -14,6 +14,7 @@ import { VerifyPage } from "../portal/VerifyPage";
 import { SketchReviewPage } from "../portal/SketchReviewPage";
 import { AdminSketchUpload } from "../portal/AdminSketchUpload";
 import { AccountPage } from "../portal/AccountPage";
+import { PublicVotePage } from "../portal/PublicVotePage";
 
 export const routeConfig = [
   { path: "/portal/login",          Component: LoginPage  },
@@ -21,6 +22,8 @@ export const routeConfig = [
   { path: "/portal/sketch-review",  Component: SketchReviewPage },
   { path: "/portal/admin/sketches", Component: AdminSketchUpload },
   { path: "/portal/account",        Component: AccountPage },
+  // Public, unauthenticated voting page (no PortalGuard) — migrations 0019-0021.
+  { path: "/portal/vote/:token",    Component: PublicVotePage },
   {
     Component: RootLayout,
     children: [

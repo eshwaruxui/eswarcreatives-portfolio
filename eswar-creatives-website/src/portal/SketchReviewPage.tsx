@@ -1,15 +1,10 @@
 import { useEffect, useState, useCallback, useRef, createContext, useContext } from 'react'
-import {
-  motion,
-  AnimatePresence,
-  useMotionValue,
-  useTransform,
-  type PanInfo,
-} from 'motion/react'
+import { AnimatePresence } from 'motion/react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { PortalNav } from './PortalNav'
+import { SwipeCard, cardStyles } from './SwipeCard'
 import { tokens, fonts } from './theme'
 
 // Lets content inside Shell open the "My selections" sheet that Shell owns.
@@ -39,7 +34,6 @@ type Submission = {
 }
 
 const BUCKET = 'logo-sketches'
-const SWIPE_THRESHOLD = 120 // px of horizontal travel that commits a decision
 
 // Load one set's deck: its storage files plus any prior review decisions.
 async function fetchSetDeck(
@@ -614,7 +608,7 @@ function SketchReview({ profile }: { profile: PortalProfile }) {
                   src={next.url}
                   alt=""
                   aria-hidden
-                  style={styles.image}
+                  style={cardStyles.image}
                   draggable={false}
                 />
               </div>
@@ -718,109 +712,6 @@ function SubmittedScreen() {
         View your selections
       </button>
     </div>
-  )
-}
-
-// ── Swipeable card ───────────────────────────────────────────────────
-function SwipeCard({
-  sketch,
-  position,
-  total,
-  onDecide,
-}: {
-  sketch: Sketch
-  position: number
-  total: number
-  onDecide: (accepted: boolean) => void
-}) {
-  const x = useMotionValue(0)
-  const rotate = useTransform(x, [-200, 200], [-12, 12])
-  const acceptOpacity = useTransform(x, [40, 140], [0, 1])
-  const rejectOpacity = useTransform(x, [-140, -40], [1, 0])
-  // Once a swipe crosses the threshold we lock the direction: the overlay icon
-  // sticks, drag is disabled (no spring back), and the card flies off-screen.
-  const [committed, setCommitted] = useState<0 | 1 | -1>(0)
-  const screenW = typeof window !== 'undefined' ? window.innerWidth : 1000
-
-  function handleDragEnd(_: unknown, info: PanInfo) {
-    if (committed !== 0) return
-    const goRight = info.offset.x > SWIPE_THRESHOLD || info.velocity.x > 600
-    const goLeft = info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -600
-    if (!goRight && !goLeft) return // under threshold: drag springs back
-    const dir = goRight ? 1 : -1
-    setCommitted(dir)
-    onDecide(dir === 1)
-  }
-
-  const acceptOp = committed === 1 ? 1 : committed === -1 ? 0 : acceptOpacity
-  const rejectOp = committed === -1 ? 1 : committed === 1 ? 0 : rejectOpacity
-
-  return (
-    <motion.div
-      style={{ ...styles.card, x, rotate }}
-      drag={committed === 0 ? 'x' : false}
-      dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.6}
-      onDragEnd={handleDragEnd}
-      initial={{ scale: 0.96, opacity: 0, y: 8 }}
-      animate={{ scale: 1, opacity: 1, y: 0 }}
-      exit={(dir: number) => ({
-        x: dir * (screenW + 240),
-        opacity: 0,
-        transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] },
-      })}
-      whileTap={{ cursor: 'grabbing' }}
-    >
-      <motion.div style={{ ...styles.iconOverlay, opacity: acceptOp }}>
-        <div style={{ ...styles.iconCircle, background: tokens.green }}>
-          <svg
-            width="36"
-            height="36"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={tokens.surface}
-            strokeWidth={3}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20 6 9 17l-5-5" />
-          </svg>
-        </div>
-      </motion.div>
-      <motion.div style={{ ...styles.iconOverlay, opacity: rejectOp }}>
-        <div
-          style={{
-            ...styles.iconCircle,
-            background: '#EF4444', // TODO: replace with tokens.red when ds-merge
-          }}
-        >
-          <svg
-            width="36"
-            height="36"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={tokens.surface}
-            strokeWidth={3}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </div>
-      </motion.div>
-
-      <img
-        src={sketch.url}
-        alt={`Logo sketch ${position} of ${total}`}
-        style={styles.image}
-        draggable={false}
-      />
-      <div style={styles.cardFoot}>
-        <span style={styles.cardFootText}>
-          Sketch {position} of {total}
-        </span>
-      </div>
-    </motion.div>
   )
 }
 
@@ -1308,53 +1199,6 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     transform: 'scale(0.95) translateY(10px)',
     opacity: 0.7,
-  },
-  card: {
-    position: 'absolute',
-    inset: 0,
-    background: tokens.surface,
-    border: `1px solid ${tokens.border}`,
-    borderRadius: 20,
-    overflow: 'hidden',
-    boxShadow: '0 12px 32px rgba(2, 76, 79, 0.12)',
-    cursor: 'grab',
-    display: 'flex',
-    flexDirection: 'column',
-    touchAction: 'pan-y',
-  },
-  image: {
-    width: '100%',
-    flex: 1,
-    minHeight: 0,
-    objectFit: 'contain',
-    background: tokens.bg,
-    userSelect: 'none',
-    pointerEvents: 'none',
-  },
-  cardFoot: {
-    padding: '12px 16px',
-    borderTop: `1px solid ${tokens.border}`,
-    background: tokens.surface,
-  },
-  cardFootText: { fontSize: 13, color: tokens.textMuted, fontWeight: 500 },
-
-  // Swipe icon overlay (centered on the card)
-  iconOverlay: {
-    position: 'absolute',
-    inset: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-    pointerEvents: 'none',
-  },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: '50%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
   // Controls
