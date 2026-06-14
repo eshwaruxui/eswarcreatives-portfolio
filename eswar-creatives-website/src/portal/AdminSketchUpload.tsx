@@ -1483,7 +1483,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
                   style={styles.lbThumbBtn}
                   onClick={() => setLightboxIndex(i)}
                 >
-                  <img src={img.url} alt={img.name} style={styles.lbThumb} />
+                  <LightboxImg src={img.url} alt={img.name} style={styles.lbThumb} />
                 </button>
               ))}
             </div>
@@ -1501,7 +1501,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
               >
                 <ChevronLeft size={28} />
               </button>
-              <img
+              <LightboxImg
                 src={lightboxImages[lightboxIndex].url}
                 alt={lightboxImages[lightboxIndex].name}
                 style={styles.lbFull}
@@ -1545,13 +1545,9 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
             <p style={styles.lbEmpty}>No accepted sketches for this set.</p>
           ) : (
             <div style={styles.lbGrid} onClick={(e) => e.stopPropagation()}>
-              {voterLb.items.map((it, i) =>
-                it.url ? (
-                  <img key={i} src={it.url} alt="" style={styles.lbThumb} />
-                ) : (
-                  <div key={i} style={{ ...styles.lbThumb, background: tokens.tealLight }} />
-                )
-              )}
+              {voterLb.items.map((it, i) => (
+                <LightboxImg key={i} src={it.url} style={styles.lbThumb} />
+              ))}
             </div>
           )}
         </div>
@@ -1673,6 +1669,42 @@ function statusBadgeStyle(status: string): React.CSSProperties {
     textTransform: 'capitalize',
     flexShrink: 0,
   }
+}
+
+// Lightbox image with a graceful fallback: if the storage object fails to load
+// (empty URL, or a transient 403/404), show a labelled placeholder instead of
+// the browser's broken-image icon.
+function LightboxImg({
+  src,
+  alt = '',
+  style,
+}: {
+  src: string
+  alt?: string
+  style: React.CSSProperties
+}) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) {
+    return (
+      <div
+        style={{
+          ...style,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          background: tokens.tealLight,
+          color: tokens.textMuted,
+          fontSize: 11,
+          padding: 8,
+          boxSizing: 'border-box',
+        }}
+      >
+        Image unavailable
+      </div>
+    )
+  }
+  return <img src={src} alt={alt} style={style} onError={() => setFailed(true)} />
 }
 
 const styles: Record<string, React.CSSProperties> = {
