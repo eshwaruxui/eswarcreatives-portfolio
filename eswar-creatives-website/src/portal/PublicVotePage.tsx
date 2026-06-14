@@ -456,7 +456,15 @@ export function PublicVotePage() {
 
   // ── Step 2: voting (mirrors SketchReviewPage) ──────────────────────
   return (
-    <Shell completed={completed} onResetAll={allReviewed || reviewedCount > 0 ? handleResetAll : undefined}>
+    // H3/H5: once submitted, hide "Reset all reviews" — clearing a vote that is
+    // already recorded does nothing visible and only confuses.
+    // Minor (noted): there is no path back from voting to edit voter details
+    // before submit, and submit is final with no extra confirm (mirrors the
+    // client review flow intentionally).
+    <Shell
+      completed={completed}
+      onResetAll={!showSuccess && (allReviewed || reviewedCount > 0) ? handleResetAll : undefined}
+    >
       <div style={styles.header}>
         <h1 style={styles.title}>Review your logo sketches</h1>
         <p style={styles.subtitle}>
@@ -492,6 +500,10 @@ export function PublicVotePage() {
 
       {deckLoading ? (
         <p style={styles.muted}>Loading sketches...</p>
+      ) : sets.length === 0 && error ? (
+        // H1/H9: a load error already shows above; don't also show the
+        // misleading "no sketches" empty state.
+        null
       ) : sets.length === 0 ? (
         <div style={styles.empty}>
           <h2 style={styles.emptyTitle}>No sketches to review yet.</h2>

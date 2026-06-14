@@ -1007,15 +1007,20 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
                   )}
                 </div>
 
+                {/* H5 error prevention: disable until the required fields are
+                    filled rather than only reporting the error after a click.
+                    Minor (noted, not blocking): there is no in-UI control to
+                    close/deactivate a campaign once launched. */}
                 <button
                   type="button"
                   onClick={handleLaunchCampaign}
-                  disabled={launching}
+                  disabled={launching || !campaignTitle.trim() || !projectName.trim()}
                   style={{
                     ...styles.btn,
                     ...styles.btnPrimary,
                     width: '100%',
-                    opacity: launching ? 0.6 : 1,
+                    opacity:
+                      launching || !campaignTitle.trim() || !projectName.trim() ? 0.6 : 1,
                   }}
                 >
                   {launching ? 'Launching...' : 'Launch Campaign'}
