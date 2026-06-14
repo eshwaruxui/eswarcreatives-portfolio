@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router'
 import { AnimatePresence } from 'motion/react'
+import { ChevronLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { SwipeCard, cardStyles } from './SwipeCard'
 import { tokens, fonts } from './theme'
 
-// Public, no-login voting page. Reached at /portal/vote/:token. A voter fills a
-// details form (fields driven by the campaign's collect_*/required flags), then
-// swipes through every sketch in the campaign's sets. Right/Accept records
-// 'pass', left/Reject records 'reject'. On submit we insert one public_votes
-// row per decision. No Supabase session is required: the campaign + its sets
-// are readable by anyone while the campaign is active, and anyone may insert
-// votes (migrations 0019-0021).
+// Public, no-login voting page. Reached at /portal/vote/:token. A voter answers
+// the campaign's detail fields one screen at a time, then swipes through every
+// sketch in the campaign's sets. Right/Accept records 'pass', left/Reject
+// records 'reject'. On submit we insert one public_votes row per decision. No
+// Supabase session is required (migrations 0019-0022).
 
 const BUCKET = 'logo-sketches'
 
@@ -47,6 +46,7 @@ type DeckCard = {
 }
 
 type FieldKey = 'name' | 'age' | 'gender' | 'mobile'
+type FormField = { key: FieldKey; label: string; required: boolean; type: string }
 
 export function PublicVotePage() {
   const { token } = useParams<{ token: string }>()
@@ -55,6 +55,7 @@ export function PublicVotePage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null)
 
   const [step, setStep] = useState<'form' | 'vote' | 'done'>('form')
+  const [formStep, setFormStep] = useState(0)
   const [voter, setVoter] = useState({ name: '', age: '', gender: '', mobile: '' })
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -111,23 +112,49 @@ export function PublicVotePage() {
     if (allVoted) setPending(false)
   }, [allVoted])
 
-  // ── Step 1 -> Step 2: validate, load the deck ──────────────────────
-  function collectedRequired(): FieldKey[] {
-    if (!campaign) return []
-    const missing: FieldKey[] = []
-    if (campaign.collect_name && campaign.name_required && !voter.name.trim()) missing.push('name')
-    if (campaign.collect_age && campaign.age_required && !voter.age.trim()) missing.push('age')
-    if (campaign.collect_gender && campaign.gender_required && !voter.gender) missing.push('gender')
-    if (campaign.collect_mobile && campaign.mobile_required && !voter.mobile.trim()) missing.push('mobile')
-    return missing
-  }
+  // Fields this campaign collects, in order. The voter answers one per screen.
+  const formFields: FormField[] = campaign
+    ? ([
+        campaign.collect_name && {
+          key: 'name', label: 'Name', required: campaign.name_required, type: 'text',
+        },
+        campaign.collect_age && {
+          key: 'age', label: 'Age', required: campaign.age_required, type: 'number',
+        },
+        campaign.collect_gender && {
+          key: 'gender', label: 'Gender', required: campaign.gender_required, type: 'select',
+        },
+        campaign.collect_mobile && {
+          key: 'mobile', label: 'Mobile number', required: campaign.mobile_required, type: 'tel',
+        },
+      ].filter(Boolean) as FormField[])
+    : []
+  const currentField = formFields[formStep] ?? null
+  const isLastField = formStep >= formFields.length - 1
 
-  async function handleNext() {
-    if (!campaign) return
-    if (collectedRequired().length > 0) {
-      setFormError('Please fill in all required fields.')
+  // ── Voter detail stepper ───────────────────────────────────────────
+  function goNextField() {
+    const f = formFields[formStep]
+    if (f && f.required && !String(voter[f.key]).trim()) {
+      setFormError('This field is required.')
       return
     }
+    setFormError(null)
+    if (isLastField) {
+      void startVoting()
+    } else {
+      setFormStep((s) => s + 1)
+    }
+  }
+
+  function goPrevField() {
+    setFormError(null)
+    setFormStep((s) => Math.max(0, s - 1))
+  }
+
+  // ── Load the deck and begin voting ─────────────────────────────────
+  async function startVoting() {
+    if (!campaign) return
     setFormError(null)
     setDeckLoading(true)
     setStep('vote')
@@ -220,72 +247,103 @@ export function PublicVotePage() {
 
   return (
     <Shell>
-      <div style={styles.header}>
-        <h1 style={styles.title}>{campaign.campaign_title}</h1>
-        <p style={styles.project}>{campaign.project_name}</p>
-      </div>
-
       {error && <div style={styles.error}>{error}</div>}
 
       {step === 'form' && (
-        <div style={styles.card}>
-          <p style={styles.formIntro}>
-            Tell us a little about you, then review the logo options.
-          </p>
-          {campaign.collect_name && (
-            <Field label="Name" required={campaign.name_required}>
-              <input
-                type="text"
-                value={voter.name}
-                onChange={(e) => setVoter((v) => ({ ...v, name: e.target.value }))}
-                style={styles.input}
-              />
-            </Field>
-          )}
-          {campaign.collect_age && (
-            <Field label="Age" required={campaign.age_required}>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={voter.age}
-                onChange={(e) => setVoter((v) => ({ ...v, age: e.target.value }))}
-                style={styles.input}
-              />
-            </Field>
-          )}
-          {campaign.collect_gender && (
-            <Field label="Gender" required={campaign.gender_required}>
-              <select
-                value={voter.gender}
-                onChange={(e) => setVoter((v) => ({ ...v, gender: e.target.value }))}
-                style={styles.input}
-              >
-                <option value="">Select...</option>
-                {GENDER_OPTIONS.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
+        <div style={styles.stepper}>
+          <div style={styles.stepHead}>
+            <h1 style={styles.stepCampaign}>{campaign.campaign_title}</h1>
+            <p style={styles.stepProject}>{campaign.project_name}</p>
+          </div>
+
+          {formFields.length === 0 ? (
+            <div style={styles.stepBody}>
+              <p style={styles.mutedBody}>Ready when you are.</p>
+              <button type="button" onClick={startVoting} style={styles.primaryBtn}>
+                Start voting →
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={styles.stepTopBar}>
+                {formStep > 0 ? (
+                  <button
+                    type="button"
+                    onClick={goPrevField}
+                    style={styles.backBtn}
+                    aria-label="Back"
+                  >
+                    <ChevronLeft size={22} />
+                  </button>
+                ) : (
+                  <span style={{ width: 40 }} />
+                )}
+              </div>
+
+              {currentField && (
+                <div style={styles.stepBody}>
+                  <label style={styles.stepLabel} htmlFor="vote-field">
+                    {currentField.label}
+                    {currentField.required && <span style={styles.req}> *</span>}
+                  </label>
+                  {currentField.type === 'select' ? (
+                    <select
+                      id="vote-field"
+                      value={voter.gender}
+                      onChange={(e) => setVoter((v) => ({ ...v, gender: e.target.value }))}
+                      style={styles.stepInput}
+                    >
+                      <option value="">Select...</option>
+                      {GENDER_OPTIONS.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      id="vote-field"
+                      autoFocus
+                      type={currentField.type === 'number' ? 'text' : currentField.type}
+                      inputMode={currentField.type === 'number' ? 'numeric' : undefined}
+                      value={voter[currentField.key]}
+                      onChange={(e) =>
+                        setVoter((v) => ({ ...v, [currentField.key]: e.target.value }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          goNextField()
+                        }
+                      }}
+                      placeholder={
+                        currentField.key === 'mobile' ? campaign.mobile_placeholder ?? '' : ''
+                      }
+                      style={styles.stepInput}
+                    />
+                  )}
+                  {formError && <p style={styles.stepError}>{formError}</p>}
+                </div>
+              )}
+
+              <div style={styles.stepDots} aria-hidden>
+                {formFields.map((f, i) => (
+                  <span
+                    key={f.key}
+                    style={{
+                      ...styles.dot,
+                      background: i === formStep ? tokens.primary : tokens.border,
+                      width: i === formStep ? 24 : 8,
+                    }}
+                  />
                 ))}
-              </select>
-            </Field>
-          )}
-          {campaign.collect_mobile && (
-            <Field label="Mobile number" required={campaign.mobile_required}>
-              <input
-                type="tel"
-                value={voter.mobile}
-                onChange={(e) => setVoter((v) => ({ ...v, mobile: e.target.value }))}
-                placeholder={campaign.mobile_placeholder ?? ''}
-                style={styles.input}
-              />
-            </Field>
-          )}
+              </div>
 
-          {formError && <div style={styles.error}>{formError}</div>}
-
-          <button type="button" onClick={handleNext} style={styles.primaryBtn}>
-            Next
-          </button>
+              <button type="button" onClick={goNextField} style={styles.primaryBtn}>
+                {isLastField ? 'Start voting →' : 'Next'}
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -322,10 +380,7 @@ export function PublicVotePage() {
                 </span>
                 <div style={styles.track}>
                   <div
-                    style={{
-                      ...styles.fill,
-                      width: `${(position / deck.length) * 100}%`,
-                    }}
+                    style={{ ...styles.fill, width: `${(position / deck.length) * 100}%` }}
                   />
                 </div>
               </div>
@@ -397,32 +452,12 @@ export function PublicVotePage() {
   )
 }
 
-// ── Small building blocks ────────────────────────────────────────────
+// ── Shell ────────────────────────────────────────────────────────────
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div style={styles.page}>
       <main style={styles.container}>{children}</main>
     </div>
-  )
-}
-
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string
-  required: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <label style={styles.field}>
-      <span style={styles.fieldLabel}>
-        {label}
-        {required && <span style={styles.req}> *</span>}
-      </span>
-      {children}
-    </label>
   )
 }
 
@@ -435,41 +470,77 @@ const styles: Record<string, React.CSSProperties> = {
   },
   container: { maxWidth: 520, margin: '0 auto', padding: '40px 24px 80px' },
 
-  header: { marginBottom: 24, textAlign: 'center' },
-  title: {
+  // Voter detail stepper (one field per screen, no card border)
+  stepper: {
+    minHeight: '70vh',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  stepHead: { textAlign: 'center', marginBottom: 'auto' },
+  stepCampaign: {
     margin: 0,
     fontFamily: fonts.heading,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 600,
     letterSpacing: '-0.01em',
     color: tokens.primary,
   },
-  project: { margin: '8px 0 0', fontSize: 15, color: tokens.textMuted },
-
-  card: {
-    background: tokens.surface,
+  stepProject: { margin: '6px 0 0', fontSize: 14, color: tokens.textMuted },
+  stepTopBar: { display: 'flex', alignItems: 'center', minHeight: 40 },
+  backBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: '50%',
     border: `1px solid ${tokens.border}`,
-    borderRadius: 16,
-    padding: 24,
+    background: tokens.surface,
+    color: tokens.primary,
+    cursor: 'pointer',
+    padding: 0,
+  },
+  stepBody: {
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 16,
+    textAlign: 'center',
+    padding: '24px 0',
   },
-  formIntro: { margin: 0, fontSize: 14, color: tokens.textMuted, lineHeight: '22px' },
-
-  field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  fieldLabel: { fontSize: 13, fontWeight: 600, color: tokens.text },
-  req: { color: tokens.ruby },
-  input: {
-    width: '100%',
-    padding: '11px 14px',
-    borderRadius: 8,
-    border: `1px solid ${tokens.border}`,
-    background: tokens.inputBg,
+  stepLabel: {
+    fontFamily: fonts.heading,
+    fontSize: 22,
+    fontWeight: 600,
     color: tokens.text,
-    fontSize: 14,
+  },
+  req: { color: tokens.ruby },
+  stepInput: {
+    width: '100%',
+    maxWidth: 360,
+    padding: '14px 16px',
+    borderRadius: 10,
+    border: `1px solid ${tokens.border}`,
+    background: tokens.surface,
+    color: tokens.text,
+    fontSize: 16,
     fontFamily: fonts.body,
+    textAlign: 'center',
     boxSizing: 'border-box',
+  },
+  stepError: { margin: 0, fontSize: 13, color: tokens.ruby },
+  stepDots: {
+    display: 'flex',
+    gap: 8,
+    justifyContent: 'center',
+    margin: '8px 0 20px',
+  },
+  dot: {
+    height: 8,
+    borderRadius: 999,
+    transition: 'width 0.2s ease, background 0.2s ease',
   },
 
   primaryBtn: {
@@ -483,7 +554,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     fontFamily: fonts.body,
     cursor: 'pointer',
-    marginTop: 4,
+  },
+
+  card: {
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 16,
+    padding: 24,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+    textAlign: 'center',
   },
 
   // Progress
@@ -504,12 +585,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   // Deck
-  deck: {
-    position: 'relative',
-    width: '100%',
-    aspectRatio: '4 / 5',
-    marginBottom: 24,
-  },
+  deck: { position: 'relative', width: '100%', aspectRatio: '4 / 5', marginBottom: 24 },
   backCard: {
     position: 'absolute',
     inset: 0,
@@ -521,12 +597,7 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.7,
   },
 
-  controls: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
+  controls: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 },
   decisionBtn: {
     flex: 1,
     maxWidth: 200,
@@ -539,11 +610,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid transparent',
   },
   acceptBtn: { background: tokens.green, color: tokens.surface },
-  rejectBtn: {
-    background: tokens.surface,
-    color: tokens.ruby,
-    border: `1px solid ${tokens.ruby}`,
-  },
+  rejectBtn: { background: tokens.surface, color: tokens.ruby, border: `1px solid ${tokens.ruby}` },
 
   doneTitle: {
     margin: 0,
@@ -577,6 +644,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     fontSize: 13,
     border: `1px solid ${tokens.ruby}33`,
+    marginBottom: 16,
   },
 
   // Success
