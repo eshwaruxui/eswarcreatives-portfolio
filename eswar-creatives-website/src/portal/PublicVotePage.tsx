@@ -785,7 +785,7 @@ function SelectionsModal({ completed, onClose }: { completed: Completed[]; onClo
             <div style={styles.lbGrid} onClick={(e) => e.stopPropagation()}>
               {lightbox.images.map((img, i) => (
                 <button key={img.url} type="button" style={styles.lbThumbBtn} onClick={() => setViewIndex(i)}>
-                  <img src={img.url} alt="" style={styles.lbThumb} />
+                  <LightboxImg src={img.url} style={styles.lbThumb} />
                 </button>
               ))}
             </div>
@@ -799,7 +799,7 @@ function SelectionsModal({ completed, onClose }: { completed: Completed[]; onClo
               >
                 <ChevronLeft size={28} />
               </button>
-              <img src={lightbox.images[viewIndex].url} alt="" style={styles.lbFull} />
+              <LightboxImg src={lightbox.images[viewIndex].url} style={styles.lbFull} />
               <button
                 type="button"
                 onClick={() => setViewIndex((i) => ((i as number) + 1) % lightbox.images.length)}
@@ -847,6 +847,33 @@ function ConfirmDialog({ config, onClose }: { config: ConfirmConfig; onClose: ()
       </div>
     </div>
   )
+}
+
+// Lightbox image with a graceful fallback: if the storage object fails to load,
+// show a labelled placeholder instead of the browser's broken-image icon.
+function LightboxImg({ src, style }: { src: string; style: React.CSSProperties }) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) {
+    return (
+      <div
+        style={{
+          ...style,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          background: tokens.tealLight,
+          color: tokens.textMuted,
+          fontSize: 11,
+          padding: 8,
+          boxSizing: 'border-box',
+        }}
+      >
+        Image unavailable
+      </div>
+    )
+  }
+  return <img src={src} alt="" style={style} onError={() => setFailed(true)} />
 }
 
 const styles: Record<string, React.CSSProperties> = {
