@@ -79,6 +79,17 @@ type PublicVote = {
   voter_mobile: string | null
   sketch_index: number
   decision: 'pass' | 'reject'
+  submitted_at: string
+}
+
+// One voter's decisions within a single set, for a response row.
+type SetResponse = {
+  setId: string
+  setName: string
+  accepted: number
+  passed: number
+  time: string
+  votes: PublicVote[]
 }
 
 // Votes grouped by voter for the responses view.
@@ -165,6 +176,11 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
   const [campaignVotes, setCampaignVotes] = useState<Record<string, PublicVote[]>>({})
   const [campaignVotesLoading, setCampaignVotesLoading] = useState(false)
   const [copiedCampaignId, setCopiedCampaignId] = useState<string | null>(null)
+  // Per-voter, per-set decisions lightbox (Part 4 "View selections").
+  const [voterLb, setVoterLb] = useState<
+    { label: string; items: { url: string; decision: 'pass' | 'reject' }[] } | null
+  >(null)
+  const [voterLbLoading, setVoterLbLoading] = useState(false)
 
   const selectedClient = clients.find((c) => c.clientId === selectedClientId) ?? null
   const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null
@@ -723,7 +739,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
       const { data, error: err } = await supabase
         .from('public_votes')
         .select(
-          'id, set_id, voter_name, voter_age, voter_gender, voter_mobile, sketch_index, decision, logo_sketch_sets(name)'
+          'id, set_id, voter_name, voter_age, voter_gender, voter_mobile, sketch_index, decision, submitted_at, logo_sketch_sets(name)'
         )
         .eq('campaign_id', campaignId)
         .order('voter_name', { ascending: true })
@@ -740,12 +756,43 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
         voter_mobile: r.voter_mobile,
         sketch_index: r.sketch_index,
         decision: r.decision,
+        submitted_at: r.submitted_at,
       })) as PublicVote[]
       setCampaignVotes((prev) => ({ ...prev, [campaignId]: votes }))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setCampaignVotesLoading(false)
+    }
+  }
+
+  // Open a voter's decisions for one set: map each vote's sketch_index to its
+  // storage image (sets are listed name-asc, same order the voter saw), tagged
+  // with the pass/reject decision.
+  async function openVoterSelections(name: string, sr: SetResponse) {
+    const label = `${name} · ${sr.setName}`
+    setVoterLb({ label, items: [] })
+    setVoterLbLoading(true)
+    try {
+      const { data: files } = await supabase.storage
+        .from(BUCKET)
+        .list(sr.setId, { limit: 1000, sortBy: { column: 'name', order: 'asc' } })
+      const visible = (files ?? []).filter((f) => f.name && !f.name.startsWith('.'))
+      const items = [...sr.votes]
+        .sort((a, b) => a.sketch_index - b.sketch_index)
+        .map((v) => ({
+          url: visible[v.sketch_index]
+            ? supabase.storage
+                .from(BUCKET)
+                .getPublicUrl(`${sr.setId}/${visible[v.sketch_index].name}`).data.publicUrl
+            : '',
+          decision: v.decision,
+        }))
+      setVoterLb({ label, items })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setVoterLbLoading(false)
     }
   }
 
@@ -1341,36 +1388,46 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
                             <div style={styles.voterCount}>
                               {groups.length} {groups.length === 1 ? 'voter' : 'voters'}
                             </div>
-                            {groups.map((g) => (
-                              <div key={g.key} style={styles.voterGroup}>
-                                <div style={styles.voterName}>{g.name}</div>
-                                {(g.age || g.gender || g.mobile) && (
-                                  <div style={styles.voterMeta}>
-                                    {g.age && <span>Age: {g.age}</span>}
-                                    {g.gender && <span>Gender: {g.gender}</span>}
-                                    {g.mobile && <span>Mobile: {g.mobile}</span>}
-                                  </div>
-                                )}
-                                <div style={styles.decisionList}>
-                                  {g.votes.map((v) => (
-                                    <div key={v.id} style={styles.decisionRow}>
-                                      <span style={styles.decisionSet}>
-                                        {(v.set_name ?? 'Set')} · Sketch {v.sketch_index + 1}
+                            <div style={styles.responseGroups}>
+                              {groups.map((g) => (
+                                <div key={g.key} style={styles.respVoter}>
+                                  <div style={styles.respVoterName}>{g.name}</div>
+                                  {(g.age || g.gender) && (
+                                    <div style={styles.respVoterMeta}>
+                                      {[g.age && `Age: ${g.age}`, g.gender && `Gender: ${g.gender}`]
+                                        .filter(Boolean)
+                                        .join(' · ')}
+                                    </div>
+                                  )}
+                                  {votesBySet(g.votes).map((sr) => (
+                                    <div key={sr.setId} style={styles.historyRow}>
+                                      <span style={styles.historyName}>
+                                        <span style={styles.historySet}>
+                                          {c.campaign_title} · {sr.setName}
+                                        </span>
                                       </span>
-                                      <span
-                                        style={
-                                          v.decision === 'pass'
-                                            ? styles.passBadge
-                                            : styles.rejectBadge
-                                        }
+                                      <span style={styles.historyCounts}>
+                                        <span style={{ color: tokens.green }}>
+                                          {sr.accepted} accepted
+                                        </span>
+                                        {' · '}
+                                        <span style={{ color: tokens.ruby }}>
+                                          {sr.passed} passed
+                                        </span>
+                                      </span>
+                                      <span style={styles.historyTime}>{formatTime(sr.time)}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => openVoterSelections(g.name, sr)}
+                                        style={styles.viewSelectionsBtn}
                                       >
-                                        {v.decision}
-                                      </span>
+                                        View selections
+                                      </button>
                                     </div>
                                   ))}
                                 </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </>
                         )}
                       </div>
@@ -1464,6 +1521,48 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
           )}
         </div>
       )}
+
+      {/* Per-voter decisions lightbox (Part 4 "View selections") */}
+      {voterLb && (
+        <div style={styles.lbOverlay} onClick={() => setVoterLb(null)}>
+          <div style={styles.lbTitle}>{voterLb.label}</div>
+          <button
+            type="button"
+            onClick={() => setVoterLb(null)}
+            style={styles.lbClose}
+            aria-label="Close"
+          >
+            <X size={22} />
+          </button>
+          {voterLbLoading ? (
+            <p style={styles.lbEmpty}>Loading selections...</p>
+          ) : voterLb.items.length === 0 ? (
+            <p style={styles.lbEmpty}>No decisions for this set.</p>
+          ) : (
+            <div style={styles.lbGrid} onClick={(e) => e.stopPropagation()}>
+              {voterLb.items.map((it, i) => (
+                <div key={i} style={styles.voterLbCell}>
+                  {it.url ? (
+                    <img src={it.url} alt="" style={styles.lbThumb} />
+                  ) : (
+                    <div style={{ ...styles.lbThumb, background: tokens.tealLight }} />
+                  )}
+                  <span
+                    style={{
+                      ...(it.decision === 'pass' ? styles.passBadge : styles.rejectBadge),
+                      position: 'absolute',
+                      top: 6,
+                      left: 6,
+                    }}
+                  >
+                    {it.decision}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1514,6 +1613,32 @@ function groupSubmissionsByDate(subs: Submission[]): [string, Submission[]][] {
     groups[day].push(s)
   }
   return order.map((d) => [d, groups[d]])
+}
+
+// Split one voter's votes into per-set response rows (accepted = 'pass'
+// decisions, passed = 'reject'), keeping the latest submit time per set.
+function votesBySet(votes: PublicVote[]): SetResponse[] {
+  const order: string[] = []
+  const map: Record<string, SetResponse> = {}
+  for (const v of votes) {
+    if (!map[v.set_id]) {
+      map[v.set_id] = {
+        setId: v.set_id,
+        setName: v.set_name ?? 'Set',
+        accepted: 0,
+        passed: 0,
+        time: v.submitted_at,
+        votes: [],
+      }
+      order.push(v.set_id)
+    }
+    const r = map[v.set_id]
+    if (v.decision === 'pass') r.accepted++
+    else r.passed++
+    if (v.submitted_at > r.time) r.time = v.submitted_at
+    r.votes.push(v)
+  }
+  return order.map((k) => map[k])
 }
 
 // Group votes by voter. Name + mobile keys voters apart when names repeat.
@@ -2091,37 +2216,18 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
   },
   voterCount: { fontSize: 12, fontWeight: 600, color: tokens.text },
-  voterGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    padding: '12px 14px',
-    borderRadius: 8,
-    background: tokens.surface,
-    border: `1px solid ${tokens.border}`,
-  },
-  voterName: {
-    fontFamily: fonts.heading,
-    fontSize: 14,
-    fontWeight: 600,
-    color: tokens.text,
-  },
-  voterMeta: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 12,
+  // Grouped responses (voter -> per-set rows, matching submission history)
+  responseGroups: { display: 'flex', flexDirection: 'column', gap: 18, marginTop: 4 },
+  respVoter: { display: 'flex', flexDirection: 'column', gap: 4 },
+  respVoterName: {
     fontSize: 12,
+    fontWeight: 500,
     color: tokens.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
-  decisionList: { display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 },
-  decisionRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    fontSize: 12,
-  },
-  decisionSet: { color: tokens.textMuted },
+  respVoterMeta: { fontSize: 13, color: tokens.textMuted, marginBottom: 4 },
+  voterLbCell: { position: 'relative' },
   passBadge: {
     background: tokens.greenLight,
     color: tokens.green,
