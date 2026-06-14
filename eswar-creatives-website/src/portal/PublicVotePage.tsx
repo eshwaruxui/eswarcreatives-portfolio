@@ -83,6 +83,13 @@ export function PublicVotePage() {
   const [justSubmitted, setJustSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // ── Suppress the PWA install prompt on the public voting page ───────
+  useEffect(() => {
+    const handler = (e: Event) => e.preventDefault()
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
   // ── Load the campaign by token (must be active) ────────────────────
   useEffect(() => {
     let cancelled = false
