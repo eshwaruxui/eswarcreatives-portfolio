@@ -14,6 +14,11 @@ import { tokens, fonts } from './theme'
 const BUCKET = 'logo-sketches'
 const MAX_FILES = 25
 const ACCEPT = 'image/jpeg,image/png,image/webp'
+// Sentinel client-dropdown value for "Public" (no-account voting campaign) mode.
+const PUBLIC = '__public__'
+
+const slugify = (s: string) =>
+  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 // A client who has at least one non-delivered project. profileId is what we
 // store as logo_sketch_sets.client_id (that column references profiles.id, so
@@ -32,6 +37,7 @@ type SketchSet = {
   set_number: number
   total_count: number
   created_at: string
+  campaign_id: string | null
 }
 
 type Submission = {
@@ -41,6 +47,52 @@ type Submission = {
   passed_count: number
   completed_at: string
 }
+
+// A public voting campaign just launched (the bits we keep in state to link
+// new sets and render the success card).
+type LaunchedCampaign = {
+  id: string
+  voting_token: string
+  campaign_title: string
+  project_name: string
+  status: string
+}
+
+// A campaign row in the admin "Public campaign responses" list.
+type PublicCampaign = {
+  id: string
+  campaign_title: string
+  project_name: string
+  status: string
+  voting_token: string
+  created_at: string
+}
+
+// One anonymous vote, with the set name joined in for display.
+type PublicVote = {
+  id: string
+  set_id: string
+  set_name: string | null
+  voter_name: string | null
+  voter_age: string | null
+  voter_gender: string | null
+  voter_mobile: string | null
+  sketch_index: number
+  decision: 'pass' | 'reject'
+}
+
+// Votes grouped by voter for the responses view.
+type VoterGroup = {
+  key: string
+  name: string
+  age: string | null
+  gender: string | null
+  mobile: string | null
+  votes: PublicVote[]
+}
+
+// Which optional voter fields a campaign collects, and which are mandatory.
+type FieldKey = 'name' | 'age' | 'gender' | 'mobile'
 
 // ── Route entry: auth via PortalGuard, then admin-only gate ──────────
 export function AdminSketchUpload() {
@@ -57,7 +109,7 @@ export function AdminSketchUpload() {
   )
 }
 
-function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
+function AdminInner({ profile }: { profile: PortalProfile }) {
   const [clients, setClients] = useState<ClientOption[]>([])
   const [selectedClientId, setSelectedClientId] = useState('')
   const [sets, setSets] = useState<SketchSet[]>([])
@@ -93,8 +145,39 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
   const [lightboxLoading, setLightboxLoading] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
+  // ── Public mode: campaign settings form + launch state ─────────────
+  const [campaignTitle, setCampaignTitle] = useState('')
+  const [projectName, setProjectName] = useState('')
+  const [collect, setCollect] = useState<Record<FieldKey, boolean>>({
+    name: true, age: false, gender: false, mobile: false,
+  })
+  const [required, setRequired] = useState<Record<FieldKey, boolean>>({
+    name: true, age: false, gender: false, mobile: false,
+  })
+  const [mobilePlaceholder, setMobilePlaceholder] = useState('9841085484')
+  const [launching, setLaunching] = useState(false)
+  const [launchedCampaign, setLaunchedCampaign] = useState<LaunchedCampaign | null>(null)
+  const [copiedLink, setCopiedLink] = useState(false)
+
+  // ── Public campaign responses (Part 4) ─────────────────────────────
+  const [campaigns, setCampaigns] = useState<PublicCampaign[]>([])
+  const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null)
+  const [campaignVotes, setCampaignVotes] = useState<Record<string, PublicVote[]>>({})
+  const [campaignVotesLoading, setCampaignVotesLoading] = useState(false)
+  const [copiedCampaignId, setCopiedCampaignId] = useState<string | null>(null)
+
   const selectedClient = clients.find((c) => c.clientId === selectedClientId) ?? null
   const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null
+  const isPublic = selectedClientId === PUBLIC
+  // Set-creation/upload sections show for a real client, or in Public mode once
+  // the campaign is launched (so its sets have a campaign_id to attach to).
+  const setsEnabled = !!selectedClient || (isPublic && !!launchedCampaign)
+  const campaignTitleById = Object.fromEntries(
+    campaigns.map((c) => [c.id, c.campaign_title])
+  ) as Record<string, string>
+  const votingLink = launchedCampaign
+    ? `${window.location.origin}/portal/vote/${launchedCampaign.voting_token}`
+    : ''
 
   // ── Load clients with a non-delivered project ──────────────────────
   useEffect(() => {
@@ -139,13 +222,31 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
     }
   }, [])
 
+  // ── Load all public campaigns (admin) for the responses section ────
+  useEffect(() => {
+    void loadCampaigns()
+  }, [])
+
+  async function loadCampaigns() {
+    try {
+      const { data, error: err } = await supabase
+        .from('public_campaigns')
+        .select('id, campaign_title, project_name, status, voting_token, created_at')
+        .order('created_at', { ascending: false })
+      if (err) throw err
+      setCampaigns((data ?? []) as PublicCampaign[])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   async function loadSets(client: ClientOption) {
     setLoadingSets(true)
     setError(null)
     try {
       const { data, error: err } = await supabase
         .from('logo_sketch_sets')
-        .select('id, name, set_number, total_count, created_at')
+        .select('id, name, set_number, total_count, created_at, campaign_id')
         .eq('client_id', client.profileId)
         .order('set_number', { ascending: true })
       if (err) throw err
@@ -154,6 +255,35 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoadingSets(false)
+    }
+  }
+
+  // Sets for a launched campaign (Public mode). Mirrors loadSets but queries by
+  // campaign_id, since campaign sets are not tied to a real client.
+  async function loadCampaignSets(campaignId: string) {
+    setLoadingSets(true)
+    setError(null)
+    try {
+      const { data, error: err } = await supabase
+        .from('logo_sketch_sets')
+        .select('id, name, set_number, total_count, created_at, campaign_id')
+        .eq('campaign_id', campaignId)
+        .order('set_number', { ascending: true })
+      if (err) throw err
+      setSets((data ?? []) as SketchSet[])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoadingSets(false)
+    }
+  }
+
+  // Reload the set list for whichever mode is active.
+  async function reloadSets() {
+    if (isPublic && launchedCampaign) {
+      await loadCampaignSets(launchedCampaign.id)
+    } else if (selectedClient) {
+      await loadSets(selectedClient)
     }
   }
 
@@ -167,6 +297,8 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
     setSubmissions([])
     setOrderDirty(false)
     setSetsBackup(null)
+    // Public mode: no client to load; the Campaign settings panel takes over.
+    if (clientId === PUBLIC) return
     const client = clients.find((c) => c.clientId === clientId)
     if (client) {
       void loadSets(client)
@@ -286,7 +418,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
         .eq('id', s.id)
       if (updErr) throw updErr
       await loadThumbs(s.id)
-      if (selectedClient) await loadSets(selectedClient)
+      await reloadSets()
       setToast('Sketch deleted')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -329,10 +461,8 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
       if (selectedSetId === s.id) setSelectedSetId('')
       if (renamingSetId === s.id) setRenamingSetId(null)
       if (lightbox?.setId === s.id) closeSelections()
-      if (selectedClient) {
-        await loadSets(selectedClient)
-        await loadClientSubmissions(selectedClient.profileId)
-      }
+      await reloadSets()
+      if (selectedClient) await loadClientSubmissions(selectedClient.profileId)
       setToast('Set deleted')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -405,7 +535,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
       setToast('Set order saved')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
-      if (selectedClient) await loadSets(selectedClient) // reload true order on failure
+      await reloadSets() // reload true order on failure
     }
   }
 
@@ -444,14 +574,55 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
     }
   }
 
-  // ── Create a new set ───────────────────────────────────────────────
+  // ── Create a new set (client mode, or campaign set in Public mode) ──
   async function handleCreateSet() {
-    if (!selectedClient) return
     const name = newSetName.trim()
     if (!name) {
       setError('Set name cannot be empty.')
       return
     }
+    const nextNumber = sets.reduce((max, s) => Math.max(max, s.set_number), 0) + 1
+    const SELECT = 'id, name, set_number, total_count, created_at, campaign_id'
+
+    // Public mode: campaign sets have no real client, so client_id is set to
+    // the admin's own profile id (NOT NULL + FK) and project_slug to a slug from
+    // the project name. Neither is used by the voter flow, which reads by
+    // campaign_id; the new campaign_id is what ties the set to the campaign.
+    if (isPublic) {
+      if (!launchedCampaign) {
+        setError('Launch the campaign first, then add its sets.')
+        return
+      }
+      setCreating(true)
+      setError(null)
+      try {
+        const { data, error: err } = await supabase
+          .from('logo_sketch_sets')
+          .insert({
+            client_id: profile.id,
+            project_slug: slugify(launchedCampaign.project_name) || 'campaign',
+            campaign_id: launchedCampaign.id,
+            name,
+            set_number: nextNumber,
+            total_count: 0,
+          })
+          .select(SELECT)
+          .single()
+        if (err) throw err
+        setNewSetName('')
+        await loadCampaignSets(launchedCampaign.id)
+        if (data) setSelectedSetId((data as SketchSet).id)
+        setToast(`Set "${name}" created.`)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setCreating(false)
+      }
+      return
+    }
+
+    // Client mode (unchanged behaviour).
+    if (!selectedClient) return
     if (!selectedClient.projectSlug) {
       setError('This client has no active project to attach the set to.')
       return
@@ -459,8 +630,6 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
     setCreating(true)
     setError(null)
     try {
-      const nextNumber =
-        sets.reduce((max, s) => Math.max(max, s.set_number), 0) + 1
       const { data, error: err } = await supabase
         .from('logo_sketch_sets')
         .insert({
@@ -470,7 +639,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
           set_number: nextNumber,
           total_count: 0,
         })
-        .select('id, name, set_number, total_count, created_at')
+        .select(SELECT)
         .single()
       if (err) throw err
       setNewSetName('')
@@ -481,6 +650,116 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setCreating(false)
+    }
+  }
+
+  // ── Launch a public voting campaign ────────────────────────────────
+  async function handleLaunchCampaign() {
+    const title = campaignTitle.trim()
+    const project = projectName.trim()
+    if (!title || !project) {
+      setError('Campaign title and project name are required.')
+      return
+    }
+    setLaunching(true)
+    setError(null)
+    try {
+      const { data, error: err } = await supabase
+        .from('public_campaigns')
+        .insert({
+          campaign_title: title,
+          project_name: project,
+          collect_name: collect.name,
+          name_required: collect.name && required.name,
+          collect_age: collect.age,
+          age_required: collect.age && required.age,
+          collect_gender: collect.gender,
+          gender_required: collect.gender && required.gender,
+          collect_mobile: collect.mobile,
+          mobile_required: collect.mobile && required.mobile,
+          mobile_placeholder: mobilePlaceholder.trim() || null,
+          status: 'active',
+          created_by: profile.id,
+        })
+        .select('id, voting_token, campaign_title, project_name, status')
+        .single()
+      if (err) throw err
+      setLaunchedCampaign(data as LaunchedCampaign)
+      setSets([])
+      setSelectedSetId('')
+      setToast('Campaign launched.')
+      void loadCampaigns()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLaunching(false)
+    }
+  }
+
+  async function copyVotingLink() {
+    if (!votingLink) return
+    try {
+      await navigator.clipboard.writeText(votingLink)
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2000)
+    } catch {
+      /* clipboard unavailable; the field is selectable as a fallback */
+    }
+  }
+
+  // ── Public campaign responses (Part 4) ─────────────────────────────
+  function toggleCampaign(c: PublicCampaign) {
+    if (expandedCampaignId === c.id) {
+      setExpandedCampaignId(null)
+      return
+    }
+    setExpandedCampaignId(c.id)
+    if (!campaignVotes[c.id]) void loadCampaignVotes(c.id)
+  }
+
+  async function loadCampaignVotes(campaignId: string) {
+    setCampaignVotesLoading(true)
+    try {
+      const { data, error: err } = await supabase
+        .from('public_votes')
+        .select(
+          'id, set_id, voter_name, voter_age, voter_gender, voter_mobile, sketch_index, decision, logo_sketch_sets(name)'
+        )
+        .eq('campaign_id', campaignId)
+        .order('voter_name', { ascending: true })
+        .order('set_id', { ascending: true })
+        .order('sketch_index', { ascending: true })
+      if (err) throw err
+      const votes = ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        set_id: r.set_id,
+        set_name: r.logo_sketch_sets?.name ?? null,
+        voter_name: r.voter_name,
+        voter_age: r.voter_age,
+        voter_gender: r.voter_gender,
+        voter_mobile: r.voter_mobile,
+        sketch_index: r.sketch_index,
+        decision: r.decision,
+      })) as PublicVote[]
+      setCampaignVotes((prev) => ({ ...prev, [campaignId]: votes }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCampaignVotesLoading(false)
+    }
+  }
+
+  async function copyCampaignLink(c: PublicCampaign) {
+    const link = `${window.location.origin}/portal/vote/${c.voting_token}`
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedCampaignId(c.id)
+      setTimeout(
+        () => setCopiedCampaignId((id) => (id === c.id ? null : id)),
+        2000
+      )
+    } catch {
+      /* clipboard unavailable */
     }
   }
 
@@ -503,7 +782,8 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
 
   // ── Upload to the selected set ─────────────────────────────────────
   async function handleUpload() {
-    if (!selectedSet || !selectedClient || files.length === 0) return
+    // Public mode has no selectedClient; only a selected set + files are needed.
+    if (!selectedSet || files.length === 0) return
     setUploading(true)
     setProgress(0)
     setError(null)
@@ -542,7 +822,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
           .update({ total_count: actualCount })
           .eq('id', selectedSet.id)
         if (updErr) throw updErr
-        await loadSets(selectedClient)
+        await reloadSets()
         setToast(`${uploaded} sketches uploaded to ${selectedSet.name ?? `Set ${selectedSet.set_number}`}`)
       }
       if (failures.length > 0) {
@@ -557,6 +837,18 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
   }
 
   const setLabel = (s: SketchSet) => s.name ?? `Set ${s.set_number}`
+
+  const FIELD_ROWS: { key: FieldKey; label: string }[] = [
+    { key: 'name', label: 'Name' },
+    { key: 'age', label: 'Age' },
+    { key: 'gender', label: 'Gender' },
+    { key: 'mobile', label: 'Mobile number' },
+  ]
+
+  function toggleCollect(key: FieldKey, on: boolean) {
+    setCollect((p) => ({ ...p, [key]: on }))
+    if (!on) setRequired((p) => ({ ...p, [key]: false }))
+  }
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
@@ -575,11 +867,9 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
 
         {/* Section 1 — Select client */}
         <section style={styles.card}>
-          <h2 style={styles.h2}>1. Select client</h2>
+          <h2 style={styles.h2}>1. Select client / Public</h2>
           {loadingClients ? (
             <p style={styles.muted}>Loading clients...</p>
-          ) : clients.length === 0 ? (
-            <p style={styles.muted}>No clients with active projects.</p>
           ) : (
             <select
               value={selectedClientId}
@@ -587,6 +877,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
               style={styles.select}
             >
               <option value="">Choose a client...</option>
+              <option value={PUBLIC}>Public</option>
               {clients.map((c) => (
                 <option key={c.clientId} value={c.clientId}>
                   {c.name}
@@ -606,8 +897,116 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
           )}
         </section>
 
+        {/* Public mode — Campaign settings (above Create new set) */}
+        {isPublic && (
+          <section style={styles.card}>
+            <h2 style={styles.h2}>Campaign settings</h2>
+            {!launchedCampaign ? (
+              <div style={styles.campaignForm}>
+                <input
+                  type="text"
+                  value={campaignTitle}
+                  onChange={(e) => setCampaignTitle(e.target.value)}
+                  placeholder="e.g. Newgen Logo Round 1"
+                  style={styles.input}
+                />
+                <input
+                  type="text"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  placeholder="e.g. Newgen Event Makers Branding"
+                  style={styles.input}
+                />
+
+                <div style={styles.fieldRows}>
+                  {FIELD_ROWS.map(({ key, label }) => (
+                    <div key={key} style={styles.fieldRow}>
+                      <label style={styles.fieldCollect}>
+                        <input
+                          type="checkbox"
+                          checked={collect[key]}
+                          onChange={(e) => toggleCollect(key, e.target.checked)}
+                        />
+                        <span>{label}</span>
+                      </label>
+                      <label
+                        style={{
+                          ...styles.fieldMandatory,
+                          opacity: collect[key] ? 1 : 0.4,
+                          cursor: collect[key] ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={!collect[key]}
+                          checked={required[key]}
+                          onChange={(e) =>
+                            setRequired((p) => ({ ...p, [key]: e.target.checked }))
+                          }
+                        />
+                        <span>Mandatory</span>
+                      </label>
+                    </div>
+                  ))}
+                  {collect.mobile && (
+                    <input
+                      type="text"
+                      value={mobilePlaceholder}
+                      onChange={(e) => setMobilePlaceholder(e.target.value)}
+                      placeholder="9841085484"
+                      style={{ ...styles.input, marginTop: 4 }}
+                      aria-label="Mobile number placeholder"
+                    />
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLaunchCampaign}
+                  disabled={launching}
+                  style={{
+                    ...styles.btn,
+                    ...styles.btnPrimary,
+                    width: '100%',
+                    opacity: launching ? 0.6 : 1,
+                  }}
+                >
+                  {launching ? 'Launching...' : 'Launch Campaign'}
+                </button>
+              </div>
+            ) : (
+              <div style={styles.launchSuccess}>
+                <div style={styles.launchHeadRow}>
+                  <h3 style={styles.launchHeading}>Campaign launched</h3>
+                  <span style={styles.activeBadge}>Active</span>
+                </div>
+                <span style={styles.launchLinkLabel}>Voting link</span>
+                <div style={styles.row}>
+                  <input
+                    readOnly
+                    value={votingLink}
+                    onFocus={(e) => e.currentTarget.select()}
+                    style={styles.input}
+                  />
+                  <button
+                    type="button"
+                    onClick={copyVotingLink}
+                    style={{ ...styles.btn, ...styles.btnPrimary }}
+                  >
+                    {copiedLink ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <p style={styles.muted}>
+                  Add one or more sets below and upload sketches. Sets you create
+                  now are attached to this campaign.
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Section 2 — Create new set */}
-        {selectedClient && (
+        {setsEnabled && (
           <section style={styles.card}>
             <h2 style={styles.h2}>2. Create new set</h2>
             <div style={styles.row}>
@@ -631,7 +1030,7 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
         )}
 
         {/* Section 3 — Upload to set */}
-        {selectedClient && (
+        {setsEnabled && (
           <section style={styles.card}>
             <h2 style={styles.h2}>3. Upload to set</h2>
 
@@ -838,11 +1237,16 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
                   {rows.map((r, ri) => {
                     const st = sets.find((x) => x.id === r.set_id)
                     const label = st ? setLabel(st) : 'Set'
+                    const campaignTitle =
+                      st?.campaign_id ? campaignTitleById[st.campaign_id] : null
                     return (
                       <div key={ri} style={styles.historyRow}>
                         <span style={styles.historyName}>
                           {selectedClient.name}
                           <span style={styles.historySet}>{label}</span>
+                          {campaignTitle && (
+                            <span style={styles.historyCampaign}>{campaignTitle}</span>
+                          )}
                         </span>
                         <span style={styles.historyCounts}>
                           <span style={{ color: tokens.green }}>
@@ -869,6 +1273,114 @@ function AdminInner({ profile: _profile }: { profile: PortalProfile }) {
             </div>
           </section>
         )}
+
+        {/* Part 4 — Public campaign responses */}
+        <section style={styles.card}>
+          <h2 style={styles.historyTitle}>Public campaign responses</h2>
+          {campaigns.length === 0 ? (
+            <p style={styles.muted}>No campaigns yet.</p>
+          ) : (
+            <div style={styles.campaignList}>
+              {campaigns.map((c) => {
+                const open = expandedCampaignId === c.id
+                const votes = campaignVotes[c.id] ?? []
+                const groups = groupVotesByVoter(votes)
+                const link = `${window.location.origin}/portal/vote/${c.voting_token}`
+                return (
+                  <div key={c.id} style={styles.campaignCard}>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleCampaign(c)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          toggleCampaign(c)
+                        }
+                      }}
+                      style={styles.campaignHead}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={styles.campaignName}>{c.campaign_title}</div>
+                        <div style={styles.campaignProject}>{c.project_name}</div>
+                      </div>
+                      <div style={styles.campaignHeadRight}>
+                        <span style={statusBadgeStyle(c.status)}>{c.status}</span>
+                        {open ? (
+                          <ChevronUp size={18} style={styles.chevron} />
+                        ) : (
+                          <ChevronDown size={18} style={styles.chevron} />
+                        )}
+                      </div>
+                    </div>
+
+                    {open && (
+                      <div style={styles.campaignBody}>
+                        <div style={styles.row}>
+                          <input
+                            readOnly
+                            value={link}
+                            onFocus={(e) => e.currentTarget.select()}
+                            style={styles.input}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => copyCampaignLink(c)}
+                            style={{ ...styles.btn, ...styles.btnPrimary }}
+                          >
+                            {copiedCampaignId === c.id ? 'Copied!' : 'Copy'}
+                          </button>
+                        </div>
+
+                        {campaignVotesLoading && !campaignVotes[c.id] ? (
+                          <p style={styles.muted}>Loading responses...</p>
+                        ) : groups.length === 0 ? (
+                          <p style={styles.muted}>No responses yet.</p>
+                        ) : (
+                          <>
+                            <div style={styles.voterCount}>
+                              {groups.length} {groups.length === 1 ? 'voter' : 'voters'}
+                            </div>
+                            {groups.map((g) => (
+                              <div key={g.key} style={styles.voterGroup}>
+                                <div style={styles.voterName}>{g.name}</div>
+                                {(g.age || g.gender || g.mobile) && (
+                                  <div style={styles.voterMeta}>
+                                    {g.age && <span>Age: {g.age}</span>}
+                                    {g.gender && <span>Gender: {g.gender}</span>}
+                                    {g.mobile && <span>Mobile: {g.mobile}</span>}
+                                  </div>
+                                )}
+                                <div style={styles.decisionList}>
+                                  {g.votes.map((v) => (
+                                    <div key={v.id} style={styles.decisionRow}>
+                                      <span style={styles.decisionSet}>
+                                        {(v.set_name ?? 'Set')} · Sketch {v.sketch_index + 1}
+                                      </span>
+                                      <span
+                                        style={
+                                          v.decision === 'pass'
+                                            ? styles.passBadge
+                                            : styles.rejectBadge
+                                        }
+                                      >
+                                        {v.decision}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
 
         <div style={styles.accountFooter}>
           <Link to="/portal/account" style={styles.accountLink}>
@@ -1002,6 +1514,47 @@ function groupSubmissionsByDate(subs: Submission[]): [string, Submission[]][] {
     groups[day].push(s)
   }
   return order.map((d) => [d, groups[d]])
+}
+
+// Group votes by voter. Name + mobile keys voters apart when names repeat.
+function groupVotesByVoter(votes: PublicVote[]): VoterGroup[] {
+  const order: string[] = []
+  const map: Record<string, VoterGroup> = {}
+  for (const v of votes) {
+    const key = `${v.voter_name ?? ''}|${v.voter_mobile ?? ''}`
+    if (!map[key]) {
+      map[key] = {
+        key,
+        name: v.voter_name || 'Anonymous',
+        age: v.voter_age,
+        gender: v.voter_gender,
+        mobile: v.voter_mobile,
+        votes: [],
+      }
+      order.push(key)
+    }
+    map[key].votes.push(v)
+  }
+  return order.map((k) => map[k])
+}
+
+function statusBadgeStyle(status: string): React.CSSProperties {
+  const palette: Record<string, { bg: string; fg: string }> = {
+    active: { bg: tokens.greenLight, fg: tokens.green },
+    draft: { bg: tokens.goldLight, fg: tokens.goldDark },
+    closed: { bg: tokens.rubyLight, fg: tokens.ruby },
+  }
+  const c = palette[status] ?? { bg: tokens.tealLight, fg: tokens.primary }
+  return {
+    background: c.bg,
+    color: c.fg,
+    borderRadius: 999,
+    padding: '3px 10px',
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'capitalize',
+    flexShrink: 0,
+  }
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -1443,5 +1996,148 @@ const styles: Record<string, React.CSSProperties> = {
     transform: 'translateX(-50%)',
     color: tokens.surface,
     fontSize: 13,
+  },
+
+  // ── Public mode: campaign settings ─────────────────────────────────
+  campaignForm: { display: 'flex', flexDirection: 'column', gap: 14 },
+  fieldRows: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    padding: '14px 0',
+    borderTop: `1px solid ${tokens.border}`,
+    borderBottom: `1px solid ${tokens.border}`,
+  },
+  fieldRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  fieldCollect: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    fontSize: 14,
+    color: tokens.text,
+    cursor: 'pointer',
+  },
+  fieldMandatory: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 12,
+    color: tokens.textMuted,
+  },
+  launchSuccess: { display: 'flex', flexDirection: 'column', gap: 10 },
+  launchHeadRow: { display: 'flex', alignItems: 'center', gap: 10 },
+  launchHeading: {
+    margin: 0,
+    fontFamily: fonts.heading,
+    fontSize: 18,
+    fontWeight: 600,
+    color: tokens.text,
+  },
+  activeBadge: {
+    background: tokens.greenLight,
+    color: tokens.green,
+    borderRadius: 999,
+    padding: '3px 10px',
+    fontSize: 11,
+    fontWeight: 600,
+  },
+  launchLinkLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: tokens.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+
+  // History campaign sub-label
+  historyCampaign: { fontSize: 11, fontWeight: 500, color: tokens.accent },
+
+  // ── Public campaign responses (Part 4) ─────────────────────────────
+  campaignList: { display: 'flex', flexDirection: 'column', gap: 10 },
+  campaignCard: {
+    background: tokens.bg,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  campaignHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '14px 16px',
+    cursor: 'pointer',
+  },
+  campaignName: {
+    fontFamily: fonts.heading,
+    fontSize: 15,
+    fontWeight: 600,
+    color: tokens.text,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  campaignProject: { fontSize: 12, color: tokens.textMuted, marginTop: 2 },
+  campaignHeadRight: { display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 },
+  campaignBody: {
+    padding: '0 16px 16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+  },
+  voterCount: { fontSize: 12, fontWeight: 600, color: tokens.text },
+  voterGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    padding: '12px 14px',
+    borderRadius: 8,
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+  },
+  voterName: {
+    fontFamily: fonts.heading,
+    fontSize: 14,
+    fontWeight: 600,
+    color: tokens.text,
+  },
+  voterMeta: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 12,
+    fontSize: 12,
+    color: tokens.textMuted,
+  },
+  decisionList: { display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 },
+  decisionRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    fontSize: 12,
+  },
+  decisionSet: { color: tokens.textMuted },
+  passBadge: {
+    background: tokens.greenLight,
+    color: tokens.green,
+    borderRadius: 999,
+    padding: '2px 9px',
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'capitalize',
+  },
+  rejectBadge: {
+    background: tokens.rubyLight,
+    color: tokens.ruby,
+    borderRadius: 999,
+    padding: '2px 9px',
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'capitalize',
   },
 }
