@@ -178,7 +178,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
   const [copiedCampaignId, setCopiedCampaignId] = useState<string | null>(null)
   // Per-voter, per-set decisions lightbox (Part 4 "View selections").
   const [voterLb, setVoterLb] = useState<
-    { label: string; items: { url: string; decision: 'pass' | 'reject' }[] } | null
+    { label: string; items: { url: string }[] } | null
   >(null)
   const [voterLbLoading, setVoterLbLoading] = useState(false)
 
@@ -766,9 +766,9 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
     }
   }
 
-  // Open a voter's decisions for one set: map each vote's sketch_index to its
-  // storage image (sets are listed name-asc, same order the voter saw), tagged
-  // with the pass/reject decision.
+  // Open a voter's ACCEPTED sketches for one set (decision = 'pass'): map each
+  // accepted vote's sketch_index to its storage image (sets are listed name-asc,
+  // the same order the voter saw).
   async function openVoterSelections(name: string, sr: SetResponse) {
     const label = `${name} · ${sr.setName}`
     setVoterLb({ label, items: [] })
@@ -779,6 +779,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
         .list(sr.setId, { limit: 1000, sortBy: { column: 'name', order: 'asc' } })
       const visible = (files ?? []).filter((f) => f.name && !f.name.startsWith('.'))
       const items = [...sr.votes]
+        .filter((v) => v.decision === 'pass')
         .sort((a, b) => a.sketch_index - b.sketch_index)
         .map((v) => ({
           url: visible[v.sketch_index]
@@ -786,7 +787,6 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
                 .from(BUCKET)
                 .getPublicUrl(`${sr.setId}/${visible[v.sketch_index].name}`).data.publicUrl
             : '',
-          decision: v.decision,
         }))
       setVoterLb({ label, items })
     } catch (err) {
@@ -1540,30 +1540,18 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
             <X size={22} />
           </button>
           {voterLbLoading ? (
-            <p style={styles.lbEmpty}>Loading selections...</p>
+            <p style={styles.lbEmpty}>Loading accepted sketches...</p>
           ) : voterLb.items.length === 0 ? (
-            <p style={styles.lbEmpty}>No decisions for this set.</p>
+            <p style={styles.lbEmpty}>No accepted sketches for this set.</p>
           ) : (
             <div style={styles.lbGrid} onClick={(e) => e.stopPropagation()}>
-              {voterLb.items.map((it, i) => (
-                <div key={i} style={styles.voterLbCell}>
-                  {it.url ? (
-                    <img src={it.url} alt="" style={styles.lbThumb} />
-                  ) : (
-                    <div style={{ ...styles.lbThumb, background: tokens.tealLight }} />
-                  )}
-                  <span
-                    style={{
-                      ...(it.decision === 'pass' ? styles.passBadge : styles.rejectBadge),
-                      position: 'absolute',
-                      top: 6,
-                      left: 6,
-                    }}
-                  >
-                    {it.decision}
-                  </span>
-                </div>
-              ))}
+              {voterLb.items.map((it, i) =>
+                it.url ? (
+                  <img key={i} src={it.url} alt="" style={styles.lbThumb} />
+                ) : (
+                  <div key={i} style={{ ...styles.lbThumb, background: tokens.tealLight }} />
+                )
+              )}
             </div>
           )}
         </div>
@@ -2232,23 +2220,4 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: 0.6,
   },
   respVoterMeta: { fontSize: 13, color: tokens.textMuted, marginBottom: 4 },
-  voterLbCell: { position: 'relative' },
-  passBadge: {
-    background: tokens.greenLight,
-    color: tokens.green,
-    borderRadius: 999,
-    padding: '2px 9px',
-    fontSize: 11,
-    fontWeight: 600,
-    textTransform: 'capitalize',
-  },
-  rejectBadge: {
-    background: tokens.rubyLight,
-    color: tokens.ruby,
-    borderRadius: 999,
-    padding: '2px 9px',
-    fontSize: 11,
-    fontWeight: 600,
-    textTransform: 'capitalize',
-  },
 }
