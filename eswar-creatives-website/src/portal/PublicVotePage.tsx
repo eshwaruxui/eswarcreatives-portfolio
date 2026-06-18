@@ -1,4 +1,4 @@
-import { useEffect, useState, createContext, useContext } from 'react'
+import { useEffect, useRef, useState, createContext, useContext } from 'react'
 import { useParams } from 'react-router'
 import { AnimatePresence } from 'motion/react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
@@ -14,6 +14,9 @@ import { tokens, fonts } from './theme'
 // row per decision. No Supabase session is required (migrations 0019-0022).
 
 const BUCKET = 'logo-sketches'
+
+// Destructive ruby for the "Undo last decision" action (outline that fills on hover).
+const RUBY = '#C0392B'
 
 const GENDER_OPTIONS = ['Prefer not to say', 'Male', 'Female', 'Non-binary', 'Other']
 
@@ -78,6 +81,11 @@ export function PublicVotePage() {
 
   const [pending, setPending] = useState(false)
   const [lastDir, setLastDir] = useState<1 | -1>(1)
+  // Card container, used to scroll the active sketch into view on mobile.
+  const deckRef = useRef<HTMLDivElement>(null)
+  // Skip the auto-scroll for the first card shown; only scroll once the voter
+  // starts advancing (after their first accept/pass decision).
+  const didShowFirstCard = useRef(false)
   const [confirm, setConfirm] = useState<ConfirmConfig | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [justSubmitted, setJustSubmitted] = useState(false)
@@ -219,6 +227,18 @@ export function PublicVotePage() {
   useEffect(() => {
     if (done) setPending(false)
   }, [done])
+
+  // On mobile the action bar sits below the fold. Don't scroll on the first
+  // card (leave the page where the voter starts), then scroll each subsequent
+  // card to the top of the viewport as the voter advances.
+  useEffect(() => {
+    if (step !== 'vote' || !current) return
+    if (!didShowFirstCard.current) {
+      didShowFirstCard.current = true
+      return
+    }
+    deckRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [step, currentSetId, current?.index])
 
   // ── Decisions (local only) ─────────────────────────────────────────
   function decide(accepted: boolean) {
@@ -365,6 +385,12 @@ export function PublicVotePage() {
     return (
       <Shell completed={[]} hideFooter>
         <div style={styles.stepper}>
+          {formFields.length > 0 && formStep > 0 && (
+            <button type="button" onClick={goPrevField} style={styles.backBtn} aria-label="Back">
+              <ChevronLeft size={22} />
+            </button>
+          )}
+
           <div style={styles.stepHead}>
             <h1 style={styles.stepCampaign}>{campaign.campaign_title}</h1>
             <p style={styles.stepProject}>{campaign.project_name}</p>
@@ -373,22 +399,12 @@ export function PublicVotePage() {
           {formFields.length === 0 ? (
             <div style={styles.stepBody}>
               <p style={styles.mutedBody}>Ready when you are.</p>
-              <button type="button" onClick={startVoting} style={styles.primaryBtn}>
+              <button type="button" onClick={startVoting} style={{ ...styles.primaryBtn, marginTop: 24 }}>
                 Start voting →
               </button>
             </div>
           ) : (
             <>
-              <div style={styles.stepTopBar}>
-                {formStep > 0 ? (
-                  <button type="button" onClick={goPrevField} style={styles.backBtn} aria-label="Back">
-                    <ChevronLeft size={22} />
-                  </button>
-                ) : (
-                  <span style={{ width: 40 }} />
-                )}
-              </div>
-
               {currentField && (
                 <div style={styles.stepBody}>
                   <label style={styles.stepLabel} htmlFor="vote-field">
@@ -466,11 +482,8 @@ export function PublicVotePage() {
       onResetAll={!showSuccess && (allReviewed || reviewedCount > 0) ? handleResetAll : undefined}
     >
       <div style={styles.header}>
-        <h1 style={styles.title}>Review your logo sketches</h1>
-        <p style={styles.subtitle}>
-          Swipe right to accept, swipe left to pass. You can undo any decision.
-        </p>
-        <p style={styles.greeting}>{campaign.campaign_title}</p>
+        <h1 style={styles.title}>{campaign.campaign_title}</h1>
+        <p style={styles.swipeHint}>Swipe right to accept, swipe left to pass.</p>
         {currentSet && (
           <p style={styles.setLabel}>
             Set {currentPosition} of {totalSets}
@@ -527,7 +540,7 @@ export function PublicVotePage() {
         />
       ) : (
         <div style={styles.deckWrap}>
-          <div style={styles.deck}>
+          <div ref={deckRef} style={styles.deck}>
             {next && (
               <div style={styles.backCard}>
                 <img src={next.url} alt="" aria-hidden style={cardStyles.image} draggable={false} />
@@ -639,31 +652,55 @@ function DoneScreen({
         <SummaryStat label="Passed" value={rejected} color={tokens.ruby} />
       </div>
 
-      {hasNextSet && (
-        <button type="button" onClick={onReviewNext} style={styles.nextBtn}>
-          Review next set
-        </button>
-      )}
-
+      {/* One CTA: advance to the next set when more remain, otherwise submit
+          every set's decisions at once. Avoids voters submitting after one set. */}
       <button
         type="button"
-        onClick={onSubmit}
-        disabled={submitDisabled}
-        style={{ ...styles.submitBtn, opacity: submitDisabled ? 0.6 : 1, cursor: submitDisabled ? 'default' : 'pointer' }}
+        onClick={hasNextSet ? onReviewNext : onSubmit}
+        disabled={!hasNextSet && submitDisabled}
+        style={{
+          ...styles.submitBtn,
+          marginTop: 0,
+          opacity: !hasNextSet && submitDisabled ? 0.6 : 1,
+          cursor: !hasNextSet && submitDisabled ? 'default' : 'pointer',
+        }}
       >
-        {submitLabel}
+        {hasNextSet ? 'Submit & Continue →' : submitLabel}
       </button>
 
       <div style={styles.doneActions}>
-        <button type="button" onClick={onUndo} disabled={!canUndo} style={{ ...styles.undoBtn, opacity: canUndo ? 1 : 0.45 }}>
-          Undo last decision
-        </button>
+        <UndoLastButton disabled={!canUndo} onClick={onUndo} />
       </div>
 
       <button type="button" onClick={onStartOver} style={styles.startOverLink}>
         Start over
       </button>
     </div>
+  )
+}
+
+// Destructive "Undo last decision" button: ruby outline that fills ruby on
+// hover (white text). Hover lives in local state since styles are inline.
+function UndoLastButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  const [hover, setHover] = useState(false)
+  const filled = hover && !disabled
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        ...styles.undoDestructive,
+        background: filled ? RUBY : 'transparent',
+        color: filled ? tokens.surface : RUBY,
+        opacity: disabled ? 0.45 : 1,
+        cursor: disabled ? 'default' : 'pointer',
+      }}
+    >
+      Undo last decision
+    </button>
   )
 }
 
@@ -880,27 +917,28 @@ const styles: Record<string, React.CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
   container: { maxWidth: 520, margin: '0 auto', padding: '40px 24px 80px' },
 
-  // Voter detail stepper
-  stepper: { minHeight: '70vh', display: 'flex', flexDirection: 'column' },
-  stepHead: { textAlign: 'center', marginBottom: 'auto' },
-  stepCampaign: { margin: 0, fontFamily: fonts.heading, fontSize: 24, fontWeight: 600, letterSpacing: '-0.01em', color: tokens.primary },
-  stepProject: { margin: '6px 0 0', fontSize: 14, color: tokens.textMuted },
-  stepTopBar: { display: 'flex', alignItems: 'center', minHeight: 40 },
-  backBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '50%', border: `1px solid ${tokens.border}`, background: tokens.surface, color: tokens.primary, cursor: 'pointer', padding: 0 },
-  stepBody: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 16, textAlign: 'center', padding: '24px 0' },
-  stepLabel: { fontFamily: fonts.heading, fontSize: 22, fontWeight: 600, color: tokens.text },
+  // Voter detail stepper — top-down flow per Figma 4084-31. Content starts near
+  // the top (not vertically centered) with tight, fixed gaps between sections.
+  // The shared `container` already supplies 24px side padding, an 80px bottom and
+  // a 40px top; the extra 70px below makes the Figma 110px top offset.
+  stepper: { position: 'relative', display: 'flex', flexDirection: 'column', maxWidth: 480, margin: '0 auto', paddingTop: 70 },
+  backBtn: { position: 'absolute', top: 0, left: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '50%', border: `1px solid ${tokens.border}`, background: tokens.surface, color: tokens.primary, cursor: 'pointer', padding: 0 },
+  stepHead: { textAlign: 'center' },
+  stepCampaign: { margin: 0, fontFamily: fonts.heading, fontSize: 32, fontWeight: 600, lineHeight: '46px', letterSpacing: '-0.24px', color: tokens.primary },
+  stepProject: { margin: '6px 0 0', fontFamily: fonts.body, fontSize: 14, lineHeight: '21px', color: tokens.textMuted },
+  stepBody: { display: 'flex', flexDirection: 'column', marginTop: 13, paddingTop: 24, paddingBottom: 0 },
+  stepLabel: { display: 'block', fontFamily: fonts.heading, fontSize: 22, fontWeight: 600, color: tokens.text, textAlign: 'center' },
   req: { color: tokens.ruby },
-  stepInput: { width: '100%', maxWidth: 360, padding: '14px 16px', borderRadius: 10, border: `1px solid ${tokens.border}`, background: tokens.surface, color: tokens.text, fontSize: 16, fontFamily: fonts.body, textAlign: 'center', boxSizing: 'border-box' },
-  stepError: { margin: 0, fontSize: 13, color: tokens.ruby },
-  stepDots: { display: 'flex', gap: 8, justifyContent: 'center', margin: '8px 0 20px' },
+  stepInput: { width: '100%', height: 54, marginTop: 16, padding: '0 16px', borderRadius: 10, border: `1px solid ${tokens.border}`, background: tokens.surface, color: tokens.text, fontSize: 16, fontFamily: fonts.body, boxSizing: 'border-box' },
+  stepError: { margin: '8px 0 0', fontSize: 13, color: tokens.ruby, textAlign: 'center' },
+  stepDots: { display: 'flex', gap: 8, justifyContent: 'center', paddingTop: 8, paddingBottom: 40 },
   dot: { height: 8, borderRadius: 999, transition: 'width 0.2s ease, background 0.2s ease' },
 
-  primaryBtn: { width: '100%', background: tokens.primary, color: tokens.surface, border: 'none', borderRadius: 12, padding: '14px 20px', fontSize: 15, fontWeight: 600, fontFamily: fonts.body, cursor: 'pointer' },
+  primaryBtn: { width: '100%', background: tokens.primary, color: tokens.surface, border: 'none', borderRadius: 12, padding: '14px 20px', fontSize: 15, lineHeight: '22.5px', fontWeight: 600, fontFamily: fonts.body, textAlign: 'center', cursor: 'pointer' },
 
   header: { marginBottom: 24, textAlign: 'center' },
   title: { margin: 0, fontFamily: fonts.heading, fontSize: 28, fontWeight: 600, letterSpacing: '-0.01em', color: tokens.text },
-  subtitle: { margin: '8px 0 0', fontSize: 15, color: tokens.textMuted, lineHeight: '22px' },
-  greeting: { margin: '12px 0 0', fontFamily: fonts.heading, fontSize: 17, fontWeight: 600, color: tokens.text },
+  swipeHint: { margin: '8px 0 0', fontFamily: fonts.body, fontSize: 14, lineHeight: '21px', color: tokens.textMuted, textAlign: 'center' },
   setLabel: { margin: '10px 0 0', display: 'inline-block', fontFamily: fonts.heading, fontSize: 13, fontWeight: 600, color: tokens.primary, background: tokens.tealLight, borderRadius: 999, padding: '4px 14px' },
 
   progressBlock: { marginBottom: 24 },
@@ -916,11 +954,27 @@ const styles: Record<string, React.CSSProperties> = {
   deck: { position: 'relative', width: '100%', aspectRatio: '4 / 5', marginBottom: 24 },
   backCard: { position: 'absolute', inset: 0, background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 20, overflow: 'hidden', transform: 'scale(0.95) translateY(10px)', opacity: 0.7 },
 
-  controls: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  // Sticky bottom bar so Pass/Undo/Accept stay reachable while the tall card
+  // scrolls. Full-bleed via negative side margins (offsets the container's 24px
+  // padding); extra bottom padding clears the notch safe-area.
+  controls: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    position: 'sticky',
+    bottom: 0,
+    zIndex: 10,
+    margin: '0 -24px',
+    background: tokens.bg,
+    borderTop: '1px solid #E5E7EB',
+    padding: '12px 24px calc(20px + env(safe-area-inset-bottom, 0px))',
+  },
   decisionBtn: { flex: 1, maxWidth: 160, padding: '13px 20px', borderRadius: 12, fontSize: 15, fontWeight: 600, fontFamily: fonts.body, cursor: 'pointer', border: '1px solid transparent' },
   acceptBtn: { background: tokens.green, color: tokens.surface },
   rejectBtn: { background: tokens.surface, color: tokens.ruby, border: `1px solid ${tokens.ruby}` },
   undoBtn: { background: 'transparent', border: `1px solid ${tokens.border}`, color: tokens.primary, padding: '13px 18px', borderRadius: 12, fontSize: 14, fontWeight: 500, fontFamily: fonts.body, cursor: 'pointer' },
+  undoDestructive: { border: `1px solid ${RUBY}`, padding: '13px 18px', borderRadius: 12, fontSize: 14, fontWeight: 500, fontFamily: fonts.body, transition: 'background 0.15s ease, color 0.15s ease' },
 
   done: { background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 16, padding: 32, textAlign: 'center' },
   doneTitle: { margin: '0 0 8px', fontFamily: fonts.heading, fontSize: 22, fontWeight: 600, color: tokens.text },
@@ -928,7 +982,6 @@ const styles: Record<string, React.CSSProperties> = {
   summaryStat: { display: 'flex', flexDirection: 'column', gap: 4 },
   summaryValue: { fontFamily: fonts.heading, fontSize: 30, fontWeight: 700, lineHeight: 1 },
   summaryLabel: { fontSize: 12, color: tokens.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 },
-  nextBtn: { width: '100%', background: tokens.accent, color: tokens.surface, border: 'none', borderRadius: 12, padding: '14px 20px', fontSize: 15, fontWeight: 600, fontFamily: fonts.body, cursor: 'pointer' },
   submitBtn: { width: '100%', background: tokens.primary, color: tokens.surface, border: 'none', borderRadius: 12, padding: '14px 20px', fontSize: 15, fontWeight: 600, fontFamily: fonts.body, marginTop: 12 },
   doneActions: { display: 'flex', justifyContent: 'center', gap: 12, marginTop: 14 },
   startOverLink: { background: 'transparent', border: 'none', color: tokens.textMuted, fontSize: 13, fontFamily: fonts.body, textDecoration: 'underline', cursor: 'pointer', marginTop: 14, padding: 0 },
