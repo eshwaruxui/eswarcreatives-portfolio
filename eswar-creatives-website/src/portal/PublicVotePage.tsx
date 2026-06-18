@@ -635,19 +635,20 @@ function DoneScreen({
         <SummaryStat label="Passed" value={rejected} color={tokens.ruby} />
       </div>
 
-      {hasNextSet && (
-        <button type="button" onClick={onReviewNext} style={styles.nextBtn}>
-          Review next set
-        </button>
-      )}
-
+      {/* One CTA: advance to the next set when more remain, otherwise submit
+          every set's decisions at once. Avoids voters submitting after one set. */}
       <button
         type="button"
-        onClick={onSubmit}
-        disabled={submitDisabled}
-        style={{ ...styles.submitBtn, opacity: submitDisabled ? 0.6 : 1, cursor: submitDisabled ? 'default' : 'pointer' }}
+        onClick={hasNextSet ? onReviewNext : onSubmit}
+        disabled={!hasNextSet && submitDisabled}
+        style={{
+          ...styles.submitBtn,
+          marginTop: 0,
+          opacity: !hasNextSet && submitDisabled ? 0.6 : 1,
+          cursor: !hasNextSet && submitDisabled ? 'default' : 'pointer',
+        }}
       >
-        {submitLabel}
+        {hasNextSet ? 'Submit & Continue →' : submitLabel}
       </button>
 
       <div style={styles.doneActions}>
@@ -926,7 +927,6 @@ const styles: Record<string, React.CSSProperties> = {
   summaryStat: { display: 'flex', flexDirection: 'column', gap: 4 },
   summaryValue: { fontFamily: fonts.heading, fontSize: 30, fontWeight: 700, lineHeight: 1 },
   summaryLabel: { fontSize: 12, color: tokens.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 },
-  nextBtn: { width: '100%', background: tokens.accent, color: tokens.surface, border: 'none', borderRadius: 12, padding: '14px 20px', fontSize: 15, fontWeight: 600, fontFamily: fonts.body, cursor: 'pointer' },
   submitBtn: { width: '100%', background: tokens.primary, color: tokens.surface, border: 'none', borderRadius: 12, padding: '14px 20px', fontSize: 15, fontWeight: 600, fontFamily: fonts.body, marginTop: 12 },
   doneActions: { display: 'flex', justifyContent: 'center', gap: 12, marginTop: 14 },
   startOverLink: { background: 'transparent', border: 'none', color: tokens.textMuted, fontSize: 13, fontFamily: fonts.body, textDecoration: 'underline', cursor: 'pointer', marginTop: 14, padding: 0 },
