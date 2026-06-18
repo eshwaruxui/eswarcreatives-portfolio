@@ -1,4 +1,4 @@
-import { useEffect, useState, createContext, useContext } from 'react'
+import { useEffect, useRef, useState, createContext, useContext } from 'react'
 import { useParams } from 'react-router'
 import { AnimatePresence } from 'motion/react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
@@ -81,6 +81,8 @@ export function PublicVotePage() {
 
   const [pending, setPending] = useState(false)
   const [lastDir, setLastDir] = useState<1 | -1>(1)
+  // Card container, used to scroll the active sketch into view on mobile.
+  const deckRef = useRef<HTMLDivElement>(null)
   const [confirm, setConfirm] = useState<ConfirmConfig | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [justSubmitted, setJustSubmitted] = useState(false)
@@ -222,6 +224,13 @@ export function PublicVotePage() {
   useEffect(() => {
     if (done) setPending(false)
   }, [done])
+
+  // On mobile the action bar sits below the fold, so scroll the active card to
+  // the top of the viewport when voting begins and as each new sketch advances.
+  useEffect(() => {
+    if (step !== 'vote' || !current) return
+    deckRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [step, currentSetId, current?.index])
 
   // ── Decisions (local only) ─────────────────────────────────────────
   function decide(accepted: boolean) {
@@ -522,7 +531,7 @@ export function PublicVotePage() {
         />
       ) : (
         <div style={styles.deckWrap}>
-          <div style={styles.deck}>
+          <div ref={deckRef} style={styles.deck}>
             {next && (
               <div style={styles.backCard}>
                 <img src={next.url} alt="" aria-hidden style={cardStyles.image} draggable={false} />
@@ -935,7 +944,22 @@ const styles: Record<string, React.CSSProperties> = {
   deck: { position: 'relative', width: '100%', aspectRatio: '4 / 5', marginBottom: 24 },
   backCard: { position: 'absolute', inset: 0, background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 20, overflow: 'hidden', transform: 'scale(0.95) translateY(10px)', opacity: 0.7 },
 
-  controls: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  // Sticky bottom bar so Pass/Undo/Accept stay reachable while the tall card
+  // scrolls. Full-bleed via negative side margins (offsets the container's 24px
+  // padding); extra bottom padding clears the notch safe-area.
+  controls: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    position: 'sticky',
+    bottom: 0,
+    zIndex: 10,
+    margin: '0 -24px',
+    background: tokens.bg,
+    borderTop: '1px solid #E5E7EB',
+    padding: '12px 24px calc(20px + env(safe-area-inset-bottom, 0px))',
+  },
   decisionBtn: { flex: 1, maxWidth: 160, padding: '13px 20px', borderRadius: 12, fontSize: 15, fontWeight: 600, fontFamily: fonts.body, cursor: 'pointer', border: '1px solid transparent' },
   acceptBtn: { background: tokens.green, color: tokens.surface },
   rejectBtn: { background: tokens.surface, color: tokens.ruby, border: `1px solid ${tokens.ruby}` },
