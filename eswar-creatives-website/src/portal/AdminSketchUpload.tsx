@@ -80,6 +80,7 @@ type PublicVote = {
   sketch_index: number
   decision: 'pass' | 'reject'
   submitted_at: string
+  archived: boolean
 }
 
 // One voter's decisions within a single set, for a response row.
@@ -100,6 +101,8 @@ type VoterGroup = {
   gender: string | null
   mobile: string | null
   votes: PublicVote[]
+  // True when every one of this voter's rows is archived (archive flips all rows).
+  archived: boolean
 }
 
 // Which optional voter fields a campaign collects, and which are mandatory.
@@ -176,6 +179,8 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
   const [campaignVotes, setCampaignVotes] = useState<Record<string, PublicVote[]>>({})
   const [campaignVotesLoading, setCampaignVotesLoading] = useState(false)
   const [copiedCampaignId, setCopiedCampaignId] = useState<string | null>(null)
+  // Per-campaign toggle: reveal archived voter groups (hidden from the default list).
+  const [showArchived, setShowArchived] = useState<Record<string, boolean>>({})
   // Per-voter, per-set decisions lightbox (Part 4 "View selections").
   const [voterLb, setVoterLb] = useState<
     { label: string; items: { url: string }[] } | null
@@ -739,7 +744,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
       const { data, error: err } = await supabase
         .from('public_votes')
         .select(
-          'id, set_id, voter_name, voter_age, voter_gender, voter_mobile, sketch_index, decision, submitted_at, logo_sketch_sets(name)'
+          'id, set_id, voter_name, voter_age, voter_gender, voter_mobile, sketch_index, decision, submitted_at, archived, logo_sketch_sets(name)'
         )
         .eq('campaign_id', campaignId)
         .order('voter_name', { ascending: true })
@@ -757,6 +762,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
         sketch_index: r.sketch_index,
         decision: r.decision,
         submitted_at: r.submitted_at,
+        archived: r.archived ?? false,
       })) as PublicVote[]
       setCampaignVotes((prev) => ({ ...prev, [campaignId]: votes }))
     } catch (err) {
@@ -807,6 +813,31 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
       )
     } catch {
       /* clipboard unavailable */
+    }
+  }
+
+  // Archive or restore every row for one voter group. We target the group's
+  // exact vote ids (not voter_name) so anonymous voters and repeated names are
+  // handled correctly. Local state is patched in place so the list updates
+  // without a refetch.
+  async function setVoterArchived(campaignId: string, group: VoterGroup, archived: boolean) {
+    if (archived && !window.confirm(`Archive responses from ${group.name}?`)) return
+    const ids = group.votes.map((v) => v.id)
+    if (ids.length === 0) return
+    try {
+      const { error: err } = await supabase
+        .from('public_votes')
+        .update({ archived })
+        .in('id', ids)
+      if (err) throw err
+      setCampaignVotes((prev) => ({
+        ...prev,
+        [campaignId]: (prev[campaignId] ?? []).map((v) =>
+          ids.includes(v.id) ? { ...v, archived } : v
+        ),
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -1337,6 +1368,9 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
                 const open = expandedCampaignId === c.id
                 const votes = campaignVotes[c.id] ?? []
                 const groups = groupVotesByVoter(votes)
+                const activeGroups = groups.filter((g) => !g.archived)
+                const archivedGroups = groups.filter((g) => g.archived)
+                const archivedShown = !!showArchived[c.id]
                 const link = `${window.location.origin}/portal/vote/${c.voting_token}`
                 return (
                   <div key={c.id} style={styles.campaignCard}>
@@ -1390,48 +1424,44 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
                           <p style={styles.muted}>No responses yet.</p>
                         ) : (
                           <>
-                            <div style={styles.voterCount}>
-                              {groups.length} {groups.length === 1 ? 'voter' : 'voters'}
+                            <div style={styles.voterCountRow}>
+                              <span style={styles.voterCount}>
+                                {activeGroups.length} {activeGroups.length === 1 ? 'voter' : 'voters'}
+                                {archivedGroups.length > 0 && ` (${archivedGroups.length} archived)`}
+                              </span>
+                              {archivedGroups.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setShowArchived((prev) => ({ ...prev, [c.id]: !prev[c.id] }))
+                                  }
+                                  style={styles.showArchivedToggle}
+                                >
+                                  {archivedShown ? 'Hide archived' : `Show archived (${archivedGroups.length})`}
+                                </button>
+                              )}
                             </div>
                             <div style={styles.responseGroups}>
-                              {groups.map((g) => (
-                                <div key={g.key} style={styles.respVoter}>
-                                  <div style={styles.respVoterName}>{g.name}</div>
-                                  {(g.age || g.gender) && (
-                                    <div style={styles.respVoterMeta}>
-                                      {[g.age && `Age: ${g.age}`, g.gender && `Gender: ${g.gender}`]
-                                        .filter(Boolean)
-                                        .join(' · ')}
-                                    </div>
-                                  )}
-                                  {votesBySet(g.votes).map((sr) => (
-                                    <div key={sr.setId} style={styles.historyRow}>
-                                      <span style={styles.historyName}>
-                                        <span style={styles.historySet}>
-                                          {c.campaign_title} · {sr.setName}
-                                        </span>
-                                      </span>
-                                      <span style={styles.historyCounts}>
-                                        <span style={{ color: tokens.green }}>
-                                          {sr.accepted} accepted
-                                        </span>
-                                        {' · '}
-                                        <span style={{ color: tokens.ruby }}>
-                                          {sr.passed} passed
-                                        </span>
-                                      </span>
-                                      <span style={styles.historyTime}>{formatTime(sr.time)}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => openVoterSelections(g.name, sr)}
-                                        style={styles.viewSelectionsBtn}
-                                      >
-                                        View selections
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
+                              {activeGroups.map((g) => (
+                                <VoterBlock
+                                  key={g.key}
+                                  campaignTitle={c.campaign_title}
+                                  group={g}
+                                  onViewSelections={openVoterSelections}
+                                  onArchive={() => void setVoterArchived(c.id, g, true)}
+                                />
                               ))}
+                              {archivedShown &&
+                                archivedGroups.map((g) => (
+                                  <VoterBlock
+                                    key={g.key}
+                                    campaignTitle={c.campaign_title}
+                                    group={g}
+                                    archived
+                                    onViewSelections={openVoterSelections}
+                                    onUnarchive={() => void setVoterArchived(c.id, g, false)}
+                                  />
+                                ))}
                             </div>
                           </>
                         )}
@@ -1644,12 +1674,88 @@ function groupVotesByVoter(votes: PublicVote[]): VoterGroup[] {
         gender: v.voter_gender,
         mobile: v.voter_mobile,
         votes: [],
+        archived: false,
       }
       order.push(key)
     }
     map[key].votes.push(v)
   }
-  return order.map((k) => map[k])
+  return order.map((k) => {
+    const g = map[k]
+    g.archived = g.votes.length > 0 && g.votes.every((v) => v.archived)
+    return g
+  })
+}
+
+// One voter's response block: header (name + archive/unarchive action) and a
+// per-set decision row each. Archived groups render faded with an Unarchive
+// action instead of the trash button.
+function VoterBlock({
+  campaignTitle,
+  group,
+  archived = false,
+  onViewSelections,
+  onArchive,
+  onUnarchive,
+}: {
+  campaignTitle: string
+  group: VoterGroup
+  archived?: boolean
+  onViewSelections: (name: string, sr: SetResponse) => void
+  onArchive?: () => void
+  onUnarchive?: () => void
+}) {
+  return (
+    <div style={{ ...styles.respVoter, ...(archived ? styles.respVoterArchived : null) }}>
+      <div style={styles.respVoterHead}>
+        <span style={styles.respVoterName}>{group.name}</span>
+        {archived ? (
+          <button type="button" onClick={onUnarchive} style={styles.unarchiveBtn}>
+            Unarchive
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onArchive}
+            style={styles.archiveBtn}
+            aria-label={`Archive responses from ${group.name}`}
+            title="Archive responses"
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
+      </div>
+      {(group.age || group.gender) && (
+        <div style={styles.respVoterMeta}>
+          {[group.age && `Age: ${group.age}`, group.gender && `Gender: ${group.gender}`]
+            .filter(Boolean)
+            .join(' · ')}
+        </div>
+      )}
+      {votesBySet(group.votes).map((sr) => (
+        <div key={sr.setId} style={styles.historyRow}>
+          <span style={styles.historyName}>
+            <span style={styles.historySet}>
+              {campaignTitle} · {sr.setName}
+            </span>
+          </span>
+          <span style={styles.historyCounts}>
+            <span style={{ color: tokens.green }}>{sr.accepted} accepted</span>
+            {' · '}
+            <span style={{ color: tokens.ruby }}>{sr.passed} passed</span>
+          </span>
+          <span style={styles.historyTime}>{formatTime(sr.time)}</span>
+          <button
+            type="button"
+            onClick={() => onViewSelections(group.name, sr)}
+            style={styles.viewSelectionsBtn}
+          >
+            View selections
+          </button>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function statusBadgeStyle(status: string): React.CSSProperties {
@@ -2241,15 +2347,64 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
   },
   voterCount: { fontSize: 12, fontWeight: 600, color: tokens.text },
+  voterCountRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  // Reveal/hide archived voters; ruby #C0392B per spec for the destructive set.
+  showArchivedToggle: {
+    background: 'transparent',
+    border: 'none',
+    color: '#C0392B',
+    fontSize: 12,
+    fontFamily: fonts.body,
+    fontWeight: 600,
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    padding: 0,
+  },
   // Grouped responses (voter -> per-set rows, matching submission history)
   responseGroups: { display: 'flex', flexDirection: 'column', gap: 18, marginTop: 4 },
   respVoter: { display: 'flex', flexDirection: 'column', gap: 4 },
+  respVoterArchived: { opacity: 0.55 },
+  respVoterHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   respVoterName: {
     fontSize: 12,
     fontWeight: 500,
     color: tokens.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
+  },
+  archiveBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: 'none',
+    color: '#C0392B', // ruby — destructive archive action
+    cursor: 'pointer',
+    padding: 4,
+    flexShrink: 0,
+  },
+  unarchiveBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: tokens.primary, // teal
+    fontSize: 12,
+    fontFamily: fonts.body,
+    fontWeight: 600,
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    padding: 0,
+    flexShrink: 0,
   },
   respVoterMeta: { fontSize: 13, color: tokens.textMuted, marginBottom: 4 },
 }
