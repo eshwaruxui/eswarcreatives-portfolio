@@ -15,6 +15,9 @@ import { tokens, fonts } from './theme'
 
 const BUCKET = 'logo-sketches'
 
+// Destructive ruby for the "Undo last decision" action (outline that fills on hover).
+const RUBY = '#C0392B'
+
 const GENDER_OPTIONS = ['Prefer not to say', 'Male', 'Female', 'Non-binary', 'Other']
 
 // Lets the submitted screen open the "View selections" sheet that Shell owns.
@@ -652,15 +655,38 @@ function DoneScreen({
       </button>
 
       <div style={styles.doneActions}>
-        <button type="button" onClick={onUndo} disabled={!canUndo} style={{ ...styles.undoBtn, opacity: canUndo ? 1 : 0.45 }}>
-          Undo last decision
-        </button>
+        <UndoLastButton disabled={!canUndo} onClick={onUndo} />
       </div>
 
       <button type="button" onClick={onStartOver} style={styles.startOverLink}>
         Start over
       </button>
     </div>
+  )
+}
+
+// Destructive "Undo last decision" button: ruby outline that fills ruby on
+// hover (white text). Hover lives in local state since styles are inline.
+function UndoLastButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  const [hover, setHover] = useState(false)
+  const filled = hover && !disabled
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        ...styles.undoDestructive,
+        background: filled ? RUBY : 'transparent',
+        color: filled ? tokens.surface : RUBY,
+        opacity: disabled ? 0.45 : 1,
+        cursor: disabled ? 'default' : 'pointer',
+      }}
+    >
+      Undo last decision
+    </button>
   )
 }
 
@@ -920,6 +946,7 @@ const styles: Record<string, React.CSSProperties> = {
   acceptBtn: { background: tokens.green, color: tokens.surface },
   rejectBtn: { background: tokens.surface, color: tokens.ruby, border: `1px solid ${tokens.ruby}` },
   undoBtn: { background: 'transparent', border: `1px solid ${tokens.border}`, color: tokens.primary, padding: '13px 18px', borderRadius: 12, fontSize: 14, fontWeight: 500, fontFamily: fonts.body, cursor: 'pointer' },
+  undoDestructive: { border: `1px solid ${RUBY}`, padding: '13px 18px', borderRadius: 12, fontSize: 14, fontWeight: 500, fontFamily: fonts.body, transition: 'background 0.15s ease, color 0.15s ease' },
 
   done: { background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 16, padding: 32, textAlign: 'center' },
   doneTitle: { margin: '0 0 8px', fontFamily: fonts.heading, fontSize: 22, fontWeight: 600, color: tokens.text },
