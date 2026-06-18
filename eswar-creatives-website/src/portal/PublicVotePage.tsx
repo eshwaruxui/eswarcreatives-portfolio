@@ -365,6 +365,12 @@ export function PublicVotePage() {
     return (
       <Shell completed={[]} hideFooter>
         <div style={styles.stepper}>
+          {formFields.length > 0 && formStep > 0 && (
+            <button type="button" onClick={goPrevField} style={styles.backBtn} aria-label="Back">
+              <ChevronLeft size={22} />
+            </button>
+          )}
+
           <div style={styles.stepHead}>
             <h1 style={styles.stepCampaign}>{campaign.campaign_title}</h1>
             <p style={styles.stepProject}>{campaign.project_name}</p>
@@ -373,22 +379,12 @@ export function PublicVotePage() {
           {formFields.length === 0 ? (
             <div style={styles.stepBody}>
               <p style={styles.mutedBody}>Ready when you are.</p>
-              <button type="button" onClick={startVoting} style={styles.primaryBtn}>
+              <button type="button" onClick={startVoting} style={{ ...styles.primaryBtn, marginTop: 24 }}>
                 Start voting →
               </button>
             </div>
           ) : (
             <>
-              <div style={styles.stepTopBar}>
-                {formStep > 0 ? (
-                  <button type="button" onClick={goPrevField} style={styles.backBtn} aria-label="Back">
-                    <ChevronLeft size={22} />
-                  </button>
-                ) : (
-                  <span style={{ width: 40 }} />
-                )}
-              </div>
-
               {currentField && (
                 <div style={styles.stepBody}>
                   <label style={styles.stepLabel} htmlFor="vote-field">
@@ -880,22 +876,24 @@ const styles: Record<string, React.CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
   container: { maxWidth: 520, margin: '0 auto', padding: '40px 24px 80px' },
 
-  // Voter detail stepper
-  stepper: { minHeight: '70vh', display: 'flex', flexDirection: 'column' },
-  stepHead: { textAlign: 'center', marginBottom: 'auto' },
-  stepCampaign: { margin: 0, fontFamily: fonts.heading, fontSize: 24, fontWeight: 600, letterSpacing: '-0.01em', color: tokens.primary },
-  stepProject: { margin: '6px 0 0', fontSize: 14, color: tokens.textMuted },
-  stepTopBar: { display: 'flex', alignItems: 'center', minHeight: 40 },
-  backBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '50%', border: `1px solid ${tokens.border}`, background: tokens.surface, color: tokens.primary, cursor: 'pointer', padding: 0 },
-  stepBody: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 16, textAlign: 'center', padding: '24px 0' },
-  stepLabel: { fontFamily: fonts.heading, fontSize: 22, fontWeight: 600, color: tokens.text },
+  // Voter detail stepper — top-down flow per Figma 4084-31. Content starts near
+  // the top (not vertically centered) with tight, fixed gaps between sections.
+  // The shared `container` already supplies 24px side padding, an 80px bottom and
+  // a 40px top; the extra 70px below makes the Figma 110px top offset.
+  stepper: { position: 'relative', display: 'flex', flexDirection: 'column', maxWidth: 480, margin: '0 auto', paddingTop: 70 },
+  backBtn: { position: 'absolute', top: 0, left: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '50%', border: `1px solid ${tokens.border}`, background: tokens.surface, color: tokens.primary, cursor: 'pointer', padding: 0 },
+  stepHead: { textAlign: 'center' },
+  stepCampaign: { margin: 0, fontFamily: fonts.heading, fontSize: 32, fontWeight: 600, lineHeight: '46px', letterSpacing: '-0.24px', color: tokens.primary },
+  stepProject: { margin: '6px 0 0', fontFamily: fonts.body, fontSize: 14, lineHeight: '21px', color: tokens.textMuted },
+  stepBody: { display: 'flex', flexDirection: 'column', marginTop: 13, paddingTop: 24, paddingBottom: 0 },
+  stepLabel: { display: 'block', fontFamily: fonts.heading, fontSize: 22, fontWeight: 600, color: tokens.text, textAlign: 'center' },
   req: { color: tokens.ruby },
-  stepInput: { width: '100%', maxWidth: 360, padding: '14px 16px', borderRadius: 10, border: `1px solid ${tokens.border}`, background: tokens.surface, color: tokens.text, fontSize: 16, fontFamily: fonts.body, textAlign: 'center', boxSizing: 'border-box' },
-  stepError: { margin: 0, fontSize: 13, color: tokens.ruby },
-  stepDots: { display: 'flex', gap: 8, justifyContent: 'center', margin: '8px 0 20px' },
+  stepInput: { width: '100%', height: 54, marginTop: 16, padding: '0 16px', borderRadius: 10, border: `1px solid ${tokens.border}`, background: tokens.surface, color: tokens.text, fontSize: 16, fontFamily: fonts.body, boxSizing: 'border-box' },
+  stepError: { margin: '8px 0 0', fontSize: 13, color: tokens.ruby, textAlign: 'center' },
+  stepDots: { display: 'flex', gap: 8, justifyContent: 'center', paddingTop: 8, paddingBottom: 20 },
   dot: { height: 8, borderRadius: 999, transition: 'width 0.2s ease, background 0.2s ease' },
 
-  primaryBtn: { width: '100%', background: tokens.primary, color: tokens.surface, border: 'none', borderRadius: 12, padding: '14px 20px', fontSize: 15, fontWeight: 600, fontFamily: fonts.body, cursor: 'pointer' },
+  primaryBtn: { width: '100%', background: tokens.primary, color: tokens.surface, border: 'none', borderRadius: 12, padding: '14px 20px', fontSize: 15, lineHeight: '22.5px', fontWeight: 600, fontFamily: fonts.body, textAlign: 'center', cursor: 'pointer' },
 
   header: { marginBottom: 24, textAlign: 'center' },
   title: { margin: 0, fontFamily: fonts.heading, fontSize: 28, fontWeight: 600, letterSpacing: '-0.01em', color: tokens.text },
