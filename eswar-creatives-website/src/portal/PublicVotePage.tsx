@@ -83,6 +83,9 @@ export function PublicVotePage() {
   const [lastDir, setLastDir] = useState<1 | -1>(1)
   // Card container, used to scroll the active sketch into view on mobile.
   const deckRef = useRef<HTMLDivElement>(null)
+  // Skip the auto-scroll for the first card shown; only scroll once the voter
+  // starts advancing (after their first accept/pass decision).
+  const didShowFirstCard = useRef(false)
   const [confirm, setConfirm] = useState<ConfirmConfig | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [justSubmitted, setJustSubmitted] = useState(false)
@@ -225,10 +228,15 @@ export function PublicVotePage() {
     if (done) setPending(false)
   }, [done])
 
-  // On mobile the action bar sits below the fold, so scroll the active card to
-  // the top of the viewport when voting begins and as each new sketch advances.
+  // On mobile the action bar sits below the fold. Don't scroll on the first
+  // card (leave the page where the voter starts), then scroll each subsequent
+  // card to the top of the viewport as the voter advances.
   useEffect(() => {
     if (step !== 'vote' || !current) return
+    if (!didShowFirstCard.current) {
+      didShowFirstCard.current = true
+      return
+    }
     deckRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [step, currentSetId, current?.index])
 
@@ -475,6 +483,7 @@ export function PublicVotePage() {
     >
       <div style={styles.header}>
         <h1 style={styles.title}>{campaign.campaign_title}</h1>
+        <p style={styles.swipeHint}>Swipe right to accept, swipe left to pass.</p>
         {currentSet && (
           <p style={styles.setLabel}>
             Set {currentPosition} of {totalSets}
@@ -922,13 +931,14 @@ const styles: Record<string, React.CSSProperties> = {
   req: { color: tokens.ruby },
   stepInput: { width: '100%', height: 54, marginTop: 16, padding: '0 16px', borderRadius: 10, border: `1px solid ${tokens.border}`, background: tokens.surface, color: tokens.text, fontSize: 16, fontFamily: fonts.body, boxSizing: 'border-box' },
   stepError: { margin: '8px 0 0', fontSize: 13, color: tokens.ruby, textAlign: 'center' },
-  stepDots: { display: 'flex', gap: 8, justifyContent: 'center', paddingTop: 8, paddingBottom: 20 },
+  stepDots: { display: 'flex', gap: 8, justifyContent: 'center', paddingTop: 8, paddingBottom: 40 },
   dot: { height: 8, borderRadius: 999, transition: 'width 0.2s ease, background 0.2s ease' },
 
   primaryBtn: { width: '100%', background: tokens.primary, color: tokens.surface, border: 'none', borderRadius: 12, padding: '14px 20px', fontSize: 15, lineHeight: '22.5px', fontWeight: 600, fontFamily: fonts.body, textAlign: 'center', cursor: 'pointer' },
 
   header: { marginBottom: 24, textAlign: 'center' },
   title: { margin: 0, fontFamily: fonts.heading, fontSize: 28, fontWeight: 600, letterSpacing: '-0.01em', color: tokens.text },
+  swipeHint: { margin: '8px 0 0', fontFamily: fonts.body, fontSize: 14, lineHeight: '21px', color: tokens.textMuted, textAlign: 'center' },
   setLabel: { margin: '10px 0 0', display: 'inline-block', fontFamily: fonts.heading, fontSize: 13, fontWeight: 600, color: tokens.primary, background: tokens.tealLight, borderRadius: 999, padding: '4px 14px' },
 
   progressBlock: { marginBottom: 24 },
