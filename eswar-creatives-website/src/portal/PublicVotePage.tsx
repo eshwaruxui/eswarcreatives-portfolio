@@ -465,11 +465,7 @@ export function PublicVotePage() {
       onResetAll={!showSuccess && (allReviewed || reviewedCount > 0) ? handleResetAll : undefined}
     >
       <div style={styles.header}>
-        <h1 style={styles.title}>Review your logo sketches</h1>
-        <p style={styles.subtitle}>
-          Swipe right to accept, swipe left to pass. You can undo any decision.
-        </p>
-        <p style={styles.greeting}>{campaign.campaign_title}</p>
+        <h1 style={styles.title}>{campaign.campaign_title}</h1>
         {currentSet && (
           <p style={styles.setLabel}>
             Set {currentPosition} of {totalSets}
@@ -924,8 +920,6 @@ const styles: Record<string, React.CSSProperties> = {
 
   header: { marginBottom: 24, textAlign: 'center' },
   title: { margin: 0, fontFamily: fonts.heading, fontSize: 28, fontWeight: 600, letterSpacing: '-0.01em', color: tokens.text },
-  subtitle: { margin: '8px 0 0', fontSize: 15, color: tokens.textMuted, lineHeight: '22px' },
-  greeting: { margin: '12px 0 0', fontFamily: fonts.heading, fontSize: 17, fontWeight: 600, color: tokens.text },
   setLabel: { margin: '10px 0 0', display: 'inline-block', fontFamily: fonts.heading, fontSize: 13, fontWeight: 600, color: tokens.primary, background: tokens.tealLight, borderRadius: 999, padding: '4px 14px' },
 
   progressBlock: { marginBottom: 24 },
