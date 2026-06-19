@@ -181,6 +181,8 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
   const [copiedCampaignId, setCopiedCampaignId] = useState<string | null>(null)
   // Per-campaign toggle: reveal archived voter groups (hidden from the default list).
   const [showArchived, setShowArchived] = useState<Record<string, boolean>>({})
+  // Per-campaign flag: archived rows have been fetched (so toggling won't refetch).
+  const [archivedLoaded, setArchivedLoaded] = useState<Record<string, boolean>>({})
   // Per-voter, per-set decisions lightbox (Part 4 "View selections").
   const [voterLb, setVoterLb] = useState<
     { label: string; items: { url: string }[] } | null
@@ -737,38 +739,64 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
     if (!campaignVotes[c.id]) void loadCampaignVotes(c.id)
   }
 
+  // Default load: active (non-archived) responses only. Archived rows are
+  // fetched separately via loadArchivedVotes when the "Show archived" toggle is
+  // turned on, so they never reappear in the default list after a refresh.
   async function loadCampaignVotes(campaignId: string) {
     setCampaignVotesLoading(true)
     try {
       const { data, error: err } = await supabase
         .from('public_votes')
-        .select(
-          'id, set_id, voter_name, voter_age, voter_gender, voter_mobile, sketch_index, decision, submitted_at, archived, logo_sketch_sets(name)'
-        )
+        .select(VOTE_SELECT)
         .eq('campaign_id', campaignId)
+        .eq('archived', false)
         .order('voter_name', { ascending: true })
         .order('set_id', { ascending: true })
         .order('sketch_index', { ascending: true })
       if (err) throw err
-      const votes = ((data ?? []) as any[]).map((r) => ({
-        id: r.id,
-        set_id: r.set_id,
-        set_name: r.logo_sketch_sets?.name ?? null,
-        voter_name: r.voter_name,
-        voter_age: r.voter_age,
-        voter_gender: r.voter_gender,
-        voter_mobile: r.voter_mobile,
-        sketch_index: r.sketch_index,
-        decision: r.decision,
-        submitted_at: r.submitted_at,
-        archived: r.archived ?? false,
-      })) as PublicVote[]
+      const votes = ((data ?? []) as any[]).map(mapVoteRow)
       setCampaignVotes((prev) => ({ ...prev, [campaignId]: votes }))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setCampaignVotesLoading(false)
     }
+  }
+
+  // Fetch the archived rows for a campaign and merge them into the loaded votes
+  // (deduped by id). Called the first time "Show archived" is turned on.
+  async function loadArchivedVotes(campaignId: string) {
+    setCampaignVotesLoading(true)
+    try {
+      const { data, error: err } = await supabase
+        .from('public_votes')
+        .select(VOTE_SELECT)
+        .eq('campaign_id', campaignId)
+        .eq('archived', true)
+        .order('voter_name', { ascending: true })
+        .order('set_id', { ascending: true })
+        .order('sketch_index', { ascending: true })
+      if (err) throw err
+      const archived = ((data ?? []) as any[]).map(mapVoteRow)
+      setCampaignVotes((prev) => {
+        const existing = prev[campaignId] ?? []
+        const seen = new Set(existing.map((v) => v.id))
+        const merged = [...existing, ...archived.filter((v) => !seen.has(v.id))]
+        return { ...prev, [campaignId]: merged }
+      })
+      setArchivedLoaded((prev) => ({ ...prev, [campaignId]: true }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCampaignVotesLoading(false)
+    }
+  }
+
+  // Reveal/hide archived voter groups; fetch the archived rows on first reveal.
+  function toggleArchived(campaignId: string) {
+    const next = !showArchived[campaignId]
+    setShowArchived((prev) => ({ ...prev, [campaignId]: next }))
+    if (next && !archivedLoaded[campaignId]) void loadArchivedVotes(campaignId)
   }
 
   // Open a voter's ACCEPTED sketches for one set (decision = 'pass'): map each
@@ -1419,49 +1447,50 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
 
                         {campaignVotesLoading && !campaignVotes[c.id] ? (
                           <p style={styles.muted}>Loading responses...</p>
-                        ) : groups.length === 0 ? (
-                          <p style={styles.muted}>No responses yet.</p>
                         ) : (
                           <>
                             <div style={styles.voterCountRow}>
                               <span style={styles.voterCount}>
                                 {activeGroups.length} {activeGroups.length === 1 ? 'voter' : 'voters'}
-                                {archivedGroups.length > 0 && ` (${archivedGroups.length} archived)`}
+                                {archivedShown && archivedGroups.length > 0 && ` (${archivedGroups.length} archived)`}
                               </span>
-                              {archivedGroups.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setShowArchived((prev) => ({ ...prev, [c.id]: !prev[c.id] }))
-                                  }
-                                  style={styles.showArchivedToggle}
-                                >
-                                  {archivedShown ? 'Hide archived' : `Show archived (${archivedGroups.length})`}
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => toggleArchived(c.id)}
+                                style={styles.showArchivedToggle}
+                              >
+                                {archivedShown ? 'Hide archived' : 'Show archived'}
+                              </button>
                             </div>
-                            <div style={styles.responseGroups}>
-                              {activeGroups.map((g) => (
-                                <VoterBlock
-                                  key={g.key}
-                                  campaignTitle={c.campaign_title}
-                                  group={g}
-                                  onViewSelections={openVoterSelections}
-                                  onArchive={() => void setVoterArchived(c.id, g, true)}
-                                />
-                              ))}
-                              {archivedShown &&
-                                archivedGroups.map((g) => (
+                            {activeGroups.length === 0 &&
+                            !(archivedShown && archivedGroups.length > 0) ? (
+                              <p style={styles.muted}>
+                                {archivedShown ? 'No archived responses.' : 'No responses yet.'}
+                              </p>
+                            ) : (
+                              <div style={styles.responseGroups}>
+                                {activeGroups.map((g) => (
                                   <VoterBlock
                                     key={g.key}
                                     campaignTitle={c.campaign_title}
                                     group={g}
-                                    archived
                                     onViewSelections={openVoterSelections}
-                                    onUnarchive={() => void setVoterArchived(c.id, g, false)}
+                                    onArchive={() => void setVoterArchived(c.id, g, true)}
                                   />
                                 ))}
-                            </div>
+                                {archivedShown &&
+                                  archivedGroups.map((g) => (
+                                    <VoterBlock
+                                      key={g.key}
+                                      campaignTitle={c.campaign_title}
+                                      group={g}
+                                      archived
+                                      onViewSelections={openVoterSelections}
+                                      onUnarchive={() => void setVoterArchived(c.id, g, false)}
+                                    />
+                                  ))}
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
@@ -1657,6 +1686,27 @@ function votesBySet(votes: PublicVote[]): SetResponse[] {
     r.votes.push(v)
   }
   return order.map((k) => map[k])
+}
+
+// Columns selected for every public_votes fetch (active and archived alike).
+const VOTE_SELECT =
+  'id, set_id, voter_name, voter_age, voter_gender, voter_mobile, sketch_index, decision, submitted_at, archived, logo_sketch_sets(name)'
+
+// Map a raw public_votes row (with joined set name) to a PublicVote.
+function mapVoteRow(r: any): PublicVote {
+  return {
+    id: r.id,
+    set_id: r.set_id,
+    set_name: r.logo_sketch_sets?.name ?? null,
+    voter_name: r.voter_name,
+    voter_age: r.voter_age,
+    voter_gender: r.voter_gender,
+    voter_mobile: r.voter_mobile,
+    sketch_index: r.sketch_index,
+    decision: r.decision,
+    submitted_at: r.submitted_at,
+    archived: r.archived ?? false,
+  }
 }
 
 // Group votes by voter. Name + mobile keys voters apart when names repeat.
