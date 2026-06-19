@@ -1,13 +1,188 @@
-import { PageHeader, Card, ui } from './ui'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router'
+import { Plus } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { tokens, fonts } from '../theme'
+import {
+  PageHeader,
+  StatusBadge,
+  ui,
+  mono,
+  formatMoney,
+  formatDate,
+} from './ui'
+import type { CSSProperties } from 'react'
 
-// Stub — fleshed out in layer (5).
+type Proposal = {
+  id: string
+  proposal_number: string | null
+  title: string
+  client_name: string | null
+  company_name: string | null
+  total_amount: number
+  currency: string
+  status: string
+  valid_until: string | null
+}
+
 export function ProposalsAdmin() {
+  const navigate = useNavigate()
+  const [proposals, setProposals] = useState<Proposal[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data, error: err } = await supabase
+          .from('proposals')
+          .select(
+            'id, proposal_number, title, client_name, company_name, total_amount, currency, status, valid_until'
+          )
+          .order('created_at', { ascending: false })
+        if (err) throw err
+        if (!cancelled) setProposals((data ?? []) as Proposal[])
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   return (
     <>
-      <PageHeader title="Proposals" />
-      <Card>
-        <p style={ui.muted}>Proposal list loads here.</p>
-      </Card>
+      <PageHeader
+        title="Proposals"
+        action={
+          <Link to="/portal/admin/proposals/new" style={ui.primaryBtn}>
+            <Plus size={16} />
+            New proposal
+          </Link>
+        }
+      />
+      {error && <div style={styles.error}>{error}</div>}
+      {loading ? (
+        <p style={ui.muted}>Loading...</p>
+      ) : proposals.length === 0 ? (
+        <p style={ui.muted}>No proposals yet. Create one to get started.</p>
+      ) : (
+        <div style={styles.grid}>
+          {proposals.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => navigate(`/portal/admin/proposals/${p.id}`)}
+              style={styles.card}
+            >
+              <div style={styles.cardTop}>
+                <span style={styles.number}>{p.proposal_number || 'No number'}</span>
+                <StatusBadge status={p.status} />
+              </div>
+              <h3 style={styles.title}>{p.title}</h3>
+              <p style={styles.client}>
+                {p.client_name || '—'}
+                {p.company_name ? ` · ${p.company_name}` : ''}
+              </p>
+              <div style={styles.cardBottom}>
+                <span style={styles.amount}>
+                  <span style={styles.currencyBadge}>{p.currency}</span>
+                  {formatMoney(Number(p.total_amount), p.currency)}
+                </span>
+                <span style={styles.validUntil}>Valid until {formatDate(p.valid_until)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   )
+}
+
+const styles: Record<string, CSSProperties> = {
+  error: {
+    background: tokens.rubyLight,
+    color: tokens.ruby,
+    border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8,
+    padding: '10px 14px',
+    marginBottom: 16,
+    fontFamily: fonts.body,
+    fontSize: 13,
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+    gap: 16,
+  },
+  card: {
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 12,
+    padding: 20,
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  cardTop: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  number: {
+    fontFamily: mono,
+    fontSize: 12,
+    color: tokens.textMuted,
+  },
+  title: {
+    fontFamily: fonts.heading,
+    fontSize: 18,
+    fontWeight: 600,
+    color: tokens.text,
+    margin: 0,
+  },
+  client: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: tokens.textMuted,
+    margin: 0,
+  },
+  cardBottom: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 12,
+    borderTop: `1px solid ${tokens.border}`,
+  },
+  amount: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    fontFamily: mono,
+    fontSize: 15,
+    fontWeight: 600,
+    color: tokens.text,
+  },
+  currencyBadge: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    fontWeight: 700,
+    color: tokens.accent,
+    background: tokens.tealLight,
+    borderRadius: 4,
+    padding: '1px 5px',
+    letterSpacing: 0.4,
+  },
+  validUntil: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.textMuted,
+  },
 }
