@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, X, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts } from '../theme'
 import {
   PageHeader,
   Card,
+  Modal,
   StatusBadge,
   ui,
   mono,
@@ -414,7 +415,7 @@ function NewInvoiceModal({
   }
 
   return (
-    <Overlay onClose={onClose} title="New invoice">
+    <Modal onClose={onClose} title="New invoice">
       <div style={styles.modalForm}>
         <Field label="Link proposal (optional)">
           <select value={proposalId} onChange={(e) => onPickProposal(e.target.value)} style={styles.input}>
@@ -471,14 +472,14 @@ function NewInvoiceModal({
           {saving ? 'Creating...' : 'Create invoice'}
         </button>
       </div>
-    </Overlay>
+    </Modal>
   )
 }
 
 // ── Read-only invoice detail modal ──────────────────────────────────────
 function InvoiceModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
   return (
-    <Overlay onClose={onClose} title={invoice.invoice_number}>
+    <Modal onClose={onClose} title={invoice.invoice_number}>
       <div style={styles.detailGrid}>
         <Detail label="Status" value={<StatusBadge status={invoice.status} />} />
         <Detail label="Amount" value={<span style={{ fontFamily: mono }}>{formatMoney(Number(invoice.amount), invoice.currency)}</span>} />
@@ -497,31 +498,7 @@ function InvoiceModal({ invoice, onClose }: { invoice: Invoice; onClose: () => v
           <p style={styles.notesText}>{invoice.notes}</p>
         </div>
       )}
-    </Overlay>
-  )
-}
-
-function Overlay({
-  title,
-  onClose,
-  children,
-}: {
-  title: string
-  onClose: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.panel} onClick={(e) => e.stopPropagation()}>
-        <div style={styles.panelHead}>
-          <h2 style={styles.panelTitle}>{title}</h2>
-          <button type="button" style={styles.iconBtn} onClick={onClose} aria-label="Close">
-            <X size={20} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -678,38 +655,6 @@ const styles: Record<string, CSSProperties> = {
     padding: '5px 10px',
     borderRadius: 6,
   },
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(10, 26, 27, 0.4)',
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    padding: '60px 20px',
-    zIndex: 100,
-    overflowY: 'auto',
-  },
-  panel: {
-    background: tokens.surface,
-    borderRadius: 12,
-    border: `1px solid ${tokens.border}`,
-    padding: 24,
-    width: '100%',
-    maxWidth: 480,
-  },
-  panelHead: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  panelTitle: {
-    fontFamily: fonts.heading,
-    fontSize: 20,
-    fontWeight: 600,
-    color: tokens.text,
-    margin: 0,
-  },
   modalForm: { display: 'flex', flexDirection: 'column', gap: 14 },
   modalRow: { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 },
   modalActions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 },
@@ -729,14 +674,6 @@ const styles: Record<string, CSSProperties> = {
     padding: '9px 11px',
     width: '100%',
     boxSizing: 'border-box',
-  },
-  iconBtn: {
-    background: 'transparent',
-    border: 'none',
-    color: tokens.textMuted,
-    cursor: 'pointer',
-    padding: 4,
-    display: 'flex',
   },
   secondaryBtn: {
     background: tokens.surface,

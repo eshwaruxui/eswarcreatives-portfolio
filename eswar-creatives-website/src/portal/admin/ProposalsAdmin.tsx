@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts } from '../theme'
 import {
   PageHeader,
+  Modal,
   StatusBadge,
   ui,
   mono,
   formatMoney,
   formatDate,
 } from './ui'
+import { ProposalForm } from './ProposalForm'
 import type { CSSProperties } from 'react'
 
 type Proposal = {
@@ -30,42 +32,44 @@ export function ProposalsAdmin() {
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [showNew, setShowNew] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const { data, error: err } = await supabase
-          .from('proposals')
-          .select(
-            'id, proposal_number, title, client_name, company_name, total_amount, currency, status, valid_until'
-          )
-          .order('created_at', { ascending: false })
-        if (err) throw err
-        if (!cancelled) setProposals((data ?? []) as Proposal[])
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { data, error: err } = await supabase
+        .from('proposals')
+        .select(
+          'id, proposal_number, title, client_name, company_name, total_amount, currency, status, valid_until'
+        )
+        .order('created_at', { ascending: false })
+      if (err) throw err
+      setProposals((data ?? []) as Proposal[])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   return (
     <>
       <PageHeader
         title="Proposals"
         action={
-          <Link to="/portal/admin/proposals/new" style={ui.primaryBtn}>
+          <button type="button" style={ui.primaryBtn} onClick={() => setShowNew(true)}>
             <Plus size={16} />
             New proposal
-          </Link>
+          </button>
         }
       />
       {error && <div style={styles.error}>{error}</div>}
+      {notice && <div style={styles.notice}>{notice}</div>}
       {loading ? (
         <p style={ui.muted}>Loading...</p>
       ) : proposals.length === 0 ? (
@@ -98,6 +102,19 @@ export function ProposalsAdmin() {
           ))}
         </div>
       )}
+
+      {showNew && (
+        <Modal title="New proposal" size="lg" onClose={() => setShowNew(false)}>
+          <ProposalForm
+            onCancel={() => setShowNew(false)}
+            onSaved={(_id, warning) => {
+              setShowNew(false)
+              setNotice(warning ?? null)
+              void load()
+            }}
+          />
+        </Modal>
+      )}
     </>
   )
 }
@@ -107,6 +124,16 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.rubyLight,
     color: tokens.ruby,
     border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8,
+    padding: '10px 14px',
+    marginBottom: 16,
+    fontFamily: fonts.body,
+    fontSize: 13,
+  },
+  notice: {
+    background: tokens.goldLight,
+    color: tokens.goldDark,
+    border: `1px solid ${tokens.gold}`,
     borderRadius: 8,
     padding: '10px 14px',
     marginBottom: 16,

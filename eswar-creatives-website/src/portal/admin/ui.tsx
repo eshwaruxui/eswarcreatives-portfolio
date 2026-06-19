@@ -2,6 +2,7 @@
 // Everything here is built from the portal theme tokens so the admin modules
 // match the cream/teal Atelier palette used across the rest of the portal.
 import type { CSSProperties, ReactNode } from 'react'
+import { X } from 'lucide-react'
 import { tokens, fonts } from '../theme'
 
 // SF Mono for monetary amounts and proposal/invoice numbers. There is no mono
@@ -129,6 +130,47 @@ export function Card({
   return <section style={{ ...ui.card, ...style }}>{children}</section>
 }
 
+// ── Modal ───────────────────────────────────────────────────────────────
+// Single popup-modal primitive shared by every creation/detail flow in the
+// admin portal (proposals, invoices, …) so they stay visually consistent and
+// keep the user in context instead of navigating to a full page. `size="lg"`
+// widens the panel for richer forms like the proposal builder.
+export function Modal({
+  title,
+  onClose,
+  size = 'sm',
+  children,
+}: {
+  title: string
+  onClose: () => void
+  size?: 'sm' | 'lg'
+  children: ReactNode
+}) {
+  return (
+    <div style={ui.modalOverlay} onClick={onClose}>
+      <div
+        style={{
+          ...ui.modalPanel,
+          maxWidth: size === 'lg' ? 760 : 480,
+          // Large modals host card-based forms (e.g. the proposal builder); the
+          // cream background lets those white cards stand out the way they do on
+          // the full-page content area. Simple modals stay on a white panel.
+          background: size === 'lg' ? tokens.bg : tokens.surface,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={ui.modalHead}>
+          <h2 style={ui.modalTitle}>{title}</h2>
+          <button type="button" style={ui.modalClose} onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
 export function EmptyState({
   icon,
   heading,
@@ -196,6 +238,45 @@ export const ui: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
     textDecoration: 'none',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(10, 26, 27, 0.4)',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    padding: '60px 20px',
+    zIndex: 100,
+    overflowY: 'auto',
+  },
+  modalPanel: {
+    background: tokens.surface,
+    borderRadius: 12,
+    border: `1px solid ${tokens.border}`,
+    padding: 24,
+    width: '100%',
+  },
+  modalHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 20,
+    fontWeight: 600,
+    color: tokens.text,
+    margin: 0,
+  },
+  modalClose: {
+    background: 'transparent',
+    border: 'none',
+    color: tokens.textMuted,
+    cursor: 'pointer',
+    padding: 4,
+    display: 'flex',
   },
   emptyState: {
     display: 'flex',
