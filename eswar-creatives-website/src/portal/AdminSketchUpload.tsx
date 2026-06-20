@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Navigate, Link } from 'react-router'
+import { Link, useOutletContext } from 'react-router'
 import { ChevronDown, ChevronUp, Trash2, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { PortalGuard, type PortalProfile } from './PortalGuard'
-import { PortalNav } from './PortalNav'
+import { type PortalProfile } from './PortalGuard'
 import { tokens, fonts } from './theme'
 
 // NOTE: the spec referenced src/app/theme.ts, which only exists on the
@@ -108,19 +107,11 @@ type VoterGroup = {
 // Which optional voter fields a campaign collects, and which are mandatory.
 type FieldKey = 'name' | 'age' | 'gender' | 'mobile'
 
-// ── Route entry: auth via PortalGuard, then admin-only gate ──────────
+// ── Route entry: rendered inside AdminShell, which handles auth + the
+// admin-only gate and passes the profile down via Outlet context. ──────
 export function AdminSketchUpload() {
-  return (
-    <PortalGuard>
-      {(profile) =>
-        profile.role !== 'admin' ? (
-          <Navigate to="/portal/dashboard" replace />
-        ) : (
-          <AdminInner profile={profile} />
-        )
-      }
-    </PortalGuard>
-  )
+  const profile = useOutletContext<PortalProfile>()
+  return <AdminInner profile={profile} />
 }
 
 function AdminInner({ profile }: { profile: PortalProfile }) {
@@ -930,8 +921,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
-    <div style={styles.page}>
-      <PortalNav showSignOut />
+    <>
       <main style={styles.container}>
         <header style={styles.headerBlock}>
           <h1 style={styles.title}>Upload logo sketches</h1>
@@ -1582,7 +1572,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
           )}
         </div>
       )}
-    </div>
+    </>
   )
 }
 

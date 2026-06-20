@@ -1,4 +1,5 @@
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router'
+import type { PortalProfile } from '../PortalGuard'
 import {
   LayoutDashboard,
   Users,
@@ -34,14 +35,14 @@ export function AdminShell() {
         profile.role !== 'admin' ? (
           <Navigate to="/portal/dashboard" replace />
         ) : (
-          <Shell />
+          <Shell profile={profile} />
         )
       }
     </PortalGuard>
   )
 }
 
-function Shell() {
+function Shell({ profile }: { profile: PortalProfile }) {
   const navigate = useNavigate()
 
   async function handleSignOut() {
@@ -76,7 +77,7 @@ function Shell() {
       </aside>
       <main style={styles.content}>
         <div style={styles.contentInner}>
-          <Outlet />
+          <Outlet context={profile} />
         </div>
       </main>
     </div>

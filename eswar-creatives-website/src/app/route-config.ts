@@ -28,7 +28,6 @@ export const routeConfig = [
   { path: "/portal/login",          Component: LoginPage  },
   { path: "/portal/verify",         Component: VerifyPage },
   { path: "/portal/sketch-review",  Component: SketchReviewPage },
-  { path: "/portal/admin/sketches", Component: AdminSketchUpload },
   { path: "/portal/account",        Component: AccountPage },
   // Public, unauthenticated voting page (no PortalGuard) — migrations 0019-0021.
   { path: "/portal/vote/:token",    Component: PublicVotePage },
@@ -46,6 +45,7 @@ export const routeConfig = [
       { path: "/portal/admin/invoices",    Component: InvoicesAdmin },
       { path: "/portal/admin/projects",    Component: ProjectsList },
       { path: "/portal/admin/discovery",   Component: DiscoveryPlaceholder },
+      { path: "/portal/admin/sketches",    Component: AdminSketchUpload },
     ],
   },
   {
