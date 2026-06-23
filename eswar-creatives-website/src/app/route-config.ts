@@ -15,15 +15,46 @@ import { SketchReviewPage } from "../portal/SketchReviewPage";
 import { AdminSketchUpload } from "../portal/AdminSketchUpload";
 import { AccountPage } from "../portal/AccountPage";
 import { PublicVotePage } from "../portal/PublicVotePage";
+import { AdminShell } from "../portal/admin/AdminShell";
+import { AdminDashboard } from "../portal/admin/AdminDashboard";
+import { ClientsList } from "../portal/admin/ClientsList";
+import { ClientDetail } from "../portal/admin/ClientDetail";
+import { ProposalsAdmin } from "../portal/admin/ProposalsAdmin";
+import { ProposalDetail } from "../portal/admin/ProposalDetail";
+import { InvoicesAdmin } from "../portal/admin/InvoicesAdmin";
+import { ProjectsList } from "../portal/admin/ProjectsList";
+import { MockupsAdmin } from "../portal/admin/MockupsAdmin";
+import { DiscoveryPlaceholder } from "../portal/admin/DiscoveryPlaceholder";
+import { CampaignsRedirect } from "../portal/admin/CampaignsRedirect";
+import { MockupsPage } from "../portal/client/MockupsPage";
 
 export const routeConfig = [
   { path: "/portal/login",          Component: LoginPage  },
   { path: "/portal/verify",         Component: VerifyPage },
   { path: "/portal/sketch-review",  Component: SketchReviewPage },
-  { path: "/portal/admin/sketches", Component: AdminSketchUpload },
   { path: "/portal/account",        Component: AccountPage },
+  // Client-facing mockups review page (PortalGuard inside the component).
+  { path: "/portal/mockups",        Component: MockupsPage },
   // Public, unauthenticated voting page (no PortalGuard) — migrations 0019-0021.
   { path: "/portal/vote/:token",    Component: PublicVotePage },
+  // Phase 3 admin portal — persistent shell (sidebar + Outlet), admin-gated.
+  // The Campaigns nav item redirects to the existing sketches page for now.
+  { path: "/portal/admin/campaigns", Component: CampaignsRedirect },
+  {
+    Component: AdminShell,
+    children: [
+      { path: "/portal/admin",             Component: AdminDashboard },
+      { path: "/portal/admin/clients",     Component: ClientsList },
+      { path: "/portal/admin/clients/:id", Component: ClientDetail },
+      { path: "/portal/admin/proposals",   Component: ProposalsAdmin },
+      { path: "/portal/admin/proposals/:id", Component: ProposalDetail },
+      { path: "/portal/admin/invoices",    Component: InvoicesAdmin },
+      { path: "/portal/admin/projects",    Component: ProjectsList },
+      { path: "/portal/admin/mockups",     Component: MockupsAdmin },
+      { path: "/portal/admin/discovery",   Component: DiscoveryPlaceholder },
+      { path: "/portal/admin/sketches",    Component: AdminSketchUpload },
+    ],
+  },
   {
     Component: RootLayout,
     children: [
