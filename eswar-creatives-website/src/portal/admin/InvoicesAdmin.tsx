@@ -59,6 +59,13 @@ function displayName(r: { client_name: string | null; company_name: string | nul
   return r.client_name || r.company_name || '—'
 }
 
+// Client-facing invoice number. Stored numbers are EC-I-YYYY-NNN (the "I" marks
+// the invoice sequence internally); the preview shows the cleaner EC-YYYY-NNN.
+// Display only: the stored invoice_number is never altered.
+function displayInvoiceNumber(stored: string): string {
+  return stored.replace(/^EC-I-/, 'EC-')
+}
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -312,7 +319,11 @@ export function InvoicesAdmin() {
       )}
 
       {openInvoice && (
-        <InvoicePreview invoice={openInvoice} onClose={() => setOpenInvoice(null)} />
+        <InvoicePreview
+          invoice={openInvoice}
+          numberLabel={displayInvoiceNumber(openInvoice.invoice_number)}
+          onClose={() => setOpenInvoice(null)}
+        />
       )}
     </>
   )
