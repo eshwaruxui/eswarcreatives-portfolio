@@ -10,6 +10,8 @@ import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { ClientNav, CLIENT_NAV_HEIGHT } from './client/ClientNav'
 import { getBadges, subscribeBadges } from './client/clientNotifications'
 import type { BadgeSection } from './client/clientNotifications'
+import { DocumentChips } from './client/DocumentChips'
+import type { ClientDocument } from './client/DocumentChips'
 import { tokens, fonts, motionTokens } from './theme'
 
 // The fixed client journey. The project's phase pointer maps onto these.
@@ -21,6 +23,13 @@ type ProjectRow = {
   current_phase: string | null
   phase_number: number | null
   status: string
+}
+
+type PhaseRow = {
+  id: string
+  phase_name: string
+  phase_status: string
+  sort_order: number | null
 }
 
 // One banner shown at a time, highest priority wins. variant drives the palette.
@@ -37,6 +46,8 @@ export function ClientDashboardPage() {
 
 function Dashboard({ profile }: { profile: PortalProfile }) {
   const [project, setProject] = useState<ProjectRow | null>(null)
+  const [phases, setPhases] = useState<PhaseRow[]>([])
+  const [documents, setDocuments] = useState<ClientDocument[]>([])
   const [banner, setBanner] = useState<Banner | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -71,6 +82,27 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
           .maybeSingle()
         if (pErr) throw pErr
         if (!cancelled) setProject((proj as ProjectRow | null) ?? null)
+
+        // Phases and documents for the active project. Documents are sourced from
+        // assets, which are project-scoped (no per-phase linkage in the schema yet).
+        if (proj?.id) {
+          const [phaseRes, assetRes] = await Promise.all([
+            supabase
+              .from('project_phases')
+              .select('id, phase_name, phase_status, sort_order')
+              .eq('project_id', proj.id)
+              .order('sort_order', { ascending: true }),
+            supabase
+              .from('assets')
+              .select('id, file_name, file_url')
+              .eq('project_id', proj.id)
+              .order('uploaded_at', { ascending: false }),
+          ])
+          if (!cancelled) {
+            setPhases((phaseRes.data ?? []) as PhaseRow[])
+            setDocuments((assetRes.data ?? []) as ClientDocument[])
+          }
+        }
 
         const next = await computeBanner(client.id, profile.id)
         if (!cancelled) setBanner(next)
@@ -131,6 +163,33 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
           <section style={styles.card}>
             <h2 style={styles.projectTitle}>{project.title}</h2>
             <Stepper currentIndex={currentIndex} />
+          </section>
+        )}
+
+        {!loading && !error && project && phases.length > 0 && (
+          <section style={styles.card}>
+            <h3 style={styles.sectionHeading}>Phases</h3>
+            <div style={styles.phaseList}>
+              {phases.map((ph) => (
+                <div key={ph.id} style={styles.phaseRow}>
+                  <div>
+                    <div style={styles.phaseName}>{ph.phase_name}</div>
+                    {/* H8: minimalist link; tasks wiring lands in Phase 6. */}
+                    <Link to="/portal/projects#tasks" style={styles.tasksLink}>
+                      View tasks &rarr;
+                    </Link>
+                  </div>
+                  <span style={styles.phaseStatus}>{formatPhaseStatus(ph.phase_status)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {!loading && !error && project && (
+          <section style={styles.card}>
+            <h3 style={styles.sectionHeading}>Documents</h3>
+            <DocumentChips documents={documents} />
           </section>
         )}
 
@@ -339,6 +398,19 @@ function Stepper({ currentIndex }: { currentIndex: number }) {
   )
 }
 
+function formatPhaseStatus(s: string): string {
+  switch (s) {
+    case 'in_progress':
+      return 'In progress'
+    case 'done':
+      return 'Done'
+    case 'blocked':
+      return 'Blocked'
+    default:
+      return 'Pending'
+  }
+}
+
 const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
   container: {
@@ -383,6 +455,33 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     color: tokens.text,
   },
+  sectionHeading: {
+    margin: '0 0 16px',
+    fontFamily: fonts.heading,
+    fontSize: 16,
+    fontWeight: 600,
+    color: tokens.text,
+  },
+  phaseList: { display: 'flex', flexDirection: 'column', gap: 4 },
+  phaseRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    padding: '12px 0',
+    borderBottom: `1px solid ${tokens.border}`,
+  },
+  phaseName: { fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: tokens.text },
+  tasksLink: {
+    display: 'inline-block',
+    marginTop: 4,
+    color: tokens.accent,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    textDecoration: 'none',
+  },
+  phaseStatus: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, flexShrink: 0 },
   stepper: {
     display: 'grid',
     gridTemplateColumns: `repeat(${PHASES.length}, 1fr)`,
