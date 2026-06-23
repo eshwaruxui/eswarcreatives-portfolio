@@ -36,6 +36,8 @@ const Ic: Record<string, JSX.Element> = {
   chevR: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M8 4L14 10L8 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   check: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   x: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>,
+  expand: <svg width="17" height="17" viewBox="0 0 18 18" fill="none"><path d="M11 2h5v5M16 2l-6 6M7 16H2v-5M2 16l6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  compress: <svg width="17" height="17" viewBox="0 0 18 18" fill="none"><path d="M16 7h-5V2M11 7l5-5M2 11h5v5M7 11l-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
 }
 
 function fmtDate(d: string): string {
@@ -76,6 +78,41 @@ export function ClientLightbox({
   const [decision, setDecision] = useState<Decision | null>(null)
   const [fbError, setFbError] = useState<string | null>(null)
 
+  // ── Fullscreen toggle ──
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showFsTip, setShowFsTip] = useState(false)
+
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.()
+    } else {
+      void el.requestFullscreen?.()
+    }
+  }, [])
+
+  // Keep the icon in sync if the user leaves fullscreen via Esc / browser chrome.
+  useEffect(() => {
+    const onFs = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+
+  // Show the "Press F" hint once per browser, the first time the lightbox opens.
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem('ec_mockup_fs_tip')) {
+        setShowFsTip(true)
+        localStorage.setItem('ec_mockup_fs_tip', '1')
+        const t = setTimeout(() => setShowFsTip(false), 4000)
+        return () => clearTimeout(t)
+      }
+    } catch {
+      // localStorage unavailable; simply skip the one-time hint.
+    }
+  }, [])
+
   const go = useCallback(
     (d: number) => {
       if (animating || total < 2) return
@@ -98,10 +135,11 @@ export function ClientLightbox({
       if (e.key === 'ArrowLeft') prev()
       else if (e.key === 'ArrowRight') next()
       else if (e.key === 'Escape') onClose()
+      else if (e.key === 'f' || e.key === 'F') toggleFullscreen()
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [prev, next, onClose])
+  }, [prev, next, onClose, toggleFullscreen])
 
   // Touch/swipe
   const onTouchStart = (e: React.TouchEvent) => {
@@ -200,6 +238,7 @@ export function ClientLightbox({
         userSelect: 'none', WebkitUserSelect: 'none',
       }}
     >
+      <style>{`@keyframes fsIconIn{from{opacity:0}to{opacity:1}}`}</style>
       {/* ── TOP BAR ── */}
       <div
         style={{
@@ -236,6 +275,22 @@ export function ClientLightbox({
             <div style={{ fontSize: 11, color: T.gold400, fontWeight: 600, fontFamily: T.fM, letterSpacing: '.05em' }}>{meta.phase}</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)', marginTop: 2 }}>{meta.phaseName}</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', marginTop: 1, fontFamily: T.fM }}>{meta.taskItem}</div>
+          </div>
+          {/* Fullscreen toggle (F key also toggles). */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              onClick={toggleFullscreen}
+              style={{ background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,.7)', transition: 'all .15s ease' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,.18)'; e.currentTarget.style.color = '#fff' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,.08)'; e.currentTarget.style.color = 'rgba(255,255,255,.7)' }}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            >
+              {/* Icon swaps with a quick opacity fade. */}
+              <span key={isFullscreen ? 'c' : 'e'} style={{ display: 'inline-flex', animation: 'fsIconIn 120ms cubic-bezier(.4,0,.2,1)' }}>
+                {isFullscreen ? Ic.compress : Ic.expand}
+              </span>
+            </button>
+            {showFsTip && <div style={fsTip}>Press F for fullscreen</div>}
           </div>
           <button
             onClick={onClose}
@@ -290,7 +345,7 @@ export function ClientLightbox({
             onLoad={() => onImgLoad(idx)}
             style={{
               maxWidth: '100%', maxHeight: 'calc(100vh - 200px)',
-              objectFit: 'contain', borderRadius: T.r.md,
+              objectFit: 'contain', borderRadius: T.r.lg,
               opacity: loaded[idx] ? 1 : 0, transition: 'opacity .25s ease',
               boxShadow: '0 8px 32px rgba(0,0,0,.4)',
             }}
@@ -334,7 +389,7 @@ export function ClientLightbox({
                 }
               }}
               style={{
-                width: 40, height: 30, borderRadius: 4, overflow: 'hidden',
+                width: 40, height: 30, borderRadius: T.r.sm, overflow: 'hidden',
                 border: i === idx ? `2px solid ${T.gold400}` : '2px solid transparent',
                 opacity: i === idx ? 1 : 0.5, cursor: 'pointer', flexShrink: 0, padding: 0, background: T.n800,
                 transition: 'all .2s ease',
@@ -430,6 +485,24 @@ export function ClientLightbox({
       )}
     </div>
   )
+}
+
+// One-time fullscreen hint bubble, anchored under the toggle.
+const fsTip: CSSProperties = {
+  position: 'absolute',
+  top: '100%',
+  right: 0,
+  marginTop: 8,
+  whiteSpace: 'nowrap',
+  background: 'rgba(0,0,0,.85)',
+  color: T.n0,
+  fontFamily: T.fB,
+  fontSize: 12,
+  fontWeight: 500,
+  padding: '6px 10px',
+  borderRadius: T.r.sm,
+  border: '1px solid rgba(255,255,255,.15)',
+  zIndex: 3,
 }
 
 // Feedback panel styling — tuned to the dark lightbox surface.

@@ -28,14 +28,34 @@ export function MockupsPage() {
   )
 }
 
+type SetDecision = 'approved' | 'changes_requested'
+
 function Mockups({ profile }: { profile: PortalProfile }) {
   const [sets, setSets] = useState<PublishedSet[]>([])
+  const [decisions, setDecisions] = useState<Record<string, SetDecision>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // The set currently open in the lightbox, with its signed images loaded.
   const [active, setActive] = useState<{ set: PublishedSet; mockups: LightboxMockup[] } | null>(null)
   const [opening, setOpening] = useState<string | null>(null)
+
+  // This client's concept decision per set (latest wins). Drives the card badge.
+  async function loadDecisions(ids: string[]) {
+    if (ids.length === 0) return
+    const { data } = await supabase
+      .from('mockup_feedback')
+      .select('set_id, feedback_type, created_at')
+      .in('set_id', ids)
+      .in('feedback_type', ['concept_approval', 'concept_rejection'])
+      .eq('submitted_by', profile.id)
+      .order('created_at', { ascending: true })
+    const map: Record<string, SetDecision> = {}
+    for (const r of (data ?? []) as { set_id: string; feedback_type: string }[]) {
+      map[r.set_id] = r.feedback_type === 'concept_approval' ? 'approved' : 'changes_requested'
+    }
+    setDecisions(map)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -49,7 +69,10 @@ function Mockups({ profile }: { profile: PortalProfile }) {
           .eq('status', 'published')
           .order('created_at', { ascending: false })
         if (err) throw err
-        if (!cancelled) setSets((data ?? []) as unknown as PublishedSet[])
+        if (cancelled) return
+        const rows = (data ?? []) as unknown as PublishedSet[]
+        setSets(rows)
+        await loadDecisions(rows.map((r) => r.id))
       } catch {
         if (!cancelled) setError('Could not load your mockups. Refresh to try again.')
       } finally {
@@ -59,7 +82,8 @@ function Mockups({ profile }: { profile: PortalProfile }) {
     return () => {
       cancelled = true
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id])
 
   async function openSet(set: PublishedSet) {
     setOpening(set.id)
@@ -116,6 +140,7 @@ function Mockups({ profile }: { profile: PortalProfile }) {
             {sets.map((s) => (
               <article key={s.id} style={styles.card}>
                 <div>
+                  <MockupStatusBadge decision={decisions[s.id]} />
                   <h3 style={styles.cardTitle}>{s.concept_name}</h3>
                   <p style={styles.cardMeta}>
                     {s.projects?.title || '-'}
@@ -146,10 +171,29 @@ function Mockups({ profile }: { profile: PortalProfile }) {
           meta={metaFor(active.set)}
           setId={active.set.id}
           isAdmin={false}
-          onClose={() => setActive(null)}
+          onClose={() => {
+            setActive(null)
+            // Feedback may have been submitted; refresh the card badges.
+            void loadDecisions(sets.map((s) => s.id))
+          }}
         />
       )}
     </div>
+  )
+}
+
+// H1 (visibility of system status): every set advertises where it stands.
+function MockupStatusBadge({ decision }: { decision?: SetDecision }) {
+  const palette =
+    decision === 'approved'
+      ? { bg: tokens.greenLight, fg: tokens.green, label: 'Approved' }
+      : decision === 'changes_requested'
+      ? { bg: tokens.rubyLight, fg: tokens.ruby, label: 'Changes requested' }
+      : { bg: tokens.goldLight, fg: tokens.goldDark, label: 'Awaiting your review' }
+  return (
+    <span style={{ ...styles.statusBadge, background: palette.bg, color: palette.fg }}>
+      {palette.label}
+    </span>
   )
 }
 
@@ -181,6 +225,15 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: 'space-between',
     gap: 16,
     minHeight: 150,
+  },
+  statusBadge: {
+    display: 'inline-block',
+    marginBottom: 10,
+    padding: '4px 10px',
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 600,
+    fontFamily: fonts.body,
   },
   cardTitle: {
     margin: 0,
