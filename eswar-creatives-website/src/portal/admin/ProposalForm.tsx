@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2, Upload, FileText } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts } from '../theme'
@@ -8,7 +8,9 @@ import type { CSSProperties } from 'react'
 
 // Auto-save draft. Only the create flow writes here; editing an existing
 // proposal works against live rows and must not be shadowed by a stale draft.
-const DRAFT_KEY = 'ec_proposal_draft'
+// v2: the shape changed (phases now hold solution groups, plus a payment
+// schedule, revision rounds and a key note), so old drafts are ignored.
+const DRAFT_KEY = 'ec_proposal_draft_v2'
 
 type DraftShape = {
   savedAt: string
@@ -21,7 +23,9 @@ type DraftShape = {
   validUntil: string
   discountPct: string
   discountLabel: string
-  paymentTerms: string
+  revisionRounds: string
+  keyNote: string
+  schedule: PaymentInstalment[]
   phases: PhaseForm[]
 }
 
@@ -59,8 +63,7 @@ function formatSavedTime(iso: string): string {
 // supplies a title via <Modal>, the detail page supplies a page header.
 const BUCKET = 'proposal-documents'
 
-const DEFAULT_TERMS =
-  '50% advance, 25% mid-project, 25% on delivery. 2 revision rounds included per solution.'
+const REVISION_OPTIONS = ['1', '2', '3', '4', '5', 'Unlimited'] as const
 
 export type ClientOption = {
   id: string
@@ -70,12 +73,21 @@ export type ClientOption = {
 }
 
 export type LineItemForm = { id?: string; title: string; scope: string; amount: string }
+// A solution group bundles a title + overview with one or more line items.
+export type SolutionForm = { title: string; overview: string; items: LineItemForm[] }
 export type PhaseForm = {
   id?: string
   name: string
   timeline: string
-  scope: string
-  items: LineItemForm[]
+  solutions: SolutionForm[]
+}
+
+// One row of the payment schedule. triggeredBy = 'acceptance' marks the
+// instalment confirm_proposal() turns into the first invoice.
+export type PaymentInstalment = {
+  label: string
+  pct: string
+  triggeredBy: 'acceptance' | 'manual'
 }
 
 export type DocumentRow = {
@@ -98,6 +110,8 @@ export type ProposalFull = {
   discount_pct: number | null
   discount_label: string | null
   payment_terms: string
+  revision_rounds: number | null
+  key_note: string | null
   status: string
   valid_until: string | null
   accepted_at: string | null
@@ -107,14 +121,30 @@ function slugify(s: string) {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 }
 
+export function emptyItem(): LineItemForm {
+  return { title: '', scope: '', amount: '' }
+}
+export function emptySolution(): SolutionForm {
+  return { title: '', overview: '', items: [emptyItem()] }
+}
 export function emptyPhase(): PhaseForm {
-  return { name: '', timeline: '', scope: '', items: [{ title: '', scope: '', amount: '' }] }
+  return { name: '', timeline: '', solutions: [emptySolution()] }
+}
+export function defaultSchedule(): PaymentInstalment[] {
+  return [
+    { label: 'Advance', pct: '35', triggeredBy: 'acceptance' },
+    { label: 'Mid-project', pct: '35', triggeredBy: 'manual' },
+    { label: 'Final', pct: '30', triggeredBy: 'manual' },
+  ]
 }
 
 export function ProposalForm({
   existing = null,
   initialPhases,
   initialDocuments = [],
+  initialRevisionRounds,
+  initialKeyNote,
+  initialSchedule,
   onSaved,
   onCancel,
   onDirtyChange,
@@ -123,18 +153,16 @@ export function ProposalForm({
   existing?: ProposalFull | null
   initialPhases?: PhaseForm[]
   initialDocuments?: DocumentRow[]
+  initialRevisionRounds?: string
+  initialKeyNote?: string
+  initialSchedule?: PaymentInstalment[]
   onSaved: (proposalId: string, warning?: string | null) => void
   onCancel?: () => void
-  // Reports (isDirty, hasSavedDraft) up so the modal can decide whether to
-  // confirm before closing. Only meaningful for the create flow.
   onDirtyChange?: (dirty: boolean, draftSaved: boolean) => void
-  // Renders the read-only client-facing view instead of the editable form.
-  // Driven by the modal header's "Client view" toggle.
   preview?: boolean
 }) {
   const isNew = !existing
 
-  // A restored draft (create flow only) seeds the initial field values below.
   const draft = useRef<DraftShape | null>(isNew ? readDraft() : null).current
 
   const [saving, setSaving] = useState(false)
@@ -142,7 +170,6 @@ export function ProposalForm({
   const [clients, setClients] = useState<ClientOption[]>([])
   const documents = initialDocuments
 
-  // Form state (hydrated from `existing` when editing, or a restored draft).
   const [clientId, setClientId] = useState(draft?.clientId ?? existing?.client_id ?? '')
   const [clientName, setClientName] = useState(draft?.clientName ?? existing?.client_name ?? '')
   const [companyName, setCompanyName] = useState(draft?.companyName ?? existing?.company_name ?? '')
@@ -154,8 +181,16 @@ export function ProposalForm({
     draft?.discountPct ?? (existing?.discount_pct != null ? String(existing.discount_pct) : '')
   )
   const [discountLabel, setDiscountLabel] = useState(draft?.discountLabel ?? existing?.discount_label ?? '')
-  const [paymentTerms, setPaymentTerms] = useState(
-    draft?.paymentTerms ?? existing?.payment_terms ?? DEFAULT_TERMS
+  const [revisionRounds, setRevisionRounds] = useState(
+    draft?.revisionRounds ?? initialRevisionRounds ?? '2'
+  )
+  const [keyNote, setKeyNote] = useState(draft?.keyNote ?? initialKeyNote ?? '')
+  const [schedule, setSchedule] = useState<PaymentInstalment[]>(
+    draft?.schedule && draft.schedule.length > 0
+      ? draft.schedule
+      : initialSchedule && initialSchedule.length > 0
+      ? initialSchedule
+      : defaultSchedule()
   )
   const [phases, setPhases] = useState<PhaseForm[]>(
     draft?.phases && draft.phases.length > 0
@@ -166,13 +201,22 @@ export function ProposalForm({
   )
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
-  // Draft banner + close-guard bookkeeping (create flow only).
+  // H5 (error prevention): a field shows its inline error once it has been
+  // touched, or after a submit attempt. The top banner only appears on submit.
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [submitted, setSubmitted] = useState(false)
+  function markTouched(name: string) {
+    setTouched((t) => ({ ...t, [name]: true }))
+  }
+  function showFieldError(name: string, invalid: boolean) {
+    return invalid && (submitted || !!touched[name])
+  }
+
   const [bannerSavedAt, setBannerSavedAt] = useState<string | null>(draft?.savedAt ?? null)
   const [draftSaved, setDraftSaved] = useState(draft != null)
   const dirtyRef = useRef(false)
   const skipFirstAutosave = useRef(true)
 
-  // Load existing clients (for the optional link dropdown).
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -187,8 +231,7 @@ export function ProposalForm({
     }
   }, [])
 
-  // Debounced auto-save: on any field change, mark the form dirty and write the
-  // current state to localStorage 800ms later. Create flow only.
+  // Debounced auto-save (create flow only).
   useEffect(() => {
     if (!isNew) return
     if (skipFirstAutosave.current) {
@@ -208,7 +251,9 @@ export function ProposalForm({
         validUntil,
         discountPct,
         discountLabel,
-        paymentTerms,
+        revisionRounds,
+        keyNote,
+        schedule,
         phases,
       }
       try {
@@ -216,7 +261,6 @@ export function ProposalForm({
         setDraftSaved(true)
         onDirtyChange?.(true, true)
       } catch {
-        // Storage unavailable: keep the dirty flag so the close-guard still fires.
         onDirtyChange?.(true, false)
       }
     }, 800)
@@ -233,11 +277,12 @@ export function ProposalForm({
     validUntil,
     discountPct,
     discountLabel,
-    paymentTerms,
+    revisionRounds,
+    keyNote,
+    schedule,
     phases,
   ])
 
-  // Wipe the restored draft and reset the create form to empty.
   function clearDraft() {
     clearStoredDraft()
     setBannerSavedAt(null)
@@ -252,31 +297,57 @@ export function ProposalForm({
     setValidUntil('')
     setDiscountPct('')
     setDiscountLabel('')
-    setPaymentTerms(DEFAULT_TERMS)
+    setRevisionRounds('2')
+    setKeyNote('')
+    setSchedule(defaultSchedule())
     setPhases([emptyPhase()])
     onDirtyChange?.(false, false)
   }
 
-  const subtotal = useMemo(
-    () =>
-      phases.reduce(
-        (sum, ph) => sum + ph.items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0),
-        0
-      ),
-    [phases]
-  )
+  // ── Totals ──────────────────────────────────────────────────────────
+  function phaseTotal(ph: PhaseForm): number {
+    return ph.solutions.reduce(
+      (s, sol) => s + sol.items.reduce((t, it) => t + (parseFloat(it.amount) || 0), 0),
+      0
+    )
+  }
+  const subtotal = useMemo(() => phases.reduce((sum, ph) => sum + phaseTotal(ph), 0), [phases])
   const discountAmount = discountPct ? (subtotal * (parseFloat(discountPct) || 0)) / 100 : 0
   const total = Math.max(0, subtotal - discountAmount)
 
-  // ── Phase / line-item editing helpers ──────────────────────────────
+  const scheduleSum = useMemo(
+    () => schedule.reduce((s, r) => s + (parseFloat(r.pct) || 0), 0),
+    [schedule]
+  )
+  const scheduleValid = Math.abs(scheduleSum - 100) < 0.001
+
+  const hasLineItem = phases.some((ph) => ph.solutions.some((sol) => sol.items.some((it) => it.title.trim())))
+
+  // ── Phase / solution / line-item editing helpers ────────────────────
   function updatePhase(i: number, patch: Partial<PhaseForm>) {
     setPhases((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)))
   }
-  function updateItem(pi: number, ii: number, patch: Partial<LineItemForm>) {
+  function updateSolution(pi: number, si: number, patch: Partial<SolutionForm>) {
     setPhases((prev) =>
       prev.map((p, idx) =>
         idx === pi
-          ? { ...p, items: p.items.map((it, j) => (j === ii ? { ...it, ...patch } : it)) }
+          ? { ...p, solutions: p.solutions.map((s, j) => (j === si ? { ...s, ...patch } : s)) }
+          : p
+      )
+    )
+  }
+  function updateItem(pi: number, si: number, ii: number, patch: Partial<LineItemForm>) {
+    setPhases((prev) =>
+      prev.map((p, idx) =>
+        idx === pi
+          ? {
+              ...p,
+              solutions: p.solutions.map((s, j) =>
+                j === si
+                  ? { ...s, items: s.items.map((it, k) => (k === ii ? { ...it, ...patch } : it)) }
+                  : s
+              ),
+            }
           : p
       )
     )
@@ -290,6 +361,11 @@ export function ProposalForm({
       setClientName(c.contact_name ?? '')
       setCurrency(c.preferred_currency || 'INR')
     }
+  }
+
+  // ── Payment schedule helpers ────────────────────────────────────────
+  function updateInstalment(i: number, patch: Partial<PaymentInstalment>) {
+    setSchedule((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
   }
 
   async function nextProposalNumber(): Promise<string> {
@@ -307,18 +383,34 @@ export function ProposalForm({
     return `${prefix}${String(max + 1).padStart(3, '0')}`
   }
 
-  function validate(): string | null {
+  // Plain-language summary of the schedule, kept in the NOT NULL payment_terms
+  // column so existing client views still have a readable string.
+  function scheduleSummary(): string {
+    const parts = schedule
+      .filter((r) => r.label.trim())
+      .map((r) => `${parseFloat(r.pct) || 0}% ${r.label.trim()}`)
+    const rev = revisionRounds === 'Unlimited' ? 'Unlimited' : revisionRounds
+    return `${parts.join(', ')}. ${rev} revision rounds included per solution.`
+  }
+
+  function firstRequiredError(): string | null {
     if (!title.trim()) return 'Title is required.'
     if (!companyName.trim()) return 'Company name is required.'
     if (!clientName.trim()) return 'Client name is required.'
     if (!validUntil) return 'Valid-until date is required.'
+    if (!hasLineItem) return 'Add at least one phase with a line item.'
     return null
   }
 
   async function handleSave(status: 'draft' | 'sent') {
-    const v = validate()
-    if (v) {
-      setError(v)
+    setSubmitted(true)
+    const reqErr = firstRequiredError()
+    if (reqErr) {
+      setError(reqErr)
+      return
+    }
+    if (status === 'sent' && !scheduleValid) {
+      setError(`Payment schedule must total 100%. It currently totals ${scheduleSum}%.`)
       return
     }
     setSaving(true)
@@ -330,20 +422,23 @@ export function ProposalForm({
       let proposalId = existing?.id
       let proposalNumber = existing?.proposal_number ?? null
 
-      // A compact snapshot keeps the legacy NOT NULL `content` column valid and
-      // gives the client view something to read; the phases/line_items tables
-      // remain the source of truth.
       const contentSnapshot = {
         source: 'admin-portal',
-        payment_terms: paymentTerms,
+        payment_terms: scheduleSummary(),
+        revision_rounds: revisionRounds,
+        key_note: keyNote,
+        schedule: schedule.map((r) => ({ label: r.label, pct: r.pct, triggered_by: r.triggeredBy })),
         phases: phases.map((p) => ({
           name: p.name,
           timeline: p.timeline,
-          scope: p.scope,
-          items: p.items.map((it) => ({
-            title: it.title,
-            scope: it.scope,
-            amount: parseFloat(it.amount) || 0,
+          solutions: p.solutions.map((s) => ({
+            title: s.title,
+            overview: s.overview,
+            items: s.items.map((it) => ({
+              title: it.title,
+              scope: it.scope,
+              amount: parseFloat(it.amount) || 0,
+            })),
           })),
         })),
       }
@@ -358,7 +453,9 @@ export function ProposalForm({
         total_amount: total,
         discount_pct: discountPct ? parseFloat(discountPct) : null,
         discount_label: discountLabel.trim() || null,
-        payment_terms: paymentTerms,
+        payment_terms: scheduleSummary(),
+        revision_rounds: revisionRounds === 'Unlimited' ? null : parseInt(revisionRounds, 10),
+        key_note: keyNote.trim() || null,
         status,
         valid_until: validUntil,
         content: contentSnapshot,
@@ -392,10 +489,11 @@ export function ProposalForm({
         await supabase.from('proposal_phases').delete().eq('proposal_id', proposalId)
       }
 
-      // Insert phases then their line items, in order.
+      // Insert phases, then each phase's line items (carrying their solution group).
       for (let pi = 0; pi < phases.length; pi++) {
         const ph = phases[pi]
-        if (!ph.name.trim() && ph.items.every((it) => !it.title.trim())) continue
+        const phaseHasItems = ph.solutions.some((s) => s.items.some((it) => it.title.trim()))
+        if (!ph.name.trim() && !phaseHasItems) continue
         const { data: phaseRow, error: phErr } = await supabase
           .from('proposal_phases')
           .insert({
@@ -403,35 +501,59 @@ export function ProposalForm({
             phase_number: pi + 1,
             name: ph.name.trim() || `Phase ${pi + 1}`,
             timeline: ph.timeline.trim() || null,
-            scope: ph.scope.trim() || null,
             sort_order: pi,
           })
           .select('id')
           .single()
         if (phErr) throw phErr
         const phaseId = (phaseRow as { id: string }).id
-        const items = ph.items
-          .filter((it) => it.title.trim())
-          .map((it, ii) => ({
-            phase_id: phaseId,
-            item_number: ii + 1,
-            title: it.title.trim(),
-            scope: it.scope.trim() || null,
-            amount: parseFloat(it.amount) || 0,
-          }))
+
+        const items: Record<string, unknown>[] = []
+        let itemNumber = 0
+        for (const sol of ph.solutions) {
+          for (const it of sol.items) {
+            if (!it.title.trim()) continue
+            itemNumber += 1
+            items.push({
+              phase_id: phaseId,
+              item_number: itemNumber,
+              title: it.title.trim(),
+              scope: it.scope.trim() || null,
+              amount: parseFloat(it.amount) || 0,
+              solution_title: sol.title.trim() || null,
+              solution_overview: sol.overview.trim() || null,
+            })
+          }
+        }
         if (items.length > 0) {
           const { error: iErr } = await supabase.from('proposal_line_items').insert(items)
           if (iErr) throw iErr
         }
       }
 
-      // Upload any pending documents (best-effort; proposal already saved).
+      // Replace the payment schedule wholesale.
+      await supabase.from('proposal_payment_schedule').delete().eq('proposal_id', proposalId)
+      const scheduleRows = schedule
+        .filter((r) => r.label.trim() && r.pct)
+        .map((r, idx) => ({
+          proposal_id: proposalId,
+          instalment_number: idx + 1,
+          label: r.label.trim(),
+          pct_of_total: parseFloat(r.pct) || 0,
+          triggered_by: r.triggeredBy,
+        }))
+      if (scheduleRows.length > 0) {
+        const { error: schErr } = await supabase
+          .from('proposal_payment_schedule')
+          .insert(scheduleRows)
+        if (schErr) throw schErr
+      }
+
       let warning: string | null = null
       if (pendingFiles.length > 0 && proposalId) {
         warning = await uploadDocuments(proposalId)
       }
 
-      // The proposal is persisted; the autosave draft is no longer needed.
       clearStoredDraft()
       dirtyRef.current = false
       setDraftSaved(false)
@@ -446,7 +568,6 @@ export function ProposalForm({
     }
   }
 
-  // Returns a human message if some uploads failed, else null.
   async function uploadDocuments(proposalId: string): Promise<string | null> {
     const failures: string[] = []
     for (const file of pendingFiles) {
@@ -473,7 +594,7 @@ export function ProposalForm({
     return null
   }
 
-  // ── Client-facing preview ───────────────────────────────────────────
+  // ── Client-facing preview (solutions flattened into line items) ─────
   if (preview) {
     return (
       <ProposalPreview
@@ -486,7 +607,8 @@ export function ProposalForm({
         phases={phases.map((p) => ({
           name: p.name,
           timeline: p.timeline,
-          items: p.items
+          items: p.solutions
+            .flatMap((s) => s.items)
             .filter((it) => it.title.trim() || parseFloat(it.amount))
             .map((it) => ({
               title: it.title,
@@ -498,7 +620,7 @@ export function ProposalForm({
         discountLabel={discountLabel || (discountPct ? `Discount ${discountPct}%` : null)}
         discountAmount={discountAmount}
         total={total}
-        paymentTerms={paymentTerms}
+        paymentTerms={scheduleSummary()}
       />
     )
   }
@@ -536,11 +658,21 @@ export function ProposalForm({
               <option value="USD">USD</option>
             </select>
           </Field>
-          <Field label="Company name">
-            <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} style={styles.input} />
+          <Field label="Company name" required error={showFieldError('companyName', !companyName.trim()) ? 'Company name is required' : null}>
+            <input
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              onBlur={() => markTouched('companyName')}
+              style={inputStyle(showFieldError('companyName', !companyName.trim()))}
+            />
           </Field>
-          <Field label="Client / contact name">
-            <input value={clientName} onChange={(e) => setClientName(e.target.value)} style={styles.input} />
+          <Field label="Client / contact name" required error={showFieldError('clientName', !clientName.trim()) ? 'Client name is required' : null}>
+            <input
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              onBlur={() => markTouched('clientName')}
+              style={inputStyle(showFieldError('clientName', !clientName.trim()))}
+            />
           </Field>
         </div>
       </Card>
@@ -548,8 +680,13 @@ export function ProposalForm({
       <Card style={{ marginBottom: 16 }}>
         <h3 style={styles.phaseName}>Proposal</h3>
         <div style={styles.formGrid}>
-          <Field label="Title" wide>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} style={styles.input} />
+          <Field label="Title" wide required error={showFieldError('title', !title.trim()) ? 'Title is required' : null}>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => markTouched('title')}
+              style={inputStyle(showFieldError('title', !title.trim()))}
+            />
           </Field>
           <Field label="Vertical">
             <select value={vertical} onChange={(e) => setVertical(e.target.value)} style={styles.input}>
@@ -557,8 +694,14 @@ export function ProposalForm({
               <option value="saas">SaaS</option>
             </select>
           </Field>
-          <Field label="Valid until">
-            <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} style={styles.input} />
+          <Field label="Valid until" required error={showFieldError('validUntil', !validUntil) ? 'Valid-until date is required' : null}>
+            <input
+              type="date"
+              value={validUntil}
+              onChange={(e) => setValidUntil(e.target.value)}
+              onBlur={() => markTouched('validUntil')}
+              style={inputStyle(showFieldError('validUntil', !validUntil))}
+            />
           </Field>
         </div>
       </Card>
@@ -585,51 +728,97 @@ export function ProposalForm({
             <Field label="Timeline">
               <input value={ph.timeline} onChange={(e) => updatePhase(pi, { timeline: e.target.value })} style={styles.input} placeholder="e.g. Month 1-2" />
             </Field>
-            <Field label="Scope" wide>
-              <input value={ph.scope} onChange={(e) => updatePhase(pi, { scope: e.target.value })} style={styles.input} />
-            </Field>
           </div>
 
-          <div style={styles.itemsHead}>Line items</div>
-          {ph.items.map((it, ii) => (
-            <div key={ii} style={styles.itemEditRow}>
-              <input
-                value={it.title}
-                onChange={(e) => updateItem(pi, ii, { title: e.target.value })}
-                style={{ ...styles.input, flex: 2 }}
-                placeholder="Item title"
-              />
-              <input
-                value={it.scope}
-                onChange={(e) => updateItem(pi, ii, { scope: e.target.value })}
-                style={{ ...styles.input, flex: 3 }}
-                placeholder="Scope"
-              />
-              <input
-                value={it.amount}
-                onChange={(e) => updateItem(pi, ii, { amount: e.target.value })}
-                style={{ ...styles.input, flex: 1, fontFamily: mono }}
-                placeholder="Amount"
-                inputMode="decimal"
-              />
-              {ph.items.length > 1 && (
-                <button
-                  type="button"
-                  style={styles.iconBtn}
-                  onClick={() => updatePhase(pi, { items: ph.items.filter((_, j) => j !== ii) })}
-                  aria-label="Remove item"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
+          {/* Read-only phase total = sum of every line item in this phase. */}
+          <div style={styles.phaseTotalRow}>
+            <span style={ui.muted}>Phase total</span>
+            <span style={{ fontFamily: mono, fontWeight: 600 }}>
+              {formatMoney(phaseTotal(ph), currency)}
+            </span>
+          </div>
+
+          {ph.solutions.map((sol, si) => (
+            <div key={si} style={styles.solutionCard}>
+              <div style={styles.solutionHead}>
+                <span style={styles.solutionTag}>Solution {si + 1}</span>
+                {ph.solutions.length > 1 && (
+                  <button
+                    type="button"
+                    style={styles.iconBtn}
+                    onClick={() => updatePhase(pi, { solutions: ph.solutions.filter((_, j) => j !== si) })}
+                    aria-label="Remove solution"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+              <Field label="Solution title">
+                <input
+                  value={sol.title}
+                  onChange={(e) => updateSolution(pi, si, { title: e.target.value })}
+                  style={styles.input}
+                  placeholder="e.g. Brand identity system"
+                />
+              </Field>
+              <Field label="Solution overview">
+                <AutoGrowTextarea
+                  value={sol.overview}
+                  onChange={(v) => updateSolution(pi, si, { overview: v })}
+                  placeholder="What this solution delivers. Paste from a doc; formatting is stripped to plain text."
+                />
+              </Field>
+
+              <div style={styles.itemsHead}>Line items</div>
+              {sol.items.map((it, ii) => (
+                <div key={ii} style={styles.itemEditRow}>
+                  <input
+                    value={it.title}
+                    onChange={(e) => updateItem(pi, si, ii, { title: e.target.value })}
+                    style={{ ...styles.input, flex: 2 }}
+                    placeholder="Item title"
+                  />
+                  <input
+                    value={it.scope}
+                    onChange={(e) => updateItem(pi, si, ii, { scope: e.target.value })}
+                    style={{ ...styles.input, flex: 3 }}
+                    placeholder="Scope"
+                  />
+                  <input
+                    value={it.amount}
+                    onChange={(e) => updateItem(pi, si, ii, { amount: e.target.value })}
+                    style={{ ...styles.input, flex: 1, fontFamily: mono }}
+                    placeholder="Amount"
+                    inputMode="decimal"
+                  />
+                  {sol.items.length > 1 && (
+                    <button
+                      type="button"
+                      style={styles.iconBtn}
+                      onClick={() => updateSolution(pi, si, { items: sol.items.filter((_, j) => j !== ii) })}
+                      aria-label="Remove item"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                style={styles.addBtn}
+                onClick={() => updateSolution(pi, si, { items: [...sol.items, emptyItem()] })}
+              >
+                <Plus size={14} /> Add line item
+              </button>
             </div>
           ))}
+
           <button
             type="button"
             style={styles.addBtn}
-            onClick={() => updatePhase(pi, { items: [...ph.items, { title: '', scope: '', amount: '' }] })}
+            onClick={() => updatePhase(pi, { solutions: [...ph.solutions, emptySolution()] })}
           >
-            <Plus size={14} /> Add line item
+            <Plus size={14} /> Add solution
           </button>
         </Card>
       ))}
@@ -647,10 +836,75 @@ export function ProposalForm({
           <Field label="Discount label">
             <input value={discountLabel} onChange={(e) => setDiscountLabel(e.target.value)} style={styles.input} placeholder="e.g. Launch offer" />
           </Field>
-          <Field label="Payment terms" wide>
-            <textarea value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} style={{ ...styles.input, minHeight: 60, resize: 'vertical' }} />
+          <Field label="Revision rounds">
+            <select value={revisionRounds} onChange={(e) => setRevisionRounds(e.target.value)} style={styles.input}>
+              {REVISION_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Key note">
+            <input value={keyNote} onChange={(e) => setKeyNote(e.target.value)} style={styles.input} placeholder="One-line highlight for the client" />
           </Field>
         </div>
+
+        {/* Payment schedule builder (replaces the old free-text terms). */}
+        <div style={styles.scheduleHead}>Payment schedule</div>
+        {schedule.map((row, i) => (
+          <div key={i} style={styles.scheduleRow}>
+            <input
+              value={row.label}
+              onChange={(e) => updateInstalment(i, { label: e.target.value })}
+              style={{ ...styles.input, flex: 3 }}
+              placeholder="Label, e.g. Advance"
+            />
+            <input
+              value={row.pct}
+              onChange={(e) => updateInstalment(i, { pct: e.target.value })}
+              style={{ ...styles.input, flex: 1, fontFamily: mono }}
+              placeholder="%"
+              inputMode="decimal"
+            />
+            <select
+              value={row.triggeredBy}
+              onChange={(e) => updateInstalment(i, { triggeredBy: e.target.value as PaymentInstalment['triggeredBy'] })}
+              style={{ ...styles.input, flex: 2 }}
+            >
+              <option value="acceptance">On acceptance</option>
+              <option value="manual">Manual</option>
+            </select>
+            {schedule.length > 1 && (
+              <button
+                type="button"
+                style={styles.iconBtn}
+                onClick={() => setSchedule((prev) => prev.filter((_, j) => j !== i))}
+                aria-label="Remove instalment"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+        ))}
+        <div style={styles.scheduleFootRow}>
+          <button
+            type="button"
+            style={styles.addBtn}
+            onClick={() => setSchedule((prev) => [...prev, { label: '', pct: '', triggeredBy: 'manual' }])}
+          >
+            <Plus size={14} /> Add instalment
+          </button>
+          <span style={{ ...styles.scheduleSum, color: scheduleValid ? tokens.green : tokens.ruby }}>
+            Total {scheduleSum}%
+          </span>
+        </div>
+        {!scheduleValid && (
+          <div style={styles.scheduleError}>
+            Total must equal 100%. Currently {scheduleSum}%.
+          </div>
+        )}
+
         <div style={styles.totalsRow}>
           <span style={ui.muted}>Subtotal</span>
           <span style={{ fontFamily: mono }}>{formatMoney(subtotal, currency)}</span>
@@ -704,7 +958,13 @@ export function ProposalForm({
         <button type="button" style={styles.secondaryBtn} onClick={() => handleSave('draft')} disabled={saving}>
           {saving ? 'Saving...' : 'Save as draft'}
         </button>
-        <button type="button" style={ui.primaryBtn} onClick={() => handleSave('sent')} disabled={saving}>
+        {/* H5: Send is disabled until the schedule is valid (sums to 100). */}
+        <button
+          type="button"
+          style={{ ...ui.primaryBtn, ...(!scheduleValid ? styles.disabledBtn : null) }}
+          onClick={() => handleSave('sent')}
+          disabled={saving || !scheduleValid}
+        >
           {saving ? 'Saving...' : 'Send to client'}
         </button>
       </div>
@@ -712,19 +972,61 @@ export function ProposalForm({
   )
 }
 
+// Plain <textarea> that grows to fit its content. Pasting rich text into a
+// textarea yields plain text automatically.
+function AutoGrowTextarea({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={2}
+      style={{ ...styles.input, resize: 'none', overflow: 'hidden', minHeight: 52 }}
+    />
+  )
+}
+
+function inputStyle(hasError: boolean): CSSProperties {
+  return hasError ? { ...styles.input, borderColor: tokens.ruby } : styles.input
+}
+
 function Field({
   label,
   wide,
+  required,
+  error,
   children,
 }: {
   label: string
   wide?: boolean
+  required?: boolean
+  error?: string | null
   children: React.ReactNode
 }) {
   return (
     <label style={{ ...styles.field, gridColumn: wide ? '1 / -1' : undefined }}>
-      <span style={styles.fieldLabel}>{label}</span>
+      <span style={styles.fieldLabel}>
+        {label}
+        {required && <span style={styles.requiredStar}> *</span>}
+      </span>
       {children}
+      {error && <span style={styles.fieldError}>{error}</span>}
     </label>
   )
 }
@@ -779,6 +1081,40 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.text,
     margin: '0 0 12px',
   },
+  phaseTotalRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '8px 0',
+    margin: '4px 0 8px',
+    borderTop: `1px solid ${tokens.border}`,
+    borderBottom: `1px solid ${tokens.border}`,
+    fontFamily: fonts.body,
+    fontSize: 14,
+  },
+  solutionCard: {
+    background: tokens.bg,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 10,
+    padding: 14,
+    margin: '12px 0',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+  },
+  solutionHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  solutionTag: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: tokens.accent,
+  },
   totalsRow: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -787,6 +1123,39 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     color: tokens.text,
+  },
+  scheduleHead: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    color: tokens.text,
+    margin: '20px 0 10px',
+  },
+  scheduleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  scheduleFootRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  scheduleSum: {
+    fontFamily: mono,
+    fontSize: 13,
+    fontWeight: 600,
+  },
+  scheduleError: {
+    background: tokens.rubyLight,
+    color: tokens.ruby,
+    borderRadius: 8,
+    padding: '8px 12px',
+    marginTop: 8,
+    fontFamily: fonts.body,
+    fontSize: 13,
   },
   docRow: {
     display: 'flex',
@@ -819,6 +1188,12 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     color: tokens.textMuted,
   },
+  requiredStar: { color: tokens.ruby },
+  fieldError: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.ruby,
+  },
   input: {
     fontFamily: fonts.body,
     fontSize: 14,
@@ -835,7 +1210,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 600,
     color: tokens.textMuted,
-    margin: '16px 0 8px',
+    margin: '4px 0 8px',
   },
   itemEditRow: {
     display: 'flex',
@@ -912,4 +1287,5 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
   },
+  disabledBtn: { opacity: 0.5, cursor: 'not-allowed' },
 }

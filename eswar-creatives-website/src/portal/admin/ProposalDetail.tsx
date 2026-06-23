@@ -12,9 +12,47 @@ import {
   formatMoney,
   formatDate,
 } from './ui'
-import { ProposalForm } from './ProposalForm'
-import type { ProposalFull, PhaseForm, DocumentRow } from './ProposalForm'
+import { ProposalForm, emptySolution } from './ProposalForm'
+import type {
+  ProposalFull,
+  PhaseForm,
+  SolutionForm,
+  DocumentRow,
+  PaymentInstalment,
+} from './ProposalForm'
 import type { CSSProperties } from 'react'
+
+// Group a phase's line items (ordered) into solution groups by their shared
+// solution_title/overview. Consecutive items with the same pair form one group.
+function buildSolutions(
+  items: {
+    id: string
+    title: string
+    scope: string | null
+    amount: number | null
+    solution_title: string | null
+    solution_overview: string | null
+  }[]
+): SolutionForm[] {
+  const solutions: SolutionForm[] = []
+  let current: SolutionForm | null = null
+  let currentKey: string | null = null
+  for (const it of items) {
+    const key = `${it.solution_title ?? ''}|${it.solution_overview ?? ''}`
+    if (!current || key !== currentKey) {
+      current = { title: it.solution_title ?? '', overview: it.solution_overview ?? '', items: [] }
+      solutions.push(current)
+      currentKey = key
+    }
+    current.items.push({
+      id: it.id,
+      title: it.title,
+      scope: it.scope ?? '',
+      amount: String(it.amount ?? ''),
+    })
+  }
+  return solutions.length > 0 ? solutions : [emptySolution()]
+}
 
 const BUCKET = 'proposal-documents'
 
@@ -28,6 +66,9 @@ export function ProposalDetail() {
   const [existing, setExisting] = useState<ProposalFull | null>(null)
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [phases, setPhases] = useState<PhaseForm[]>([])
+  const [revisionRounds, setRevisionRounds] = useState('2')
+  const [keyNote, setKeyNote] = useState('')
+  const [schedule, setSchedule] = useState<PaymentInstalment[]>([])
 
   const locked = existing?.status === 'accepted'
 
@@ -44,7 +85,7 @@ export function ProposalDetail() {
         const { data: prop, error: pErr } = await supabase
           .from('proposals')
           .select(
-            'id, proposal_number, client_id, client_name, company_name, title, vertical, currency, total_amount, discount_pct, discount_label, payment_terms, status, valid_until, accepted_at'
+            'id, proposal_number, client_id, client_name, company_name, title, vertical, currency, total_amount, discount_pct, discount_label, payment_terms, revision_rounds, key_note, status, valid_until, accepted_at'
           )
           .eq('id', id)
           .single()
@@ -58,24 +99,31 @@ export function ProposalDetail() {
         if (phErr) throw phErr
 
         const phaseIds = (phaseRows ?? []).map((p) => p.id)
-        let itemsByPhase: Record<string, PhaseForm['items']> = {}
+        let solutionsByPhase: Record<string, SolutionForm[]> = {}
         if (phaseIds.length > 0) {
           const { data: itemRows, error: iErr } = await supabase
             .from('proposal_line_items')
-            .select('id, phase_id, item_number, title, scope, amount')
+            .select('id, phase_id, item_number, title, scope, amount, solution_title, solution_overview')
             .in('phase_id', phaseIds)
             .order('item_number', { ascending: true })
           if (iErr) throw iErr
-          itemsByPhase = (itemRows ?? []).reduce((acc, it) => {
-            ;(acc[it.phase_id] ??= []).push({
-              id: it.id,
-              title: it.title,
-              scope: it.scope ?? '',
-              amount: String(it.amount ?? ''),
-            })
-            return acc
-          }, {} as Record<string, PhaseForm['items']>)
+          const grouped = (itemRows ?? []).reduce(
+            (acc, it) => {
+              ;(acc[it.phase_id] ??= []).push(it)
+              return acc
+            },
+            {} as Record<string, typeof itemRows>
+          )
+          solutionsByPhase = Object.fromEntries(
+            Object.entries(grouped).map(([pid, items]) => [pid, buildSolutions(items ?? [])])
+          )
         }
+
+        const { data: schedRows } = await supabase
+          .from('proposal_payment_schedule')
+          .select('label, pct_of_total, triggered_by, instalment_number')
+          .eq('proposal_id', id)
+          .order('instalment_number', { ascending: true })
 
         const { data: docRows } = await supabase
           .from('proposal_documents')
@@ -85,15 +133,24 @@ export function ProposalDetail() {
 
         if (cancelled) return
 
-        setExisting(prop as ProposalFull)
+        const typedProp = prop as ProposalFull
+        setExisting(typedProp)
         setDocuments((docRows ?? []) as DocumentRow[])
         setPhases(
           (phaseRows ?? []).map((ph) => ({
             id: ph.id,
             name: ph.name,
             timeline: ph.timeline ?? '',
-            scope: ph.scope ?? '',
-            items: itemsByPhase[ph.id] ?? [],
+            solutions: solutionsByPhase[ph.id] ?? [emptySolution()],
+          }))
+        )
+        setRevisionRounds(typedProp.revision_rounds == null ? 'Unlimited' : String(typedProp.revision_rounds))
+        setKeyNote(typedProp.key_note ?? '')
+        setSchedule(
+          (schedRows ?? []).map((r) => ({
+            label: r.label as string,
+            pct: String((r as { pct_of_total: number | null }).pct_of_total ?? ''),
+            triggeredBy: (r as { triggered_by: string }).triggered_by as PaymentInstalment['triggeredBy'],
           }))
         )
       } catch {
@@ -112,7 +169,12 @@ export function ProposalDetail() {
   const subtotal = useMemo(
     () =>
       phases.reduce(
-        (sum, ph) => sum + ph.items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0),
+        (sum, ph) =>
+          sum +
+          ph.solutions.reduce(
+            (s, sol) => s + sol.items.reduce((t, it) => t + (parseFloat(it.amount) || 0), 0),
+            0
+          ),
         0
       ),
     [phases]
@@ -168,6 +230,9 @@ export function ProposalDetail() {
           existing={existing}
           initialPhases={phases}
           initialDocuments={documents}
+          initialRevisionRounds={revisionRounds}
+          initialKeyNote={keyNote}
+          initialSchedule={schedule}
           onCancel={() => setEditing(false)}
           onSaved={() => window.location.reload()}
         />
@@ -220,20 +285,34 @@ export function ProposalDetail() {
             <h3 style={styles.phaseName}>{ph.name}</h3>
             {ph.timeline && <span style={styles.phaseTimeline}>{ph.timeline}</span>}
           </div>
-          {ph.scope && <p style={styles.phaseScope}>{ph.scope}</p>}
-          {ph.items.map((it, ii) => (
-            <div key={it.id ?? ii} style={styles.viewItem}>
-              <div style={{ minWidth: 0 }}>
-                <div style={styles.viewItemTitle}>{it.title}</div>
-                {it.scope && <div style={styles.viewItemScope}>{it.scope}</div>}
-              </div>
-              <span style={styles.viewItemAmount}>
-                {formatMoney(parseFloat(it.amount) || 0, existing.currency)}
-              </span>
+          {ph.solutions.map((sol, si) => (
+            <div key={si} style={si > 0 ? styles.solutionBlock : undefined}>
+              {sol.title && <div style={styles.solutionTitle}>{sol.title}</div>}
+              {sol.overview && <p style={styles.phaseScope}>{sol.overview}</p>}
+              {sol.items.map((it, ii) => (
+                <div key={it.id ?? ii} style={styles.viewItem}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={styles.viewItemTitle}>{it.title}</div>
+                    {it.scope && <div style={styles.viewItemScope}>{it.scope}</div>}
+                  </div>
+                  <span style={styles.viewItemAmount}>
+                    {formatMoney(parseFloat(it.amount) || 0, existing.currency)}
+                  </span>
+                </div>
+              ))}
             </div>
           ))}
         </Card>
       ))}
+
+      {(existing.key_note || revisionRounds) && (
+        <Card style={{ marginBottom: 12 }}>
+          <div style={styles.metaGrid}>
+            <Meta label="Revision rounds" value={revisionRounds} />
+            {existing.key_note && <Meta label="Key note" value={existing.key_note} />}
+          </div>
+        </Card>
+      )}
 
       <Card style={{ marginBottom: 16 }}>
         <h3 style={styles.phaseName}>Pricing & terms</h3>
@@ -362,6 +441,18 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     color: tokens.textMuted,
     margin: '0 0 12px',
+  },
+  solutionBlock: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTop: `1px solid ${tokens.border}`,
+  },
+  solutionTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 15,
+    fontWeight: 600,
+    color: tokens.text,
+    marginBottom: 6,
   },
   viewItem: {
     display: 'flex',
