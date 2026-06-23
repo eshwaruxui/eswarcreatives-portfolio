@@ -30,6 +30,7 @@ import { MockupsPage } from "../portal/client/MockupsPage";
 import { ClientDashboardPage } from "../portal/ClientDashboard";
 import { ClientProposalsPage } from "../portal/client/ClientProposals";
 import { ClientInvoicesPage } from "../portal/client/ClientInvoices";
+import { ClientCampaignsPage } from "../portal/client/ClientCampaigns";
 import { ReviewCampaignPage } from "../portal/review/ReviewCampaignPage";
 
 export const routeConfig = [
@@ -43,6 +44,8 @@ export const routeConfig = [
   { path: "/portal/invoices",       Component: ClientInvoicesPage },
   // Client-facing mockups review page (PortalGuard inside the component).
   { path: "/portal/mockups",        Component: MockupsPage },
+  // Phase 5 client campaigns list (PortalGuard requireRole="client" inside).
+  { path: "/portal/campaigns",      Component: ClientCampaignsPage },
   // Phase 5 reviewer landing (PortalGuard requireRole="reviewer" inside).
   { path: "/portal/review",             Component: ReviewCampaignPage },
   { path: "/portal/review/:campaignId", Component: ReviewCampaignPage },
