@@ -10,8 +10,8 @@ import {
   ui,
   mono,
   formatMoney,
-  formatDate,
 } from './ui'
+import { InvoicePreview } from './InvoicePreview'
 import type { CSSProperties } from 'react'
 
 type Invoice = {
@@ -223,7 +223,14 @@ export function InvoicesAdmin() {
             </thead>
             <tbody>
               {filtered.map((inv) => (
-                <tr key={inv.id}>
+                <tr
+                  key={inv.id}
+                  onClick={() => setOpenInvoice(inv)}
+                  style={{
+                    ...styles.row,
+                    ...(openInvoice?.id === inv.id ? styles.rowActive : null),
+                  }}
+                >
                   <td style={{ ...styles.td, fontFamily: mono, fontSize: 12 }}>
                     {inv.invoice_number}
                   </td>
@@ -237,7 +244,10 @@ export function InvoicesAdmin() {
                   <td style={styles.td}>
                     <StatusBadge status={inv.status} />
                   </td>
-                  <td style={{ ...styles.td, textAlign: 'right' }}>
+                  <td
+                    style={{ ...styles.td, textAlign: 'right' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {payingId === inv.id ? (
                       <span style={styles.payRow}>
                         <input
@@ -301,7 +311,9 @@ export function InvoicesAdmin() {
         />
       )}
 
-      {openInvoice && <InvoiceModal invoice={openInvoice} onClose={() => setOpenInvoice(null)} />}
+      {openInvoice && (
+        <InvoicePreview invoice={openInvoice} onClose={() => setOpenInvoice(null)} />
+      )}
     </>
   )
 }
@@ -476,47 +488,12 @@ function NewInvoiceModal({
   )
 }
 
-// ── Read-only invoice detail modal ──────────────────────────────────────
-function InvoiceModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
-  return (
-    <Modal onClose={onClose} title={invoice.invoice_number}>
-      <div style={styles.detailGrid}>
-        <Detail label="Status" value={<StatusBadge status={invoice.status} />} />
-        <Detail label="Amount" value={<span style={{ fontFamily: mono }}>{formatMoney(Number(invoice.amount), invoice.currency)}</span>} />
-        <Detail label="Client" value={displayName(invoice)} />
-        <Detail label="Label" value={invoice.label || '—'} />
-        <Detail label="Due date" value={formatDate(invoice.due_date)} />
-        <Detail label="Paid date" value={formatDate(invoice.paid_date)} />
-        <Detail label="Payment method" value={invoice.payment_method || '—'} />
-        {invoice.pct_of_total != null && (
-          <Detail label="Percent of total" value={`${invoice.pct_of_total}%`} />
-        )}
-      </div>
-      {invoice.notes && (
-        <div style={{ marginTop: 16 }}>
-          <div style={styles.detailLabel}>Notes</div>
-          <p style={styles.notesText}>{invoice.notes}</p>
-        </div>
-      )}
-    </Modal>
-  )
-}
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={styles.field}>
       <span style={styles.fieldLabel}>{label}</span>
       {children}
     </label>
-  )
-}
-
-function Detail({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <div style={styles.detailLabel}>{label}</div>
-      <div style={styles.detailValue}>{value}</div>
-    </div>
   )
 }
 
@@ -605,6 +582,8 @@ const styles: Record<string, CSSProperties> = {
     borderBottom: `1px solid ${tokens.border}`,
     background: tokens.bg,
   },
+  row: { cursor: 'pointer' },
+  rowActive: { background: tokens.tealLight },
   td: {
     padding: '14px 20px',
     fontSize: 14,
