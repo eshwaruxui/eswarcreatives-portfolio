@@ -140,8 +140,9 @@ export function AdminDashboard() {
           .sort((a, b) => b.created_at.localeCompare(a.created_at))
           .slice(0, 5)
         setActivity(feed)
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      } catch {
+        // H9: Help users recover from errors — plain-language message, never a raw Supabase string.
+        if (!cancelled) setError('Could not load the dashboard. Refresh to try again.')
       } finally {
         if (!cancelled) setLoading(false)
       }

@@ -1,6 +1,7 @@
 // Shared building blocks for the admin portal pages (Phase 3).
 // Everything here is built from the portal theme tokens so the admin modules
 // match the cream/teal Atelier palette used across the rest of the portal.
+import { useEffect } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { tokens, fonts } from '../theme'
@@ -154,6 +155,16 @@ export function Modal({
   headerExtra?: ReactNode
   children: ReactNode
 }) {
+  // H7: Flexibility and efficiency — Escape closes any open modal. The owning
+  // component's onClose handles its own unsaved-work confirmation when needed.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <div style={ui.modalOverlay} onClick={closeOnBackdrop ? onClose : undefined}>
       <div
@@ -275,8 +286,9 @@ export const ui: Record<string, CSSProperties> = {
     marginBottom: 20,
   },
   modalTitle: {
+    // H4: Consistency — all modal headers use Fraunces (heading) at 18px.
     fontFamily: fonts.heading,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 600,
     color: tokens.text,
     margin: 0,

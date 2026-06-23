@@ -93,8 +93,9 @@ export function ClientDetail() {
         setProposals((proposalsRes.data ?? []) as Proposal[])
         setInvoices((invoicesRes.data ?? []) as Invoice[])
         setProjects((projectsRes.data ?? []) as Project[])
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      } catch {
+        // H9: plain-language error, never a raw Supabase string.
+        if (!cancelled) setError('Could not load this client. Refresh to try again.')
       } finally {
         if (!cancelled) setLoading(false)
       }

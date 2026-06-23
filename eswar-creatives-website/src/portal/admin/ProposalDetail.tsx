@@ -96,8 +96,9 @@ export function ProposalDetail() {
             items: itemsByPhase[ph.id] ?? [],
           }))
         )
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      } catch {
+        // H9: plain-language error, never a raw Supabase string.
+        if (!cancelled) setError('Could not load this proposal. Refresh to try again.')
       } finally {
         if (!cancelled) setLoading(false)
       }

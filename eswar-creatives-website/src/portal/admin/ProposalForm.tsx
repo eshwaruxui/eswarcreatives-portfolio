@@ -438,8 +438,9 @@ export function ProposalForm({
       onDirtyChange?.(false, false)
 
       onSaved(proposalId, warning)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+    } catch {
+      // H9: plain-language error with a next step, never a raw Supabase string.
+      setError('Could not save the proposal. Check the details and try again.')
     } finally {
       setSaving(false)
     }

@@ -3,7 +3,7 @@
 //   1. the Eswar Creatives brand mark,
 //   2. a client selector that scopes downstream pages via PortalContext,
 //   3. a settings gear that opens a slide-in panel (manage/add clients, sign out).
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Check, ChevronDown, Settings, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
@@ -23,6 +23,17 @@ export function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showAddClient, setShowAddClient] = useState(false)
+
+  // H7: Flexibility and efficiency — Escape closes the client menu or settings panel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setMenuOpen(false)
+      setSettingsOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const selectorLabel = selectedClient ? clientLabel(selectedClient) : 'All clients'
 
@@ -199,7 +210,10 @@ const styles: Record<string, CSSProperties> = {
   bar: {
     position: 'sticky',
     top: 0,
-    zIndex: 200,
+    // CHANGE 3 / H?: the sticky bar must sit BELOW every overlay (modals z100+,
+    // side panels z201, settings z300, lightbox z9999) so it never paints over
+    // an open dialog or the client lightbox. It still floats above page content.
+    zIndex: 90,
     height: 56,
     flexShrink: 0,
     display: 'flex',
