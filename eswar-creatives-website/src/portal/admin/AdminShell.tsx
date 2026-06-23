@@ -14,6 +14,7 @@ import { PortalGuard } from '../PortalGuard'
 import { PortalProvider } from '../PortalContext'
 import { tokens, fonts } from '../theme'
 import { TopBar } from './TopBar'
+import { ToastHost } from './toast'
 
 // Persistent admin layout: a global TopBar (brand + client selector + settings)
 // above a fixed cream sidebar and scrollable content where each child route
@@ -49,6 +50,7 @@ export function AdminShell() {
 function Shell({ profile }: { profile: PortalProfile }) {
   return (
     <div style={styles.layout}>
+      <ToastHost />
       <TopBar />
       <div style={styles.body}>
         <aside style={styles.sidebar}>

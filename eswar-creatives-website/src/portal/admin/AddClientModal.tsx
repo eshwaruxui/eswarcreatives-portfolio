@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts } from '../theme'
 import { Modal, ui } from './ui'
+import { showToast } from './toast'
 import type { CSSProperties } from 'react'
 
 const COUNTRIES = [
@@ -75,18 +76,24 @@ export function AddClientModal({
           // fall through to the generic message
         }
         setError(friendlyError(code))
+        // H1: confirm the outcome of the action with a toast as well.
+        showToast('Client could not be created. Please try again.', 'error')
         setSaving(false)
         return
       }
       const newId = (data as { id?: string } | null)?.id
       if (!newId) {
         setError(friendlyError(undefined))
+        showToast('Client could not be created. Please try again.', 'error')
         setSaving(false)
         return
       }
+      // Success: close the modal, then confirm with a top-right toast.
       onCreated(newId)
+      showToast(`Client created. Login credentials have been sent to ${email.trim()}.`, 'success')
     } catch {
       setError(friendlyError(undefined))
+      showToast('Client could not be created. Please try again.', 'error')
       setSaving(false)
     }
   }
