@@ -118,6 +118,19 @@ export function Navbar() {
               </a>
             )
           )}
+
+          {/* Portal login — plain text link, last nav item before Book a call */}
+          <Link
+            to="/portal/login"
+            className="px-4 py-2 transition-colors hover:text-text-primary"
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontSize: "14px",
+              color: "#6B7280",
+            }}
+          >
+            Portal
+          </Link>
         </div>
 
         {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
@@ -206,6 +219,22 @@ export function Navbar() {
               </a>
             )
           )}
+
+          {/* Portal login — plain text link, last nav item before Book a call */}
+          <Link
+            to="/portal/login"
+            onClick={() => setMobileOpen(false)}
+            className="block px-4 py-2.5 transition-colors hover:text-text-primary"
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontSize: "14px",
+              color: "#6B7280",
+            }}
+            role="menuitem"
+          >
+            Portal
+          </Link>
+
           {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
           <PortfolioButton
             href="https://calendly.com/eswarcreatives/25-min-intro-call"
