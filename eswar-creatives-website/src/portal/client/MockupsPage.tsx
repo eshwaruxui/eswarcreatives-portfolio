@@ -118,7 +118,7 @@ function Mockups({ profile }: { profile: PortalProfile }) {
                 <div>
                   <h3 style={styles.cardTitle}>{s.concept_name}</h3>
                   <p style={styles.cardMeta}>
-                    {s.projects?.title || '—'}
+                    {s.projects?.title || '-'}
                     {s.phase ? ` · Phase ${s.phase}` : ''}
                   </p>
                   <p style={styles.cardSub}>
@@ -155,46 +155,6 @@ function Mockups({ profile }: { profile: PortalProfile }) {
 
 const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
-  topbar: { background: tokens.surface, borderBottom: `1px solid ${tokens.border}` },
-  topbarInner: {
-    maxWidth: 980,
-    margin: '0 auto',
-    padding: '16px 24px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  brandRow: { display: 'flex', alignItems: 'center', gap: 10 },
-  logoCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: '50%',
-    background: tokens.primary,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoLetter: {
-    color: tokens.gold,
-    fontFamily: fonts.heading,
-    fontSize: 18,
-    fontWeight: 600,
-    lineHeight: 1,
-    marginTop: 1,
-  },
-  brandName: { fontFamily: fonts.heading, fontSize: 16, fontWeight: 600, color: tokens.text },
-  signout: {
-    background: 'transparent',
-    border: `1px solid ${tokens.border}`,
-    color: tokens.primary,
-    padding: '7px 14px',
-    borderRadius: 8,
-    fontSize: 13,
-    fontFamily: fonts.body,
-    fontWeight: 500,
-    cursor: 'pointer',
-  },
   container: { maxWidth: 980, margin: '0 auto', padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px` },
   heroBlock: { marginBottom: 32 },
   title: {
@@ -234,7 +194,7 @@ const styles: Record<string, CSSProperties> = {
   reviewBtn: {
     alignSelf: 'flex-start',
     background: tokens.primary,
-    color: '#fff',
+    color: tokens.surface,
     border: 'none',
     borderRadius: 8,
     padding: '9px 16px',
