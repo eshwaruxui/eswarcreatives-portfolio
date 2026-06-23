@@ -1,13 +1,16 @@
-// Client dashboard at /portal/projects. Shows the client's active project and a
-// read-only phase stepper, plus quick links to proposals and invoices.
+// Client dashboard at /portal/projects. Shows a single contextual banner (the
+// highest-priority action the client should take), the client's active project
+// with a read-only phase stepper, and quick links to the other sections.
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only.
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { ClientNav, CLIENT_NAV_HEIGHT } from './client/ClientNav'
-import { tokens, fonts } from './theme'
+import { getBadges, subscribeBadges } from './client/clientNotifications'
+import type { BadgeSection } from './client/clientNotifications'
+import { tokens, fonts, motionTokens } from './theme'
 
 // The fixed client journey. The project's phase pointer maps onto these.
 const PHASES = ['Discovery', 'Design', 'Review', 'Delivery'] as const
@@ -20,6 +23,10 @@ type ProjectRow = {
   status: string
 }
 
+// One banner shown at a time, highest priority wins. variant drives the palette.
+type BannerVariant = 'ruby' | 'gold' | 'teal'
+type Banner = { text: string; to: string; variant: BannerVariant }
+
 export function ClientDashboardPage() {
   return (
     <PortalGuard requireRole="client">
@@ -30,8 +37,10 @@ export function ClientDashboardPage() {
 
 function Dashboard({ profile }: { profile: PortalProfile }) {
   const [project, setProject] = useState<ProjectRow | null>(null)
+  const [banner, setBanner] = useState<Banner | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const badges = useSyncExternalStore(subscribeBadges, getBadges, getBadges)
 
   useEffect(() => {
     let cancelled = false
@@ -46,7 +55,10 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         if (cErr) throw cErr
 
         if (!client) {
-          if (!cancelled) setProject(null)
+          if (!cancelled) {
+            setProject(null)
+            setBanner(null)
+          }
           return
         }
 
@@ -59,6 +71,9 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
           .maybeSingle()
         if (pErr) throw pErr
         if (!cancelled) setProject((proj as ProjectRow | null) ?? null)
+
+        const next = await computeBanner(client.id, profile.id)
+        if (!cancelled) setBanner(next)
       } catch {
         // H9: plain-language error, never a raw Supabase string.
         if (!cancelled)
@@ -88,7 +103,16 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
   return (
     <div style={styles.page}>
       <ClientNav profile={profile} />
+      {/* Banner enter + badge entrance keyframes (transform/opacity only). */}
+      <style>{`
+        @keyframes dashBannerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes dashBadgeIn{from{transform:scale(0)}to{transform:scale(1)}}
+      `}</style>
       <main style={styles.container}>
+        {/* H1 (visibility of system status): the single most relevant next action,
+            as a fully clickable card that routes to the right place. */}
+        {!loading && !error && banner && <BannerCard banner={banner} />}
+
         <h1 style={styles.title}>Your project</h1>
 
         {loading && <div style={styles.muted}>Loading your project...</div>}
@@ -110,28 +134,163 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
           </section>
         )}
 
-        {/* H6: recognition over recall, quick paths to the two key documents. */}
+        {/* H6: recognition over recall, quick paths to every section. */}
         <div style={styles.quickGrid}>
-          <Link to="/portal/proposals" style={styles.quickCard}>
-            <span style={styles.quickTitle}>View Proposal</span>
-            <span style={styles.quickSub}>Review and respond to your proposal</span>
-          </Link>
-          <Link to="/portal/invoices" style={styles.quickCard}>
-            <span style={styles.quickTitle}>View Invoices</span>
-            <span style={styles.quickSub}>See amounts due and payment status</span>
-          </Link>
+          <QuickCard
+            to="/portal/proposals"
+            title="View Proposal"
+            sub="Review and respond to your proposal"
+            badge={badges.proposals}
+          />
+          <QuickCard
+            to="/portal/invoices"
+            title="View Invoices"
+            sub="See amounts due and payment status"
+            badge={badges.invoices}
+          />
+          <QuickCard
+            to="/portal/mockups"
+            title="View Mockups"
+            sub="Review concept designs and share feedback"
+            badge={badges.mockups}
+          />
+          <QuickCard
+            to="/portal/campaigns"
+            title="View Campaigns"
+            sub="See your design review campaigns"
+            badge={false}
+          />
         </div>
       </main>
     </div>
   )
 }
 
+// Resolve the highest-priority banner. Order matches the spec exactly:
+// 1 proposal awaiting -> 2 invoice overdue -> 3 mockup awaiting -> 4 invoice due soon.
+async function computeBanner(clientId: string, profileId: string): Promise<Banner | null> {
+  // 1. Proposal awaiting action.
+  const { data: sentProposals } = await supabase
+    .from('proposals')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('status', 'sent')
+    .limit(1)
+  if (sentProposals && sentProposals.length > 0) {
+    return {
+      text: 'Your proposal is ready for review. Accept or decline to get started.',
+      to: '/portal/proposals',
+      variant: 'ruby',
+    }
+  }
+
+  // 2 & 4. Invoice states (one query, split into overdue vs due-soon).
+  const today = new Date().toISOString().slice(0, 10)
+  const horizon = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('status, due_date')
+    .eq('client_id', clientId)
+    .in('status', ['pending', 'overdue'])
+  const invoiceRows = (invoices ?? []) as { status: string; due_date: string | null }[]
+  const overdue = invoiceRows.some(
+    (r) => r.status === 'overdue' || (r.due_date !== null && r.due_date < today)
+  )
+  if (overdue) {
+    return {
+      text: 'You have an overdue invoice. Please review payment details.',
+      to: '/portal/invoices',
+      variant: 'ruby',
+    }
+  }
+
+  // 3. Mockup awaiting feedback (a published set with no concept decision yet).
+  const { data: sets } = await supabase
+    .from('mockup_sets')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('status', 'published')
+  const setIds = ((sets ?? []) as { id: string }[]).map((s) => s.id)
+  if (setIds.length > 0) {
+    const { data: feedback } = await supabase
+      .from('mockup_feedback')
+      .select('set_id')
+      .in('set_id', setIds)
+      .in('feedback_type', ['concept_approval', 'concept_rejection'])
+      .eq('submitted_by', profileId)
+    const decided = new Set(((feedback ?? []) as { set_id: string }[]).map((r) => r.set_id))
+    if (setIds.some((id) => !decided.has(id))) {
+      return {
+        text: 'New concept designs are ready for your review.',
+        to: '/portal/mockups',
+        variant: 'gold',
+      }
+    }
+  }
+
+  // 4. Invoice due within 7 days.
+  const dueSoon = invoiceRows.some(
+    (r) => r.due_date !== null && r.due_date >= today && r.due_date <= horizon
+  )
+  if (dueSoon) {
+    return {
+      text: 'An invoice is due soon.',
+      to: '/portal/invoices',
+      variant: 'teal',
+    }
+  }
+
+  return null
+}
+
+function BannerCard({ banner }: { banner: Banner }) {
+  const palette: Record<BannerVariant, CSSProperties> = {
+    ruby: { background: tokens.ruby, color: tokens.surface },
+    gold: { background: tokens.gold, color: tokens.text },
+    teal: { background: tokens.accent, color: tokens.surface },
+  }
+  return (
+    <Link to={banner.to} style={{ ...styles.banner, ...palette[banner.variant] }}>
+      <span style={styles.bannerText}>{banner.text}</span>
+      <span aria-hidden="true" style={styles.bannerArrow}>
+        &rarr;
+      </span>
+    </Link>
+  )
+}
+
+function QuickCard({
+  to,
+  title,
+  sub,
+  badge,
+}: {
+  to: string
+  title: string
+  sub: string
+  badge: boolean
+}) {
+  return (
+    <Link to={to} style={styles.quickCard}>
+      <span style={styles.quickTitleRow}>
+        <span style={styles.quickTitle}>{title}</span>
+        {badge && <span style={styles.quickBadge} role="status" aria-label="New activity" />}
+      </span>
+      <span style={styles.quickSub}>{sub}</span>
+    </Link>
+  )
+}
+
 function Stepper({ currentIndex }: { currentIndex: number }) {
   return (
+    // H6: grid with equal columns guarantees every circle and label is centred,
+    // including the first (Discovery) and last (Delivery) steps.
     <div style={styles.stepper} aria-label="Project phase">
       {PHASES.map((phase, i) => {
         const done = i < currentIndex
         const active = i === currentIndex
+        const isFirst = i === 0
+        const isLast = i === PHASES.length - 1
         const circle: CSSProperties = {
           ...styles.stepCircle,
           background: done || active ? tokens.primary : tokens.surface,
@@ -141,23 +300,28 @@ function Stepper({ currentIndex }: { currentIndex: number }) {
         return (
           <div key={phase} style={styles.step}>
             <div style={styles.stepRow}>
-              {i > 0 && (
-                <span
-                  style={{
-                    ...styles.connector,
-                    background: i <= currentIndex ? tokens.primary : tokens.border,
-                  }}
-                />
-              )}
+              {/* End connectors are transparent so each circle stays centred. */}
+              <span
+                style={{
+                  ...styles.connector,
+                  background: isFirst
+                    ? 'transparent'
+                    : i <= currentIndex
+                      ? tokens.primary
+                      : tokens.border,
+                }}
+              />
               <span style={circle}>{done ? '✓' : i + 1}</span>
-              {i < PHASES.length - 1 && (
-                <span
-                  style={{
-                    ...styles.connector,
-                    background: i < currentIndex ? tokens.primary : tokens.border,
-                  }}
-                />
-              )}
+              <span
+                style={{
+                  ...styles.connector,
+                  background: isLast
+                    ? 'transparent'
+                    : i < currentIndex
+                      ? tokens.primary
+                      : tokens.border,
+                }}
+              />
             </div>
             <span
               style={{
@@ -182,6 +346,21 @@ const styles: Record<string, CSSProperties> = {
     margin: '0 auto',
     padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px`,
   },
+  banner: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    padding: '18px 22px',
+    borderRadius: 12,
+    marginBottom: 28,
+    textDecoration: 'none',
+    fontWeight: 600,
+    fontSize: 15,
+    animation: `dashBannerIn ${motionTokens.durationBase} ${motionTokens.easeEnter}`,
+  },
+  bannerText: { lineHeight: 1.4 },
+  bannerArrow: { fontSize: 20, flexShrink: 0 },
   title: {
     margin: '0 0 24px',
     fontFamily: fonts.heading,
@@ -204,10 +383,14 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     color: tokens.text,
   },
-  stepper: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' },
-  step: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 },
-  stepRow: { display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'center' },
-  connector: { height: 2, flex: 1, minWidth: 12 },
+  stepper: {
+    display: 'grid',
+    gridTemplateColumns: `repeat(${PHASES.length}, 1fr)`,
+    alignItems: 'start',
+  },
+  step: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 },
+  stepRow: { display: 'flex', alignItems: 'center', width: '100%' },
+  connector: { height: 2, flex: 1, minWidth: 0 },
   stepCircle: {
     width: 32,
     height: 32,
@@ -223,6 +406,7 @@ const styles: Record<string, CSSProperties> = {
   stepLabel: { fontSize: 13, textAlign: 'center', fontFamily: fonts.body },
   quickGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 },
   quickCard: {
+    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     gap: 6,
@@ -231,8 +415,18 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 12,
     padding: 22,
     textDecoration: 'none',
+    transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
+  quickTitleRow: { display: 'flex', alignItems: 'center', gap: 8 },
   quickTitle: { fontFamily: fonts.heading, fontSize: 16, fontWeight: 600, color: tokens.primary },
+  quickBadge: {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    background: tokens.ruby,
+    flexShrink: 0,
+    animation: `dashBadgeIn ${motionTokens.durationFast} ${motionTokens.easeEnter}`,
+  },
   quickSub: { fontSize: 13, color: tokens.textMuted },
   empty: {
     background: tokens.surface,
