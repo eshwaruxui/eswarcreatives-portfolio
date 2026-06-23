@@ -2,11 +2,13 @@
 // Proposals, Invoices, Mockups, Account). Fixed to the top at the same layer as
 // the admin TopBar (z-index 90). Theme tokens only; no raw hex; no em dashes.
 import { useEffect, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router'
+import { NavLink } from 'react-router'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { PortalProfile } from '../PortalGuard'
-import { tokens, fonts } from '../theme'
+import { tokens, fonts, motionTokens } from '../theme'
+import { useSignOut } from '../useSignOut'
+import { Spinner } from '../Spinner'
 import eswarLogo from '../../imports/eswar-logo.svg'
 
 // Height the fixed bar occupies; client pages offset their content by this much.
@@ -21,7 +23,7 @@ const LINKS = [
 ]
 
 export function ClientNav({ profile }: { profile: PortalProfile }) {
-  const navigate = useNavigate()
+  const { signingOut, error: signOutError, signOut } = useSignOut()
   const [name, setName] = useState<string>(profile.full_name || profile.email)
 
   // Prefer the client's contact/company name; fall back to the profile identity.
@@ -41,12 +43,6 @@ export function ClientNav({ profile }: { profile: PortalProfile }) {
       cancelled = true
     }
   }, [profile.id])
-
-  async function handleSignOut() {
-    // H3 (user control and freedom): sign out is always one click away.
-    await supabase.auth.signOut()
-    navigate('/portal/login', { replace: true })
-  }
 
   return (
     <nav style={styles.nav}>
@@ -75,9 +71,28 @@ export function ClientNav({ profile }: { profile: PortalProfile }) {
 
         <div style={styles.right}>
           <span style={styles.name}>{name}</span>
-          <button type="button" onClick={handleSignOut} style={styles.signout}>
-            Log out
+          {/* H1 (visibility of system status): the click is acknowledged inline
+              with a spinner and the button is disabled to block double-clicks. */}
+          <button
+            type="button"
+            onClick={signOut}
+            disabled={signingOut}
+            style={{ ...styles.signout, ...(signingOut ? styles.signoutBusy : null) }}
+          >
+            {signingOut ? (
+              <>
+                <Spinner size={12} color={tokens.primary} />
+                <span>Signing out...</span>
+              </>
+            ) : (
+              'Log out'
+            )}
           </button>
+          {signOutError && (
+            <span role="alert" style={styles.signoutError}>
+              {signOutError}
+            </span>
+          )}
         </div>
       </div>
     </nav>
@@ -129,9 +144,12 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.primary,
     fontWeight: 600,
   },
-  right: { display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 },
+  right: { position: 'relative', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 },
   name: { fontSize: 13, color: tokens.textMuted, whiteSpace: 'nowrap' },
   signout: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
     background: 'transparent',
     border: `1px solid ${tokens.border}`,
     color: tokens.primary,
@@ -141,5 +159,22 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontWeight: 500,
     cursor: 'pointer',
+    // Interactive element: fade transition per the motion rules.
+    transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  signoutBusy: { opacity: 0.7, cursor: 'default' },
+  signoutError: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: 6,
+    background: tokens.rubyLight,
+    color: tokens.ruby,
+    fontSize: 12,
+    fontFamily: fonts.body,
+    padding: '6px 10px',
+    borderRadius: 8,
+    whiteSpace: 'nowrap',
+    boxShadow: '0 6px 18px rgba(176, 13, 45, 0.14)',
   },
 }

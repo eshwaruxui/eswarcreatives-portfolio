@@ -7,9 +7,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Check, ChevronDown, Settings, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
-import { supabase } from '../../lib/supabase'
 import { clientLabel, usePortal } from '../PortalContext'
-import { tokens, fonts } from '../theme'
+import { tokens, fonts, motionTokens } from '../theme'
+import { useSignOut } from '../useSignOut'
+import { Spinner } from '../Spinner'
 import { AddClientModal } from './AddClientModal'
 
 // Neutral grey divider used by the bar and its popovers, per the Phase 3 spec.
@@ -20,6 +21,7 @@ export function TopBar() {
   const { clients, selectedClientId, setSelectedClientId, selectedClient, reloadClients } =
     usePortal()
 
+  const { signingOut, error: signOutError, signOut } = useSignOut()
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showAddClient, setShowAddClient] = useState(false)
@@ -36,11 +38,6 @@ export function TopBar() {
   }, [])
 
   const selectorLabel = selectedClient ? clientLabel(selectedClient) : 'All clients'
-
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-    navigate('/portal/login', { replace: true })
-  }
 
   function handleClientCreated() {
     setShowAddClient(false)
@@ -122,7 +119,9 @@ export function TopBar() {
             setSettingsOpen(false)
             setShowAddClient(true)
           }}
-          onSignOut={handleSignOut}
+          onSignOut={signOut}
+          signingOut={signingOut}
+          signOutError={signOutError}
         />
       )}
 
@@ -167,14 +166,20 @@ function SettingsPanel({
   onManageClients,
   onAddClient,
   onSignOut,
+  signingOut,
+  signOutError,
 }: {
   onClose: () => void
   onManageClients: () => void
   onAddClient: () => void
   onSignOut: () => void
+  signingOut: boolean
+  signOutError: string | null
 }) {
   return (
     <div style={styles.panelOverlay} onClick={onClose}>
+      {/* Panel slide-in: transform only, durationBase + easeEnter per motion rules. */}
+      <style>{`@keyframes settingsPanelIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
       <aside style={styles.panel} onClick={(e) => e.stopPropagation()}>
         <div style={styles.panelHead}>
           <h2 style={styles.panelTitle}>Settings</h2>
@@ -197,9 +202,27 @@ function SettingsPanel({
 
         <section style={styles.section}>
           <h3 style={styles.sectionLabel}>Account</h3>
-          <button type="button" style={styles.signOut} onClick={onSignOut}>
-            Sign out
+          {/* H1: visibility of system status — inline feedback, disabled while busy. */}
+          <button
+            type="button"
+            style={{ ...styles.signOut, ...(signingOut ? styles.signOutBusy : null) }}
+            onClick={onSignOut}
+            disabled={signingOut}
+          >
+            {signingOut ? (
+              <>
+                <Spinner size={13} color={tokens.ruby} />
+                <span>Signing out...</span>
+              </>
+            ) : (
+              'Sign out'
+            )}
           </button>
+          {signOutError && (
+            <span role="alert" style={styles.signOutError}>
+              {signOutError}
+            </span>
+          )}
         </section>
       </aside>
     </div>
@@ -331,6 +354,7 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
+    animation: `settingsPanelIn ${motionTokens.durationBase} ${motionTokens.easeEnter}`,
   },
   panelHead: {
     display: 'flex',
@@ -377,6 +401,9 @@ const styles: Record<string, CSSProperties> = {
   },
   divider: { height: 1, background: HAIRLINE, margin: '4px 0' },
   signOut: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
     background: 'transparent',
     border: 'none',
     borderRadius: 6,
@@ -387,5 +414,13 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.ruby,
     cursor: 'pointer',
     textAlign: 'left',
+    transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  signOutBusy: { opacity: 0.7, cursor: 'default' },
+  signOutError: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.ruby,
+    padding: '4px 8px',
   },
 }

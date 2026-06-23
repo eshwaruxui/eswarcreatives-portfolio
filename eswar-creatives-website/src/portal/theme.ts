@@ -26,6 +26,22 @@ export const fonts = {
   body:    "'Inter', system-ui, -apple-system, sans-serif",
 } as const
 
+// Motion tokens — the single source of truth for portal transitions.
+// Rules (applied across every portal screen):
+//   - Interactive elements (buttons, badges, tabs): durationFast + easeDefault
+//   - Panels sliding in/out: durationBase + easeEnter / easeExit
+//   - Page-level transitions: durationSlow + easeDefault
+//   - Lightbox open/close: durationSlow + easeEnter
+//   - Never animate layout properties (width/height); transform + opacity only.
+export const motionTokens = {
+  durationFast: '120ms',
+  durationBase: '200ms',
+  durationSlow: '350ms',
+  easeDefault: 'cubic-bezier(0.4, 0, 0.2, 1)',
+  easeEnter: 'cubic-bezier(0, 0, 0.2, 1)',
+  easeExit: 'cubic-bezier(0.4, 0, 1, 1)',
+} as const
+
 // Status pill palette — used by ClientDashboard list rows and ProposalView header.
 // Keys match the proposal_status enum from migration 0011.
 export const statusPalette: Record<
