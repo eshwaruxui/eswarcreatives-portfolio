@@ -139,15 +139,23 @@ export function Modal({
   title,
   onClose,
   size = 'sm',
+  closeOnBackdrop = true,
+  headerExtra,
   children,
 }: {
   title: string
   onClose: () => void
   size?: 'sm' | 'lg'
+  // When false the modal ignores backdrop clicks and only closes via the
+  // explicit close button (used by the proposal builder, which holds unsaved
+  // work that an accidental outside click should never discard).
+  closeOnBackdrop?: boolean
+  // Optional control rendered in the header, left of the close button.
+  headerExtra?: ReactNode
   children: ReactNode
 }) {
   return (
-    <div style={ui.modalOverlay} onClick={onClose}>
+    <div style={ui.modalOverlay} onClick={closeOnBackdrop ? onClose : undefined}>
       <div
         style={{
           ...ui.modalPanel,
@@ -161,9 +169,12 @@ export function Modal({
       >
         <div style={ui.modalHead}>
           <h2 style={ui.modalTitle}>{title}</h2>
-          <button type="button" style={ui.modalClose} onClick={onClose} aria-label="Close">
-            <X size={20} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {headerExtra}
+            <button type="button" style={ui.modalClose} onClick={onClose} aria-label="Close">
+              <X size={20} />
+            </button>
+          </div>
         </div>
         {children}
       </div>

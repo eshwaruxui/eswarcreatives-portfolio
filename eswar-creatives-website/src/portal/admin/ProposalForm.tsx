@@ -1,9 +1,57 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2, Upload, FileText } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts } from '../theme'
 import { Card, ui, mono, formatMoney } from './ui'
+import { ProposalPreview } from './ProposalPreview'
 import type { CSSProperties } from 'react'
+
+// Auto-save draft. Only the create flow writes here; editing an existing
+// proposal works against live rows and must not be shadowed by a stale draft.
+const DRAFT_KEY = 'ec_proposal_draft'
+
+type DraftShape = {
+  savedAt: string
+  clientId: string
+  clientName: string
+  companyName: string
+  title: string
+  vertical: string
+  currency: string
+  validUntil: string
+  discountPct: string
+  discountLabel: string
+  paymentTerms: string
+  phases: PhaseForm[]
+}
+
+function readDraft(): DraftShape | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    return parsed as DraftShape
+  } catch {
+    return null
+  }
+}
+
+function clearStoredDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY)
+  } catch {
+    // localStorage may be unavailable (private mode); nothing to clean up.
+  }
+}
+
+function formatSavedTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+  } catch {
+    return iso
+  }
+}
 
 // The proposal create/edit form, shared by the "New proposal" modal (creation)
 // and the proposal detail page (Edit). Kept as a single source of truth so the
@@ -69,37 +117,60 @@ export function ProposalForm({
   initialDocuments = [],
   onSaved,
   onCancel,
+  onDirtyChange,
+  preview = false,
 }: {
   existing?: ProposalFull | null
   initialPhases?: PhaseForm[]
   initialDocuments?: DocumentRow[]
   onSaved: (proposalId: string, warning?: string | null) => void
   onCancel?: () => void
+  // Reports (isDirty, hasSavedDraft) up so the modal can decide whether to
+  // confirm before closing. Only meaningful for the create flow.
+  onDirtyChange?: (dirty: boolean, draftSaved: boolean) => void
+  // Renders the read-only client-facing view instead of the editable form.
+  // Driven by the modal header's "Client view" toggle.
+  preview?: boolean
 }) {
   const isNew = !existing
+
+  // A restored draft (create flow only) seeds the initial field values below.
+  const draft = useRef<DraftShape | null>(isNew ? readDraft() : null).current
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [clients, setClients] = useState<ClientOption[]>([])
   const documents = initialDocuments
 
-  // Form state (hydrated from `existing` when editing).
-  const [clientId, setClientId] = useState(existing?.client_id ?? '')
-  const [clientName, setClientName] = useState(existing?.client_name ?? '')
-  const [companyName, setCompanyName] = useState(existing?.company_name ?? '')
-  const [title, setTitle] = useState(existing?.title ?? '')
-  const [vertical, setVertical] = useState(existing?.vertical ?? 'brand')
-  const [currency, setCurrency] = useState(existing?.currency ?? 'INR')
-  const [validUntil, setValidUntil] = useState(existing?.valid_until ?? '')
+  // Form state (hydrated from `existing` when editing, or a restored draft).
+  const [clientId, setClientId] = useState(draft?.clientId ?? existing?.client_id ?? '')
+  const [clientName, setClientName] = useState(draft?.clientName ?? existing?.client_name ?? '')
+  const [companyName, setCompanyName] = useState(draft?.companyName ?? existing?.company_name ?? '')
+  const [title, setTitle] = useState(draft?.title ?? existing?.title ?? '')
+  const [vertical, setVertical] = useState(draft?.vertical ?? existing?.vertical ?? 'brand')
+  const [currency, setCurrency] = useState(draft?.currency ?? existing?.currency ?? 'INR')
+  const [validUntil, setValidUntil] = useState(draft?.validUntil ?? existing?.valid_until ?? '')
   const [discountPct, setDiscountPct] = useState(
-    existing?.discount_pct != null ? String(existing.discount_pct) : ''
+    draft?.discountPct ?? (existing?.discount_pct != null ? String(existing.discount_pct) : '')
   )
-  const [discountLabel, setDiscountLabel] = useState(existing?.discount_label ?? '')
-  const [paymentTerms, setPaymentTerms] = useState(existing?.payment_terms ?? DEFAULT_TERMS)
+  const [discountLabel, setDiscountLabel] = useState(draft?.discountLabel ?? existing?.discount_label ?? '')
+  const [paymentTerms, setPaymentTerms] = useState(
+    draft?.paymentTerms ?? existing?.payment_terms ?? DEFAULT_TERMS
+  )
   const [phases, setPhases] = useState<PhaseForm[]>(
-    initialPhases && initialPhases.length > 0 ? initialPhases : [emptyPhase()]
+    draft?.phases && draft.phases.length > 0
+      ? draft.phases
+      : initialPhases && initialPhases.length > 0
+      ? initialPhases
+      : [emptyPhase()]
   )
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
+
+  // Draft banner + close-guard bookkeeping (create flow only).
+  const [bannerSavedAt, setBannerSavedAt] = useState<string | null>(draft?.savedAt ?? null)
+  const [draftSaved, setDraftSaved] = useState(draft != null)
+  const dirtyRef = useRef(false)
+  const skipFirstAutosave = useRef(true)
 
   // Load existing clients (for the optional link dropdown).
   useEffect(() => {
@@ -115,6 +186,76 @@ export function ProposalForm({
       cancelled = true
     }
   }, [])
+
+  // Debounced auto-save: on any field change, mark the form dirty and write the
+  // current state to localStorage 800ms later. Create flow only.
+  useEffect(() => {
+    if (!isNew) return
+    if (skipFirstAutosave.current) {
+      skipFirstAutosave.current = false
+      return
+    }
+    dirtyRef.current = true
+    const handle = setTimeout(() => {
+      const payload: DraftShape = {
+        savedAt: new Date().toISOString(),
+        clientId,
+        clientName,
+        companyName,
+        title,
+        vertical,
+        currency,
+        validUntil,
+        discountPct,
+        discountLabel,
+        paymentTerms,
+        phases,
+      }
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
+        setDraftSaved(true)
+        onDirtyChange?.(true, true)
+      } catch {
+        // Storage unavailable: keep the dirty flag so the close-guard still fires.
+        onDirtyChange?.(true, false)
+      }
+    }, 800)
+    onDirtyChange?.(true, draftSaved)
+    return () => clearTimeout(handle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    clientId,
+    clientName,
+    companyName,
+    title,
+    vertical,
+    currency,
+    validUntil,
+    discountPct,
+    discountLabel,
+    paymentTerms,
+    phases,
+  ])
+
+  // Wipe the restored draft and reset the create form to empty.
+  function clearDraft() {
+    clearStoredDraft()
+    setBannerSavedAt(null)
+    setDraftSaved(false)
+    dirtyRef.current = false
+    setClientId('')
+    setClientName('')
+    setCompanyName('')
+    setTitle('')
+    setVertical('brand')
+    setCurrency('INR')
+    setValidUntil('')
+    setDiscountPct('')
+    setDiscountLabel('')
+    setPaymentTerms(DEFAULT_TERMS)
+    setPhases([emptyPhase()])
+    onDirtyChange?.(false, false)
+  }
 
   const subtotal = useMemo(
     () =>
@@ -290,6 +431,12 @@ export function ProposalForm({
         warning = await uploadDocuments(proposalId)
       }
 
+      // The proposal is persisted; the autosave draft is no longer needed.
+      clearStoredDraft()
+      dirtyRef.current = false
+      setDraftSaved(false)
+      onDirtyChange?.(false, false)
+
       onSaved(proposalId, warning)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -325,10 +472,49 @@ export function ProposalForm({
     return null
   }
 
+  // ── Client-facing preview ───────────────────────────────────────────
+  if (preview) {
+    return (
+      <ProposalPreview
+        studioName="Eswar Creatives"
+        proposalNumber={existing?.proposal_number ?? 'Draft'}
+        title={title}
+        clientName={clientName}
+        companyName={companyName}
+        currency={currency}
+        phases={phases.map((p) => ({
+          name: p.name,
+          timeline: p.timeline,
+          items: p.items
+            .filter((it) => it.title.trim() || parseFloat(it.amount))
+            .map((it) => ({
+              title: it.title,
+              scope: it.scope,
+              amount: parseFloat(it.amount) || 0,
+            })),
+        }))}
+        subtotal={subtotal}
+        discountLabel={discountLabel || (discountPct ? `Discount ${discountPct}%` : null)}
+        discountAmount={discountAmount}
+        total={total}
+        paymentTerms={paymentTerms}
+      />
+    )
+  }
+
   // ── Create / edit form ──────────────────────────────────────────────
   return (
     <>
       {error && <div style={styles.error}>{error}</div>}
+
+      {bannerSavedAt && (
+        <div style={styles.draftBanner}>
+          <span>Draft restored. Last saved {formatSavedTime(bannerSavedAt)}.</span>
+          <button type="button" style={styles.draftClear} onClick={clearDraft}>
+            Clear draft
+          </button>
+        </div>
+      )}
 
       <Card style={{ marginBottom: 16 }}>
         <h3 style={styles.phaseName}>Client</h3>
@@ -552,6 +738,32 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 16,
     fontFamily: fonts.body,
     fontSize: 13,
+  },
+  draftBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    background: tokens.goldLight,
+    color: tokens.goldDark,
+    border: `1px solid ${tokens.gold}`,
+    borderRadius: 8,
+    padding: '8px 12px',
+    marginBottom: 16,
+    fontFamily: fonts.body,
+    fontSize: 13,
+  },
+  draftClear: {
+    background: 'transparent',
+    border: 'none',
+    color: tokens.goldDark,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    padding: 0,
+    whiteSpace: 'nowrap',
   },
   phaseHeadEdit: {
     display: 'flex',
