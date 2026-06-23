@@ -1,26 +1,26 @@
-import { NavLink, Navigate, Outlet, useNavigate } from 'react-router'
+import { NavLink, Navigate, Outlet } from 'react-router'
 import type { PortalProfile } from '../PortalGuard'
 import {
   LayoutDashboard,
-  Users,
   FileText,
   Receipt,
   FolderKanban,
   Compass,
   Megaphone,
-  LogOut,
 } from 'lucide-react'
 import type { CSSProperties } from 'react'
-import { supabase } from '../../lib/supabase'
 import { PortalGuard } from '../PortalGuard'
+import { PortalProvider } from '../PortalContext'
 import { tokens, fonts } from '../theme'
+import { TopBar } from './TopBar'
 
-// Persistent admin layout: fixed cream sidebar on the left, scrollable content
-// on the right where each child route renders via <Outlet />. Gated to the
-// 'admin' role, mirroring the AdminSketchUpload guard pattern.
+// Persistent admin layout: a global TopBar (brand + client selector + settings)
+// above a fixed cream sidebar and scrollable content where each child route
+// renders via <Outlet />. Gated to the 'admin' role, mirroring the
+// AdminSketchUpload guard pattern. Clients are managed from the TopBar settings
+// panel, so they no longer appear in the sidebar nav.
 const NAV = [
   { to: '/portal/admin', label: 'Dashboard', Icon: LayoutDashboard, end: true },
-  { to: '/portal/admin/clients', label: 'Clients', Icon: Users },
   { to: '/portal/admin/proposals', label: 'Proposals', Icon: FileText },
   { to: '/portal/admin/invoices', label: 'Invoices', Icon: Receipt },
   { to: '/portal/admin/projects', label: 'Projects', Icon: FolderKanban },
@@ -35,7 +35,9 @@ export function AdminShell() {
         profile.role !== 'admin' ? (
           <Navigate to="/portal/dashboard" replace />
         ) : (
-          <Shell profile={profile} />
+          <PortalProvider>
+            <Shell profile={profile} />
+          </PortalProvider>
         )
       }
     </PortalGuard>
@@ -43,43 +45,34 @@ export function AdminShell() {
 }
 
 function Shell({ profile }: { profile: PortalProfile }) {
-  const navigate = useNavigate()
-
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-    navigate('/portal/login', { replace: true })
-  }
-
   return (
     <div style={styles.layout}>
-      <aside style={styles.sidebar}>
-        <div style={styles.brand}>Eswar Creatives</div>
-        <nav style={styles.nav}>
-          {NAV.map(({ to, label, Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              style={({ isActive }) => ({
-                ...styles.navItem,
-                ...(isActive ? styles.navItemActive : null),
-              })}
-            >
-              <Icon size={18} />
-              <span>{label}</span>
-            </NavLink>
-          ))}
-        </nav>
-        <button type="button" onClick={handleSignOut} style={styles.signOut}>
-          <LogOut size={18} />
-          <span>Sign out</span>
-        </button>
-      </aside>
-      <main style={styles.content}>
-        <div style={styles.contentInner}>
-          <Outlet context={profile} />
-        </div>
-      </main>
+      <TopBar />
+      <div style={styles.body}>
+        <aside style={styles.sidebar}>
+          <nav style={styles.nav}>
+            {NAV.map(({ to, label, Icon, end }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                style={({ isActive }) => ({
+                  ...styles.navItem,
+                  ...(isActive ? styles.navItemActive : null),
+                })}
+              >
+                <Icon size={18} />
+                <span>{label}</span>
+              </NavLink>
+            ))}
+          </nav>
+        </aside>
+        <main style={styles.content}>
+          <div style={styles.contentInner}>
+            <Outlet context={profile} />
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
@@ -87,29 +80,28 @@ function Shell({ profile }: { profile: PortalProfile }) {
 const styles: Record<string, CSSProperties> = {
   layout: {
     display: 'flex',
+    flexDirection: 'column',
     minHeight: '100vh',
     background: tokens.bg,
   },
+  body: {
+    display: 'flex',
+    flex: 1,
+    minHeight: 0,
+  },
   sidebar: {
     position: 'sticky',
-    top: 0,
+    top: 56,
     alignSelf: 'flex-start',
     width: 240,
     flexShrink: 0,
-    height: '100vh',
+    height: 'calc(100vh - 56px)',
     background: tokens.bg,
     borderRight: `1px solid ${tokens.border}`,
     display: 'flex',
     flexDirection: 'column',
     padding: '24px 16px',
     boxSizing: 'border-box',
-  },
-  brand: {
-    fontFamily: fonts.heading,
-    fontSize: 20,
-    fontWeight: 600,
-    color: tokens.primary,
-    padding: '0 8px 24px',
   },
   nav: {
     display: 'flex',
@@ -134,27 +126,9 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.primary,
     fontWeight: 600,
   },
-  signOut: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: '10px 12px',
-    marginTop: 8,
-    borderRadius: 8,
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: 500,
-    color: tokens.textMuted,
-    textAlign: 'left',
-  },
   content: {
     flex: 1,
     minWidth: 0,
-    height: '100vh',
-    overflowY: 'auto',
   },
   contentInner: {
     maxWidth: 1080,

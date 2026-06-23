@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts } from '../theme'
 import { PageHeader, Card, StatusBadge, ui } from './ui'
+import { usePortal } from '../PortalContext'
+import { ClientFilterBanner } from './ClientFilterBanner'
 import type { CSSProperties } from 'react'
 
 type Project = {
@@ -20,6 +22,7 @@ function clientLabel(p: Project) {
 
 export function ProjectsList() {
   const navigate = useNavigate()
+  const { selectedClientId } = usePortal()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -27,15 +30,18 @@ export function ProjectsList() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      setLoading(true)
       try {
-        const { data, error: err } = await supabase
+        let query = supabase
           .from('projects')
           .select('id, title, status, current_phase, client_id, clients(company_name, contact_name)')
           .order('created_at', { ascending: false })
+        if (selectedClientId) query = query.eq('client_id', selectedClientId)
+        const { data, error: err } = await query
         if (err) throw err
         if (!cancelled) setProjects((data ?? []) as unknown as Project[])
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      } catch {
+        if (!cancelled) setError('Could not load projects. Refresh to try again.')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -43,11 +49,12 @@ export function ProjectsList() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [selectedClientId])
 
   return (
     <>
       <PageHeader title="Projects" />
+      <ClientFilterBanner />
       {error && <div style={styles.error}>{error}</div>}
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? (

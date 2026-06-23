@@ -12,6 +12,8 @@ import {
   formatMoney,
 } from './ui'
 import { InvoicePreview } from './InvoicePreview'
+import { usePortal } from '../PortalContext'
+import { ClientFilterBanner } from './ClientFilterBanner'
 import type { CSSProperties } from 'react'
 
 type Invoice = {
@@ -71,6 +73,7 @@ function todayISO() {
 }
 
 export function InvoicesAdmin() {
+  const { selectedClientId } = usePortal()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [clients, setClients] = useState<ClientOption[]>([])
   const [proposals, setProposals] = useState<ProposalOption[]>([])
@@ -90,13 +93,15 @@ export function InvoicesAdmin() {
   async function load() {
     setLoading(true)
     try {
+      let invQuery = supabase
+        .from('invoices')
+        .select(
+          'id, invoice_number, proposal_id, client_id, client_name, company_name, label, amount, currency, status, pct_of_total, due_date, paid_date, payment_method, notes, created_at'
+        )
+        .order('created_at', { ascending: false })
+      if (selectedClientId) invQuery = invQuery.eq('client_id', selectedClientId)
       const [invRes, cliRes, propRes] = await Promise.all([
-        supabase
-          .from('invoices')
-          .select(
-            'id, invoice_number, proposal_id, client_id, client_name, company_name, label, amount, currency, status, pct_of_total, due_date, paid_date, payment_method, notes, created_at'
-          )
-          .order('created_at', { ascending: false }),
+        invQuery,
         supabase
           .from('clients')
           .select('id, company_name, contact_name, preferred_currency')
@@ -110,8 +115,8 @@ export function InvoicesAdmin() {
       setInvoices((invRes.data ?? []) as Invoice[])
       setClients((cliRes.data ?? []) as ClientOption[])
       setProposals((propRes.data ?? []) as ProposalOption[])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+    } catch {
+      setError('Could not load invoices. Refresh to try again.')
     } finally {
       setLoading(false)
     }
@@ -119,7 +124,9 @@ export function InvoicesAdmin() {
 
   useEffect(() => {
     void load()
-  }, [])
+    // Reload when the global client scope changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClientId])
 
   // ── Stat totals, grouped by currency (never summed across) ──────────
   const { paidByCur, outstandingByCur } = useMemo(() => {
@@ -159,8 +166,8 @@ export function InvoicesAdmin() {
       setPayingId(null)
       setPayMethod('')
       await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+    } catch {
+      setError('Could not mark this invoice paid. Try again.')
     }
   }
 
@@ -174,6 +181,7 @@ export function InvoicesAdmin() {
           </button>
         }
       />
+      <ClientFilterBanner />
       {error && <div style={styles.error}>{error}</div>}
 
       <div style={styles.statRow}>
@@ -431,8 +439,8 @@ function NewInvoiceModal({
       })
       if (err) throw err
       onCreated()
-    } catch (err) {
-      onError(err instanceof Error ? err.message : String(err))
+    } catch {
+      onError('Could not create the invoice. Check the details and try again.')
       setSaving(false)
     }
   }

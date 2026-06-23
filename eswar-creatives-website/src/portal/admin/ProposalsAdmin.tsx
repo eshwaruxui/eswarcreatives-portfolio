@@ -13,6 +13,8 @@ import {
   formatDate,
 } from './ui'
 import { ProposalForm } from './ProposalForm'
+import { usePortal } from '../PortalContext'
+import { ClientFilterBanner } from './ClientFilterBanner'
 import type { CSSProperties } from 'react'
 
 type Proposal = {
@@ -29,6 +31,7 @@ type Proposal = {
 
 export function ProposalsAdmin() {
   const navigate = useNavigate()
+  const { selectedClientId } = usePortal()
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -65,20 +68,22 @@ export function ProposalsAdmin() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, error: err } = await supabase
+      let query = supabase
         .from('proposals')
         .select(
           'id, proposal_number, title, client_name, company_name, total_amount, currency, status, valid_until'
         )
         .order('created_at', { ascending: false })
+      if (selectedClientId) query = query.eq('client_id', selectedClientId)
+      const { data, error: err } = await query
       if (err) throw err
       setProposals((data ?? []) as Proposal[])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+    } catch {
+      setError('Could not load proposals. Refresh to try again.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selectedClientId])
 
   useEffect(() => {
     void load()
@@ -95,6 +100,7 @@ export function ProposalsAdmin() {
           </button>
         }
       />
+      <ClientFilterBanner />
       {error && <div style={styles.error}>{error}</div>}
       {notice && <div style={styles.notice}>{notice}</div>}
       {loading ? (
