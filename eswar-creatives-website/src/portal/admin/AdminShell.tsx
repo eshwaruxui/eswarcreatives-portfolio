@@ -5,6 +5,7 @@ import {
   FileText,
   Receipt,
   FolderKanban,
+  Images,
   Compass,
   Megaphone,
 } from 'lucide-react'
@@ -24,6 +25,7 @@ const NAV = [
   { to: '/portal/admin/proposals', label: 'Proposals', Icon: FileText },
   { to: '/portal/admin/invoices', label: 'Invoices', Icon: Receipt },
   { to: '/portal/admin/projects', label: 'Projects', Icon: FolderKanban },
+  { to: '/portal/admin/mockups', label: 'Mockups', Icon: Images },
   { to: '/portal/admin/discovery', label: 'Discovery', Icon: Compass },
   { to: '/portal/admin/campaigns', label: 'Campaigns', Icon: Megaphone },
 ]
