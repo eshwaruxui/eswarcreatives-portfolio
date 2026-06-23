@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Eswar Creatives – Logo Feedback</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;0,700;1,400;1,600;1,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#FAFAF9;font-family:'Inter',sans-serif;color:#111;font-size:15px;line-height:28px}
+a{text-decoration:none;color:inherit}
+input,textarea{font-family:'Inter',sans-serif}
+
+/* NAV */
+nav{background:#fff;border-bottom:1px solid #E5E5E4;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:100}
+.nav-logo{font-family:'Fraunces',serif;font-style:italic;font-weight:600;font-size:20px;color:#111}
+.nav-center{font-size:13px;color:#6B7280}
+.btn-teal{background:#005F5A;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer}
+.btn-dark{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer}
+.btn-outline{background:transparent;color:#111;border:1px solid #CCC;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-green{background:#1B5E20;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px}
+.btn-ruby{background:#C0392B;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px}
+
+/* LAYOUT */
+.page{max-width:960px;margin:0 auto;padding:40px 24px}
+.section-label{font-size:12px;font-weight:700;letter-spacing:1.14px;color:#888;text-transform:uppercase;margin-bottom:8px}
+.section-heading{font-family:'Fraunces',serif;font-style:italic;font-weight:600;font-size:34px;color:#111;margin-bottom:24px}
+.section-block{margin-bottom:48px}
+
+/* CARD */
+.card{background:#fff;border:1px solid #E5E5E4;border-radius:16px;padding:20px;box-shadow:0 10px 15px -3px rgba(2,4,4,0.10)}
+.card-gold{border:1px solid #D5B067}
+
+/* FORM */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:500;color:#6B7280;margin-bottom:4px}
+.field input{width:100%;border:1px solid #E5E5E4;border-radius:8px;padding:10px 12px;font-size:14px;outline:none;background:#fff}
+.field input:focus{border-color:#005F5A}
+.row{display:flex;gap:8px}
+.row input{flex:1}
+
+/* PILL */
+.pill{display:inline-flex;align-items:center;background:#E0F7F6;border:1px solid #95E0DC;border-radius:16px;padding:4px 12px;font-size:13px;font-weight:500;color:#111}
+.pill-toggle{display:flex;border:1px solid #E5E5E4;border-radius:16px;overflow:hidden;width:fit-content}
+.pill-toggle button{border:none;padding:6px 16px;font-size:13px;font-weight:500;cursor:pointer;background:#fff;color:#6B7280}
+.pill-toggle button.active{background:#005F5A;color:#fff}
+
+/* CAMPAIGNS GRID */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.grid-2{grid-template-columns:1fr}}
+.campaign-card{cursor:pointer;transition:box-shadow .2s}
+.campaign-card:hover{box-shadow:0 16px 24px -4px rgba(2,4,4,0.14)}
+.campaign-card h3{font-size:16px;font-weight:600;margin-bottom:2px}
+.campaign-card .proj{font-size:13px;color:#6B7280;margin-bottom:12px}
+.campaign-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* RESULTS */
+.bar-row{margin-bottom:16px}
+.bar-label{font-size:14px;font-weight:500;margin-bottom:4px}
+.bar-track{background:#F3F4F6;border-radius:8px;height:10px;overflow:hidden;margin-bottom:4px}
+.bar-fill-green{background:#1B5E20;height:100%;border-radius:8px}
+.bar-fill-ruby{background:#C0392B;height:100%;border-radius:8px}
+.bar-counts{display:flex;gap:16px;font-size:13px}
+.count-green{color:#1B5E20;font-weight:500}
+.count-ruby{color:#C0392B;font-weight:500}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+th{text-align:left;font-weight:600;padding:8px 10px;border-bottom:1px solid #E5E5E4;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:.5px}
+td{padding:8px 10px;border-bottom:1px solid #F3F4F6}
+
+/* COPY BOX */
+.copy-box{border:1px solid #005F5A;border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;background:#fff}
+.copy-box span{font-size:13px;color:#005F5A;word-break:break-all}
+
+/* ITEM LIST */
+.item-list-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #F3F4F6}
+.item-thumb{width:40px;height:40px;border-radius:8px;background:#F3F4F6;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#6B7280;overflow:hidden;flex-shrink:0}
+.item-thumb img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+.remove-btn{background:none;border:none;cursor:pointer;color:#C0392B;font-size:18px;line-height:1;padding:0 4px}
+
+/* VOTE PAGE */
+.vote-hero{background:#FAFAF9;padding:48px 24px 32px}
+.vote-hero-inner{max-width:640px;margin:0 auto}
+.blockquote-accent{border-left:3px solid #D5B067;padding-left:12px;color:#6B7280;font-size:15px;line-height:24px;margin:16px 0}
+
+/* VOTE CARDS */
+.vote-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:960px;margin:0 auto;padding:0 24px 40px}
+@media(max-width:700px){.vote-grid{display:none}}
+.vote-stack{display:none;padding:0 24px 40px;max-width:480px;margin:0 auto}
+@media(max-width:700px){.vote-stack{display:block}}
+
+.vote-card{background:#fff;border:1px solid #E5E5E4;border-radius:16px;padding:8px;transition:border .2s}
+.vote-card.liked{border:2px solid #1B5E20}
+.vote-card.disliked{border:2px solid #C0392B}
+.vote-img{background:#F3F4F6;border-radius:16px;height:192px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:24px;color:#9CA3AF;overflow:hidden}
+.vote-img img{width:100%;height:100%;object-fit:cover;border-radius:16px}
+.vote-item-label{font-size:15px;font-weight:600;padding:12px 8px 8px}
+.vote-actions{display:flex;gap:8px}
+.vote-actions button{flex:1;border-radius:8px;padding:10px;font-size:13px;font-weight:500;cursor:pointer;border:none;display:flex;align-items:center;justify-content:center;gap:4px}
+.vote-actions .like-btn{background:#fff;color:#1B5E20;border:1px solid #1B5E20}
+.vote-actions .dislike-btn{background:#fff;color:#C0392B;border:1px solid #C0392B}
+.vote-card.liked .like-btn{background:#1B5E20;color:#fff}
+.vote-card.disliked .dislike-btn{background:#C0392B;color:#fff}
+
+/* SWIPE STACK */
+.swipe-wrapper{position:relative;height:360px;touch-action:none;user-select:none}
+.swipe-card{position:absolute;width:100%;background:#fff;border:1px solid #E5E5E4;border-radius:16px;padding:8px;will-change:transform;transition:transform .15s}
+.swipe-overlay{position:absolute;top:0;left:0;width:100%;height:100%;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:48px;opacity:0;pointer-events:none}
+.overlay-like{background:rgba(27,94,32,0.15)}
+.overlay-dis{background:rgba(192,57,43,0.15)}
+.swipe-hint{text-align:center;font-size:13px;color:#9CA3AF;margin:12px 0 20px}
+.swipe-progress{display:flex;gap:6px;justify-content:center;margin-bottom:16px}
+.swipe-dot{width:8px;height:8px;border-radius:50%;background:#E5E5E4}
+.swipe-dot.done{background:#005F5A}
+.swipe-dot.current{background:#111}
+
+/* SUBMIT */
+.submit-wrap{max-width:480px;margin:24px auto;padding:0 24px}
+.btn-submit{width:100%;background:#005F5A;color:#fff;border:none;border-radius:12px;padding:16px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+.btn-submit:disabled{background:#9CA3AF;cursor:not-allowed}
+
+/* THANK YOU */
+.thankyou-card{max-width:440px;margin:60px auto;background:#fff;border:1px solid #D5B067;border-radius:28px;padding:48px 32px;text-align:center}
+.check-circle{width:64px;height:64px;background:#1B5E20;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px;color:#fff}
+.thankyou-card h2{font-family:'Fraunces',serif;font-style:italic;font-size:28px;margin-bottom:8px}
+.thankyou-card p{color:#6B7280;font-size:15px;margin-bottom:16px}
+
+/* BACK */
+.back-link{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:#6B7280;cursor:pointer;margin-bottom:20px}
+.back-link:hover{color:#111}
+
+/* UPLOAD */
+.upload-row{display:flex;gap:8px;align-items:center;margin-top:6px}
+.upload-label{font-size:12px;font-weight:500;color:#005F5A;cursor:pointer;border:1px solid #005F5A;border-radius:6px;padding:4px 10px;white-space:nowrap}
+.hidden{display:none}
+
+/* EMPTY */
+.empty{color:#9CA3AF;font-size:14px;font-style:italic;padding:16px 0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ─── STORAGE HELPERS ───
+async function load(key){
+  try{const r=await window.storage.get(key);return r?JSON.parse(r.value):null}catch{return null}
+}
+async function save(key,val){
+  try{await window.storage.set(key,JSON.stringify(val))}catch{}
+}
+
+// ─── STATE ───
+let view='admin'; // admin | vote | results | thankyou
+let campaigns=[];
+let votes=[];
+let activeCampaignId=null;
+let draftItems=[];
+let draftRecipients=[];
+let draftChannel='Email';
+let newItemLabel='',newItemUrl='',newItemBase64='';
+let newRecipient='';
+let draftTitle='',draftProject='';
+let voterName='';
+let voterVotes={};
+let swipeIndex=0;
+
+// ─── SEED ───
+const SEED_ID='seed-newgen-1';
+function seedCampaign(){
+  return {
+    id:SEED_ID,title:'Newgen Logo Round 1',
+    projectName:'Newgen Event Makers',
+    channel:'Email',
+    items:[
+      {id:'i1',label:'Variant A',imageUrl:'',base64:''},
+      {id:'i2',label:'Variant B',imageUrl:'',base64:''},
+      {id:'i3',label:'Variant C',imageUrl:'',base64:''},
+      {id:'i4',label:'Variant D',imageUrl:'',base64:''},
+      {id:'i5',label:'Variant E',imageUrl:'',base64:''}
+    ],
+    recipients:[
+      {contact:'client@newgen.com',name:'Ravi Kumar'},
+      {contact:'design@newgen.com',name:''},
+      {contact:'pm@newgen.com',name:'Priya Nair'}
+    ],
+    createdAt:Date.now()-86400000
+  };
+}
+function seedVotes(){
+  return [
+    {campaignId:SEED_ID,itemId:'i1',recipientId:'client@newgen.com',decision:'like',submittedAt:Date.now()-3000},
+    {campaignId:SEED_ID,itemId:'i2',recipientId:'client@newgen.com',decision:'dislike',submittedAt:Date.now()-2900},
+    {campaignId:SEED_ID,itemId:'i3',recipientId:'client@newgen.com',decision:'like',submittedAt:Date.now()-2800},
+    {campaignId:SEED_ID,itemId:'i1',recipientId:'design@newgen.com',decision:'like',submittedAt:Date.now()-2000},
+    {campaignId:SEED_ID,itemId:'i2',recipientId:'design@newgen.com',decision:'like',submittedAt:Date.now()-1900},
+  ];
+}
+
+async function init(){
+  const stored=await load('ec_campaigns');
+  const storedVotes=await load('ec_votes');
+  if(stored){campaigns=stored}else{campaigns=[seedCampaign()];await save('ec_campaigns',campaigns)}
+  if(storedVotes){votes=storedVotes}else{votes=seedVotes();await save('ec_votes',votes)}
+
+  const params=new URLSearchParams(location.search);
+  const voteId=params.get('vote');
+  if(voteId){
+    activeCampaignId=voteId;
+    view='vote';
+    voterVotes={};swipeIndex=0;
+  }
+  render();
+}
+
+// ─── DISPLAY NAME ───
+function displayName(r){
+  if(r.name&&r.name.trim())return r.name.trim();
+  const c=r.contact;
+  if(c.includes('@'))return c.split('@')[0];
+  return c;
+}
+
+// ─── INITIALS ───
+function initials(label){
+  return label.split(' ').map(w=>w[0]||'').join('').toUpperCase().slice(0,2);
+}
+
+// ─── THUMB ───
+function thumbHTML(item,size=40){
+  if(item.base64) return `<img src="${item.base64}" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:8px"/>`;
+  if(item.imageUrl) return `<img src="${item.imageUrl}" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:8px" onerror="this.style.display='none'"/>`;
+  return initials(item.label);
+}
+
+// ─── RENDER ───
+function render(){
+  const app=document.getElementById('app');
+  if(view==='admin') app.innerHTML=renderAdmin();
+  else if(view==='vote') app.innerHTML=renderVote();
+  else if(view==='results') app.innerHTML=renderResults();
+  else if(view==='thankyou') app.innerHTML=renderThankyou();
+  attachEvents();
+}
+
+// ─── ADMIN ───
+function renderAdmin(){
+  const active=campaigns;
+  return `
+  <nav>
+    <span class="nav-logo">eswar</span>
+    <span class="nav-center">Admin &middot; Feedback</span>
+    <button class="btn-teal" onclick="showCreate()">+ New campaign</button>
+  </nav>
+  <div class="page">
+    <!-- CREATE -->
+    <div class="section-block" id="create-section">
+      <div class="section-label">New campaign</div>
+      <div class="section-heading">Collect feedback</div>
+      <div class="card" style="max-width:600px">
+        <div class="field"><label>Campaign title</label>
+          <input id="f-title" placeholder="e.g. Logo Round 2" value="${esc(draftTitle)}" oninput="draftTitle=this.value"/>
+        </div>
+        <div class="field"><label>Project name</label>
+          <input id="f-project" placeholder="e.g. Newgen Event Makers" value="${esc(draftProject)}" oninput="draftProject=this.value"/>
+        </div>
+
+        <div class="field"><label>Add logo option</label>
+          <div class="row">
+            <input placeholder="Label (e.g. Variant A)" id="f-ilabel" value="${esc(newItemLabel)}" oninput="newItemLabel=this.value"/>
+            <input placeholder="Image URL (optional)" id="f-iurl" value="${esc(newItemUrl)}" oninput="newItemUrl=this.value"/>
+            <button class="btn-outline btn-sm" onclick="addItem()">Add</button>
+          </div>
+          <div class="upload-row">
+            <span style="font-size:12px;color:#9CA3AF">or</span>
+            <label class="upload-label" for="file-upload">Upload image</label>
+            <input class="hidden" type="file" id="file-upload" accept="image/*" onchange="handleUpload(event)"/>
+            <span id="upload-preview" style="font-size:12px;color:#1B5E20"></span>
+          </div>
+        </div>
+        <div id="item-list">
+          ${draftItems.length===0?'<div class="empty">No options added yet. Add at least 2 to launch.</div>':
+            draftItems.map((it,i)=>`
+            <div class="item-list-row">
+              <div class="item-thumb">${thumbHTML(it)}</div>
+              <span style="flex:1;font-size:14px">${esc(it.label)}</span>
+              <button class="remove-btn" onclick="removeItem(${i})">&#xD7;</button>
+            </div>`).join('')}
+        </div>
+
+        <div class="field" style="margin-top:16px"><label>Add recipient (email or mobile)</label>
+          <div class="row">
+            <input placeholder="e.g. client@email.com" id="f-recip" value="${esc(newRecipient)}" oninput="newRecipient=this.value"/>
+            <button class="btn-outline btn-sm" onclick="addRecipient()">Add</button>
+          </div>
+        </div>
+        <div id="recip-list">
+          ${draftRecipients.length===0?'<div class="empty">No recipients yet.</div>':
+            draftRecipients.map((r,i)=>`
+            <div class="item-list-row">
+              <span style="flex:1;font-size:14px">${esc(r.contact)}</span>
+              <button class="remove-btn" onclick="removeRecipient(${i})">&#xD7;</button>
+            </div>`).join('')}
+        </div>
+
+        <div style="margin:16px 0">
+          <div class="section-label" style="margin-bottom:8px">Channel</div>
+          <div class="pill-toggle">
+            <button class="${draftChannel==='Email'?'active':''}" onclick="draftChannel='Email';render()">Email</button>
+            <button class="${draftChannel==='SMS'?'active':''}" onclick="draftChannel='SMS';render()">SMS</button>
+          </div>
+        </div>
+
+        <button class="btn-dark" style="width:100%;margin-top:8px" onclick="launchCampaign()">Launch campaign</button>
+        <div id="launch-link"></div>
+      </div>
+    </div>
+
+    <!-- CAMPAIGNS -->
+    <div class="section-block">
+      <div class="section-label">Campaigns</div>
+      <div class="section-heading">Active feedback rounds</div>
+      ${active.length===0?'<div class="empty">No campaigns yet.</div>':
+        `<div class="grid-2">${active.map((c,idx)=>renderCampaignCard(c,idx)).join('')}</div>`}
+    </div>
+  </div>`;
+}
+
+function renderCampaignCard(c,idx){
+  const cv=votes.filter(v=>v.campaignId===c.id);
+  const responded=new Set(cv.map(v=>v.recipientId)).size;
+  const total=c.recipients.length;
+  const rate=total>0?Math.round((responded/total)*100):0;
+  return `<div class="card ${idx===0?'card-gold':''} campaign-card" onclick="openResults('${c.id}')">
+    <h3>${esc(c.title)}</h3>
+    <div class="proj">${esc(c.projectName)}</div>
+    <div class="campaign-meta">
+      <span class="pill">${c.items.length} options</span>
+      <span class="pill">${total} recipients</span>
+      <span class="pill" style="${rate>50?'background:#E8F5E9;border-color:#1B5E20':''}">
+        ${rate}% responded
+      </span>
+    </div>
+  </div>`;
+}
+
+// ─── RESULTS ───
+function renderResults(){
+  const c=campaigns.find(x=>x.id===activeCampaignId);
+  if(!c)return '';
+  const cv=votes.filter(v=>v.campaignId===c.id);
+  const responders=[...new Set(cv.map(v=>v.recipientId))];
+
+  return `
+  <nav>
+    <span class="nav-logo">eswar</span>
+    <span class="nav-center">Admin &middot; Results</span>
+    <button class="btn-outline btn-sm" onclick="window.location.href=getVoteUrl('${c.id}')">Preview voting page</button>
+  </nav>
+  <div class="page">
+    <div class="back-link" onclick="view='admin';render()">&#8592; All campaigns</div>
+    <div class="section-label">${esc(c.projectName)}</div>
+    <div class="section-heading">${esc(c.title)}</div>
+
+    ${c.items.map(item=>{
+      const likes=cv.filter(v=>v.itemId===item.id&&v.decision==='like').length;
+      const dislikes=cv.filter(v=>v.itemId===item.id&&v.decision==='dislike').length;
+      const tot=likes+dislikes||1;
+      return `<div class="bar-row">
+        <div class="bar-label">${esc(item.label)}</div>
+        <div style="display:flex;gap:8px;margin-bottom:4px">
+          <div class="bar-track" style="flex:1"><div class="bar-fill-green" style="width:${Math.round(likes/tot*100)}%"></div></div>
+          <div class="bar-track" style="flex:1"><div class="bar-fill-ruby" style="width:${Math.round(dislikes/tot*100)}%"></div></div>
+        </div>
+        <div class="bar-counts">
+          <span class="count-green">&#x1F44D; ${likes} likes</span>
+          <span class="count-ruby">&#x1F44E; ${dislikes} dislikes</span>
+        </div>
+      </div>`;
+    }).join('')}
+
+    <div style="margin-top:32px">
+      <div class="section-label" style="margin-bottom:12px">Respondents</div>
+      ${responders.length===0?'<div class="empty">No responses yet.</div>':`
+      <table>
+        <tr><th>Respondent</th>${c.items.map(it=>`<th>${esc(it.label)}</th>`).join('')}<th>Time</th></tr>
+        ${responders.map(rid=>{
+          const rec=c.recipients.find(r=>r.contact===rid)||{contact:rid,name:''};
+          const dn=displayName(rec);
+          let lastTime='';
+          const row=c.items.map(item=>{
+            const v=cv.find(x=>x.recipientId===rid&&x.itemId===item.id);
+            if(v&&v.submittedAt)lastTime=v.submittedAt;
+            return `<td style="text-align:center">${v?(v.decision==='like'?'&#x1F44D;':'&#x1F44E;'):'&mdash;'}</td>`;
+          }).join('');
+          const t=lastTime?new Date(lastTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+          return `<tr><td><strong>${esc(dn)}</strong></td>${row}<td style="color:#9CA3AF">${t}</td></tr>`;
+        }).join('')}
+      </table>`}
+    </div>
+    <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-outline" onclick="copySummary('${c.id}')">Copy summary</button>
+    </div>
+    <div style="margin-top:16px">
+      <div class="section-label" style="margin-bottom:8px">Voting link</div>
+      <div class="copy-box">
+        <span id="vote-url">${getVoteUrl(c.id)}</span>
+        <button class="btn-teal btn-sm" onclick="copyVoteUrl('${c.id}')">Copy link</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ─── VOTE PAGE ───
+function renderVote(){
+  const c=campaigns.find(x=>x.id===activeCampaignId);
+  if(!c)return '<div class="page"><div class="empty">Campaign not found.</div></div>';
+  const allVoted=c.items.every(it=>voterVotes[it.id]);
+  const isMobile=window.innerWidth<=700;
+
+  return `
+  <nav>
+    <span class="nav-logo">eswar</span>
+  </nav>
+  <div class="vote-hero">
+    <div class="vote-hero-inner">
+      <div class="section-label">${esc(c.projectName)}</div>
+      <h1 style="font-family:'Fraunces',serif;font-style:italic;font-weight:600;font-size:34px;color:#111;margin:8px 0 12px">${esc(c.title)}</h1>
+      <div class="blockquote-accent">Review these options and share your preferences.<br/>Takes under 2 minutes.</div>
+      <input id="voter-name" style="width:100%;max-width:480px;border:1px solid #E5E5E4;border-radius:8px;padding:10px 14px;font-size:15px;margin-top:12px;background:#fff;font-family:'Inter',sans-serif" 
+        placeholder="Your name (optional)" value="${esc(voterName)}" oninput="voterName=this.value"/>
+    </div>
+  </div>
+
+  <!-- Desktop grid -->
+  <div class="vote-grid">
+    ${c.items.map(item=>{
+      const v=voterVotes[item.id];
+      return `<div class="vote-card ${v==='like'?'liked':v==='dislike'?'disliked':''}" id="vc-${item.id}">
+        <div class="vote-img">${item.base64?`<img src="${item.base64}"/>`:item.imageUrl?`<img src="${item.imageUrl}" onerror="this.style.display='none'"/>`:initials(item.label)}</div>
+        <div class="vote-item-label">${esc(item.label)}</div>
+        <div class="vote-actions">
+          <button class="like-btn" onclick="castVote('${item.id}','like')">&#x1F44D; Like</button>
+          <button class="dislike-btn" onclick="castVote('${item.id}','dislike')">&#x1F44E; Pass</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+
+  <!-- Mobile swipe stack -->
+  <div class="vote-stack">
+    <div class="swipe-progress">
+      ${c.items.map((it,i)=>`<div class="swipe-dot ${voterVotes[it.id]?'done':i===swipeIndex?'current':''}"></div>`).join('')}
+    </div>
+    ${swipeIndex<c.items.length?renderSwipeCard(c.items[swipeIndex]):'<div class="empty" style="text-align:center;padding:40px 0">All items reviewed!</div>'}
+    <div class="swipe-hint">Swipe right to like &nbsp; &middot; &nbsp; Swipe left to pass</div>
+  </div>
+
+  <div class="submit-wrap">
+    <button class="btn-submit" ${allVoted?'':'disabled'} onclick="submitVotes()">Submit preferences</button>
+    ${!allVoted?`<div style="text-align:center;font-size:13px;color:#9CA3AF;margin-top:8px">${Object.keys(voterVotes).length} of ${c.items.length} reviewed</div>`:''}
+  </div>`;
+}
+
+function renderSwipeCard(item){
+  return `<div class="swipe-wrapper" id="swipe-wrap">
+    <div class="swipe-card" id="swipe-card">
+      <div class="vote-img" style="height:220px">
+        ${item.base64?`<img src="${item.base64}" style="width:100%;height:100%;object-fit:cover;border-radius:16px"/>`:
+          item.imageUrl?`<img src="${item.imageUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:16px" onerror="this.style.display='none'"/>`:
+          `<span style="font-size:40px;font-weight:700;color:#9CA3AF">${initials(item.label)}</span>`}
+      </div>
+      <div class="vote-item-label" style="font-size:17px;padding:14px 8px 10px">${esc(item.label)}</div>
+      <div class="vote-actions">
+        <button class="like-btn" onclick="swipeDecide('like')" style="padding:12px">&#x1F44D; Like</button>
+        <button class="dislike-btn" onclick="swipeDecide('dislike')" style="padding:12px">&#x1F44E; Pass</button>
+      </div>
+      <div class="swipe-overlay overlay-like" id="overlay-like">&#x2714;</div>
+      <div class="swipe-overlay overlay-dis" id="overlay-dis">&#x2716;</div>
+    </div>
+  </div>`;
+}
+
+function renderThankyou(){
+  return `
+  <nav><span class="nav-logo">eswar</span></nav>
+  <div class="thankyou-card">
+    <div class="check-circle">&#x2713;</div>
+    <h2>Thank you.</h2>
+    <p>Your preferences have been recorded.</p>
+    <a href="#" style="color:#005F5A;font-size:14px" onclick="showMyVotes()">View your votes &#8594;</a>
+  </div>`;
+}
+
+// ─── EVENTS ───
+function attachEvents(){
+  // swipe touch
+  const card=document.getElementById('swipe-card');
+  if(!card)return;
+  let startX=0,curX=0,dragging=false;
+  card.addEventListener('touchstart',e=>{startX=e.touches[0].clientX;dragging=true},{passive:true});
+  card.addEventListener('touchmove',e=>{
+    if(!dragging)return;
+    curX=e.touches[0].clientX;
+    const dx=curX-startX;
+    card.style.transform=`translateX(${dx}px) rotate(${dx*0.04}deg)`;
+    const ol=document.getElementById('overlay-like');
+    const od=document.getElementById('overlay-dis');
+    const p=Math.min(Math.abs(dx)/80,1);
+    if(dx>0){ol.style.opacity=p;od.style.opacity=0}
+    else{od.style.opacity=p;ol.style.opacity=0}
+  },{passive:true});
+  card.addEventListener('touchend',()=>{
+    const dx=curX-startX;
+    if(Math.abs(dx)>=40){
+      swipeDecide(dx>0?'like':'dislike');
+    }else{
+      card.style.transform='';
+      const ol=document.getElementById('overlay-like');
+      const od=document.getElementById('overlay-dis');
+      if(ol)ol.style.opacity=0;
+      if(od)od.style.opacity=0;
+    }
+    dragging=false;curX=0;
+  });
+}
+
+// ─── ACTIONS ───
+function showCreate(){document.getElementById('create-section').scrollIntoView({behavior:'smooth'})}
+
+function addItem(){
+  if(!newItemLabel.trim()){alert('Please enter a label.');return}
+  draftItems.push({id:'item-'+Date.now(),label:newItemLabel.trim(),imageUrl:newItemUrl.trim(),base64:newItemBase64});
+  newItemLabel='';newItemUrl='';newItemBase64='';
+  render();
+}
+function removeItem(i){draftItems.splice(i,1);render()}
+function addRecipient(){
+  if(!newRecipient.trim()){alert('Enter an email or mobile number.');return}
+  draftRecipients.push({contact:newRecipient.trim(),name:''});
+  newRecipient='';render();
+}
+function removeRecipient(i){draftRecipients.splice(i,1);render()}
+
+function handleUpload(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  if(file.size>1048576){alert('Max 1MB per image.');return}
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    newItemBase64=ev.target.result;
+    document.getElementById('upload-preview').textContent=file.name;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function launchCampaign(){
+  draftTitle=(document.getElementById('f-title')||{}).value||draftTitle;
+  draftProject=(document.getElementById('f-project')||{}).value||draftProject;
+  if(!draftTitle.trim()||!draftProject.trim()){alert('Please fill in title and project name.');return}
+  if(draftItems.length<2){alert('Add at least 2 logo options.');return}
+  const c={
+    id:'c-'+Date.now(),
+    title:draftTitle.trim(),projectName:draftProject.trim(),
+    channel:draftChannel,items:[...draftItems],
+    recipients:[...draftRecipients],createdAt:Date.now()
+  };
+  campaigns.unshift(c);
+  await save('ec_campaigns',campaigns);
+  draftTitle='';draftProject='';draftItems=[];draftRecipients=[];newItemLabel='';newItemUrl='';newItemBase64='';
+  const link=`${location.origin}${location.pathname}?vote=${c.id}`;
+  const box=document.getElementById('launch-link');
+  if(box)box.innerHTML=`<div class="copy-box"><span>${link}</span><button class="btn-teal btn-sm" onclick="navigator.clipboard.writeText('${link}')">Copy</button></div>`;
+  render();
+}
+
+function openResults(id){activeCampaignId=id;view='results';render()}
+function previewVote(id){activeCampaignId=id;voterVotes={};swipeIndex=0;view='vote';render()}
+
+function castVote(itemId,decision){
+  voterVotes[itemId]=decision;render();
+}
+function swipeDecide(decision){
+  const c=campaigns.find(x=>x.id===activeCampaignId);
+  if(!c||swipeIndex>=c.items.length)return;
+  const item=c.items[swipeIndex];
+  voterVotes[item.id]=decision;
+  swipeIndex++;
+  render();
+}
+
+async function submitVotes(){
+  const c=campaigns.find(x=>x.id===activeCampaignId);
+  if(!c)return;
+  const rid=voterName.trim()||'anonymous-'+Date.now();
+  const now=Date.now();
+  c.items.forEach(it=>{
+    if(voterVotes[it.id]){
+      votes.push({campaignId:c.id,itemId:it.id,recipientId:rid,decision:voterVotes[it.id],submittedAt:now});
+    }
+  });
+  await save('ec_votes',votes);
+  view='thankyou';render();
+}
+
+function showMyVotes(){
+  activeCampaignId=activeCampaignId;
+  view='results';render();
+}
+
+function getVoteUrl(id){return location.origin+'/feedback.html?vote='+id}
+function copyVoteUrl(id){navigator.clipboard.writeText(getVoteUrl(id));alert('Link copied.')}
+
+async function copySummary(cid){
+  const c=campaigns.find(x=>x.id===cid);
+  const cv=votes.filter(v=>v.campaignId===cid);
+  let text=`Feedback Summary: ${c.title} (${c.projectName})\n\n`;
+  c.items.forEach(it=>{
+    const likes=cv.filter(v=>v.itemId===it.id&&v.decision==='like').length;
+    const dislikes=cv.filter(v=>v.itemId===it.id&&v.decision==='dislike').length;
+    text+=`${it.label}: ${likes} likes, ${dislikes} dislikes\n`;
+  });
+  await navigator.clipboard.writeText(text);
+  alert('Summary copied.');
+}
+
+function esc(s=''){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+init();
+</script>
+</body>
+</html>
