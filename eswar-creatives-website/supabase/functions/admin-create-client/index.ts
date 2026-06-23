@@ -124,7 +124,19 @@ Deno.serve(async (req: Request) => {
     return fail("create_failed", 500);
   }
 
-  return new Response(JSON.stringify({ id: client.id }), {
+  // 6. Best-effort welcome email. Never blocks client creation: any failure is
+  // swallowed and reported as emailSent:false so the client is still created.
+  let emailSent = false;
+  try {
+    const { data: emailRes } = await admin.functions.invoke("send-welcome-email", {
+      body: { email, full_name: contactName || companyName },
+    });
+    emailSent = !!(emailRes as { emailSent?: boolean } | null)?.emailSent;
+  } catch (_e) {
+    emailSent = false;
+  }
+
+  return new Response(JSON.stringify({ id: client.id, emailSent }), {
     status: 200,
     headers: { ...CORS, "Content-Type": "application/json" },
   });
