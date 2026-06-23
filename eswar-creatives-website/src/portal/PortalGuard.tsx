@@ -3,10 +3,13 @@ import { Navigate, useLocation } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { tokens, fonts } from './theme'
 
+export type PortalRole = 'owner' | 'admin' | 'client' | 'reviewer'
+
 export type PortalProfile = {
   id: string
   email: string
-  role: 'owner' | 'admin' | 'client'
+  full_name: string | null
+  role: PortalRole
 }
 
 type State =
@@ -19,7 +22,7 @@ export function PortalGuard({
   requireRole,
 }: {
   children: (profile: PortalProfile) => React.ReactNode
-  requireRole?: 'owner' | 'admin' | 'client'
+  requireRole?: PortalRole
 }) {
   const [state, setState] = useState<State>({ status: 'loading' })
   const location = useLocation()
@@ -34,7 +37,7 @@ export function PortalGuard({
       }
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('id, email, role')
+        .select('id, email, full_name, role')
         .eq('id', sess.session.user.id)
         .single()
       if (cancelled) return
@@ -56,8 +59,11 @@ export function PortalGuard({
     return <Navigate to={`/portal/login?from=${from}`} replace />
   }
 
+  // H1 (visibility of system status) / H5 (error prevention): a signed-in user
+  // whose role does not match the area they hit is sent back to login rather
+  // than shown content they cannot use.
   if (requireRole && state.profile.role !== requireRole) {
-    return <Navigate to="/portal" replace />
+    return <Navigate to="/portal/login" replace />
   }
 
   return <>{children(state.profile)}</>

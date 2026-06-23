@@ -25,7 +25,7 @@ export function LoginPage() {
   }, [navigate])
 
   // Route a signed-in user to the right landing page by profile role.
-  // owner / unknown roles fall back to the verify page (prior behaviour).
+  // Unknown roles fall back to the verify page (prior behaviour).
   async function redirectByRole(userId: string) {
     const { data: profile } = await supabase
       .from('profiles')
@@ -33,10 +33,22 @@ export function LoginPage() {
       .eq('id', userId)
       .single()
     const role = profile?.role
-    if (role === 'admin') {
+    if (role === 'admin' || role === 'owner') {
       navigate('/portal/admin/sketches', { replace: true })
     } else if (role === 'client') {
-      navigate('/portal/sketch-review', { replace: true })
+      navigate('/portal/projects', { replace: true })
+    } else if (role === 'reviewer') {
+      // Land the reviewer on their first campaign. RLS scopes review_campaigns
+      // to reviewers, so this returns only campaigns they may see.
+      const { data: campaign } = await supabase
+        .from('review_campaigns')
+        .select('id')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      navigate(campaign ? `/portal/review/${campaign.id}` : '/portal/review', {
+        replace: true,
+      })
     } else {
       navigate('/portal/verify', { replace: true })
     }
@@ -54,8 +66,10 @@ export function LoginPage() {
         await redirectByRole(data.user.id)
       } else {
         const { error } = await supabase.auth.signInWithOtp({
+          // Land back on the login page so its session check can route the user
+          // to the correct area by role (see redirectByRole).
           email,
-          options: { emailRedirectTo: `${window.location.origin}/portal/sketch-review` },
+          options: { emailRedirectTo: `${window.location.origin}/portal/login` },
         })
         if (error) throw error
         setInfo(`Magic link sent to ${email}. Check your inbox.`)
