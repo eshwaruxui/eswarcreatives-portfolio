@@ -88,7 +88,7 @@ function htmlBody(fullName: string, email: string): string {
 </html>`;
 }
 
-type Body = { email?: string; full_name?: string };
+type Body = { email?: string; full_name?: string; dryRun?: boolean };
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -99,6 +99,12 @@ Deno.serve(async (req: Request) => {
     body = await req.json();
   } catch {
     return ok({ success: true, emailSent: false });
+  }
+
+  // Diagnostic: report whether the Resend secret is readable at runtime, without
+  // sending anything. Returns a boolean only, never the secret value.
+  if (body.dryRun === true) {
+    return ok({ success: true, configured: RESEND_API_KEY.length > 0 });
   }
 
   const email = (body.email ?? "").trim();
