@@ -27,14 +27,25 @@ import { MockupsAdmin } from "../portal/admin/MockupsAdmin";
 import { DiscoveryPlaceholder } from "../portal/admin/DiscoveryPlaceholder";
 import { CampaignsRedirect } from "../portal/admin/CampaignsRedirect";
 import { MockupsPage } from "../portal/client/MockupsPage";
+import { ClientDashboardPage } from "../portal/ClientDashboard";
+import { ClientProposalsPage } from "../portal/client/ClientProposals";
+import { ClientInvoicesPage } from "../portal/client/ClientInvoices";
+import { ReviewCampaignPage } from "../portal/review/ReviewCampaignPage";
 
 export const routeConfig = [
   { path: "/portal/login",          Component: LoginPage  },
   { path: "/portal/verify",         Component: VerifyPage },
   { path: "/portal/sketch-review",  Component: SketchReviewPage },
   { path: "/portal/account",        Component: AccountPage },
+  // Phase 5 client portal screens (PortalGuard requireRole="client" inside each).
+  { path: "/portal/projects",       Component: ClientDashboardPage },
+  { path: "/portal/proposals",      Component: ClientProposalsPage },
+  { path: "/portal/invoices",       Component: ClientInvoicesPage },
   // Client-facing mockups review page (PortalGuard inside the component).
   { path: "/portal/mockups",        Component: MockupsPage },
+  // Phase 5 reviewer landing (PortalGuard requireRole="reviewer" inside).
+  { path: "/portal/review",             Component: ReviewCampaignPage },
+  { path: "/portal/review/:campaignId", Component: ReviewCampaignPage },
   // Public, unauthenticated voting page (no PortalGuard) — migrations 0019-0021.
   { path: "/portal/vote/:token",    Component: PublicVotePage },
   // Phase 3 admin portal — persistent shell (sidebar + Outlet), admin-gated.

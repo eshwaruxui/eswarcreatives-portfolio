@@ -2,9 +2,9 @@
 // the signed-in client (row-level security does the scoping) and opens the
 // shared ClientLightbox for review and feedback.
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
 import { supabase } from '../../lib/supabase'
-import { PortalGuard } from '../PortalGuard'
+import { PortalGuard, type PortalProfile } from '../PortalGuard'
+import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
 import { tokens, fonts } from '../theme'
 import { formatDate } from '../admin/ui'
 import { ClientLightbox } from '../mockups/ClientLightbox'
@@ -23,11 +23,12 @@ type PublishedSet = {
 }
 
 export function MockupsPage() {
-  return <PortalGuard>{() => <Mockups />}</PortalGuard>
+  return (
+    <PortalGuard requireRole="client">{(profile) => <Mockups profile={profile} />}</PortalGuard>
+  )
 }
 
-function Mockups() {
-  const navigate = useNavigate()
+function Mockups({ profile }: { profile: PortalProfile }) {
   const [sets, setSets] = useState<PublishedSet[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -90,26 +91,9 @@ function Mockups() {
     }
   }
 
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-    navigate('/portal/login', { replace: true })
-  }
-
   return (
     <div style={styles.page}>
-      <header style={styles.topbar}>
-        <div style={styles.topbarInner}>
-          <div style={styles.brandRow}>
-            <div style={styles.logoCircle}>
-              <span style={styles.logoLetter}>e</span>
-            </div>
-            <span style={styles.brandName}>Eswar Creatives</span>
-          </div>
-          <button onClick={handleSignOut} style={styles.signout} type="button">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <ClientNav profile={profile} />
 
       <main style={styles.container}>
         <div style={styles.heroBlock}>
@@ -211,7 +195,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500,
     cursor: 'pointer',
   },
-  container: { maxWidth: 980, margin: '0 auto', padding: '40px 24px 80px' },
+  container: { maxWidth: 980, margin: '0 auto', padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px` },
   heroBlock: { marginBottom: 32 },
   title: {
     margin: 0,

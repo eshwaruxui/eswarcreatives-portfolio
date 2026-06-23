@@ -1,48 +1,44 @@
+// Client account page at /portal/account. Read-only identity plus a password
+// reset that emails a secure link (rather than changing the password inline).
+// Theme tokens only; no raw hex; no em dashes; plain-language errors only.
 import { useState } from 'react'
-import { Link } from 'react-router'
+import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
+import { ClientNav, CLIENT_NAV_HEIGHT } from './client/ClientNav'
 import { tokens, fonts } from './theme'
 
-const MIN_PASSWORD = 8
+const RESET_REDIRECT = 'https://www.eswarcreatives.in/portal/reset-password'
 
-// ── Route entry: any authenticated user (client or admin) ────────────
 export function AccountPage() {
   return (
-    <PortalGuard>
+    <PortalGuard requireRole="client">
       {(profile) => <Account profile={profile} />}
     </PortalGuard>
   )
 }
 
 function Account({ profile }: { profile: PortalProfile }) {
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setToast(null)
-    if (password.length < MIN_PASSWORD) {
-      setError(`Password must be at least ${MIN_PASSWORD} characters.`)
-      return
-    }
-    if (password !== confirm) {
-      setError('Passwords do not match.')
-      return
-    }
+  async function handleReset() {
     setBusy(true)
+    setToast(null)
+    setError(null)
     try {
-      const { error: updErr } = await supabase.auth.updateUser({ password })
-      if (updErr) throw updErr
-      setPassword('')
-      setConfirm('')
-      setToast('Password updated')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const { error: err } = await supabase.auth.resetPasswordForEmail(profile.email, {
+        redirectTo: RESET_REDIRECT,
+      })
+      if (err) throw err
+      // H1: clear confirmation that the action succeeded.
+      setToast('A reset link has been sent to your email.')
+    } catch {
+      // H9: plain-language error, never a raw Supabase string.
+      setError(
+        'We could not send the reset link. Please try again or contact eswar@eswarcreatives.in'
+      )
     } finally {
       setBusy(false)
     }
@@ -50,65 +46,52 @@ function Account({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
+      <ClientNav profile={profile} />
       <main style={styles.container}>
-        <h1 style={styles.title}>Account settings</h1>
+        <h1 style={styles.title}>Account</h1>
 
-        {/* Email */}
         <div style={styles.card}>
-          <span style={styles.label}>Email</span>
-          <div style={styles.emailValue}>{profile.email}</div>
+          <Field label="Full name" value={profile.full_name || '-'} />
+          <Field label="Email" value={profile.email} />
         </div>
 
-        {/* Change password */}
-        <form style={styles.card} onSubmit={handleSubmit}>
-          <span style={styles.label}>Change password</span>
-
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="New password"
-            minLength={MIN_PASSWORD}
-            autoComplete="new-password"
-            style={styles.input}
-          />
-          <input
-            type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            placeholder="Confirm new password"
-            autoComplete="new-password"
-            style={styles.input}
-          />
-
-          {toast && <div style={styles.toast}>{toast}</div>}
-
-          <button type="submit" disabled={busy} style={{ ...styles.submit, opacity: busy ? 0.6 : 1 }}>
-            {busy ? 'Updating...' : 'Update password'}
+        <div style={styles.card}>
+          <span style={styles.label}>Password</span>
+          {/* H6: the email is shown (read-only) so the client knows where the
+              link will be sent, without having to recall or retype it. */}
+          <input value={profile.email} readOnly style={styles.inputReadonly} aria-label="Email" />
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={busy}
+            style={{ ...styles.button, opacity: busy ? 0.6 : 1 }}
+          >
+            {busy ? 'Sending...' : 'Send reset link'}
           </button>
-
+          {toast && <div style={styles.toast}>{toast}</div>}
           {error && <div style={styles.error}>{error}</div>}
-        </form>
-
-        <div style={styles.footer}>
-          <Link to="/portal/sketch-review" style={styles.backLink}>
-            Back to sketches
-          </Link>
         </div>
       </main>
     </div>
   )
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: '100vh',
-    background: tokens.bg, // Atelier cream
-    color: tokens.text,
-    fontFamily: fonts.body,
-  },
-  container: { maxWidth: 512, margin: '0 auto', padding: '40px 24px 80px' },
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={styles.field}>
+      <span style={styles.label}>{label}</span>
+      <div style={styles.value}>{value}</div>
+    </div>
+  )
+}
 
+const styles: Record<string, CSSProperties> = {
+  page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
+  container: {
+    maxWidth: 560,
+    margin: '0 auto',
+    padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px`,
+  },
   title: {
     margin: '0 0 24px',
     fontFamily: fonts.heading,
@@ -117,7 +100,6 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '-0.01em',
     color: tokens.text,
   },
-
   card: {
     background: tokens.surface,
     border: `1px solid ${tokens.border}`,
@@ -128,6 +110,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 12,
   },
+  field: { display: 'flex', flexDirection: 'column', gap: 4 },
   label: {
     fontSize: 12,
     fontWeight: 600,
@@ -135,29 +118,25 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  emailValue: {
-    fontSize: 15,
-    color: tokens.text,
-    fontFamily: fonts.body,
-  },
-  input: {
+  value: { fontSize: 15, color: tokens.text, fontFamily: fonts.body },
+  inputReadonly: {
     width: '100%',
     padding: '11px 14px',
     borderRadius: 8,
     border: `1px solid ${tokens.border}`,
-    background: tokens.inputBg,
-    color: tokens.text,
+    background: tokens.bg,
+    color: tokens.textMuted,
     fontSize: 14,
     fontFamily: fonts.body,
     boxSizing: 'border-box',
   },
-  submit: {
-    width: '100%',
-    background: tokens.accent,
+  button: {
+    alignSelf: 'flex-start',
+    background: tokens.primary,
     color: tokens.surface,
     border: 'none',
     borderRadius: 8,
-    padding: '12px 16px',
+    padding: '11px 18px',
     fontSize: 14,
     fontWeight: 600,
     fontFamily: fonts.body,
@@ -169,7 +148,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '10px 12px',
     borderRadius: 8,
     fontSize: 13,
-    border: `1px solid ${tokens.green}33`,
+    border: `1px solid ${tokens.green}`,
   },
   error: {
     background: tokens.rubyLight,
@@ -177,13 +156,6 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '10px 12px',
     borderRadius: 8,
     fontSize: 13,
-    border: `1px solid ${tokens.ruby}33`,
-  },
-
-  footer: { textAlign: 'center', marginTop: 8 },
-  backLink: {
-    fontSize: 13,
-    color: tokens.textMuted,
-    textDecoration: 'underline',
+    border: `1px solid ${tokens.ruby}`,
   },
 }
