@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase'
 import { PortalGuard, type PortalProfile } from '../PortalGuard'
 import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
 import { ClientProposalPanel } from './ClientProposalPanel'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { formatMoney, formatDate } from '../admin/ui'
 
 type ProposalStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined' | 'expired'
@@ -187,7 +187,8 @@ const styles: Record<string, CSSProperties> = {
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
   },
-  amount: { margin: '14px 0 0', fontSize: 18, fontWeight: 600, color: tokens.accent, fontFamily: fonts.body },
+  // H4: consistent text token - neutral not brand (amount is a static value, not interactive)
+  amount: { margin: '14px 0 0', fontSize: 18, fontWeight: 600, color: t.text.primary, fontFamily: fonts.body },
   empty: {
     background: tokens.surface,
     border: `1px dashed ${tokens.border}`,

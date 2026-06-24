@@ -263,8 +263,8 @@ const styles: Record<string, CSSProperties> = {
     transition: `background-color 0.6s ease, border-left-color 0.6s ease, opacity ${motionTokens.durationBase} ${motionTokens.easeExit}, transform ${motionTokens.durationBase} ${motionTokens.easeExit}`,
   },
   cardHighlight: {
-    borderLeft: '3px solid #D5B067',
-    background: '#FDF8EC',
+    borderLeft: `3px solid ${tokens.gold}`, // H4: semantic token - no raw hex
+    background: tokens.goldLight,
   },
   cardRemoving: {
     opacity: 0,

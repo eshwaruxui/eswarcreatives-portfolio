@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Check, X, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 import { StatusBadge, mono, formatMoney, formatDate } from './ui'
 import { showToast } from './toast'
 import { SidePanel } from './SidePanel'
@@ -689,7 +689,7 @@ const styles: Record<string, CSSProperties> = {
   },
   confirmDelete: {
     background: tokens.ruby,
-    color: '#FFFFFF',
+    color: t.text.inverse, // H4: semantic token - no raw hex (text on danger fill)
     border: 'none',
     borderRadius: 8,
     padding: '9px 18px',

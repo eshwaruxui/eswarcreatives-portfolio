@@ -10,7 +10,7 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { SidePanel } from '../admin/SidePanel'
 import { formatMoney, formatDate } from '../admin/ui'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 
 type ProposalStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined' | 'expired'
 
@@ -587,7 +587,7 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 12,
   },
   phaseName: { fontFamily: fonts.heading, fontSize: 17, fontWeight: 600, color: tokens.text, margin: 0 },
-  phaseTimeline: { fontFamily: fonts.body, fontSize: 12, color: tokens.accent, whiteSpace: 'nowrap' },
+  phaseTimeline: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, whiteSpace: 'nowrap' }, // H4: consistent text token - neutral not brand
   solutionBlock: { marginTop: 16, paddingTop: 16, borderTop: `1px solid ${tokens.border}` },
   solutionTitle: { fontFamily: fonts.heading, fontSize: 15, fontWeight: 600, color: tokens.text, marginBottom: 4 },
   solutionOverview: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, margin: '0 0 8px', lineHeight: 1.5 },
@@ -634,7 +634,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     color: tokens.text,
   },
-  phaseSubtotalValue: { color: tokens.accent },
+  phaseSubtotalValue: { color: t.text.primary }, // H4: consistent text token - neutral not brand
   scheduleBlock: {
     marginTop: 14,
     paddingTop: 14,
@@ -659,7 +659,7 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.text,
   },
   scheduleLabel: { flex: 1, minWidth: 0 },
-  schedulePct: { fontWeight: 600, color: tokens.accent, whiteSpace: 'nowrap' },
+  schedulePct: { fontWeight: 600, color: t.text.primary, whiteSpace: 'nowrap' }, // H4: consistent text token - neutral not brand
   scheduleTrigger: { fontSize: 12, color: tokens.textMuted, whiteSpace: 'nowrap' },
   pricingCard: {
     background: tokens.surface,
@@ -687,7 +687,7 @@ const styles: Record<string, CSSProperties> = {
     borderTop: `1px solid ${tokens.border}`,
   },
   totalLabel: { fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: tokens.text },
-  totalValue: { fontFamily: fonts.heading, fontSize: 28, fontWeight: 700, color: tokens.primary },
+  totalValue: { fontFamily: fonts.heading, fontSize: 28, fontWeight: 700, color: t.text.primary }, // H4: consistent text token - neutral not brand
   terms: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, lineHeight: 1.5, margin: '14px 0 12px' },
   docRow: {
     display: 'flex',

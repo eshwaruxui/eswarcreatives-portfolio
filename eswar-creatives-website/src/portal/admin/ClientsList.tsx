@@ -159,7 +159,7 @@ export function ClientsList() {
                       ...styles.firstCell,
                       fontWeight: 600,
                       color: tokens.text,
-                      borderLeftColor: c.id === highlightId ? '#D5B067' : 'transparent',
+                      borderLeftColor: c.id === highlightId ? tokens.gold : 'transparent', // H4: semantic token - no raw hex
                     }}
                   >
                     {c.company_name || '(unnamed)'}
@@ -309,7 +309,7 @@ const styles: Record<string, CSSProperties> = {
     transition: 'background-color 0.6s ease',
   },
   rowHighlight: {
-    background: '#FDF8EC',
+    background: tokens.goldLight, // H4: semantic token - no raw hex
   },
   td: {
     padding: '14px 20px',

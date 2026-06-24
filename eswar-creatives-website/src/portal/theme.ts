@@ -21,6 +21,62 @@ export const tokens = {
   inputBg:    '#FAF8F4',
 } as const
 
+// EC Design System semantic tokens (canonical Figma mapping).
+// Separate from the legacy flat `tokens` above to avoid colliding with the
+// existing string-valued `tokens.text` / `tokens.border` keys. Use these for
+// all new/audited work: `t.text.primary`, `t.border.default`, etc.
+// Rules:
+//   - Static text never uses brand/teal; use t.text.* neutrals.
+//   - Brand teal (t.text.primaryBrand / t.border.brand) only on interactive
+//     elements: CTAs, links, active nav, selected states, focus rings.
+export const t = {
+  text: {
+    primary:      '#1A1A1A',  // body text, headings, labels
+    primaryBrand: '#024C4F',  // interactive only: CTAs, links, active nav
+    secondary:    '#4B5563',  // supporting text, subtitles
+    tertiary:     '#6B7280',  // placeholder text, hints
+    muted:        '#9CA3AF',  // timestamps, helper text, captions
+    disabled:     '#D1D5DB',  // disabled state text
+    inverse:      '#FFFFFF',  // text on dark backgrounds
+    onPrimary:    '#FFFFFF',  // text on teal primary buttons
+    onAccent:     '#FFFFFF',  // text on accent fills
+    urlLink:      '#024C4F',  // hyperlinks only
+  },
+  border: {
+    subtle:             '#F3F4F6',              // lightest dividers, card outlines
+    default:            '#E5E7EB',              // standard input/card borders
+    medium:             '#D1D5DB',              // stronger dividers
+    strong:             '#9CA3AF',              // emphasis borders
+    focus:              '#024C4F',              // focus ring on inputs
+    overlaySubtle:      'rgba(10,10,23,0.04)',  // frosted/glass panels subtle edge
+    overlayMedium:      'rgba(10,10,23,0.08)',  // panel borders on overlays
+    overlayStrong:      'rgba(10,10,23,0.14)',  // modal/drawer borders
+    overlay:            'rgba(10,10,23,0.20)',  // standard overlay border
+    overlayExtraStrong: 'rgba(10,10,23,0.30)',  // high contrast overlay edge
+    brand:              '#024C4F',              // active/selected states only
+    danger:             '#C0392B',              // error states
+    success:            '#1B5E20',              // success states
+    warning:            '#D5B067',              // warning states
+  },
+  background: {
+    page:           '#FAF8F4',              // page background
+    subtle:         '#F9FAFB',              // subtle section bg
+    muted:          '#F3F4F6',              // muted fills
+    surface:        '#FFFFFF',              // card/panel surfaces
+    raised:         '#FFFFFF',              // elevated cards
+    sunken:         '#F3F4F6',              // inset areas
+    tint1:          'rgba(2,76,79,0.04)',   // tinted fills
+    tint2:          'rgba(2,76,79,0.08)',
+    tint3:          'rgba(2,76,79,0.12)',
+    overlaySubtle:  'rgba(10,10,23,0.04)',  // overlay layers
+    overlayNormal:  'rgba(10,10,23,0.08)',
+    overlayMedium:  'rgba(10,10,23,0.18)',
+    overlayDark:    'rgba(10,10,23,0.40)',
+    overlayStrong:  'rgba(10,10,23,0.70)',
+    scrim:          'rgba(10,10,23,0.60)',  // modal backdrop
+  },
+} as const
+
 export const fonts = {
   heading: "'Fraunces', Georgia, 'Times New Roman', serif",
   body:    "'Inter', system-ui, -apple-system, sans-serif",

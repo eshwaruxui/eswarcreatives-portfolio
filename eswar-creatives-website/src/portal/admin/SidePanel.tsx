@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
-import { tokens, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 
 function useIsNarrow(): boolean {
   const [narrow, setNarrow] = useState(
@@ -99,7 +99,7 @@ const styles: Record<string, CSSProperties> = {
   backdrop: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(10, 26, 27, 0.4)',
+    background: t.background.overlayDark, // H4: neutral panel tone - scrim, not teal-tinted
   },
   panelBase: {
     position: 'fixed',
@@ -115,7 +115,7 @@ const styles: Record<string, CSSProperties> = {
     right: 0,
     height: '100vh',
     maxWidth: '92vw',
-    borderLeft: `1px solid ${tokens.border}`,
+    borderLeft: `1px solid ${t.border.overlayMedium}`, // H4: neutral panel tone - panel left edge
   },
   sheet: {
     left: 0,
@@ -131,14 +131,14 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: 'space-between',
     gap: 12,
     padding: '20px 24px',
-    borderBottom: `1px solid ${tokens.border}`,
+    borderBottom: `1px solid ${t.border.subtle}`, // H4: neutral panel tone - header divider
     flexShrink: 0,
   },
   title: {
     fontFamily: fonts.heading,
     fontSize: 18,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary, // H4: neutral panel tone - header text, never teal
     margin: 0,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -146,15 +146,15 @@ const styles: Record<string, CSSProperties> = {
   subtitle: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: tokens.textMuted,
+    color: t.text.muted, // H4: neutral panel tone - metadata
     margin: '4px 0 0',
   },
   headActions: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
   close: {
-    background: tokens.bg,
-    border: `1px solid ${tokens.border}`,
+    background: t.background.subtle, // H4: neutral panel tone
+    border: `1px solid ${t.border.default}`, // H4: semantic border token
     borderRadius: 8,
-    color: tokens.textMuted,
+    color: t.text.tertiary, // H4: neutral panel tone - close icon
     cursor: 'pointer',
     padding: 6,
     display: 'flex',

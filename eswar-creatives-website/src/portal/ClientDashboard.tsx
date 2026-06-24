@@ -12,7 +12,7 @@ import { getBadges, subscribeBadges } from './client/clientNotifications'
 import type { BadgeSection } from './client/clientNotifications'
 import { DocumentChips } from './client/DocumentChips'
 import type { ClientDocument } from './client/DocumentChips'
-import { tokens, fonts, motionTokens } from './theme'
+import { tokens, t, fonts, motionTokens } from './theme'
 
 // The fixed client journey. The project's phase pointer maps onto these.
 const PHASES = ['Discovery', 'Design', 'Review', 'Delivery'] as const
@@ -656,7 +656,8 @@ const styles: Record<string, CSSProperties> = {
     transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
   quickTitleRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  quickTitle: { fontFamily: fonts.heading, fontSize: 16, fontWeight: 600, color: tokens.primary },
+  // H4: consistent text token - neutral not brand (card is clickable, but the title is static heading text)
+  quickTitle: { fontFamily: fonts.heading, fontSize: 16, fontWeight: 600, color: t.text.primary },
   quickBadge: {
     width: 8,
     height: 8,
