@@ -1,13 +1,13 @@
 // Client proposals at /portal/proposals. Lists the client's proposals with
-// status badges and, for live proposals, inline Accept / Decline actions.
-// Accept calls the confirm-proposal edge function (creates project + deposit
-// invoice atomically); Decline records an optional reason via decline_proposal.
+// status badges; clicking a card opens a right-side slide-in panel with the
+// full proposal and its Accept / Decline actions (ClientProposalPanel).
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only.
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { PortalGuard, type PortalProfile } from '../PortalGuard'
 import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
+import { ClientProposalPanel } from './ClientProposalPanel'
 import { tokens, fonts } from '../theme'
 import { formatMoney, formatDate } from '../admin/ui'
 
@@ -55,10 +55,8 @@ function Proposals({ profile }: { profile: PortalProfile }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Per-row action state.
-  const [busyId, setBusyId] = useState<string | null>(null)
-  const [decliningId, setDecliningId] = useState<string | null>(null)
-  const [reason, setReason] = useState('')
+  // Clicking a card opens the full-detail slide-in panel for that proposal.
+  const [openId, setOpenId] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -93,46 +91,6 @@ function Proposals({ profile }: { profile: PortalProfile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.id])
 
-  async function handleAccept(p: Proposal) {
-    setBusyId(p.id)
-    setError(null)
-    try {
-      const { error: fnErr } = await supabase.functions.invoke('confirm-proposal', {
-        body: { proposal_id: p.id },
-      })
-      if (fnErr) throw fnErr
-      await load()
-    } catch {
-      // H9: never surface raw function/Supabase errors to the client.
-      setError(
-        'We could not accept this proposal. Please try again or contact eswar@eswarcreatives.in'
-      )
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function handleDecline(p: Proposal) {
-    setBusyId(p.id)
-    setError(null)
-    try {
-      const { error: rpcErr } = await supabase.rpc('decline_proposal', {
-        p_proposal_id: p.id,
-        p_reason: reason,
-      })
-      if (rpcErr) throw rpcErr
-      setDecliningId(null)
-      setReason('')
-      await load()
-    } catch {
-      setError(
-        'We could not record your decision. Please try again or contact eswar@eswarcreatives.in'
-      )
-    } finally {
-      setBusyId(null)
-    }
-  }
-
   return (
     <div style={styles.page}>
       <ClientNav profile={profile} />
@@ -152,14 +110,13 @@ function Proposals({ profile }: { profile: PortalProfile }) {
 
         <div style={styles.list}>
           {proposals.map((p) => {
-            const live = p.status === 'sent' || p.status === 'viewed'
-            const locked =
-              p.status === 'accepted' || p.status === 'declined' || p.status === 'expired'
             const badge = BADGE[p.status]
             return (
-              <article key={p.id} style={styles.card}>
+              // H7 (flexibility): the whole card is the affordance to open the
+              // full proposal; it is a real button for keyboard/AT users.
+              <button key={p.id} type="button" style={styles.card} onClick={() => setOpenId(p.id)}>
                 <div style={styles.cardHead}>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <h2 style={styles.cardTitle}>{p.title}</h2>
                     <p style={styles.cardMeta}>
                       {VERTICAL_LABEL[p.vertical] ?? p.vertical}
@@ -172,82 +129,21 @@ function Proposals({ profile }: { profile: PortalProfile }) {
                 </div>
 
                 <p style={styles.amount}>{formatMoney(Number(p.total_amount), p.currency)}</p>
-
-                {/* Live proposals: Accept / Decline. H5 (error prevention): the
-                    decline reason is confirmed in a second step, not on one tap. */}
-                {live && decliningId !== p.id && (
-                  <div style={styles.actions}>
-                    <button
-                      type="button"
-                      style={styles.acceptBtn}
-                      disabled={busyId === p.id}
-                      onClick={() => handleAccept(p)}
-                    >
-                      {busyId === p.id ? 'Working...' : 'Accept'}
-                    </button>
-                    <button
-                      type="button"
-                      style={styles.declineBtn}
-                      disabled={busyId === p.id}
-                      onClick={() => {
-                        setDecliningId(p.id)
-                        setReason('')
-                        setError(null)
-                      }}
-                    >
-                      Decline
-                    </button>
-                  </div>
-                )}
-
-                {live && decliningId === p.id && (
-                  <div style={styles.declineBox}>
-                    <label style={styles.declineLabel}>
-                      Reason (optional)
-                      <textarea
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        style={styles.textarea}
-                        placeholder="Let us know if there is anything you would like to change."
-                      />
-                    </label>
-                    <div style={styles.actions}>
-                      <button
-                        type="button"
-                        style={styles.declineBtn}
-                        disabled={busyId === p.id}
-                        onClick={() => handleDecline(p)}
-                      >
-                        {busyId === p.id ? 'Working...' : 'Confirm decline'}
-                      </button>
-                      {/* H3: a clear way out of the decline step. */}
-                      <button
-                        type="button"
-                        style={styles.cancelBtn}
-                        disabled={busyId === p.id}
-                        onClick={() => {
-                          setDecliningId(null)
-                          setReason('')
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {locked && (
-                  <p style={styles.lockedNote}>
-                    {p.status === 'accepted' && 'You accepted this proposal. Your project is underway.'}
-                    {p.status === 'declined' && 'You declined this proposal.'}
-                    {p.status === 'expired' && 'This proposal has expired.'}
-                  </p>
-                )}
-              </article>
+              </button>
             )
           })}
         </div>
       </main>
+
+      {/* Full proposal detail + actions. Refreshing the list on change keeps the
+          card badges in step with the panel (H1: visibility of system status). */}
+      {openId && (
+        <ClientProposalPanel
+          proposalId={openId}
+          onClose={() => setOpenId(null)}
+          onChanged={() => void load()}
+        />
+      )}
     </div>
   )
 }
@@ -269,10 +165,15 @@ const styles: Record<string, CSSProperties> = {
   },
   list: { display: 'flex', flexDirection: 'column', gap: 16 },
   card: {
+    display: 'block',
+    width: '100%',
+    textAlign: 'left',
     background: tokens.surface,
     border: `1px solid ${tokens.border}`,
     borderRadius: 12,
     padding: 22,
+    cursor: 'pointer',
+    fontFamily: fonts.body,
   },
   cardHead: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   cardTitle: { margin: 0, fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: tokens.text },
@@ -287,62 +188,6 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   amount: { margin: '14px 0 0', fontSize: 18, fontWeight: 600, color: tokens.accent, fontFamily: fonts.body },
-  actions: { display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' },
-  acceptBtn: {
-    background: tokens.primary,
-    color: tokens.surface,
-    border: 'none',
-    borderRadius: 8,
-    padding: '10px 18px',
-    fontSize: 14,
-    fontWeight: 600,
-    fontFamily: fonts.body,
-    cursor: 'pointer',
-  },
-  declineBtn: {
-    background: tokens.rubyLight,
-    color: tokens.ruby,
-    border: `1px solid ${tokens.ruby}`,
-    borderRadius: 8,
-    padding: '10px 18px',
-    fontSize: 14,
-    fontWeight: 600,
-    fontFamily: fonts.body,
-    cursor: 'pointer',
-  },
-  cancelBtn: {
-    background: 'transparent',
-    color: tokens.textMuted,
-    border: `1px solid ${tokens.border}`,
-    borderRadius: 8,
-    padding: '10px 18px',
-    fontSize: 14,
-    fontWeight: 500,
-    fontFamily: fonts.body,
-    cursor: 'pointer',
-  },
-  declineBox: { marginTop: 16 },
-  declineLabel: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    fontSize: 13,
-    fontWeight: 500,
-    color: tokens.text,
-  },
-  textarea: {
-    minHeight: 70,
-    resize: 'vertical',
-    background: tokens.inputBg,
-    color: tokens.text,
-    border: `1px solid ${tokens.border}`,
-    borderRadius: 8,
-    padding: '10px 12px',
-    fontSize: 14,
-    fontFamily: fonts.body,
-    outline: 'none',
-  },
-  lockedNote: { margin: '14px 0 0', fontSize: 14, color: tokens.textMuted },
   empty: {
     background: tokens.surface,
     border: `1px dashed ${tokens.border}`,
