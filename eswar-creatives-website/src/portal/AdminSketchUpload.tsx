@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useOutletContext } from 'react-router'
+import { Link, useOutletContext, useSearchParams } from 'react-router'
 import { ChevronDown, ChevronUp, Trash2, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { type PortalProfile } from './PortalGuard'
@@ -180,6 +180,13 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
   >(null)
   const [voterLbLoading, setVoterLbLoading] = useState(false)
 
+  // Deep-link target: the Campaigns admin page links here as
+  // /portal/admin/sketches?campaign=<id> to open a campaign's responses.
+  const [searchParams] = useSearchParams()
+  const deepLinkCampaignId = searchParams.get('campaign')
+  // Honour it once, after the campaigns list has loaded.
+  const deepLinkHandled = useRef(false)
+
   const selectedClient = clients.find((c) => c.clientId === selectedClientId) ?? null
   const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null
   const isPublic = selectedClientId === PUBLIC
@@ -239,6 +246,24 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
   useEffect(() => {
     void loadCampaigns()
   }, [])
+
+  // ── Deep link: expand and scroll to a campaign named in ?campaign=<id>.
+  // Read-only — it only opens the existing responses view, nothing new. Runs
+  // once, after the matching campaign exists in the loaded list.
+  useEffect(() => {
+    if (deepLinkHandled.current || !deepLinkCampaignId) return
+    if (!campaigns.some((c) => c.id === deepLinkCampaignId)) return
+    deepLinkHandled.current = true
+    setExpandedCampaignId(deepLinkCampaignId)
+    if (!campaignVotes[deepLinkCampaignId]) void loadCampaignVotes(deepLinkCampaignId)
+    // Let the expanded panel render before scrolling it into view.
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`campaign-${deepLinkCampaignId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaigns, deepLinkCampaignId])
 
   async function loadCampaigns() {
     try {
@@ -1390,7 +1415,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
                 const archivedShown = !!showArchived[c.id]
                 const link = `${window.location.origin}/portal/vote/${c.voting_token}`
                 return (
-                  <div key={c.id} style={styles.campaignCard}>
+                  <div key={c.id} id={`campaign-${c.id}`} style={styles.campaignCard}>
                     <div
                       role="button"
                       tabIndex={0}

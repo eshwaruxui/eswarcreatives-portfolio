@@ -3,7 +3,8 @@
 // and change status inline. The client-linked, reviewer-facing campaigns live
 // here; the public no-account logo-sketch voting stays in AdminSketchUpload.
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Link } from 'react-router'
+import { Plus, X, ExternalLink } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts } from '../theme'
 import { PageHeader, Card, ui, formatDate } from './ui'
@@ -20,6 +21,28 @@ type Campaign = {
   created_at: string | null
 }
 
+// Logo-voting campaign from the separate public_campaigns table (the no-account,
+// link-shareable sketch voting system). These are read-only on this page: they
+// are created and managed under Sketches, not here. They have no client_id, so
+// they are filtered by a project_name name match; visibility is read from the
+// table's own column ('public' | 'private').
+type PublicCampaign = {
+  id: string
+  campaign_title: string
+  project_name: string
+  status: string | null
+  visibility: string | null
+  voting_token: string
+  created_at: string | null
+}
+
+// One unified row for the merged list, discriminated by source so review
+// campaigns keep their inline status control while logo-voting rows stay
+// read-only.
+type Row =
+  | { source: 'review'; createdAt: string | null; campaign: Campaign }
+  | { source: 'public'; createdAt: string | null; campaign: PublicCampaign; votes: number }
+
 const STATUSES = ['draft', 'active', 'closed'] as const
 
 // Status badge palette: draft = muted, active = teal, closed = ruby-muted.
@@ -30,8 +53,10 @@ function statusTone(status: string | null): { bg: string; fg: string } {
 }
 
 export function CampaignsAdmin() {
-  const { clients, selectedClientId } = usePortal()
+  const { clients, selectedClientId, selectedClient } = usePortal()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [publicCampaigns, setPublicCampaigns] = useState<PublicCampaign[]>([])
+  const [voteCounts, setVoteCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showNew, setShowNew] = useState(false)
@@ -39,14 +64,35 @@ export function CampaignsAdmin() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
+      // review_campaigns: client-scoped via the global selector (has client_id).
+      let reviewQuery = supabase
         .from('review_campaigns')
         .select('id, title, client_id, visibility, status, created_at')
         .order('created_at', { ascending: false })
-      if (selectedClientId) query = query.eq('client_id', selectedClientId)
-      const { data, error: err } = await query
-      if (err) throw err
-      setCampaigns((data ?? []) as Campaign[])
+      if (selectedClientId) reviewQuery = reviewQuery.eq('client_id', selectedClientId)
+
+      // public_campaigns + public_votes are the separate logo-voting system.
+      // Read-only here; vote counts are tallied client-side from public_votes.
+      const [reviewRes, publicRes, votesRes] = await Promise.all([
+        reviewQuery,
+        supabase
+          .from('public_campaigns')
+          .select('id, campaign_title, project_name, status, visibility, voting_token, created_at')
+          .order('created_at', { ascending: false }),
+        supabase.from('public_votes').select('campaign_id'),
+      ])
+      if (reviewRes.error) throw reviewRes.error
+      if (publicRes.error) throw publicRes.error
+      if (votesRes.error) throw votesRes.error
+
+      const counts: Record<string, number> = {}
+      for (const v of (votesRes.data ?? []) as { campaign_id: string }[]) {
+        counts[v.campaign_id] = (counts[v.campaign_id] ?? 0) + 1
+      }
+
+      setCampaigns((reviewRes.data ?? []) as Campaign[])
+      setPublicCampaigns((publicRes.data ?? []) as PublicCampaign[])
+      setVoteCounts(counts)
       setError(null)
     } catch {
       setError('Could not load campaigns. Refresh to try again.')
@@ -63,7 +109,7 @@ export function CampaignsAdmin() {
     id ? clientLabel(clients.find((c) => c.id === id)) : 'No client'
 
   // 6g: change status inline; the badge updates immediately (optimistic), then
-  // reverts if the write fails.
+  // reverts if the write fails. Only review_campaigns are editable here.
   async function changeStatus(c: Campaign, status: string) {
     const prev = c.status
     setCampaigns((list) => list.map((x) => (x.id === c.id ? { ...x, status } : x)))
@@ -76,6 +122,30 @@ export function CampaignsAdmin() {
       setError('Could not update campaign status. Try again.')
     }
   }
+
+  // public_campaigns has no client_id. Best-effort scope: when a client is
+  // selected, keep only campaigns whose project_name mentions the client name.
+  // With no client selected, show them all.
+  const filteredPublic = (() => {
+    if (!selectedClientId) return publicCampaigns
+    const name = clientLabel(selectedClient).trim().toLowerCase()
+    if (!name || name === '(unnamed)') return publicCampaigns
+    return publicCampaigns.filter((c) => c.project_name.toLowerCase().includes(name))
+  })()
+
+  // Merge both systems into one list, newest first, so the page reads as a
+  // single Campaigns surface (H2: same language across the two sources).
+  const rows: Row[] = [
+    ...campaigns.map((c): Row => ({ source: 'review', createdAt: c.created_at, campaign: c })),
+    ...filteredPublic.map(
+      (c): Row => ({
+        source: 'public',
+        createdAt: c.created_at,
+        campaign: c,
+        votes: voteCounts[c.id] ?? 0,
+      }),
+    ),
+  ].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
 
   return (
     <>
@@ -93,7 +163,7 @@ export function CampaignsAdmin() {
 
       {loading ? (
         <p style={ui.muted}>Loading...</p>
-      ) : campaigns.length === 0 ? (
+      ) : rows.length === 0 ? (
         <p style={ui.muted}>No campaigns yet. Create one to get started.</p>
       ) : (
         <Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -101,46 +171,22 @@ export function CampaignsAdmin() {
             <thead>
               <tr>
                 <th style={styles.th}>Campaign</th>
+                <th style={styles.th}>Source</th>
                 <th style={styles.th}>Client</th>
                 <th style={styles.th}>Visibility</th>
+                <th style={styles.th}>Votes</th>
                 <th style={styles.th}>Created</th>
                 <th style={styles.th}>Status</th>
               </tr>
             </thead>
             <tbody>
-              {campaigns.map((c) => {
-                const tone = statusTone(c.status)
-                return (
-                  <tr key={c.id} style={styles.row}>
-                    <td style={{ ...styles.td, fontWeight: 600, color: tokens.text }}>{c.title}</td>
-                    <td style={styles.td}>{clientName(c.client_id)}</td>
-                    <td style={styles.td}>
-                      <span style={styles.visBadge}>{c.visibility === 'public' ? 'Public' : 'Private'}</span>
-                    </td>
-                    <td style={styles.td}>{formatDate(c.created_at)}</td>
-                    <td style={styles.td}>
-                      <div style={styles.statusCell}>
-                        {/* H1: status badge always visible, updates immediately. */}
-                        <span style={{ ...styles.statusBadge, background: tone.bg, color: tone.fg }}>
-                          {c.status ?? 'draft'}
-                        </span>
-                        <select
-                          value={c.status ?? 'draft'}
-                          onChange={(e) => void changeStatus(c, e.target.value)}
-                          style={styles.statusSelect}
-                          aria-label={`Change status for ${c.title}`}
-                        >
-                          {STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+              {rows.map((r) =>
+                r.source === 'review' ? (
+                  <ReviewRow key={`review-${r.campaign.id}`} c={r.campaign} clientName={clientName} onStatus={changeStatus} />
+                ) : (
+                  <PublicRow key={`public-${r.campaign.id}`} c={r.campaign} votes={r.votes} />
+                ),
+              )}
             </tbody>
           </table>
         </Card>
@@ -156,6 +202,90 @@ export function CampaignsAdmin() {
         />
       )}
     </>
+  )
+}
+
+// Review campaign row: client-linked, with the inline status control (6g).
+function ReviewRow({
+  c,
+  clientName,
+  onStatus,
+}: {
+  c: Campaign
+  clientName: (id: string | null) => string
+  onStatus: (c: Campaign, status: string) => void
+}) {
+  const tone = statusTone(c.status)
+  return (
+    <tr style={styles.row}>
+      <td style={styles.td}>
+        <div style={styles.titleCell}>{c.title}</div>
+      </td>
+      <td style={styles.td}>
+        <span style={styles.sourceReview}>Review campaign</span>
+      </td>
+      <td style={styles.td}>{clientName(c.client_id)}</td>
+      <td style={styles.td}>
+        <span style={styles.visBadge}>{c.visibility === 'public' ? 'Public' : 'Private'}</span>
+      </td>
+      <td style={styles.td}>—</td>
+      <td style={styles.td}>{formatDate(c.created_at)}</td>
+      <td style={styles.td}>
+        <div style={styles.statusCell}>
+          {/* H1: status badge always visible, updates immediately. */}
+          <span style={{ ...styles.statusBadge, background: tone.bg, color: tone.fg }}>
+            {c.status ?? 'draft'}
+          </span>
+          <select
+            value={c.status ?? 'draft'}
+            onChange={(e) => onStatus(c, e.target.value)}
+            style={styles.statusSelect}
+            aria-label={`Change status for ${c.title}`}
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+// Logo-voting row: read-only mirror of a public_campaigns record. That table has
+// no client_id (so the client cell stays blank), but it does carry its own
+// visibility column, read here the same way review rows read theirs. The status
+// badge is read-only (managed under Sketches), and the title links to the
+// existing public votes view for this campaign (H3: user stays in control).
+function PublicRow({ c, votes }: { c: PublicCampaign; votes: number }) {
+  const tone = statusTone(c.status)
+  return (
+    <tr style={styles.row}>
+      <td style={styles.td}>
+        <Link to={`/portal/admin/sketches?campaign=${c.id}`} style={styles.titleLink}>
+          <span style={styles.titleCell}>{c.campaign_title}</span>
+          <ExternalLink size={13} style={{ flexShrink: 0 }} />
+        </Link>
+        <div style={styles.subtitle}>{c.project_name}</div>
+      </td>
+      <td style={styles.td}>
+        <span style={styles.sourcePublic}>Logo voting</span>
+      </td>
+      <td style={styles.td}>—</td>
+      <td style={styles.td}>
+        <span style={styles.visBadge}>{c.visibility === 'public' ? 'Public' : 'Private'}</span>
+      </td>
+      <td style={styles.td}>{votes}</td>
+      <td style={styles.td}>{formatDate(c.created_at)}</td>
+      <td style={styles.td}>
+        {/* H1: status visible but read-only; logo voting is managed elsewhere. */}
+        <span style={{ ...styles.statusBadge, background: tone.bg, color: tone.fg }}>
+          {c.status ?? 'draft'}
+        </span>
+      </td>
+    </tr>
   )
 }
 
@@ -284,6 +414,15 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.textMuted,
     borderBottom: `1px solid ${tokens.border}`,
   },
+  titleCell: { fontWeight: 600, color: tokens.text },
+  titleLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    color: tokens.primary,
+    textDecoration: 'none',
+  },
+  subtitle: { fontSize: 12, color: tokens.textMuted, marginTop: 2 },
   visBadge: {
     display: 'inline-block',
     padding: '2px 10px',
@@ -293,6 +432,26 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 11,
     fontWeight: 600,
     border: `1px solid ${tokens.border}`,
+  },
+  sourceReview: {
+    display: 'inline-block',
+    padding: '2px 10px',
+    borderRadius: 999,
+    background: tokens.tealLight,
+    color: tokens.primary,
+    fontSize: 11,
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  },
+  sourcePublic: {
+    display: 'inline-block',
+    padding: '2px 10px',
+    borderRadius: 999,
+    background: tokens.goldLight,
+    color: tokens.goldDark,
+    fontSize: 11,
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
   },
   statusCell: { display: 'flex', alignItems: 'center', gap: 10 },
   statusBadge: {
