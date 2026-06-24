@@ -25,7 +25,7 @@ import { InvoicesAdmin } from "../portal/admin/InvoicesAdmin";
 import { ProjectsList } from "../portal/admin/ProjectsList";
 import { MockupsAdmin } from "../portal/admin/MockupsAdmin";
 import { DiscoveryPlaceholder } from "../portal/admin/DiscoveryPlaceholder";
-import { CampaignsRedirect } from "../portal/admin/CampaignsRedirect";
+import { CampaignsAdmin } from "../portal/admin/CampaignsAdmin";
 import { MockupsPage } from "../portal/client/MockupsPage";
 import { ClientDashboardPage } from "../portal/ClientDashboard";
 import { ClientProposalsPage } from "../portal/client/ClientProposals";
@@ -52,8 +52,6 @@ export const routeConfig = [
   // Public, unauthenticated voting page (no PortalGuard) — migrations 0019-0021.
   { path: "/portal/vote/:token",    Component: PublicVotePage },
   // Phase 3 admin portal — persistent shell (sidebar + Outlet), admin-gated.
-  // The Campaigns nav item redirects to the existing sketches page for now.
-  { path: "/portal/admin/campaigns", Component: CampaignsRedirect },
   {
     Component: AdminShell,
     children: [
@@ -66,6 +64,8 @@ export const routeConfig = [
       { path: "/portal/admin/projects",    Component: ProjectsList },
       { path: "/portal/admin/mockups",     Component: MockupsAdmin },
       { path: "/portal/admin/discovery",   Component: DiscoveryPlaceholder },
+      // Phase 5 (Task 6): review_campaigns management with visibility + status.
+      { path: "/portal/admin/campaigns",   Component: CampaignsAdmin },
       { path: "/portal/admin/sketches",    Component: AdminSketchUpload },
     ],
   },
