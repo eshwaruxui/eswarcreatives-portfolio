@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
 import { Plus, Check, ChevronDown } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts } from '../theme'
 import { Card, ui } from './ui'
 import { AddClientModal } from './AddClientModal'
+import { ClientPanel } from './ClientPanel'
 import type { CSSProperties } from 'react'
 
 type Client = {
@@ -16,7 +16,6 @@ type Client = {
 }
 
 export function ClientsList() {
-  const navigate = useNavigate()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -25,6 +24,8 @@ export function ClientsList() {
   const [filterId, setFilterId] = useState<string>('all')
   const [menuOpen, setMenuOpen] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+  // Clicking a row opens the manage-client slide-in panel.
+  const [panelClientId, setPanelClientId] = useState<string | null>(null)
 
   // Briefly highlight a newly added client row, then fade it out.
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -142,7 +143,7 @@ export function ClientsList() {
               {filtered.map((c) => (
                 <tr
                   key={c.id}
-                  onClick={() => navigate(`/portal/admin/clients/${c.id}`)}
+                  onClick={() => setPanelClientId(c.id)}
                   style={{ ...styles.row, ...(c.id === highlightId ? styles.rowHighlight : null) }}
                 >
                   <td
@@ -167,6 +168,14 @@ export function ClientsList() {
       </Card>
 
       {showAdd && <AddClientModal onClose={() => setShowAdd(false)} onCreated={handleCreated} />}
+
+      {panelClientId && (
+        <ClientPanel
+          clientId={panelClientId}
+          onClose={() => setPanelClientId(null)}
+          onChanged={() => void load()}
+        />
+      )}
     </>
   )
 }
