@@ -35,8 +35,10 @@ export function AdminShell() {
   return (
     <PortalGuard>
       {(profile) =>
-        profile.role !== 'admin' ? (
-          <Navigate to="/portal/dashboard" replace />
+        // H1 / H5: owner is the super-admin role, so it shares the admin area;
+        // anyone else is sent back to login rather than to a broken path.
+        profile.role !== 'admin' && profile.role !== 'owner' ? (
+          <Navigate to="/portal/login" replace />
         ) : (
           <PortalProvider>
             <Shell profile={profile} />

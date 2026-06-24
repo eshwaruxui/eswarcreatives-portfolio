@@ -34,7 +34,9 @@ export function LoginPage() {
       .single()
     const role = profile?.role
     if (role === 'admin' || role === 'owner') {
-      navigate('/portal/admin/sketches', { replace: true })
+      // H1 (visibility of system status): staff land on the admin dashboard
+      // overview (the /portal/admin index route), not a sub-module like sketches.
+      navigate('/portal/admin', { replace: true })
     } else if (role === 'client') {
       navigate('/portal/projects', { replace: true })
     } else if (role === 'reviewer') {
