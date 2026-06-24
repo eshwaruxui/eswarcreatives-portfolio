@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useOutletContext } from 'react-router'
 import { Plus, Check, ChevronDown } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts } from '../theme'
 import { Card, ui } from './ui'
 import { AddClientModal } from './AddClientModal'
 import { ClientPanel } from './ClientPanel'
+import type { PortalProfile } from '../PortalGuard'
 import type { CSSProperties } from 'react'
 
 type Client = {
@@ -16,6 +18,11 @@ type Client = {
 }
 
 export function ClientsList() {
+  // AdminShell gates this whole area to owner/admin and passes the profile via
+  // the router outlet; only those roles may hard-delete a client.
+  const profile = useOutletContext<PortalProfile>()
+  const canDelete = profile?.role === 'owner' || profile?.role === 'admin'
+
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -172,8 +179,14 @@ export function ClientsList() {
       {panelClientId && (
         <ClientPanel
           clientId={panelClientId}
+          canDelete={canDelete}
           onClose={() => setPanelClientId(null)}
           onChanged={() => void load()}
+          onDeleted={() => {
+            setPanelClientId(null)
+            setFilterId('all') // the deleted client may have been the active filter
+            void load()
+          }}
         />
       )}
     </>

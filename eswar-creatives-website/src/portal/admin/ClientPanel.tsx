@@ -4,10 +4,11 @@
 // project rows open the project drawer, both nested above this panel.
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Check, X, Pencil } from 'lucide-react'
+import { Check, X, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts, motionTokens } from '../theme'
 import { StatusBadge, mono, formatMoney, formatDate } from './ui'
+import { showToast } from './toast'
 import { SidePanel } from './SidePanel'
 import { InvoicePreview } from './InvoicePreview'
 import type { PreviewInvoice } from './InvoicePreview'
@@ -64,11 +65,17 @@ export function ClientPanel({
   clientId,
   onClose,
   onChanged,
+  onDeleted,
+  canDelete = false,
 }: {
   clientId: string
   onClose: () => void
   // Called after an edit so the underlying list can refresh names.
   onChanged?: () => void
+  // Called after a successful delete so the list can drop the row + close.
+  onDeleted?: () => void
+  // Gates the Danger zone: only owner/admin may hard-delete a client.
+  canDelete?: boolean
 }) {
   const navigate = useNavigate()
   const [client, setClient] = useState<Client | null>(null)
@@ -82,6 +89,11 @@ export function ClientPanel({
   // Nested drawers launched from the lists.
   const [openInvoice, setOpenInvoice] = useState<PreviewInvoice | null>(null)
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
+
+  // Delete-client confirmation flow.
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -150,6 +162,36 @@ export function ClientPanel({
     setClient((prev) => (prev ? { ...prev, [column]: value } : prev))
     onChanged?.()
     return true
+  }
+
+  // Hard-delete the client via the service-role edge function (atomic cascade).
+  // The auth login is never removed automatically; we surface a reminder with
+  // the returned email so an admin can delete it in the Supabase dashboard.
+  async function handleDelete() {
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const { data, error: err } = await supabase.functions.invoke('admin-delete-client', {
+        body: { client_id: clientId },
+      })
+      if (err) throw err
+      const email = (data as { authUserEmail?: string | null } | null)?.authUserEmail
+      setConfirmOpen(false)
+      // H1: confirm success and the one manual step that remains.
+      showToast(
+        email
+          ? `Client deleted. Remove the login (${email}) manually in Supabase → Authentication.`
+          : 'Client deleted. Remove the login manually in Supabase → Authentication.',
+        'success'
+      )
+      onChanged?.()
+      onDeleted?.()
+    } catch {
+      // H9: plain-language error, never a raw Supabase string.
+      setDeleteError('Could not delete this client. Please try again.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const title = client?.company_name || client?.contact_name || 'Client'
@@ -247,9 +289,71 @@ export function ClientPanel({
                 </button>
               ))
             )}
+
+            {/* Section 5 — Danger zone (owner/admin only). Ruby, destructive. */}
+            {canDelete && (
+              <>
+                <SectionHeading>Danger zone</SectionHeading>
+                <p style={styles.dangerNote}>
+                  Permanently deletes this client and all of their projects, orders,
+                  invoices and proposals. The login is not removed automatically — you'll
+                  get a reminder to delete it in Supabase. This cannot be undone.
+                </p>
+                <button type="button" style={styles.deleteBtn} onClick={() => setConfirmOpen(true)}>
+                  <Trash2 size={15} />
+                  Delete client
+                </button>
+              </>
+            )}
           </>
         )}
       </SidePanel>
+
+      {/* Delete confirmation — modal above the panel and any nested drawers. */}
+      {confirmOpen && (
+        <div
+          style={styles.confirmBackdrop}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-client-title"
+        >
+          <div style={styles.confirmCard}>
+            <div style={styles.confirmIcon}>
+              <AlertTriangle size={22} />
+            </div>
+            <h2 id="delete-client-title" style={styles.confirmTitle}>
+              Delete {title}?
+            </h2>
+            <p style={styles.confirmBody}>
+              This permanently deletes the client and <strong>all</strong> of their
+              projects, orders, invoices and proposals. This action cannot be undone.
+            </p>
+            <p style={styles.confirmBody}>
+              The client's login is <strong>not</strong> removed automatically — you'll
+              need to delete it manually in Supabase → Authentication.
+            </p>
+            {deleteError && <div style={styles.confirmError}>{deleteError}</div>}
+            <div style={styles.confirmActions}>
+              <button
+                type="button"
+                style={styles.confirmCancel}
+                onClick={() => setConfirmOpen(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={{ ...styles.confirmDelete, opacity: deleting ? 0.6 : 1 }}
+                onClick={() => void handleDelete()}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting…' : 'Delete client'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Nested drawers stack above the client panel (baseZIndex bumped). */}
       {openInvoice && (
@@ -491,4 +595,107 @@ const styles: Record<string, CSSProperties> = {
   itemAmount: { fontFamily: mono, fontSize: 13, color: tokens.text, whiteSpace: 'nowrap' },
   itemMeta: { fontFamily: fonts.body, fontSize: 12, color: tokens.textMuted, whiteSpace: 'nowrap' },
   phaseBadge: { fontFamily: mono, fontSize: 12, color: tokens.textMuted, whiteSpace: 'nowrap' },
+  dangerNote: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: tokens.textMuted,
+    margin: '0 0 12px',
+  },
+  deleteBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    background: tokens.rubyLight,
+    color: tokens.ruby,
+    border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8,
+    padding: '9px 16px',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  confirmBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 400,
+    background: 'rgba(10, 26, 27, 0.45)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  confirmCard: {
+    width: '100%',
+    maxWidth: 440,
+    background: tokens.surface,
+    borderRadius: 14,
+    padding: 28,
+    boxShadow: '0 24px 60px rgba(2, 76, 79, 0.24)',
+  },
+  confirmIcon: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    background: tokens.rubyLight,
+    color: tokens.ruby,
+    marginBottom: 14,
+  },
+  confirmTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 19,
+    fontWeight: 600,
+    color: tokens.text,
+    margin: '0 0 10px',
+  },
+  confirmBody: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: tokens.textMuted,
+    margin: '0 0 12px',
+  },
+  confirmError: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: tokens.ruby,
+    background: tokens.rubyLight,
+    border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8,
+    padding: '8px 12px',
+    margin: '0 0 12px',
+  },
+  confirmActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 8,
+  },
+  confirmCancel: {
+    background: tokens.surface,
+    color: tokens.text,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 8,
+    padding: '9px 18px',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  confirmDelete: {
+    background: tokens.ruby,
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 8,
+    padding: '9px 18px',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
 }

@@ -4,6 +4,7 @@
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only.
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { PortalGuard, type PortalProfile } from '../PortalGuard'
@@ -19,12 +20,85 @@ type Campaign = {
   created_at: string | null
 }
 
-type Submission = {
+// Raw submission row joined to its set. The submission's own set_name column is
+// unused (always null in practice); the real name lives on logo_sketch_sets.
+type RawSubmission = {
   id: string
-  set_name: string | null
   accepted_count: number
   passed_count: number
   completed_at: string
+  set_id: string
+  logo_sketch_sets: {
+    name: string | null
+    project_slug: string | null
+  } | null
+}
+
+// One set within a campaign, reduced to its latest submission.
+type SetSummary = {
+  setId: string
+  name: string
+  accepted: number
+  passed: number
+  completedAt: string
+}
+
+// A campaign groups all of a client's sets under one project_slug, since the
+// sketch sets are not linked to a campaign row (campaign_id is unused here).
+type CampaignSummary = {
+  slug: string
+  label: string
+  sets: SetSummary[]
+  totalAccepted: number
+  totalPassed: number
+  latestAt: string
+}
+
+// Turn a project_slug like "newgen-branding-2026" into "Newgen Branding 2026".
+function campaignLabel(slug: string): string {
+  if (!slug) return 'Logo concept voting'
+  return slug.replace(/-/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+}
+
+// Group submissions into campaigns. Submissions arrive newest-first, so the
+// first one seen per set is its latest; we keep that and ignore earlier revotes.
+function groupSubmissions(rows: RawSubmission[]): CampaignSummary[] {
+  const byCampaign = new Map<string, CampaignSummary>()
+  const seenSets = new Set<string>()
+
+  for (const row of rows) {
+    if (seenSets.has(row.set_id)) continue
+    seenSets.add(row.set_id)
+
+    const slug = row.logo_sketch_sets?.project_slug ?? 'unknown'
+    const setSummary: SetSummary = {
+      setId: row.set_id,
+      name: row.logo_sketch_sets?.name || 'Concept set',
+      accepted: row.accepted_count,
+      passed: row.passed_count,
+      completedAt: row.completed_at,
+    }
+
+    let camp = byCampaign.get(slug)
+    if (!camp) {
+      camp = {
+        slug,
+        label: campaignLabel(slug),
+        sets: [],
+        totalAccepted: 0,
+        totalPassed: 0,
+        latestAt: row.completed_at,
+      }
+      byCampaign.set(slug, camp)
+    }
+    camp.sets.push(setSummary)
+    camp.totalAccepted += row.accepted_count
+    camp.totalPassed += row.passed_count
+    if (row.completed_at > camp.latestAt) camp.latestAt = row.completed_at
+  }
+
+  // Newest campaign first, by most recent activity.
+  return [...byCampaign.values()].sort((a, b) => (a.latestAt < b.latestAt ? 1 : -1))
 }
 
 export function ClientCampaignsPage() {
@@ -37,7 +111,8 @@ export function ClientCampaignsPage() {
 
 function Campaigns({ profile }: { profile: PortalProfile }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [submissions, setSubmissions] = useState<Submission[]>([])
+  const [history, setHistory] = useState<CampaignSummary[]>([])
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -53,17 +128,20 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
             .select('id, title, status, visibility, created_at')
             .order('created_at', { ascending: false }),
           // 6e: prior submission history. client_id on submissions is the auth
-          // user id; RLS also scopes this to the client's own rows.
+          // user id; RLS also scopes this to the client's own rows. We embed the
+          // set so we can show its real name and group by its project_slug.
           supabase
             .from('logo_sketch_submissions')
-            .select('id, set_name, accepted_count, passed_count, completed_at')
+            .select(
+              'id, accepted_count, passed_count, completed_at, set_id, logo_sketch_sets(name, project_slug)'
+            )
             .eq('client_id', profile.id)
             .order('completed_at', { ascending: false }),
         ])
         if (campRes.error) throw campRes.error
         if (!cancelled) {
           setCampaigns((campRes.data ?? []) as Campaign[])
-          setSubmissions((subRes.data ?? []) as Submission[])
+          setHistory(groupSubmissions((subRes.data ?? []) as unknown as RawSubmission[]))
         }
       } catch {
         // H9: plain-language error, never a raw Supabase string.
@@ -90,7 +168,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
         {loading && <div style={styles.muted}>Loading campaigns...</div>}
         {error && <div style={styles.error}>{error}</div>}
 
-        {!loading && !error && campaigns.length === 0 && submissions.length === 0 && (
+        {!loading && !error && campaigns.length === 0 && history.length === 0 && (
           <div style={styles.empty}>
             <h2 style={styles.emptyTitle}>No campaigns yet</h2>
             <p style={styles.mutedBody}>Your design review campaigns will appear here.</p>
@@ -123,24 +201,58 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
           </div>
         )}
 
-        {/* 6e: submission history, only when the client has prior submissions. */}
-        {!loading && !error && submissions.length > 0 && (
+        {/* 6e: submission history, grouped by campaign. Each campaign shows one
+            summary row with total accepted/passed; expanding reveals the actual
+            set names and their individual counts. */}
+        {!loading && !error && history.length > 0 && (
           <section style={styles.historyBlock}>
             <h2 style={styles.historyHeading}>Submission history</h2>
             <div style={styles.historyList}>
-              {submissions.map((s) => (
-                <div key={s.id} style={styles.historyRow}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={styles.historyName}>{s.set_name || 'Concept set'}</div>
-                    <div style={styles.historyMeta}>
-                      {formatDate(s.completed_at)} · {s.accepted_count} accepted / {s.passed_count} passed
-                    </div>
+              {history.map((camp) => {
+                const open = !!expanded[camp.slug]
+                const setLabel = camp.sets.length === 1 ? 'set' : 'sets'
+                return (
+                  <div key={camp.slug}>
+                    <button
+                      type="button"
+                      style={styles.campaignRow}
+                      onClick={() =>
+                        setExpanded((m) => ({ ...m, [camp.slug]: !m[camp.slug] }))
+                      }
+                      aria-expanded={open}
+                    >
+                      <span style={styles.chevron}>
+                        {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </span>
+                      <span style={styles.campaignText}>
+                        <span style={styles.historyName}>{camp.label}</span>
+                        <span style={styles.historyMeta}>
+                          {formatDate(camp.latestAt)} · {camp.sets.length} {setLabel} ·{' '}
+                          {camp.totalAccepted} accepted / {camp.totalPassed} passed
+                        </span>
+                      </span>
+                    </button>
+                    {open && (
+                      <div style={styles.setList}>
+                        {camp.sets.map((s) => (
+                          <div key={s.setId} style={styles.setRow}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={styles.setName}>{s.name}</div>
+                              <div style={styles.historyMeta}>
+                                {formatDate(s.completedAt)} · {s.accepted} accepted /{' '}
+                                {s.passed} passed
+                              </div>
+                            </div>
+                            <Link to="/portal/sketch-review" style={styles.historyLink}>
+                              View selections
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <Link to="/portal/sketch-review" style={styles.historyLink}>
-                    View selections
-                  </Link>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </section>
         )}
@@ -226,16 +338,32 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 12,
     overflow: 'hidden',
   },
-  historyRow: {
+  campaignRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+    padding: '16px 20px',
+    border: 'none',
+    borderBottom: `1px solid ${tokens.border}`,
+    background: tokens.surface,
+    cursor: 'pointer',
+    textAlign: 'left',
+  },
+  chevron: { flexShrink: 0, display: 'inline-flex', color: tokens.textMuted },
+  campaignText: { minWidth: 0, flex: 1 },
+  setList: { background: tokens.bg, borderBottom: `1px solid ${tokens.border}` },
+  setRow: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 16,
-    padding: '16px 20px',
-    borderBottom: `1px solid ${tokens.border}`,
+    padding: '14px 20px 14px 48px',
+    borderTop: `1px solid ${tokens.border}`,
   },
-  historyName: { fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: tokens.text },
-  historyMeta: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, marginTop: 2 },
+  setName: { fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: tokens.text },
+  historyName: { display: 'block', fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: tokens.text },
+  historyMeta: { display: 'block', fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, marginTop: 2 },
   historyLink: {
     color: tokens.accent,
     fontFamily: fonts.body,
