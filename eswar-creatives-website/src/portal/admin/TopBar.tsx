@@ -95,6 +95,17 @@ export function TopBar() {
           )}
         </div>
 
+        {/* H7 (flexibility/efficiency): a direct "Add client" action next to the
+            selector, so adding a client no longer requires opening Settings.
+            Reuses the same AddClientModal rendered below. */}
+        <button
+          type="button"
+          style={styles.addClientBtn}
+          onClick={() => setShowAddClient(true)}
+        >
+          + Add client
+        </button>
+
         <div style={styles.spacer} />
 
         {/* Settings */}
@@ -114,10 +125,6 @@ export function TopBar() {
           onManageClients={() => {
             setSettingsOpen(false)
             navigate('/portal/admin/clients')
-          }}
-          onAddClient={() => {
-            setSettingsOpen(false)
-            setShowAddClient(true)
           }}
           onSignOut={signOut}
           signingOut={signingOut}
@@ -164,14 +171,12 @@ function SelectorItem({
 function SettingsPanel({
   onClose,
   onManageClients,
-  onAddClient,
   onSignOut,
   signingOut,
   signOutError,
 }: {
   onClose: () => void
   onManageClients: () => void
-  onAddClient: () => void
   onSignOut: () => void
   signingOut: boolean
   signOutError: string | null
@@ -192,9 +197,6 @@ function SettingsPanel({
           <h3 style={styles.sectionLabel}>Clients</h3>
           <button type="button" style={styles.panelLink} onClick={onManageClients}>
             Manage Clients
-          </button>
-          <button type="button" style={styles.panelLink} onClick={onAddClient}>
-            Add Client
           </button>
         </section>
 
@@ -287,6 +289,24 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500,
     color: tokens.text,
     cursor: 'pointer',
+  },
+  // Outlined secondary button in the teal accent, compact to fit the 56px bar.
+  addClientBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    height: 34,
+    padding: '0 14px',
+    background: tokens.surface,
+    border: `1px solid ${tokens.accent}`,
+    borderRadius: 8,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    color: tokens.accent,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   },
   backdrop: { position: 'fixed', inset: 0, zIndex: 30 },
   menu: {
