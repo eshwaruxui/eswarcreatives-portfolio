@@ -12,7 +12,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const FROM = "Eswar Creatives <eswar@eswarcreatives.in>";
-const PORTAL_URL = "https://www.eswarcreatives.in/portal";
+const PORTAL_URL = Deno.env.get("PORTAL_URL") ?? "https://www.eswarcreatives.in/portal";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
