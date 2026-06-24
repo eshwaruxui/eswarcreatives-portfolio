@@ -129,7 +129,9 @@ Deno.serve(async (req: Request) => {
   let emailSent = false;
   try {
     const { data: emailRes } = await admin.functions.invoke("send-welcome-email", {
-      body: { email, full_name: contactName || companyName },
+      // Pass the temporary password through so the welcome email can show it.
+      // It is only forwarded here; never logged or stored by this function.
+      body: { email, full_name: contactName || companyName, password },
     });
     emailSent = !!(emailRes as { emailSent?: boolean } | null)?.emailSent;
   } catch (_e) {

@@ -35,7 +35,7 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function plainText(fullName: string, email: string): string {
+function plainText(fullName: string, email: string, password: string): string {
   return [
     `Hello ${fullName},`,
     "",
@@ -43,6 +43,12 @@ function plainText(fullName: string, email: string): string {
     "",
     `Portal: ${PORTAL_URL}`,
     `Your login: ${email}`,
+    ...(password
+      ? [
+          `Temporary password: ${password}`,
+          "Please change your password after your first login via the Account page.",
+        ]
+      : []),
     "",
     "If you need help, reply to this email.",
     "",
@@ -51,9 +57,10 @@ function plainText(fullName: string, email: string): string {
   ].join("\n");
 }
 
-function htmlBody(fullName: string, email: string): string {
+function htmlBody(fullName: string, email: string, password: string): string {
   const name = escapeHtml(fullName);
   const mail = escapeHtml(email);
+  const pass = escapeHtml(password);
   // Text wordmark rather than an embedded SVG: many email clients block SVG, so
   // a styled wordmark renders reliably everywhere.
   return `<!doctype html>
@@ -75,8 +82,20 @@ function htmlBody(fullName: string, email: string): string {
       </p>
       <p style="font-size:14px;line-height:1.6;margin:0 0 8px;color:#3D6163;">
         Portal: <a href="${PORTAL_URL}" style="color:#007872;">${PORTAL_URL}</a><br/>
-        Your login: ${mail}
-      </p>
+        Your login: ${mail}${
+          pass
+            ? `<br/>
+        Temporary password: ${pass}`
+            : ""
+        }
+      </p>${
+        pass
+          ? `
+      <p style="font-size:14px;line-height:1.6;margin:8px 0 0;color:#3D6163;">
+        Please change your password after your first login via the Account page.
+      </p>`
+          : ""
+      }
       <p style="font-size:14px;line-height:1.6;margin:24px 0 0;">
         If you need help, reply to this email.
       </p>
@@ -88,7 +107,7 @@ function htmlBody(fullName: string, email: string): string {
 </html>`;
 }
 
-type Body = { email?: string; full_name?: string; dryRun?: boolean };
+type Body = { email?: string; full_name?: string; password?: string; dryRun?: boolean };
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -109,6 +128,9 @@ Deno.serve(async (req: Request) => {
 
   const email = (body.email ?? "").trim();
   const fullName = (body.full_name ?? "").trim() || "there";
+  // The temporary password is only ever read into this email body. It is never
+  // logged, never returned in a response, and never persisted here.
+  const password = body.password ?? "";
   if (!email) return ok({ success: true, emailSent: false });
 
   // No provider configured: report a non-fatal warning.
@@ -127,8 +149,8 @@ Deno.serve(async (req: Request) => {
         from: FROM,
         to: email,
         subject: "Welcome to the Eswar Creatives Client Portal",
-        text: plainText(fullName, email),
-        html: htmlBody(fullName, email),
+        text: plainText(fullName, email, password),
+        html: htmlBody(fullName, email, password),
       }),
     });
     if (!res.ok) {

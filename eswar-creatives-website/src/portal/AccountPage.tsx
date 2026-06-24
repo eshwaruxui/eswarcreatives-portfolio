@@ -57,7 +57,7 @@ function Account({ profile }: { profile: PortalProfile }) {
         </div>
 
         <div style={styles.card}>
-          <span style={styles.label}>Password</span>
+          <span style={styles.label}>Change your password</span>
           {/* H6: the email is shown (read-only) so the client knows where the
               link will be sent, without having to recall or retype it. */}
           <input value={profile.email} readOnly style={styles.inputReadonly} aria-label="Email" />
