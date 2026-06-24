@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Plus, Eye, Pencil } from 'lucide-react'
+import { Plus, Eye, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, fonts, motionTokens } from '../theme'
 import {
   PageHeader,
   Modal,
@@ -47,6 +47,9 @@ export function ProposalsAdmin() {
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // A draft being deleted: fade the card out before removing it from the list.
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
   useEffect(() => {
     return () => {
       if (highlightTimer.current) clearTimeout(highlightTimer.current)
@@ -89,6 +92,29 @@ export function ProposalsAdmin() {
     void load()
   }, [load])
 
+  // 5a: delete a draft proposal. H5 (error prevention): confirm the
+  // irreversible action first, and scope the delete to status='draft' so a
+  // proposal that changed state in another tab can never be removed here.
+  async function deleteDraft(e: React.MouseEvent, p: Proposal) {
+    e.stopPropagation()
+    if (!window.confirm('Delete this draft? This cannot be undone.')) return
+    const { error: delErr } = await supabase
+      .from('proposals')
+      .delete()
+      .eq('id', p.id)
+      .eq('status', 'draft')
+    if (delErr) {
+      setError('Could not delete the draft. Try again.')
+      return
+    }
+    // Fade the card out (durationBase), then drop it from the list.
+    setRemovingId(p.id)
+    setTimeout(() => {
+      setProposals((prev) => prev.filter((x) => x.id !== p.id))
+      setRemovingId(null)
+    }, parseInt(motionTokens.durationBase, 10))
+  }
+
   return (
     <>
       <PageHeader
@@ -113,11 +139,29 @@ export function ProposalsAdmin() {
             <div
               key={p.id}
               onClick={() => navigate(`/portal/admin/proposals/${p.id}`)}
-              style={{ ...styles.card, ...(p.id === highlightId ? styles.cardHighlight : null) }}
+              style={{
+                ...styles.card,
+                ...(p.id === highlightId ? styles.cardHighlight : null),
+                ...(p.id === removingId ? styles.cardRemoving : null),
+              }}
             >
               <div style={styles.cardTop}>
                 <span style={styles.number}>{p.proposal_number || 'No number'}</span>
-                <StatusBadge status={p.status} />
+                <div style={styles.cardTopRight}>
+                  <StatusBadge status={p.status} />
+                  {/* 5a: delete only ever shows on drafts. */}
+                  {p.status === 'draft' && (
+                    <button
+                      type="button"
+                      style={styles.deleteBtn}
+                      onClick={(e) => deleteDraft(e, p)}
+                      aria-label="Delete draft"
+                      title="Delete draft"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </div>
               </div>
               <h3 style={styles.title}>{p.title}</h3>
               <p style={styles.client}>
@@ -214,12 +258,32 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
-    // Lets the gold highlight fade back out smoothly once it is cleared.
-    transition: 'background-color 0.6s ease, border-left-color 0.6s ease',
+    // Lets the gold highlight fade back out smoothly once it is cleared, and the
+    // card fade/scale out when a draft is deleted (5a).
+    transition: `background-color 0.6s ease, border-left-color 0.6s ease, opacity ${motionTokens.durationBase} ${motionTokens.easeExit}, transform ${motionTokens.durationBase} ${motionTokens.easeExit}`,
   },
   cardHighlight: {
     borderLeft: '3px solid #D5B067',
     background: '#FDF8EC',
+  },
+  cardRemoving: {
+    opacity: 0,
+    transform: 'scale(0.97)',
+  },
+  cardTopRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: 'none',
+    color: tokens.ruby,
+    cursor: 'pointer',
+    padding: 2,
   },
   previewToggle: {
     display: 'inline-flex',

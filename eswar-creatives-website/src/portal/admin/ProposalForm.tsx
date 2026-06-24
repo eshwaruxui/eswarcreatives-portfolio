@@ -8,9 +8,9 @@ import type { CSSProperties } from 'react'
 
 // Auto-save draft. Only the create flow writes here; editing an existing
 // proposal works against live rows and must not be shadowed by a stale draft.
-// v2: the shape changed (phases now hold solution groups, plus a payment
-// schedule, revision rounds and a key note), so old drafts are ignored.
-const DRAFT_KEY = 'ec_proposal_draft_v2'
+// v3: the shape changed again (schedule moved inside each phase; solutions gained
+// a timeline and key note), so v2 and older drafts are ignored.
+const DRAFT_KEY = 'ec_proposal_draft_v3'
 
 type DraftShape = {
   savedAt: string
@@ -25,7 +25,6 @@ type DraftShape = {
   discountLabel: string
   revisionRounds: string
   keyNote: string
-  schedule: PaymentInstalment[]
   phases: PhaseForm[]
 }
 
@@ -73,17 +72,27 @@ export type ClientOption = {
 }
 
 export type LineItemForm = { id?: string; title: string; scope: string; amount: string }
-// A solution group bundles a title + overview with one or more line items.
-export type SolutionForm = { title: string; overview: string; items: LineItemForm[] }
+// A solution group bundles a title + overview (and a solution-level timeline and
+// key note) with one or more line items.
+export type SolutionForm = {
+  title: string
+  overview: string
+  timeline: string
+  keyNote: string
+  items: LineItemForm[]
+}
 export type PhaseForm = {
   id?: string
   name: string
   timeline: string
   solutions: SolutionForm[]
+  // Phase 5 (5f): each phase carries its own payment schedule, billed against
+  // that phase's subtotal.
+  schedule: PaymentInstalment[]
 }
 
 // One row of the payment schedule. triggeredBy = 'acceptance' marks the
-// instalment confirm_proposal() turns into the first invoice.
+// instalment confirm_proposal() turns into the phase's advance invoice.
 export type PaymentInstalment = {
   label: string
   pct: string
@@ -125,17 +134,17 @@ export function emptyItem(): LineItemForm {
   return { title: '', scope: '', amount: '' }
 }
 export function emptySolution(): SolutionForm {
-  return { title: '', overview: '', items: [emptyItem()] }
-}
-export function emptyPhase(): PhaseForm {
-  return { name: '', timeline: '', solutions: [emptySolution()] }
+  return { title: '', overview: '', timeline: '', keyNote: '', items: [emptyItem()] }
 }
 export function defaultSchedule(): PaymentInstalment[] {
   return [
     { label: 'Advance', pct: '35', triggeredBy: 'acceptance' },
-    { label: 'Mid-project', pct: '35', triggeredBy: 'manual' },
+    { label: 'Mid', pct: '35', triggeredBy: 'manual' },
     { label: 'Final', pct: '30', triggeredBy: 'manual' },
   ]
+}
+export function emptyPhase(): PhaseForm {
+  return { name: '', timeline: '', solutions: [emptySolution()], schedule: defaultSchedule() }
 }
 
 export function ProposalForm({
@@ -144,7 +153,6 @@ export function ProposalForm({
   initialDocuments = [],
   initialRevisionRounds,
   initialKeyNote,
-  initialSchedule,
   onSaved,
   onCancel,
   onDirtyChange,
@@ -155,7 +163,6 @@ export function ProposalForm({
   initialDocuments?: DocumentRow[]
   initialRevisionRounds?: string
   initialKeyNote?: string
-  initialSchedule?: PaymentInstalment[]
   onSaved: (proposalId: string, warning?: string | null) => void
   onCancel?: () => void
   onDirtyChange?: (dirty: boolean, draftSaved: boolean) => void
@@ -185,13 +192,6 @@ export function ProposalForm({
     draft?.revisionRounds ?? initialRevisionRounds ?? '2'
   )
   const [keyNote, setKeyNote] = useState(draft?.keyNote ?? initialKeyNote ?? '')
-  const [schedule, setSchedule] = useState<PaymentInstalment[]>(
-    draft?.schedule && draft.schedule.length > 0
-      ? draft.schedule
-      : initialSchedule && initialSchedule.length > 0
-      ? initialSchedule
-      : defaultSchedule()
-  )
   const [phases, setPhases] = useState<PhaseForm[]>(
     draft?.phases && draft.phases.length > 0
       ? draft.phases
@@ -253,7 +253,6 @@ export function ProposalForm({
         discountLabel,
         revisionRounds,
         keyNote,
-        schedule,
         phases,
       }
       try {
@@ -279,7 +278,6 @@ export function ProposalForm({
     discountLabel,
     revisionRounds,
     keyNote,
-    schedule,
     phases,
   ])
 
@@ -299,7 +297,6 @@ export function ProposalForm({
     setDiscountLabel('')
     setRevisionRounds('2')
     setKeyNote('')
-    setSchedule(defaultSchedule())
     setPhases([emptyPhase()])
     onDirtyChange?.(false, false)
   }
@@ -315,11 +312,20 @@ export function ProposalForm({
   const discountAmount = discountPct ? (subtotal * (parseFloat(discountPct) || 0)) / 100 : 0
   const total = Math.max(0, subtotal - discountAmount)
 
-  const scheduleSum = useMemo(
-    () => schedule.reduce((s, r) => s + (parseFloat(r.pct) || 0), 0),
-    [schedule]
-  )
-  const scheduleValid = Math.abs(scheduleSum - 100) < 0.001
+  // Per-phase schedule validity (5f): each phase's instalments must total 100%.
+  function scheduleSum(ph: PhaseForm): number {
+    return ph.schedule.reduce((s, r) => s + (parseFloat(r.pct) || 0), 0)
+  }
+  function phaseScheduleValid(ph: PhaseForm): boolean {
+    return Math.abs(scheduleSum(ph) - 100) < 0.001
+  }
+  const allSchedulesValid = useMemo(() => phases.every(phaseScheduleValid), [phases])
+
+  // Solution total = sum of its line item amounts (5e), used for the read-only
+  // "Solution total" line that updates as amounts are edited.
+  function solutionTotal(sol: SolutionForm): number {
+    return sol.items.reduce((t, it) => t + (parseFloat(it.amount) || 0), 0)
+  }
 
   const hasLineItem = phases.some((ph) => ph.solutions.some((sol) => sol.items.some((it) => it.title.trim())))
 
@@ -363,9 +369,54 @@ export function ProposalForm({
     }
   }
 
-  // ── Payment schedule helpers ────────────────────────────────────────
-  function updateInstalment(i: number, patch: Partial<PaymentInstalment>) {
-    setSchedule((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
+  // ── Per-phase payment schedule helpers ──────────────────────────────
+  function updateInstalment(pi: number, i: number, patch: Partial<PaymentInstalment>) {
+    setPhases((prev) =>
+      prev.map((p, idx) =>
+        idx === pi
+          ? { ...p, schedule: p.schedule.map((r, j) => (j === i ? { ...r, ...patch } : r)) }
+          : p
+      )
+    )
+  }
+  function addInstalment(pi: number) {
+    setPhases((prev) =>
+      prev.map((p, idx) =>
+        idx === pi
+          ? { ...p, schedule: [...p.schedule, { label: '', pct: '', triggeredBy: 'manual' }] }
+          : p
+      )
+    )
+  }
+  function removeInstalment(pi: number, i: number) {
+    setPhases((prev) =>
+      prev.map((p, idx) =>
+        idx === pi ? { ...p, schedule: p.schedule.filter((_, j) => j !== i) } : p
+      )
+    )
+  }
+
+  // ── Line-item drag-to-reorder within a solution group (5b) ───────────
+  // Native HTML5 drag, matching the existing pattern in AdminSketchUpload.
+  // Reorder is local; item_number is reassigned in order on save.
+  const [dragItem, setDragItem] = useState<{ pi: number; si: number; ii: number } | null>(null)
+  function reorderItem(pi: number, si: number, from: number, to: number) {
+    if (from === to) return
+    setPhases((prev) =>
+      prev.map((p, idx) => {
+        if (idx !== pi) return p
+        return {
+          ...p,
+          solutions: p.solutions.map((s, j) => {
+            if (j !== si) return s
+            const items = [...s.items]
+            const [moved] = items.splice(from, 1)
+            items.splice(to, 0, moved)
+            return { ...s, items }
+          }),
+        }
+      })
+    )
   }
 
   async function nextProposalNumber(): Promise<string> {
@@ -383,14 +434,21 @@ export function ProposalForm({
     return `${prefix}${String(max + 1).padStart(3, '0')}`
   }
 
-  // Plain-language summary of the schedule, kept in the NOT NULL payment_terms
-  // column so existing client views still have a readable string.
+  // Plain-language summary of the per-phase schedules, kept in the NOT NULL
+  // payment_terms column so existing client views still have a readable string.
   function scheduleSummary(): string {
-    const parts = schedule
-      .filter((r) => r.label.trim())
-      .map((r) => `${parseFloat(r.pct) || 0}% ${r.label.trim()}`)
     const rev = revisionRounds === 'Unlimited' ? 'Unlimited' : revisionRounds
-    return `${parts.join(', ')}. ${rev} revision rounds included per solution.`
+    const phaseSummaries = phases
+      .map((ph) => {
+        const parts = ph.schedule
+          .filter((r) => r.label.trim())
+          .map((r) => `${parseFloat(r.pct) || 0}% ${r.label.trim()}`)
+        if (parts.length === 0) return null
+        return `${ph.name.trim() || 'Phase'}: ${parts.join(', ')}`
+      })
+      .filter(Boolean)
+    const base = phaseSummaries.length > 0 ? `${phaseSummaries.join('. ')}. ` : ''
+    return `${base}${rev} revision rounds included per solution.`
   }
 
   function firstRequiredError(): string | null {
@@ -409,8 +467,12 @@ export function ProposalForm({
       setError(reqErr)
       return
     }
-    if (status === 'sent' && !scheduleValid) {
-      setError(`Payment schedule must total 100%. It currently totals ${scheduleSum}%.`)
+    if (status === 'sent' && !allSchedulesValid) {
+      const badIndex = phases.findIndex((ph) => !phaseScheduleValid(ph))
+      const ph = phases[badIndex]
+      setError(
+        `Payment schedule for ${ph?.name.trim() || `Phase ${badIndex + 1}`} must total 100%. Currently ${scheduleSum(ph)}%.`
+      )
       return
     }
     setSaving(true)
@@ -427,13 +489,15 @@ export function ProposalForm({
         payment_terms: scheduleSummary(),
         revision_rounds: revisionRounds,
         key_note: keyNote,
-        schedule: schedule.map((r) => ({ label: r.label, pct: r.pct, triggered_by: r.triggeredBy })),
         phases: phases.map((p) => ({
           name: p.name,
           timeline: p.timeline,
+          schedule: p.schedule.map((r) => ({ label: r.label, pct: r.pct, triggered_by: r.triggeredBy })),
           solutions: p.solutions.map((s) => ({
             title: s.title,
             overview: s.overview,
+            timeline: s.timeline,
+            key_note: s.keyNote,
             items: s.items.map((it) => ({
               title: it.title,
               scope: it.scope,
@@ -489,7 +553,13 @@ export function ProposalForm({
         await supabase.from('proposal_phases').delete().eq('proposal_id', proposalId)
       }
 
-      // Insert phases, then each phase's line items (carrying their solution group).
+      // Clear the whole schedule up front; per-phase rows are re-inserted below.
+      // (Phase-scoped rows would also cascade when phases are deleted, but flat
+      // legacy rows with a null phase_id would not, so delete by proposal_id.)
+      await supabase.from('proposal_payment_schedule').delete().eq('proposal_id', proposalId)
+
+      // Insert phases, then each phase's line items (carrying their solution
+      // group) and that phase's payment schedule.
       for (let pi = 0; pi < phases.length; pi++) {
         const ph = phases[pi]
         const phaseHasItems = ph.solutions.some((s) => s.items.some((it) => it.title.trim()))
@@ -522,6 +592,8 @@ export function ProposalForm({
               amount: parseFloat(it.amount) || 0,
               solution_title: sol.title.trim() || null,
               solution_overview: sol.overview.trim() || null,
+              solution_timeline: sol.timeline.trim() || null,
+              solution_key_note: sol.keyNote.trim() || null,
             })
           }
         }
@@ -529,24 +601,24 @@ export function ProposalForm({
           const { error: iErr } = await supabase.from('proposal_line_items').insert(items)
           if (iErr) throw iErr
         }
-      }
 
-      // Replace the payment schedule wholesale.
-      await supabase.from('proposal_payment_schedule').delete().eq('proposal_id', proposalId)
-      const scheduleRows = schedule
-        .filter((r) => r.label.trim() && r.pct)
-        .map((r, idx) => ({
-          proposal_id: proposalId,
-          instalment_number: idx + 1,
-          label: r.label.trim(),
-          pct_of_total: parseFloat(r.pct) || 0,
-          triggered_by: r.triggeredBy,
-        }))
-      if (scheduleRows.length > 0) {
-        const { error: schErr } = await supabase
-          .from('proposal_payment_schedule')
-          .insert(scheduleRows)
-        if (schErr) throw schErr
+        // This phase's payment schedule (5f), scoped via phase_id.
+        const scheduleRows = ph.schedule
+          .filter((r) => r.label.trim() && r.pct)
+          .map((r, idx) => ({
+            proposal_id: proposalId,
+            phase_id: phaseId,
+            instalment_number: idx + 1,
+            label: r.label.trim(),
+            pct_of_total: parseFloat(r.pct) || 0,
+            triggered_by: r.triggeredBy,
+          }))
+        if (scheduleRows.length > 0) {
+          const { error: schErr } = await supabase
+            .from('proposal_payment_schedule')
+            .insert(scheduleRows)
+          if (schErr) throw schErr
+        }
       }
 
       let warning: string | null = null
@@ -761,6 +833,15 @@ export function ProposalForm({
                   placeholder="e.g. Brand identity system"
                 />
               </Field>
+              {/* 5c: solution-level timeline, between title and overview. */}
+              <Field label="Timeline">
+                <input
+                  value={sol.timeline}
+                  onChange={(e) => updateSolution(pi, si, { timeline: e.target.value })}
+                  style={styles.input}
+                  placeholder="e.g. 2-3 weeks"
+                />
+              </Field>
               <Field label="Solution overview">
                 <AutoGrowTextarea
                   value={sol.overview}
@@ -770,39 +851,66 @@ export function ProposalForm({
               </Field>
 
               <div style={styles.itemsHead}>Line items</div>
-              {sol.items.map((it, ii) => (
-                <div key={ii} style={styles.itemEditRow}>
-                  <input
-                    value={it.title}
-                    onChange={(e) => updateItem(pi, si, ii, { title: e.target.value })}
-                    style={{ ...styles.input, flex: 2 }}
-                    placeholder="Item title"
-                  />
-                  <input
-                    value={it.scope}
-                    onChange={(e) => updateItem(pi, si, ii, { scope: e.target.value })}
-                    style={{ ...styles.input, flex: 3 }}
-                    placeholder="Scope"
-                  />
-                  <input
-                    value={it.amount}
-                    onChange={(e) => updateItem(pi, si, ii, { amount: e.target.value })}
-                    style={{ ...styles.input, flex: 1, fontFamily: mono }}
-                    placeholder="Amount"
-                    inputMode="decimal"
-                  />
-                  {sol.items.length > 1 && (
-                    <button
-                      type="button"
-                      style={styles.iconBtn}
-                      onClick={() => updateSolution(pi, si, { items: sol.items.filter((_, j) => j !== ii) })}
-                      aria-label="Remove item"
+              {sol.items.map((it, ii) => {
+                const dragging =
+                  dragItem?.pi === pi && dragItem?.si === si && dragItem?.ii === ii
+                return (
+                  <div
+                    key={ii}
+                    style={{ ...styles.itemEditRow, opacity: dragging ? 0.5 : 1 }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      // 5b: only reorder within the same solution group.
+                      if (dragItem && dragItem.pi === pi && dragItem.si === si) {
+                        reorderItem(pi, si, dragItem.ii, ii)
+                      }
+                      setDragItem(null)
+                    }}
+                  >
+                    {/* 5b: 6-dot grip handle; only the handle is draggable so the
+                        inputs stay selectable. */}
+                    <span
+                      draggable
+                      onDragStart={() => setDragItem({ pi, si, ii })}
+                      onDragEnd={() => setDragItem(null)}
+                      style={styles.itemGrip}
+                      aria-label="Drag to reorder line item"
+                      title="Drag to reorder"
                     >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              ))}
+                      ⠿
+                    </span>
+                    <input
+                      value={it.title}
+                      onChange={(e) => updateItem(pi, si, ii, { title: e.target.value })}
+                      style={{ ...styles.input, flex: 2 }}
+                      placeholder="Item title"
+                    />
+                    <input
+                      value={it.scope}
+                      onChange={(e) => updateItem(pi, si, ii, { scope: e.target.value })}
+                      style={{ ...styles.input, flex: 3 }}
+                      placeholder="Scope"
+                    />
+                    <input
+                      value={it.amount}
+                      onChange={(e) => updateItem(pi, si, ii, { amount: e.target.value })}
+                      style={{ ...styles.input, flex: 1, fontFamily: mono }}
+                      placeholder="Amount"
+                      inputMode="decimal"
+                    />
+                    {sol.items.length > 1 && (
+                      <button
+                        type="button"
+                        style={styles.iconBtn}
+                        onClick={() => updateSolution(pi, si, { items: sol.items.filter((_, j) => j !== ii) })}
+                        aria-label="Remove item"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
               <button
                 type="button"
                 style={styles.addBtn}
@@ -810,6 +918,24 @@ export function ProposalForm({
               >
                 <Plus size={14} /> Add line item
               </button>
+
+              {/* 5e: read-only solution total, updates as amounts are edited. */}
+              <div style={styles.solutionTotalRow}>
+                <span style={ui.muted}>Solution total</span>
+                <span style={{ fontFamily: mono, fontWeight: 600 }}>
+                  {formatMoney(solutionTotal(sol), currency)}
+                </span>
+              </div>
+
+              {/* 5d: solution-level key note at the bottom of the group. */}
+              <Field label="Key note">
+                <input
+                  value={sol.keyNote}
+                  onChange={(e) => updateSolution(pi, si, { keyNote: e.target.value })}
+                  style={styles.input}
+                  placeholder="e.g. Client must be present at concept presentation"
+                />
+              </Field>
             </div>
           ))}
 
@@ -820,6 +946,74 @@ export function ProposalForm({
           >
             <Plus size={14} /> Add solution
           </button>
+
+          {/* 5f: per-phase payment schedule, below all solution groups. */}
+          <div style={styles.phaseScheduleBox}>
+            <div style={styles.scheduleHeadRow}>
+              <span style={styles.scheduleHead}>
+                Payment schedule for {ph.name.trim() || `Phase ${pi + 1}`}
+              </span>
+              <span style={ui.muted}>Phase subtotal {formatMoney(phaseTotal(ph), currency)}</span>
+            </div>
+            {ph.schedule.map((row, i) => (
+              <div key={i} style={styles.scheduleRow}>
+                <input
+                  value={row.label}
+                  onChange={(e) => updateInstalment(pi, i, { label: e.target.value })}
+                  style={{ ...styles.input, flex: 3 }}
+                  placeholder="Label, e.g. Advance"
+                />
+                <input
+                  value={row.pct}
+                  onChange={(e) => updateInstalment(pi, i, { pct: e.target.value })}
+                  style={{ ...styles.input, flex: 1, fontFamily: mono }}
+                  placeholder="%"
+                  inputMode="decimal"
+                />
+                <select
+                  value={row.triggeredBy}
+                  onChange={(e) =>
+                    updateInstalment(pi, i, {
+                      triggeredBy: e.target.value as PaymentInstalment['triggeredBy'],
+                    })
+                  }
+                  style={{ ...styles.input, flex: 2 }}
+                >
+                  <option value="acceptance">On acceptance</option>
+                  <option value="manual">Manual</option>
+                </select>
+                {ph.schedule.length > 1 && (
+                  <button
+                    type="button"
+                    style={styles.iconBtn}
+                    onClick={() => removeInstalment(pi, i)}
+                    aria-label="Remove instalment"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+            <div style={styles.scheduleFootRow}>
+              <button type="button" style={styles.addBtn} onClick={() => addInstalment(pi)}>
+                <Plus size={14} /> Add instalment
+              </button>
+              <span
+                style={{
+                  ...styles.scheduleSum,
+                  color: phaseScheduleValid(ph) ? tokens.green : tokens.ruby,
+                }}
+              >
+                Total {scheduleSum(ph)}%
+              </span>
+            </div>
+            {/* H5: inline error when a phase schedule does not total 100%. */}
+            {!phaseScheduleValid(ph) && (
+              <div style={styles.scheduleError}>
+                Total must equal 100%. Currently {scheduleSum(ph)}%.
+              </div>
+            )}
+          </div>
         </Card>
       ))}
 
@@ -850,61 +1044,8 @@ export function ProposalForm({
           </Field>
         </div>
 
-        {/* Payment schedule builder (replaces the old free-text terms). */}
-        <div style={styles.scheduleHead}>Payment schedule</div>
-        {schedule.map((row, i) => (
-          <div key={i} style={styles.scheduleRow}>
-            <input
-              value={row.label}
-              onChange={(e) => updateInstalment(i, { label: e.target.value })}
-              style={{ ...styles.input, flex: 3 }}
-              placeholder="Label, e.g. Advance"
-            />
-            <input
-              value={row.pct}
-              onChange={(e) => updateInstalment(i, { pct: e.target.value })}
-              style={{ ...styles.input, flex: 1, fontFamily: mono }}
-              placeholder="%"
-              inputMode="decimal"
-            />
-            <select
-              value={row.triggeredBy}
-              onChange={(e) => updateInstalment(i, { triggeredBy: e.target.value as PaymentInstalment['triggeredBy'] })}
-              style={{ ...styles.input, flex: 2 }}
-            >
-              <option value="acceptance">On acceptance</option>
-              <option value="manual">Manual</option>
-            </select>
-            {schedule.length > 1 && (
-              <button
-                type="button"
-                style={styles.iconBtn}
-                onClick={() => setSchedule((prev) => prev.filter((_, j) => j !== i))}
-                aria-label="Remove instalment"
-              >
-                <Trash2 size={14} />
-              </button>
-            )}
-          </div>
-        ))}
-        <div style={styles.scheduleFootRow}>
-          <button
-            type="button"
-            style={styles.addBtn}
-            onClick={() => setSchedule((prev) => [...prev, { label: '', pct: '', triggeredBy: 'manual' }])}
-          >
-            <Plus size={14} /> Add instalment
-          </button>
-          <span style={{ ...styles.scheduleSum, color: scheduleValid ? tokens.green : tokens.ruby }}>
-            Total {scheduleSum}%
-          </span>
-        </div>
-        {!scheduleValid && (
-          <div style={styles.scheduleError}>
-            Total must equal 100%. Currently {scheduleSum}%.
-          </div>
-        )}
-
+        {/* Payment schedules now live inside each phase (5f). The proposal
+            total below is the sum of all phase subtotals less any discount. */}
         <div style={styles.totalsRow}>
           <span style={ui.muted}>Subtotal</span>
           <span style={{ fontFamily: mono }}>{formatMoney(subtotal, currency)}</span>
@@ -958,12 +1099,12 @@ export function ProposalForm({
         <button type="button" style={styles.secondaryBtn} onClick={() => handleSave('draft')} disabled={saving}>
           {saving ? 'Saving...' : 'Save as draft'}
         </button>
-        {/* H5: Send is disabled until the schedule is valid (sums to 100). */}
+        {/* H5: Send is disabled until every phase schedule is valid (sums to 100). */}
         <button
           type="button"
-          style={{ ...ui.primaryBtn, ...(!scheduleValid ? styles.disabledBtn : null) }}
+          style={{ ...ui.primaryBtn, ...(!allSchedulesValid ? styles.disabledBtn : null) }}
           onClick={() => handleSave('sent')}
-          disabled={saving || !scheduleValid}
+          disabled={saving || !allSchedulesValid}
         >
           {saving ? 'Saving...' : 'Send to client'}
         </button>
@@ -1217,6 +1358,38 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: 8,
     marginBottom: 8,
+  },
+  itemGrip: {
+    cursor: 'grab',
+    color: tokens.textMuted,
+    fontSize: 16,
+    lineHeight: 1,
+    userSelect: 'none',
+    padding: '0 2px',
+    flexShrink: 0,
+  },
+  solutionTotalRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '8px 0 0',
+    marginTop: 4,
+    borderTop: `1px solid ${tokens.border}`,
+    fontFamily: fonts.body,
+    fontSize: 14,
+  },
+  phaseScheduleBox: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTop: `1px solid ${tokens.border}`,
+  },
+  scheduleHeadRow: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 10,
+    flexWrap: 'wrap',
   },
   iconBtn: {
     background: 'transparent',

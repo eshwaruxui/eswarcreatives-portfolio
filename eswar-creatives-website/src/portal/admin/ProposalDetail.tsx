@@ -12,7 +12,7 @@ import {
   formatMoney,
   formatDate,
 } from './ui'
-import { ProposalForm, emptySolution } from './ProposalForm'
+import { ProposalForm, emptySolution, defaultSchedule } from './ProposalForm'
 import type {
   ProposalFull,
   PhaseForm,
@@ -32,6 +32,8 @@ function buildSolutions(
     amount: number | null
     solution_title: string | null
     solution_overview: string | null
+    solution_timeline: string | null
+    solution_key_note: string | null
   }[]
 ): SolutionForm[] {
   const solutions: SolutionForm[] = []
@@ -40,7 +42,13 @@ function buildSolutions(
   for (const it of items) {
     const key = `${it.solution_title ?? ''}|${it.solution_overview ?? ''}`
     if (!current || key !== currentKey) {
-      current = { title: it.solution_title ?? '', overview: it.solution_overview ?? '', items: [] }
+      current = {
+        title: it.solution_title ?? '',
+        overview: it.solution_overview ?? '',
+        timeline: it.solution_timeline ?? '',
+        keyNote: it.solution_key_note ?? '',
+        items: [],
+      }
       solutions.push(current)
       currentKey = key
     }
@@ -68,9 +76,58 @@ export function ProposalDetail() {
   const [phases, setPhases] = useState<PhaseForm[]>([])
   const [revisionRounds, setRevisionRounds] = useState('2')
   const [keyNote, setKeyNote] = useState('')
-  const [schedule, setSchedule] = useState<PaymentInstalment[]>([])
 
   const locked = existing?.status === 'accepted'
+
+  // 5g: post-approval reorder (admin only — this whole route is admin-gated).
+  // Native HTML5 drag, matching the existing AdminSketchUpload pattern.
+  const [reorderMode, setReorderMode] = useState(false)
+  const [dragPhase, setDragPhase] = useState<number | null>(null)
+  const [dragSolution, setDragSolution] = useState<{ pi: number; si: number } | null>(null)
+
+  async function dropPhase(targetIndex: number) {
+    if (dragPhase === null || dragPhase === targetIndex) {
+      setDragPhase(null)
+      return
+    }
+    const reordered = [...phases]
+    const [moved] = reordered.splice(dragPhase, 1)
+    reordered.splice(targetIndex, 0, moved)
+    setPhases(reordered)
+    setDragPhase(null)
+    // Persist the new phase order: sort_order follows array position.
+    await Promise.all(
+      reordered
+        .map((ph, idx) =>
+          ph.id ? supabase.from('proposal_phases').update({ sort_order: idx }).eq('id', ph.id) : null
+        )
+        .filter(Boolean) as Promise<unknown>[]
+    )
+  }
+
+  async function dropSolution(pi: number, targetSi: number) {
+    if (!dragSolution || dragSolution.pi !== pi || dragSolution.si === targetSi) {
+      setDragSolution(null)
+      return
+    }
+    const sols = [...phases[pi].solutions]
+    const [moved] = sols.splice(dragSolution.si, 1)
+    sols.splice(targetSi, 0, moved)
+    const newPhases = phases.map((p, idx) => (idx === pi ? { ...p, solutions: sols } : p))
+    setPhases(newPhases)
+    setDragSolution(null)
+    // Solutions are item groupings; persist by renumbering item_number across
+    // the phase in the new solution order (item order within a group is kept).
+    let n = 0
+    const updates: Promise<unknown>[] = []
+    for (const sol of sols) {
+      for (const it of sol.items) {
+        n += 1
+        if (it.id) updates.push(supabase.from('proposal_line_items').update({ item_number: n }).eq('id', it.id))
+      }
+    }
+    await Promise.all(updates)
+  }
 
   // Creation now happens in a modal from the Proposals list, so this detail
   // route only ever views/edits an existing proposal. Guard the legacy path.
@@ -103,7 +160,9 @@ export function ProposalDetail() {
         if (phaseIds.length > 0) {
           const { data: itemRows, error: iErr } = await supabase
             .from('proposal_line_items')
-            .select('id, phase_id, item_number, title, scope, amount, solution_title, solution_overview')
+            .select(
+              'id, phase_id, item_number, title, scope, amount, solution_title, solution_overview, solution_timeline, solution_key_note'
+            )
             .in('phase_id', phaseIds)
             .order('item_number', { ascending: true })
           if (iErr) throw iErr
@@ -121,9 +180,22 @@ export function ProposalDetail() {
 
         const { data: schedRows } = await supabase
           .from('proposal_payment_schedule')
-          .select('label, pct_of_total, triggered_by, instalment_number')
+          .select('label, pct_of_total, triggered_by, instalment_number, phase_id')
           .eq('proposal_id', id)
           .order('instalment_number', { ascending: true })
+
+        // Group schedule rows by phase (5f). Legacy rows with a null phase_id
+        // are ignored here; each phase falls back to the default schedule.
+        const scheduleByPhase: Record<string, PaymentInstalment[]> = {}
+        for (const r of schedRows ?? []) {
+          const pid = (r as { phase_id: string | null }).phase_id
+          if (!pid) continue
+          ;(scheduleByPhase[pid] ??= []).push({
+            label: r.label as string,
+            pct: String((r as { pct_of_total: number | null }).pct_of_total ?? ''),
+            triggeredBy: (r as { triggered_by: string }).triggered_by as PaymentInstalment['triggeredBy'],
+          })
+        }
 
         const { data: docRows } = await supabase
           .from('proposal_documents')
@@ -142,17 +214,14 @@ export function ProposalDetail() {
             name: ph.name,
             timeline: ph.timeline ?? '',
             solutions: solutionsByPhase[ph.id] ?? [emptySolution()],
+            schedule:
+              scheduleByPhase[ph.id] && scheduleByPhase[ph.id].length > 0
+                ? scheduleByPhase[ph.id]
+                : defaultSchedule(),
           }))
         )
         setRevisionRounds(typedProp.revision_rounds == null ? 'Unlimited' : String(typedProp.revision_rounds))
         setKeyNote(typedProp.key_note ?? '')
-        setSchedule(
-          (schedRows ?? []).map((r) => ({
-            label: r.label as string,
-            pct: String((r as { pct_of_total: number | null }).pct_of_total ?? ''),
-            triggeredBy: (r as { triggered_by: string }).triggered_by as PaymentInstalment['triggeredBy'],
-          }))
-        )
       } catch {
         // H9: plain-language error, never a raw Supabase string.
         if (!cancelled) setError('Could not load this proposal. Refresh to try again.')
@@ -232,7 +301,6 @@ export function ProposalDetail() {
           initialDocuments={documents}
           initialRevisionRounds={revisionRounds}
           initialKeyNote={keyNote}
-          initialSchedule={schedule}
           onCancel={() => setEditing(false)}
           onSaved={() => window.location.reload()}
         />
@@ -249,9 +317,19 @@ export function ProposalDetail() {
         subtitle={`${existing.proposal_number ?? 'No number'} · ${existing.company_name ?? ''}`}
         action={
           locked ? (
-            <span style={styles.acceptedBadge}>
-              Accepted on {formatDate(existing.accepted_at)}
-            </span>
+            <div style={styles.headerActions}>
+              <span style={styles.acceptedBadge}>
+                Accepted on {formatDate(existing.accepted_at)}
+              </span>
+              {/* 5g: reorder phases/solutions after approval (admin only). */}
+              <button
+                type="button"
+                style={reorderMode ? styles.reorderOn : styles.reorderToggle}
+                onClick={() => setReorderMode((r) => !r)}
+              >
+                {reorderMode ? 'Done reordering' : 'Reorder phases'}
+              </button>
+            </div>
           ) : (
             <button type="button" style={ui.primaryBtn} onClick={() => setEditing(true)}>
               Edit
@@ -280,14 +358,55 @@ export function ProposalDetail() {
       </Card>
 
       {phases.map((ph, pi) => (
-        <Card key={ph.id ?? pi} style={{ marginBottom: 12 }}>
+        <Card
+          key={ph.id ?? pi}
+          style={{
+            marginBottom: 12,
+            ...(reorderMode ? styles.reorderable : null),
+            ...(dragPhase === pi ? styles.dragging : null),
+          }}
+          draggable={reorderMode}
+          onDragStart={reorderMode ? () => setDragPhase(pi) : undefined}
+          onDragOver={reorderMode ? (e) => e.preventDefault() : undefined}
+          onDrop={reorderMode ? () => void dropPhase(pi) : undefined}
+          onDragEnd={reorderMode ? () => setDragPhase(null) : undefined}
+        >
           <div style={styles.phaseHead}>
-            <h3 style={styles.phaseName}>{ph.name}</h3>
+            <h3 style={styles.phaseName}>
+              {reorderMode && (
+                <span style={styles.grip} aria-hidden title="Drag to reorder phase">
+                  ⠿{' '}
+                </span>
+              )}
+              {ph.name}
+            </h3>
             {ph.timeline && <span style={styles.phaseTimeline}>{ph.timeline}</span>}
           </div>
           {ph.solutions.map((sol, si) => (
-            <div key={si} style={si > 0 ? styles.solutionBlock : undefined}>
-              {sol.title && <div style={styles.solutionTitle}>{sol.title}</div>}
+            <div
+              key={si}
+              style={{
+                ...(si > 0 ? styles.solutionBlock : {}),
+                ...(reorderMode ? styles.reorderable : null),
+                ...(dragSolution?.pi === pi && dragSolution?.si === si ? styles.dragging : null),
+              }}
+              draggable={reorderMode}
+              onDragStart={reorderMode ? (e) => { e.stopPropagation(); setDragSolution({ pi, si }) } : undefined}
+              onDragOver={reorderMode ? (e) => e.preventDefault() : undefined}
+              onDrop={reorderMode ? (e) => { e.stopPropagation(); void dropSolution(pi, si) } : undefined}
+              onDragEnd={reorderMode ? () => setDragSolution(null) : undefined}
+            >
+              {(sol.title || reorderMode) && (
+                <div style={styles.solutionTitle}>
+                  {reorderMode && (
+                    <span style={styles.grip} aria-hidden title="Drag to reorder solution">
+                      ⠿{' '}
+                    </span>
+                  )}
+                  {sol.title || `Solution ${si + 1}`}
+                </div>
+              )}
+              {sol.timeline && <div style={styles.phaseTimeline}>{sol.timeline}</div>}
               {sol.overview && <p style={styles.phaseScope}>{sol.overview}</p>}
               {sol.items.map((it, ii) => (
                 <div key={it.id ?? ii} style={styles.viewItem}>
@@ -300,6 +419,7 @@ export function ProposalDetail() {
                   </span>
                 </div>
               ))}
+              {sol.keyNote && <p style={styles.solutionKeyNote}>Note: {sol.keyNote}</p>}
             </div>
           ))}
         </Card>
@@ -400,6 +520,49 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.greenLight,
     borderRadius: 8,
     padding: '8px 14px',
+  },
+  headerActions: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  reorderToggle: {
+    background: tokens.surface,
+    color: tokens.primary,
+    border: `1px solid ${tokens.accent}`,
+    borderRadius: 8,
+    padding: '8px 14px',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  reorderOn: {
+    background: tokens.primary,
+    color: tokens.surface,
+    border: `1px solid ${tokens.primary}`,
+    borderRadius: 8,
+    padding: '8px 14px',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  reorderable: {
+    cursor: 'grab',
+    borderStyle: 'dashed',
+    borderColor: tokens.accent,
+  },
+  dragging: { opacity: 0.5 },
+  grip: {
+    color: tokens.textMuted,
+    cursor: 'grab',
+    userSelect: 'none',
+  },
+  solutionKeyNote: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: tokens.goldDark,
+    background: tokens.goldLight,
+    borderRadius: 8,
+    padding: '8px 12px',
+    margin: '8px 0 0',
   },
   metaGrid: {
     display: 'grid',

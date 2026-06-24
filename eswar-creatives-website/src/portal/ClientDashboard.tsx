@@ -32,6 +32,12 @@ type PhaseRow = {
   sort_order: number | null
 }
 
+type TimelineExtension = {
+  id: string
+  new_timeline: string
+  reason: string | null
+}
+
 // One banner shown at a time, highest priority wins. variant drives the palette.
 type BannerVariant = 'ruby' | 'gold' | 'teal'
 type Banner = { text: string; to: string; variant: BannerVariant }
@@ -49,6 +55,8 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
   const [phases, setPhases] = useState<PhaseRow[]>([])
   const [documents, setDocuments] = useState<ClientDocument[]>([])
   const [banner, setBanner] = useState<Banner | null>(null)
+  const [extensions, setExtensions] = useState<TimelineExtension[]>([])
+  const [respondingId, setRespondingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const badges = useSyncExternalStore(subscribeBadges, getBadges, getBadges)
@@ -104,6 +112,15 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
           }
         }
 
+        // Pending timeline extensions (5h). RLS scopes these to the client's
+        // own projects, so no extra filter is needed.
+        const { data: extRows } = await supabase
+          .from('timeline_extensions')
+          .select('id, new_timeline, reason')
+          .eq('status', 'pending')
+          .order('sent_at', { ascending: false })
+        if (!cancelled) setExtensions((extRows ?? []) as TimelineExtension[])
+
         const next = await computeBanner(client.id, profile.id)
         if (!cancelled) setBanner(next)
       } catch {
@@ -120,6 +137,30 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
       cancelled = true
     }
   }, [profile.id])
+
+  // 5h: approve or deny a proposed timeline extension via the SECURITY DEFINER
+  // RPC (clients cannot update projects directly).
+  async function respondExtension(extId: string, approve: boolean) {
+    setRespondingId(extId)
+    const { error: rpcErr } = await supabase.rpc('respond_to_timeline_extension', {
+      p_extension_id: extId,
+      p_approve: approve,
+    })
+    setRespondingId(null)
+    if (rpcErr) {
+      // H9: plain-language error, never a raw Supabase string.
+      setError('We could not record your response. Please try again.')
+      return
+    }
+    setExtensions((prev) => {
+      const remaining = prev.filter((e) => e.id !== extId)
+      // Once none remain, retire the timeline banner (its to is /portal/projects).
+      if (remaining.length === 0) {
+        setBanner((b) => (b && b.to === '/portal/projects' ? null : b))
+      }
+      return remaining
+    })
+  }
 
   // Current step index from the integer pointer, falling back to the text phase.
   const currentIndex = (() => {
@@ -144,6 +185,41 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         {/* H1 (visibility of system status): the single most relevant next action,
             as a fully clickable card that routes to the right place. */}
         {!loading && !error && banner && <BannerCard banner={banner} />}
+
+        {/* 5h: actionable timeline extension cards (the banner above links here). */}
+        {!loading && !error && extensions.map((ext) => (
+          <section key={ext.id} style={styles.extCard}>
+            <h2 style={styles.extHeading}>Timeline update proposed</h2>
+            <div style={styles.extField}>
+              <span style={styles.extLabel}>New timeline</span>
+              <span style={styles.extValue}>{ext.new_timeline}</span>
+            </div>
+            {ext.reason && (
+              <div style={styles.extField}>
+                <span style={styles.extLabel}>Reason</span>
+                <span style={styles.extValue}>{ext.reason}</span>
+              </div>
+            )}
+            <div style={styles.extActions}>
+              <button
+                type="button"
+                style={styles.denyBtn}
+                onClick={() => void respondExtension(ext.id, false)}
+                disabled={respondingId === ext.id}
+              >
+                Deny
+              </button>
+              <button
+                type="button"
+                style={styles.approveBtn}
+                onClick={() => void respondExtension(ext.id, true)}
+                disabled={respondingId === ext.id}
+              >
+                {respondingId === ext.id ? 'Saving...' : 'Approve'}
+              </button>
+            </div>
+          </section>
+        ))}
 
         <h1 style={styles.title}>Your project</h1>
 
@@ -228,6 +304,21 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
 // Resolve the highest-priority banner. Order matches the spec exactly:
 // 1 proposal awaiting -> 2 invoice overdue -> 3 mockup awaiting -> 4 invoice due soon.
 async function computeBanner(clientId: string, profileId: string): Promise<Banner | null> {
+  // 0. Timeline extension awaiting a response (5h) — highest priority of all.
+  // RLS scopes timeline_extensions to the client's own projects.
+  const { data: pendingExt } = await supabase
+    .from('timeline_extensions')
+    .select('id')
+    .eq('status', 'pending')
+    .limit(1)
+  if (pendingExt && pendingExt.length > 0) {
+    return {
+      text: 'Your project timeline has been updated. Please review and respond.',
+      to: '/portal/projects',
+      variant: 'ruby',
+    }
+  }
+
   // 1. Proposal awaiting action.
   const { data: sentProposals } = await supabase
     .from('proposals')
@@ -433,6 +524,54 @@ const styles: Record<string, CSSProperties> = {
   },
   bannerText: { lineHeight: 1.4 },
   bannerArrow: { fontSize: 20, flexShrink: 0 },
+  extCard: {
+    background: tokens.surface,
+    border: `1px solid ${tokens.gold}`,
+    borderLeft: `4px solid ${tokens.gold}`,
+    borderRadius: 12,
+    padding: 24,
+    marginBottom: 24,
+  },
+  extHeading: {
+    margin: '0 0 16px',
+    fontFamily: fonts.heading,
+    fontSize: 18,
+    fontWeight: 600,
+    color: tokens.text,
+  },
+  extField: { display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 12 },
+  extLabel: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: tokens.textMuted,
+  },
+  extValue: { fontFamily: fonts.body, fontSize: 15, color: tokens.text, lineHeight: 1.4 },
+  extActions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
+  denyBtn: {
+    background: tokens.surface,
+    color: tokens.ruby,
+    border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8,
+    padding: '10px 18px',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  approveBtn: {
+    background: tokens.primary,
+    color: tokens.surface,
+    border: 'none',
+    borderRadius: 8,
+    padding: '10px 18px',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
   title: {
     margin: '0 0 24px',
     fontFamily: fonts.heading,
