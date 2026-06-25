@@ -72,10 +72,15 @@ function Proposals({ profile }: { profile: PortalProfile }) {
         setProposals([])
         return
       }
+      // Drafts are internal-only. RLS scopes proposals to the client's own rows
+      // but does not filter by status, so we exclude drafts here as a
+      // defence-in-depth measure. Clients only ever see sent/viewed/accepted/
+      // declined/expired proposals, never drafts.
       const { data, error: pErr } = await supabase
         .from('proposals')
         .select('id, title, vertical, total_amount, currency, status, valid_until, created_at')
         .eq('client_id', client.id)
+        .not('status', 'eq', 'draft')
         .order('created_at', { ascending: false })
       if (pErr) throw pErr
       setProposals((data ?? []) as Proposal[])
