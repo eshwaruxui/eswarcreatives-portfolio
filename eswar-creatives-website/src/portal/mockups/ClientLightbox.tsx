@@ -374,7 +374,9 @@ export function ClientLightbox({
             onClick={prev}
             style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 'clamp(40px,10vw,120px)', height: '60%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}
           >
-            <img src={mockups[prevIdx].url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '0 8px 8px 0', opacity: 0.18, filter: 'blur(1px)', transition: 'opacity .2s ease', pointerEvents: 'none' }} />
+            {/* Reuse the cached image if we already fetched it; never start a
+                backward full-size download just to fill the decorative peek. */}
+            {objUrls[prevIdx] && <img src={objUrls[prevIdx]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '0 8px 8px 0', opacity: 0.18, filter: 'blur(1px)', transition: 'opacity .2s ease', pointerEvents: 'none' }} />}
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div
                 style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', transition: 'background .15s ease' }}
@@ -430,7 +432,9 @@ export function ClientLightbox({
             onClick={next}
             style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', width: 'clamp(40px,10vw,120px)', height: '60%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}
           >
-            <img src={mockups[nextIdx].url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px 0 0 8px', opacity: 0.18, filter: 'blur(1px)', transition: 'opacity .2s ease', pointerEvents: 'none' }} />
+            {/* The next image is already preloaded by the loader, so this reuses
+                the cached object URL with no extra network request. */}
+            {objUrls[nextIdx] && <img src={objUrls[nextIdx]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px 0 0 8px', opacity: 0.18, filter: 'blur(1px)', transition: 'opacity .2s ease', pointerEvents: 'none' }} />}
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div
                 style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', transition: 'background .15s ease' }}
@@ -467,7 +471,10 @@ export function ClientLightbox({
                 transition: 'all .2s ease',
               }}
             >
-              <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {/* No edge transforms on this plan, so these are full-size images.
+                  Lazy + async decoding keeps them off the critical path so they
+                  never block the main image from showing. */}
+              <img src={m.url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </button>
           ))}
         </div>
