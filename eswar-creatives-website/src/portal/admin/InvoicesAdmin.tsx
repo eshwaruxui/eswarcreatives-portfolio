@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { useOutletContext } from 'react-router'
+import { Plus, Search, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import {
   PageHeader,
   Card,
@@ -12,8 +13,10 @@ import {
   formatMoney,
 } from './ui'
 import { InvoicePreview } from './InvoicePreview'
+import { DeleteInvoiceModal } from './DeleteInvoiceModal'
 import { usePortal } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
+import type { PortalProfile } from '../PortalGuard'
 import type { CSSProperties } from 'react'
 
 type Invoice = {
@@ -74,6 +77,11 @@ function todayISO() {
 
 export function InvoicesAdmin() {
   const { selectedClientId } = usePortal()
+  // AdminShell gates this whole area to owner/admin and passes the profile via
+  // the router outlet; only those roles may delete an invoice.
+  const profile = useOutletContext<PortalProfile>()
+  const canDelete = profile?.role === 'owner' || profile?.role === 'admin'
+
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [clients, setClients] = useState<ClientOption[]>([])
   const [proposals, setProposals] = useState<ProposalOption[]>([])
@@ -85,6 +93,8 @@ export function InvoicesAdmin() {
 
   const [showNew, setShowNew] = useState(false)
   const [openInvoice, setOpenInvoice] = useState<Invoice | null>(null)
+  // The invoice queued for deletion (drives the confirmation modal).
+  const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null)
 
   // Inline "mark paid": which row is collecting a payment method, and its value.
   const [payingId, setPayingId] = useState<string | null>(null)
@@ -303,6 +313,31 @@ export function InvoicesAdmin() {
                             Mark paid
                           </button>
                         )}
+                        {/* Owner/admin only. Invoices raised from a proposal are
+                            removed by deleting the proposal, so their button is
+                            disabled with a tooltip pointing there. */}
+                        {canDelete &&
+                          (inv.proposal_id ? (
+                            <button
+                              type="button"
+                              style={styles.deleteIconDisabled}
+                              disabled
+                              title="Delete via the proposal"
+                              aria-label="Delete via the proposal"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              style={styles.deleteIcon}
+                              onClick={() => setDeleteTarget(inv)}
+                              title="Delete invoice"
+                              aria-label="Delete invoice"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          ))}
                       </span>
                     )}
                   </td>
@@ -331,6 +366,17 @@ export function InvoicesAdmin() {
           invoice={openInvoice}
           numberLabel={displayInvoiceNumber(openInvoice.invoice_number)}
           onClose={() => setOpenInvoice(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteInvoiceModal
+          invoice={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => {
+            setDeleteTarget(null)
+            void load()
+          }}
         />
       )}
     </>
@@ -632,6 +678,28 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     padding: '5px 10px',
     borderRadius: 6,
+  },
+  deleteIcon: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: 'none',
+    color: tokens.ruby,
+    cursor: 'pointer',
+    padding: 4,
+  },
+  deleteIconDisabled: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Token rule: disabled = t.text.disabled + t.border.subtle.
+    background: 'transparent',
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 6,
+    color: t.text.disabled,
+    cursor: 'not-allowed',
+    padding: 3,
   },
   payRow: { display: 'inline-flex', gap: 8, alignItems: 'center' },
   payInput: {
