@@ -372,7 +372,7 @@ export function ClientLightbox({
             variant="dark"
             fit="contain"
             radius={T.r.lg}
-            style={{ width: 'min(100%, 1100px)', height: 'calc(100vh - 220px)', maxHeight: 'calc(100vh - 200px)' }}
+            style={{ width: 'min(calc(100vw - clamp(80px, 20vw, 240px)), 1100px)', height: 'calc(100vh - 220px)', maxHeight: 'calc(100vh - 200px)' }}
           />
         </div>
 
