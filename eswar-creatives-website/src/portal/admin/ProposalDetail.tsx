@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router'
-import { ArrowLeft, FileText } from 'lucide-react'
+import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router'
+import { ArrowLeft, FileText, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts } from '../theme'
 import {
@@ -13,6 +13,8 @@ import {
   formatDate,
 } from './ui'
 import { ProposalForm, emptySolution, defaultSchedule } from './ProposalForm'
+import { DeleteProposalModal } from './DeleteProposalModal'
+import type { PortalProfile } from '../PortalGuard'
 import type {
   ProposalFull,
   PhaseForm,
@@ -66,10 +68,16 @@ const BUCKET = 'proposal-documents'
 
 export function ProposalDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  // AdminShell gates this whole route to owner/admin and passes the profile via
+  // the router outlet; only those roles may hard-delete a proposal.
+  const profile = useOutletContext<PortalProfile>()
+  const canDelete = profile?.role === 'owner' || profile?.role === 'admin'
 
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showDelete, setShowDelete] = useState(false)
 
   const [existing, setExisting] = useState<ProposalFull | null>(null)
   const [documents, setDocuments] = useState<DocumentRow[]>([])
@@ -316,25 +324,40 @@ export function ProposalDetail() {
         title={existing.title}
         subtitle={`${existing.proposal_number ?? 'No number'} · ${existing.company_name ?? ''}`}
         action={
-          locked ? (
-            <div style={styles.headerActions}>
-              <span style={styles.acceptedBadge}>
-                Accepted on {formatDate(existing.accepted_at)}
-              </span>
-              {/* 5g: reorder phases/solutions after approval (admin only). */}
+          <div style={styles.headerActions}>
+            {locked ? (
+              <>
+                <span style={styles.acceptedBadge}>
+                  Accepted on {formatDate(existing.accepted_at)}
+                </span>
+                {/* 5g: reorder phases/solutions after approval (admin only). */}
+                <button
+                  type="button"
+                  style={reorderMode ? styles.reorderOn : styles.reorderToggle}
+                  onClick={() => setReorderMode((r) => !r)}
+                >
+                  {reorderMode ? 'Done reordering' : 'Reorder phases'}
+                </button>
+              </>
+            ) : (
+              <button type="button" style={ui.primaryBtn} onClick={() => setEditing(true)}>
+                Edit
+              </button>
+            )}
+            {/* Owner/admin only. Confirmation modal surfaces any linked invoices
+                before the irreversible delete. */}
+            {canDelete && (
               <button
                 type="button"
-                style={reorderMode ? styles.reorderOn : styles.reorderToggle}
-                onClick={() => setReorderMode((r) => !r)}
+                style={styles.deleteBtn}
+                onClick={() => setShowDelete(true)}
+                aria-label="Delete proposal"
+                title="Delete proposal"
               >
-                {reorderMode ? 'Done reordering' : 'Reorder phases'}
+                <Trash2 size={15} /> Delete
               </button>
-            </div>
-          ) : (
-            <button type="button" style={ui.primaryBtn} onClick={() => setEditing(true)}>
-              Edit
-            </button>
-          )
+            )}
+          </div>
         }
       />
       {error && <div style={styles.error}>{error}</div>}
@@ -470,6 +493,18 @@ export function ProposalDetail() {
           ))
         )}
       </Card>
+
+      {showDelete && (
+        <DeleteProposalModal
+          proposalId={existing.id}
+          title={existing.title}
+          totalAmount={Number(existing.total_amount)}
+          currency={existing.currency}
+          clientName={existing.client_name || existing.company_name || ''}
+          onClose={() => setShowDelete(false)}
+          onDeleted={() => navigate('/portal/admin/proposals')}
+        />
+      )}
     </>
   )
 }
@@ -522,6 +557,20 @@ const styles: Record<string, CSSProperties> = {
     padding: '8px 14px',
   },
   headerActions: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  deleteBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: tokens.rubyLight,
+    color: tokens.ruby,
+    border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8,
+    padding: '8px 14px',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
   reorderToggle: {
     background: tokens.surface,
     color: tokens.primary,

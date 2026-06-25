@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useOutletContext } from 'react-router'
 import { Plus, Eye, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, fonts, motionTokens } from '../theme'
@@ -13,8 +13,10 @@ import {
   formatDate,
 } from './ui'
 import { ProposalForm } from './ProposalForm'
+import { DeleteProposalModal } from './DeleteProposalModal'
 import { usePortal } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
+import type { PortalProfile } from '../PortalGuard'
 import type { CSSProperties } from 'react'
 
 type Proposal = {
@@ -32,6 +34,10 @@ type Proposal = {
 export function ProposalsAdmin() {
   const navigate = useNavigate()
   const { selectedClientId } = usePortal()
+  // AdminShell gates this whole area to owner/admin and passes the profile via
+  // the router outlet; only those roles may hard-delete a proposal.
+  const profile = useOutletContext<PortalProfile>()
+  const canDelete = profile?.role === 'owner' || profile?.role === 'admin'
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +53,9 @@ export function ProposalsAdmin() {
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // A draft being deleted: fade the card out before removing it from the list.
+  // A proposal being deleted: the confirmation modal target, and the id of the
+  // card to fade out once the delete succeeds.
+  const [deleteTarget, setDeleteTarget] = useState<Proposal | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -92,22 +100,10 @@ export function ProposalsAdmin() {
     void load()
   }, [load])
 
-  // 5a: delete a draft proposal. H5 (error prevention): confirm the
-  // irreversible action first, and scope the delete to status='draft' so a
-  // proposal that changed state in another tab can never be removed here.
-  async function deleteDraft(e: React.MouseEvent, p: Proposal) {
-    e.stopPropagation()
-    if (!window.confirm('Delete this draft? This cannot be undone.')) return
-    const { error: delErr } = await supabase
-      .from('proposals')
-      .delete()
-      .eq('id', p.id)
-      .eq('status', 'draft')
-    if (delErr) {
-      setError('Could not delete the draft. Try again.')
-      return
-    }
-    // Fade the card out (durationBase), then drop it from the list.
+  // Once the delete edge function succeeds (toast raised inside the modal),
+  // fade the card out (durationBase) then drop it from the list.
+  function finishDelete(p: Proposal) {
+    setDeleteTarget(null)
     setRemovingId(p.id)
     setTimeout(() => {
       setProposals((prev) => prev.filter((x) => x.id !== p.id))
@@ -149,14 +145,18 @@ export function ProposalsAdmin() {
                 <span style={styles.number}>{p.proposal_number || 'No number'}</span>
                 <div style={styles.cardTopRight}>
                   <StatusBadge status={p.status} />
-                  {/* 5a: delete only ever shows on drafts. */}
-                  {p.status === 'draft' && (
+                  {/* Owner/admin only. Opens the confirmation modal, which
+                      surfaces any linked invoices before the irreversible delete. */}
+                  {canDelete && (
                     <button
                       type="button"
                       style={styles.deleteBtn}
-                      onClick={(e) => deleteDraft(e, p)}
-                      aria-label="Delete draft"
-                      title="Delete draft"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteTarget(p)
+                      }}
+                      aria-label="Delete proposal"
+                      title="Delete proposal"
                     >
                       <Trash2 size={15} />
                     </button>
@@ -217,6 +217,18 @@ export function ProposalsAdmin() {
             }}
           />
         </Modal>
+      )}
+
+      {deleteTarget && (
+        <DeleteProposalModal
+          proposalId={deleteTarget.id}
+          title={deleteTarget.title}
+          totalAmount={Number(deleteTarget.total_amount)}
+          currency={deleteTarget.currency}
+          clientName={deleteTarget.client_name || deleteTarget.company_name || ''}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => finishDelete(deleteTarget)}
+        />
       )}
     </>
   )
