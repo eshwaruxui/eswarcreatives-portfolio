@@ -15,6 +15,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CSSProperties, JSX } from 'react'
 import { supabase } from '../../lib/supabase'
+import { t, motionTokens } from '../theme'
 import type { LightboxMockup, LightboxMeta } from './signItems'
 
 /* Eswar Creatives design tokens (lightbox-local, dark surface) */
@@ -63,6 +64,13 @@ export function ClientLightbox({
 }) {
   const [idx, setIdx] = useState(0)
   const [loaded, setLoaded] = useState<Record<number, boolean>>({})
+  // Decoded object URLs, keyed by index. The display image is fetched (so the
+  // fetch can be prioritised and aborted) and turned into an object URL; the
+  // <img> renders that. `objUrlsRef` mirrors state for cleanup + in-flight
+  // checks; `controllersRef` holds the AbortController of each in-flight fetch.
+  const [objUrls, setObjUrls] = useState<Record<number, string>>({})
+  const objUrlsRef = useRef<Record<number, string>>({})
+  const controllersRef = useRef<Map<number, AbortController>>(new Map())
   const [dir, setDir] = useState(0) // -1 left, 1 right, 0 initial
   const [animating, setAnimating] = useState(false)
   const touchRef = useRef({ startX: 0, startY: 0, swiping: false })
@@ -118,10 +126,11 @@ export function ClientLightbox({
       if (animating || total < 2) return
       setDir(d)
       setAnimating(true)
+      // motionTokens.fast (120ms): UI responds immediately; image loads behind.
       setTimeout(() => {
         setIdx((p) => (p + d + total) % total)
         setAnimating(false)
-      }, 280)
+      }, 120)
     },
     [animating, total]
   )
@@ -157,17 +166,64 @@ export function ClientLightbox({
     }
   }
 
-  // Preload adjacent
-  useEffect(() => {
-    const preload = (i: number) => {
-      if (i >= 0 && i < total && !loaded[i]) {
-        const img = new Image()
-        img.src = mockups[i].url
+  // Fetch one display image as an object URL. Cancellable (AbortController) and
+  // priority-hinted so the current image can jump ahead of a background
+  // preload. No-ops if the image is already fetched or already in flight.
+  const loadImage = useCallback(
+    (i: number, priority: 'high' | 'low') => {
+      if (i < 0 || i >= total) return
+      if (objUrlsRef.current[i]) return
+      if (controllersRef.current.has(i)) return
+      const controller = new AbortController()
+      controllersRef.current.set(i, controller)
+      const init: RequestInit & { priority?: 'high' | 'low' | 'auto' } = {
+        signal: controller.signal,
+        priority,
       }
+      fetch(mockups[i].url, init)
+        .then((r) => r.blob())
+        .then((blob) => {
+          const obj = URL.createObjectURL(blob)
+          objUrlsRef.current = { ...objUrlsRef.current, [i]: obj }
+          setObjUrls((p) => ({ ...p, [i]: obj }))
+        })
+        .catch(() => {
+          // Aborted (user navigated away) or a network error: leave it unloaded
+          // so the shimmer stays and a later visit retries.
+        })
+        .finally(() => {
+          controllersRef.current.delete(i)
+        })
+    },
+    [mockups, total]
+  )
+
+  // On every index change: load the current image at top priority, preload only
+  // the next image (forward, never backward) in the background, and abort any
+  // in-flight fetch that is neither of those two. This makes next/prev snappy
+  // without ever waiting on, or wasting bandwidth for, other images.
+  useEffect(() => {
+    loadImage(idx, 'high')
+    const nextI = total > 1 ? (idx + 1) % total : idx
+    loadImage(nextI, 'low')
+    const keep = new Set([idx, nextI])
+    controllersRef.current.forEach((c, i) => {
+      if (!keep.has(i)) {
+        c.abort()
+        controllersRef.current.delete(i)
+      }
+    })
+  }, [idx, total, loadImage])
+
+  // Release every object URL and abort anything in flight on unmount.
+  useEffect(() => {
+    const controllers = controllersRef.current
+    return () => {
+      controllers.forEach((c) => c.abort())
+      controllers.clear()
+      Object.values(objUrlsRef.current).forEach((u) => URL.revokeObjectURL(u))
     }
-    preload(idx - 1)
-    preload(idx + 1)
-  }, [idx, total, mockups, loaded])
+  }, [])
 
   const onImgLoad = (i: number) => setLoaded((p) => ({ ...p, [i]: true }))
 
@@ -238,7 +294,7 @@ export function ClientLightbox({
         userSelect: 'none', WebkitUserSelect: 'none',
       }}
     >
-      <style>{`@keyframes fsIconIn{from{opacity:0}to{opacity:1}}`}</style>
+      <style>{`@keyframes fsIconIn{from{opacity:0}to{opacity:1}}@keyframes ecShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
       {/* ── TOP BAR ── */}
       <div
         style={{
@@ -306,13 +362,21 @@ export function ClientLightbox({
 
       {/* ── IMAGE STAGE ── */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', minHeight: 0 }}>
+        {/* Skeleton shimmer: fills the image area from the moment the lightbox
+            opens (and on every navigation) until the current image has decoded.
+            Never leaves a black/empty stage. The stage is a fixed flex area, so
+            the absolutely-positioned shimmer introduces no layout shift. */}
+        {!loaded[idx] && <div aria-hidden style={shimmerBox} />}
+
         {/* Prev peek */}
         {total > 1 && (
           <div
             onClick={prev}
             style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 'clamp(40px,10vw,120px)', height: '60%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}
           >
-            <img src={mockups[prevIdx].url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '0 8px 8px 0', opacity: 0.18, filter: 'blur(1px)', transition: 'opacity .2s ease', pointerEvents: 'none' }} />
+            {/* Reuse the cached image if we already fetched it; never start a
+                backward full-size download just to fill the decorative peek. */}
+            {objUrls[prevIdx] && <img src={objUrls[prevIdx]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '0 8px 8px 0', opacity: 0.18, filter: 'blur(1px)', transition: 'opacity .2s ease', pointerEvents: 'none' }} />}
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div
                 style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', transition: 'background .15s ease' }}
@@ -325,31 +389,41 @@ export function ClientLightbox({
           </div>
         )}
 
-        {/* Main image */}
+        {/* Main image — sits above the shimmer layer (zIndex 1). */}
         <div
           style={{
+            position: 'relative', zIndex: 1,
             transform: getTransform(),
             opacity: animating ? 0 : 1,
+            // Navigation response uses motionTokens.fast (120ms): the slide and
+            // counter/title update immediately, never waiting on the image.
             transition: animating
-              ? 'transform .28s cubic-bezier(.4,0,.2,1), opacity .15s ease'
-              : 'transform .28s cubic-bezier(.4,0,.2,1), opacity .2s ease .05s',
+              ? `transform ${motionTokens.durationFast} ${motionTokens.easeDefault}, opacity .1s ease`
+              : `transform ${motionTokens.durationFast} ${motionTokens.easeDefault}, opacity ${motionTokens.durationBase} ${motionTokens.easeDefault} .04s`,
             maxWidth: 'calc(100% - clamp(80px,20vw,240px))',
             maxHeight: '100%',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0',
           }}
         >
-          <img
-            key={idx}
-            src={mockups[idx].url}
-            alt={mockups[idx].label}
-            onLoad={() => onImgLoad(idx)}
-            style={{
-              maxWidth: '100%', maxHeight: 'calc(100vh - 200px)',
-              objectFit: 'contain', borderRadius: T.r.lg,
-              opacity: loaded[idx] ? 1 : 0, transition: 'opacity .25s ease',
-              boxShadow: '0 8px 32px rgba(0,0,0,.4)',
-            }}
-          />
+          {/* Rendered only once the display image has been fetched; until then
+              the shimmer behind fills the stage. */}
+          {objUrls[idx] && (
+            <img
+              key={idx}
+              src={objUrls[idx]}
+              alt={mockups[idx].label}
+              onLoad={() => onImgLoad(idx)}
+              style={{
+                maxWidth: '100%', maxHeight: 'calc(100vh - 200px)',
+                objectFit: 'contain', borderRadius: T.r.lg,
+                // Fade in once decoded (motionTokens.base 200ms); shimmer covers
+                // the gap until then.
+                opacity: loaded[idx] ? 1 : 0,
+                transition: `opacity ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
+                boxShadow: '0 8px 32px rgba(0,0,0,.4)',
+              }}
+            />
+          )}
         </div>
 
         {/* Next peek */}
@@ -358,7 +432,9 @@ export function ClientLightbox({
             onClick={next}
             style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', width: 'clamp(40px,10vw,120px)', height: '60%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}
           >
-            <img src={mockups[nextIdx].url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px 0 0 8px', opacity: 0.18, filter: 'blur(1px)', transition: 'opacity .2s ease', pointerEvents: 'none' }} />
+            {/* The next image is already preloaded by the loader, so this reuses
+                the cached object URL with no extra network request. */}
+            {objUrls[nextIdx] && <img src={objUrls[nextIdx]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px 0 0 8px', opacity: 0.18, filter: 'blur(1px)', transition: 'opacity .2s ease', pointerEvents: 'none' }} />}
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div
                 style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', transition: 'background .15s ease' }}
@@ -385,7 +461,7 @@ export function ClientLightbox({
                   setTimeout(() => {
                     setIdx(i)
                     setAnimating(false)
-                  }, 180)
+                  }, 120)
                 }
               }}
               style={{
@@ -395,7 +471,10 @@ export function ClientLightbox({
                 transition: 'all .2s ease',
               }}
             >
-              <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {/* No edge transforms on this plan, so these are full-size images.
+                  Lazy + async decoding keeps them off the critical path so they
+                  never block the main image from showing. */}
+              <img src={m.url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </button>
           ))}
         </div>
@@ -485,6 +564,25 @@ export function ClientLightbox({
       )}
     </div>
   )
+}
+
+// Skeleton shimmer that fills the image stage while the current image loads.
+// Uses only the neutral background tokens (no raw hex); a soft left-to-right
+// sweep at 1.5s linear keeps it calm on the dark surface. Centred to the same
+// box the contained image occupies so nothing jumps when the image fades in.
+const shimmerBox: CSSProperties = {
+  position: 'absolute',
+  zIndex: 0,
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 'min(calc(100% - clamp(80px,20vw,240px)), 1100px)',
+  height: 'calc(100vh - 220px)',
+  maxHeight: 'calc(100% - 16px)',
+  borderRadius: T.r.lg,
+  background: `linear-gradient(90deg, ${t.background.subtle} 25%, ${t.background.muted} 50%, ${t.background.subtle} 75%)`,
+  backgroundSize: '200% 100%',
+  animation: 'ecShimmer 1.5s linear infinite',
 }
 
 // One-time fullscreen hint bubble, anchored under the toggle.
