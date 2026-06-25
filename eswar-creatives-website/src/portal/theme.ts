@@ -74,6 +74,11 @@ export const t = {
     overlayDark:    'rgba(10,10,23,0.40)',
     overlayStrong:  'rgba(10,10,23,0.70)',
     scrim:          'rgba(10,10,23,0.60)',  // modal backdrop
+    // Light (white-alpha) overlays for content on dark surfaces, e.g. the
+    // mockup lightbox shimmer. The overlay* tokens above are dark and vanish on
+    // a near-black stage, so these read as a soft grey instead.
+    overlayLight:       'rgba(255,255,255,0.06)',
+    overlayLightStrong: 'rgba(255,255,255,0.12)',
   },
 } as const
 

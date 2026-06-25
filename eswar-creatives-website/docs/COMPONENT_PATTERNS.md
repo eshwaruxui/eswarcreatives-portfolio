@@ -19,14 +19,21 @@ All image rendering across the portal must use the shared ProgressiveImage compo
 - alt: string
 - priority?: boolean - cancels other loads, fetches first
 - shimmerHeight?: number - matches container height
+- variant?: 'light' | 'dark' - shimmer palette, default 'light'
+- loader?: ImagePriorityApi - optional shared loader so several images on one surface share a cache and abort scope
+- fit?: 'contain' | 'cover' - object-fit for the image, default 'contain'
+- radius?, className?, style?, imgStyle? - styling passthrough (a height in style reserves the box)
 
 ### useImagePriority returns
 - loadImage(url, priority) - fetch with AbortController
 - cancelCurrent() - abort in-progress fetch
 - preloadNext(url) - background preload next 1 only
+- getCached(url) - read an already-loaded object URL without starting a fetch
 
 ### Shimmer tokens
-- Background: t.background.subtle + t.background.muted
+- variant 'light' (default): t.background.subtle + t.background.muted
+- variant 'dark': t.background.overlayLight + t.background.overlayLightStrong
+- The overlay* dark tokens are near-black and vanish on a dark stage, so dark surfaces use the white-alpha overlayLight tokens instead
 - Animation: 1.5s infinite linear gradient sweep
 - No raw hex values
 
@@ -41,8 +48,8 @@ All image rendering across the portal must use the shared ProgressiveImage compo
 - Track this as a Phase 6 upgrade item.
 
 ### Current usages
-- MockupLightbox - primary implementation
-- ClientConceptSetPanel - sketch thumbnails
+- ClientLightbox (mockup lightbox) - primary implementation, variant 'dark' on the dark stage
+- ClientConceptSetPanel - sketch thumbnails, light background (default 'light')
 
 ### Adding new image surfaces
 Before using an img tag anywhere in the portal, check this doc first and use ProgressiveImage instead.
