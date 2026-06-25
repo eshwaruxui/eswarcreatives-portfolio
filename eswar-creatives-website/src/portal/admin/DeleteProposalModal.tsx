@@ -22,6 +22,21 @@ function pluralInvoices(n: number): string {
   return `${n} invoice${n === 1 ? '' : 's'}`
 }
 
+function pluralPaidInvoices(n: number): string {
+  return `${n} paid invoice${n === 1 ? '' : 's'}`
+}
+
+// Total a set of invoices, grouped by currency and never summed across them.
+function moneySummary(list: LinkedInvoice[]): string {
+  const byCur: Record<string, number> = {}
+  for (const inv of list) {
+    byCur[inv.currency] = (byCur[inv.currency] ?? 0) + Number(inv.amount)
+  }
+  return Object.entries(byCur)
+    .map(([cur, amt]) => formatMoney(amt, cur))
+    .join(' + ')
+}
+
 export function DeleteProposalModal({
   proposalId,
   title,
@@ -66,16 +81,10 @@ export function DeleteProposalModal({
     [invoices]
   )
 
-  // Paid totals are grouped by currency and never summed across currencies.
-  const paidSummary = useMemo(() => {
-    const byCur: Record<string, number> = {}
-    for (const inv of paidInvoices) {
-      byCur[inv.currency] = (byCur[inv.currency] ?? 0) + Number(inv.amount)
-    }
-    return Object.entries(byCur)
-      .map(([cur, amt]) => formatMoney(amt, cur))
-      .join(' + ')
-  }, [paidInvoices])
+  // Totals grouped by currency. paidSummary covers the paid invoices (the
+  // warning case); allSummary covers every linked invoice (the unpaid-only case).
+  const paidSummary = useMemo(() => moneySummary(paidInvoices), [paidInvoices])
+  const allSummary = useMemo(() => moneySummary(invoices ?? []), [invoices])
 
   const loading = invoices === null
   const invoiceCount = invoices?.length ?? 0
@@ -129,17 +138,17 @@ export function DeleteProposalModal({
             <p style={styles.body}>Checking linked invoices…</p>
           ) : paidInvoices.length > 0 ? (
             <div style={styles.warning}>
-              This proposal has {pluralInvoices(paidInvoices.length)} paid
-              {paidSummary ? ` totalling ${paidSummary}` : ''}. All payment records
-              will be permanently removed.
+              {pluralPaidInvoices(paidInvoices.length)}
+              {paidSummary ? ` totalling ${paidSummary}` : ''} will be permanently
+              removed. This cannot be undone.
             </div>
           ) : invoiceCount > 0 ? (
             <p style={styles.body}>
-              This proposal has {pluralInvoices(invoiceCount)}. They will be
-              permanently removed.
+              {pluralInvoices(invoiceCount)}
+              {allSummary ? ` totalling ${allSummary}` : ''} will also be deleted.
             </p>
           ) : (
-            <p style={styles.body}>This proposal has no invoices.</p>
+            <p style={styles.body}>No invoices are linked to this proposal.</p>
           )}
 
           <p style={styles.body}>This action cannot be undone.</p>
