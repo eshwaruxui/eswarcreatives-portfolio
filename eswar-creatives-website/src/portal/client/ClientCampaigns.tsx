@@ -10,8 +10,8 @@ import { supabase } from '../../lib/supabase'
 import { PortalGuard, type PortalProfile } from '../PortalGuard'
 import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
 import { ClientConceptSetPanel } from './ClientConceptSetPanel'
-import { formatDate } from '../admin/ui'
-import { tokens, fonts, motionTokens } from '../theme'
+import { formatDate, mono } from '../admin/ui'
+import { tokens, t, fonts, motionTokens } from '../theme'
 
 type Campaign = {
   id: string
@@ -107,6 +107,73 @@ function groupSubmissions(rows: RawSubmission[]): CampaignSummary[] {
   return [...byCampaign.values()].sort((a, b) => (a.latestAt < b.latestAt ? 1 : -1))
 }
 
+// A finished public poll surfaced in the client portal as a read-only record.
+type CompletedPoll = {
+  id: string
+  title: string
+  createdAt: string | null
+  decisionNote: string | null
+  totalVotes: number
+  topConcepts: string[]
+}
+
+// Counts-only row from get_portal_campaign_vote_summary (never voter PII).
+type VoteSummaryRow = {
+  set_id: string
+  sketch_index: number
+  passed: number
+  rejected: number
+  total: number
+}
+
+// Load the signed-in client's completed public polls with vote aggregates. The
+// explicit portal_client_id filter is essential: public_campaigns also carries a
+// "read any active campaign" policy, so an unfiltered select would surface other
+// clients' active polls. Per-concept counts come from the ownership-gated RPC, so
+// no voter PII is ever read here. Concept names are synthesised from the set name
+// and sketch position, matching the panel.
+async function loadCompletedPolls(profileId: string): Promise<CompletedPoll[]> {
+  const { data: clientRow } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('profile_id', profileId)
+    .single()
+  if (!clientRow) return []
+
+  const { data: polls } = await supabase
+    .from('public_campaigns')
+    .select('id, campaign_title, created_at, portal_decision_note')
+    .eq('portal_client_id', clientRow.id)
+    .order('created_at', { ascending: false })
+  if (!polls || polls.length === 0) return []
+
+  return Promise.all(
+    polls.map(async (p) => {
+      const [summaryRes, setsRes] = await Promise.all([
+        supabase.rpc('get_portal_campaign_vote_summary', { p_campaign_id: p.id }),
+        supabase.from('logo_sketch_sets').select('id, name').eq('campaign_id', p.id),
+      ])
+      const setName = new Map(
+        ((setsRes.data ?? []) as { id: string; name: string | null }[]).map((s) => [s.id, s.name])
+      )
+      const rows = (summaryRes.data ?? []) as VoteSummaryRow[]
+      const totalVotes = rows.reduce((n, r) => n + Number(r.total), 0)
+      const topConcepts = [...rows]
+        .sort((a, b) => Number(b.passed) - Number(a.passed))
+        .slice(0, 3)
+        .map((r) => `${setName.get(r.set_id) || 'Concept set'} · Concept ${r.sketch_index + 1}`)
+      return {
+        id: p.id as string,
+        title: p.campaign_title as string,
+        createdAt: p.created_at as string | null,
+        decisionNote: p.portal_decision_note as string | null,
+        totalVotes,
+        topConcepts,
+      }
+    })
+  )
+}
+
 export function ClientCampaignsPage() {
   return (
     <PortalGuard requireRole="client">
@@ -121,6 +188,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [completedPolls, setCompletedPolls] = useState<CompletedPoll[]>([])
   // The concept set whose selections panel is open, plus its campaign label.
   const [panelSet, setPanelSet] = useState<
     { setId: string; name: string; campaignId: string | null; campaignName: string } | null
@@ -132,7 +200,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
       try {
         // RLS restricts campaigns to the signed-in client's own rows (private)
         // plus any public ones surfaced to them.
-        const [campRes, subRes] = await Promise.all([
+        const [campRes, subRes, polls] = await Promise.all([
           supabase
             .from('review_campaigns')
             .select('id, title, status, visibility, created_at')
@@ -147,11 +215,14 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
             )
             .eq('client_id', profile.id)
             .order('completed_at', { ascending: false }),
+          // 6d/6f: completed public polls linked to this client, with aggregates.
+          loadCompletedPolls(profile.id),
         ])
         if (campRes.error) throw campRes.error
         if (!cancelled) {
           setCampaigns((campRes.data ?? []) as Campaign[])
           setHistory(groupSubmissions((subRes.data ?? []) as unknown as RawSubmission[]))
+          setCompletedPolls(polls)
         }
       } catch {
         // H9: plain-language error, never a raw Supabase string.
@@ -178,12 +249,16 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
         {loading && <div style={styles.muted}>Loading campaigns...</div>}
         {error && <div style={styles.error}>{error}</div>}
 
-        {!loading && !error && campaigns.length === 0 && history.length === 0 && (
-          <div style={styles.empty}>
-            <h2 style={styles.emptyTitle}>No campaigns yet</h2>
-            <p style={styles.mutedBody}>Your design review campaigns will appear here.</p>
-          </div>
-        )}
+        {!loading &&
+          !error &&
+          campaigns.length === 0 &&
+          history.length === 0 &&
+          completedPolls.length === 0 && (
+            <div style={styles.empty}>
+              <h2 style={styles.emptyTitle}>No campaigns yet</h2>
+              <p style={styles.mutedBody}>Your design review campaigns will appear here.</p>
+            </div>
+          )}
 
         {!loading && !error && campaigns.length > 0 && (
           <div style={styles.grid}>
@@ -274,6 +349,45 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
                   </div>
                 )
               })}
+            </div>
+          </section>
+        )}
+
+        {/* 6d/6f: completed public polls as a read-only track record. No actions
+            and no hover affordances, so nothing reads as interactive (H4). */}
+        {!loading && !error && completedPolls.length > 0 && (
+          <section style={styles.historyBlock}>
+            <h2 style={styles.historyHeading}>Completed polls</h2>
+            <div style={styles.pollList}>
+              {completedPolls.map((poll) => (
+                <article key={poll.id} style={styles.pollCard}>
+                  <div style={styles.pollHead}>
+                    <h3 style={styles.pollTitle}>{poll.title}</h3>
+                    <span style={styles.closedPill}>Closed</span>
+                  </div>
+                  <div style={styles.pollMeta}>
+                    {formatDate(poll.createdAt)} ·{' '}
+                    <span style={styles.pollVotes}>{poll.totalVotes}</span> votes collected
+                  </div>
+
+                  {poll.topConcepts.length > 0 && (
+                    <div style={styles.topConcepts}>
+                      <div style={styles.topConceptsLabel}>Top concepts</div>
+                      <ol style={styles.topConceptsList}>
+                        {poll.topConcepts.map((name, i) => (
+                          <li key={i} style={styles.topConceptItem}>
+                            {name}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+
+                  {poll.decisionNote && (
+                    <div style={styles.decisionNote}>{poll.decisionNote}</div>
+                  )}
+                </article>
+              ))}
             </div>
           </section>
         )}
@@ -448,5 +562,68 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     fontSize: 13,
     border: `1px solid ${tokens.ruby}`,
+  },
+  pollList: { display: 'flex', flexDirection: 'column', gap: 12 },
+  pollCard: {
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 12,
+    padding: 20,
+  },
+  pollHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 6,
+  },
+  pollTitle: {
+    margin: 0,
+    fontFamily: fonts.heading,
+    fontSize: 16,
+    fontWeight: 600,
+    color: t.text.primary,
+  },
+  closedPill: {
+    display: 'inline-block',
+    padding: '4px 10px',
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 600,
+    fontFamily: fonts.body,
+    background: t.background.subtle,
+    color: t.text.muted,
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+  pollMeta: { fontFamily: fonts.body, fontSize: 13, color: t.text.muted, marginBottom: 14 },
+  pollVotes: { fontFamily: mono, color: t.text.primary },
+  topConcepts: { marginBottom: 14 },
+  topConceptsLabel: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: t.text.muted,
+    marginBottom: 6,
+  },
+  topConceptsList: {
+    margin: 0,
+    paddingLeft: 20,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  topConceptItem: { fontFamily: fonts.body, fontSize: 14, color: t.text.primary },
+  decisionNote: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: t.text.secondary,
+    background: t.background.subtle,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 8,
+    padding: '12px 14px',
   },
 }
