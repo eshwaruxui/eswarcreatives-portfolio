@@ -15,6 +15,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CSSProperties, JSX } from 'react'
 import { supabase } from '../../lib/supabase'
+import { t, motionTokens } from '../theme'
 import type { LightboxMockup, LightboxMeta } from './signItems'
 
 /* Eswar Creatives design tokens (lightbox-local, dark surface) */
@@ -238,7 +239,7 @@ export function ClientLightbox({
         userSelect: 'none', WebkitUserSelect: 'none',
       }}
     >
-      <style>{`@keyframes fsIconIn{from{opacity:0}to{opacity:1}}`}</style>
+      <style>{`@keyframes fsIconIn{from{opacity:0}to{opacity:1}}@keyframes ecShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
       {/* ── TOP BAR ── */}
       <div
         style={{
@@ -306,6 +307,12 @@ export function ClientLightbox({
 
       {/* ── IMAGE STAGE ── */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', minHeight: 0 }}>
+        {/* Skeleton shimmer: fills the image area from the moment the lightbox
+            opens (and on every navigation) until the current image has decoded.
+            Never leaves a black/empty stage. The stage is a fixed flex area, so
+            the absolutely-positioned shimmer introduces no layout shift. */}
+        {!loaded[idx] && <div aria-hidden style={shimmerBox} />}
+
         {/* Prev peek */}
         {total > 1 && (
           <div
@@ -325,9 +332,10 @@ export function ClientLightbox({
           </div>
         )}
 
-        {/* Main image */}
+        {/* Main image — sits above the shimmer layer (zIndex 1). */}
         <div
           style={{
+            position: 'relative', zIndex: 1,
             transform: getTransform(),
             opacity: animating ? 0 : 1,
             transition: animating
@@ -346,7 +354,10 @@ export function ClientLightbox({
             style={{
               maxWidth: '100%', maxHeight: 'calc(100vh - 200px)',
               objectFit: 'contain', borderRadius: T.r.lg,
-              opacity: loaded[idx] ? 1 : 0, transition: 'opacity .25s ease',
+              // Fade in once decoded (motionTokens.base 200ms); shimmer covers
+              // the gap until then.
+              opacity: loaded[idx] ? 1 : 0,
+              transition: `opacity ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
               boxShadow: '0 8px 32px rgba(0,0,0,.4)',
             }}
           />
@@ -485,6 +496,25 @@ export function ClientLightbox({
       )}
     </div>
   )
+}
+
+// Skeleton shimmer that fills the image stage while the current image loads.
+// Uses only the neutral background tokens (no raw hex); a soft left-to-right
+// sweep at 1.5s linear keeps it calm on the dark surface. Centred to the same
+// box the contained image occupies so nothing jumps when the image fades in.
+const shimmerBox: CSSProperties = {
+  position: 'absolute',
+  zIndex: 0,
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 'min(calc(100% - clamp(80px,20vw,240px)), 1100px)',
+  height: 'calc(100vh - 220px)',
+  maxHeight: 'calc(100% - 16px)',
+  borderRadius: T.r.lg,
+  background: `linear-gradient(90deg, ${t.background.subtle} 25%, ${t.background.muted} 50%, ${t.background.subtle} 75%)`,
+  backgroundSize: '200% 100%',
+  animation: 'ecShimmer 1.5s linear infinite',
 }
 
 // One-time fullscreen hint bubble, anchored under the toggle.
