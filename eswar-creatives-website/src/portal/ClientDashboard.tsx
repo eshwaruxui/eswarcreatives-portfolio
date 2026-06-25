@@ -14,6 +14,7 @@ import { ClientNav, CLIENT_NAV_HEIGHT } from './client/ClientNav'
 import { getBadges, subscribeBadges } from './client/clientNotifications'
 import { DocumentChips } from './client/DocumentChips'
 import type { ClientDocument } from './client/DocumentChips'
+import { formatDate } from './admin/ui'
 import { tokens, t, fonts, motionTokens, phaseUI } from './theme'
 import type { PhaseState } from './theme'
 
@@ -39,6 +40,15 @@ type TimelineExtension = {
   id: string
   new_timeline: string
   reason: string | null
+}
+
+// A completed public poll shown as a project milestone. total_votes is summed
+// from the ownership-gated vote-summary RPC (counts only, no voter PII).
+type Milestone = {
+  id: string
+  title: string
+  createdAt: string | null
+  totalVotes: number
 }
 
 // One banner shown at a time, highest priority wins. variant drives the palette.
@@ -74,6 +84,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
   const [banner, setBanner] = useState<Banner | null>(null)
   const [extensions, setExtensions] = useState<TimelineExtension[]>([])
   const [respondingId, setRespondingId] = useState<string | null>(null)
+  const [milestones, setMilestones] = useState<Milestone[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const badges = useSyncExternalStore(subscribeBadges, getBadges, getBadges)
@@ -129,6 +140,30 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
             setDocuments((assetRes.data ?? []) as ClientDocument[])
           }
         }
+
+        // 6d/6f: completed public polls shown as project milestones. Filter by
+        // portal_client_id (the active-campaign public-read policy would otherwise
+        // surface other clients' polls); totals come from the counts-only RPC.
+        const { data: pollRows } = await supabase
+          .from('public_campaigns')
+          .select('id, campaign_title, created_at')
+          .eq('portal_client_id', client.id)
+          .order('created_at', { ascending: false })
+        const ms = await Promise.all(
+          ((pollRows ?? []) as { id: string; campaign_title: string; created_at: string | null }[]).map(
+            async (p) => {
+              const { data: summary } = await supabase.rpc('get_portal_campaign_vote_summary', {
+                p_campaign_id: p.id,
+              })
+              const totalVotes = ((summary ?? []) as { total: number }[]).reduce(
+                (n, r) => n + Number(r.total),
+                0
+              )
+              return { id: p.id, title: p.campaign_title, createdAt: p.created_at, totalVotes }
+            }
+          )
+        )
+        if (!cancelled) setMilestones(ms)
 
         // Pending timeline extensions (5h). RLS scopes these to the client's
         // own projects, so no extra filter is needed.
@@ -321,6 +356,30 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
               <div style={styles.docsBlock}>
                 <h3 style={styles.docsHeading}>Documents</h3>
                 <DocumentChips documents={documents} />
+              </div>
+            )}
+
+            {/* 6d/6f: completed public polls as read-only project milestones. */}
+            {milestones.length > 0 && (
+              <div style={styles.milestonesBlock}>
+                <h3 style={styles.docsHeading}>Milestones</h3>
+                <div style={styles.milestoneList}>
+                  {milestones.map((m) => (
+                    <div key={m.id} style={styles.milestoneCard}>
+                      <span style={styles.milestoneIcon} aria-hidden="true">
+                        ✓
+                      </span>
+                      <div style={styles.milestoneMain}>
+                        <div style={styles.milestoneLabel}>{m.title}</div>
+                        <div style={styles.milestoneDate}>{formatDate(m.createdAt)}</div>
+                        <div style={styles.milestoneOutcome}>
+                          {m.totalVotes} votes collected. Top concepts shortlisted.
+                        </div>
+                      </div>
+                      <span style={styles.completePill}>Complete</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </section>
@@ -818,5 +877,52 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     border: `1px solid ${tokens.ruby}`,
     marginBottom: 24,
+  },
+  milestonesBlock: { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${t.border.subtle}` },
+  milestoneList: { display: 'flex', flexDirection: 'column', gap: 12 },
+  milestoneCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 14,
+    padding: 16,
+    background: t.background.subtle,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 12,
+  },
+  milestoneIcon: {
+    flexShrink: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    background: tokens.greenLight,
+    color: tokens.green,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 15,
+    fontWeight: 700,
+  },
+  milestoneMain: { minWidth: 0, flex: 1 },
+  milestoneLabel: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, color: t.text.primary },
+  milestoneDate: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, marginTop: 2 },
+  milestoneOutcome: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.secondary,
+    marginTop: 6,
+    lineHeight: 1.4,
+  },
+  completePill: {
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '4px 10px',
+    borderRadius: 999,
+    background: tokens.greenLight,
+    color: tokens.green,
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
   },
 }
