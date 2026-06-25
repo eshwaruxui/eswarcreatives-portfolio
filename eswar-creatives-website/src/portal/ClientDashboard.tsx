@@ -1,7 +1,10 @@
 // Client dashboard at /portal/projects. Shows a single contextual banner (the
 // highest-priority action the client should take), the client's active project
-// with a read-only phase stepper, and quick links to the other sections.
-// Theme tokens only; no raw hex; no em dashes; plain-language errors only.
+// as a hi-fi project card (header + progress ring + four-phase stepper with
+// per-phase status pills), the project documents, and quick links to the other
+// sections. Layout, spacing and typography follow the EC Design System master
+// (Figma node 4149:31). Theme tokens only; no raw hex; no em dashes; plain
+// errors only.
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router'
 import type { CSSProperties } from 'react'
@@ -9,10 +12,10 @@ import { supabase } from '../lib/supabase'
 import { PortalGuard, type PortalProfile } from './PortalGuard'
 import { ClientNav, CLIENT_NAV_HEIGHT } from './client/ClientNav'
 import { getBadges, subscribeBadges } from './client/clientNotifications'
-import type { BadgeSection } from './client/clientNotifications'
 import { DocumentChips } from './client/DocumentChips'
 import type { ClientDocument } from './client/DocumentChips'
-import { tokens, t, fonts, motionTokens } from './theme'
+import { tokens, t, fonts, motionTokens, phaseUI } from './theme'
+import type { PhaseState } from './theme'
 
 // The fixed client journey. The project's phase pointer maps onto these.
 const PHASES = ['Discovery', 'Design', 'Review', 'Delivery'] as const
@@ -42,6 +45,20 @@ type TimelineExtension = {
 type BannerVariant = 'ruby' | 'gold' | 'teal'
 type Banner = { text: string; to: string; variant: BannerVariant }
 
+// Phase stepper and quick grid collapse to a single column below this width.
+function useIsNarrow(): boolean {
+  const [narrow, setNarrow] = useState(
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const on = () => setNarrow(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return narrow
+}
+
 export function ClientDashboardPage() {
   return (
     <PortalGuard requireRole="client">
@@ -60,6 +77,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const badges = useSyncExternalStore(subscribeBadges, getBadges, getBadges)
+  const narrow = useIsNarrow()
 
   useEffect(() => {
     let cancelled = false
@@ -173,6 +191,24 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
     return i >= 0 ? i : 0
   })()
 
+  // Per-phase state for the stepper. Prefer the real project_phases status; fall
+  // back to the phase pointer when a phase row is missing or still pending.
+  const phaseStates: PhaseState[] = PHASES.map((label, i) => {
+    const row = phases.find((p) => p.phase_name.toLowerCase() === label.toLowerCase())
+    if (row) {
+      if (row.phase_status === 'done') return 'done'
+      if (row.phase_status === 'in_progress' || row.phase_status === 'blocked') return 'active'
+    }
+    return i < currentIndex ? 'done' : i === currentIndex ? 'active' : 'pending'
+  })
+
+  // Completed phases count full, the active phase counts half, for a smooth ring.
+  const progressPct = Math.round(
+    (phaseStates.reduce((acc, s) => acc + (s === 'done' ? 1 : s === 'active' ? 0.5 : 0), 0) /
+      PHASES.length) *
+      100
+  )
+
   return (
     <div style={styles.page}>
       <ClientNav profile={profile} />
@@ -237,35 +273,56 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
 
         {!loading && !error && project && (
           <section style={styles.card}>
-            <h2 style={styles.projectTitle}>{project.title}</h2>
-            <Stepper currentIndex={currentIndex} />
-          </section>
-        )}
-
-        {!loading && !error && project && phases.length > 0 && (
-          <section style={styles.card}>
-            <h3 style={styles.sectionHeading}>Phases</h3>
-            <div style={styles.phaseList}>
-              {phases.map((ph) => (
-                <div key={ph.id} style={styles.phaseRow}>
-                  <div>
-                    <div style={styles.phaseName}>{ph.phase_name}</div>
-                    {/* H8: minimalist link; tasks wiring lands in Phase 6. */}
-                    <Link to="/portal/projects#tasks" style={styles.tasksLink}>
-                      View tasks &rarr;
-                    </Link>
-                  </div>
-                  <span style={styles.phaseStatus}>{formatPhaseStatus(ph.phase_status)}</span>
+            {/* Card header: project name + phase meta on the left, progress ring right. */}
+            <div style={styles.cardHeader}>
+              <div style={styles.cardHeaderText}>
+                <h2 style={styles.projectTitle}>{project.title}</h2>
+                <div style={styles.projectMeta}>
+                  <span style={styles.metaStrong}>
+                    Phase {project.phase_number ?? currentIndex + 1}
+                  </span>
+                  <span style={styles.metaDot} aria-hidden="true">
+                    &bull;
+                  </span>
+                  <span style={styles.metaLabel}>
+                    {project.current_phase ?? PHASES[currentIndex]}
+                  </span>
                 </div>
+              </div>
+              <ProgressRing
+                percent={progressPct}
+                caption={`Phase ${currentIndex + 1} of ${PHASES.length}`}
+              />
+            </div>
+
+            {/* Four-phase stepper with per-phase status pills. */}
+            <div
+              style={{
+                ...styles.phaseGrid,
+                gridTemplateColumns: narrow ? '1fr' : `repeat(${PHASES.length}, minmax(0, 1fr))`,
+              }}
+              aria-label="Project phase"
+            >
+              {PHASES.map((label, i) => (
+                <PhaseColumn
+                  key={label}
+                  label={label}
+                  index={i}
+                  state={phaseStates[i]}
+                  isFirst={i === 0}
+                  isLast={i === PHASES.length - 1}
+                  narrow={narrow}
+                />
               ))}
             </div>
-          </section>
-        )}
 
-        {!loading && !error && project && (
-          <section style={styles.card}>
-            <h3 style={styles.sectionHeading}>Documents</h3>
-            <DocumentChips documents={documents} />
+            {/* Documents are project-scoped (no per-phase linkage in the schema). */}
+            {documents.length > 0 && (
+              <div style={styles.docsBlock}>
+                <h3 style={styles.docsHeading}>Documents</h3>
+                <DocumentChips documents={documents} />
+              </div>
+            )}
           </section>
         )}
 
@@ -409,6 +466,111 @@ function BannerCard({ banner }: { banner: Banner }) {
   )
 }
 
+// SVG progress donut. Track is a neutral ring; the arc fills clockwise from the
+// top using the brand-subtle teal. Percent sits centred, caption sits beneath.
+function ProgressRing({ percent, caption }: { percent: number; caption: string }) {
+  const size = 64
+  const stroke = 6
+  const r = (size - stroke) / 2
+  const circumference = 2 * Math.PI * r
+  const clamped = Math.max(0, Math.min(100, percent))
+  const offset = circumference * (1 - clamped / 100)
+  return (
+    <div style={styles.ring}>
+      <div style={styles.ringSvgWrap}>
+        <svg width={size} height={size} role="img" aria-label={`${clamped} percent complete`}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={t.border.default} strokeWidth={stroke} />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={phaseUI.nodeFill}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            style={{ transition: `stroke-dashoffset ${motionTokens.durationSlow} ${motionTokens.easeEnter}` }}
+          />
+        </svg>
+        <span style={styles.ringPct}>{clamped}%</span>
+      </div>
+      <span style={styles.ringCaption}>{caption}</span>
+    </div>
+  )
+}
+
+function PhaseColumn({
+  label,
+  index,
+  state,
+  isFirst,
+  isLast,
+  narrow,
+}: {
+  label: string
+  index: number
+  state: PhaseState
+  isFirst: boolean
+  isLast: boolean
+  narrow: boolean
+}) {
+  const done = state === 'done'
+  const active = state === 'active'
+  const filled = done || active
+  const pill = phaseUI.status[state]
+
+  const colStyle: CSSProperties = narrow
+    ? {
+        ...styles.phaseCol,
+        paddingBottom: isLast ? 0 : 16,
+        borderBottom: isLast ? 'none' : `1px solid ${t.border.subtle}`,
+      }
+    : {
+        ...styles.phaseCol,
+        paddingLeft: isFirst ? 0 : 16,
+        paddingRight: isLast ? 0 : 16,
+        borderRight: isLast ? 'none' : `1px solid ${t.border.overlayStrong}`,
+      }
+
+  return (
+    <div style={colStyle}>
+      <div style={styles.phaseNodeRow}>
+        <span style={{ ...styles.phaseNode, ...(filled ? styles.phaseNodeFilled : styles.phaseNodeIdle) }}>
+          {done ? '✓' : index + 1}
+        </span>
+        {/* Connector is brand only once the phase is complete; otherwise neutral.
+            Hidden in the stacked layout, where a long trailing rule reads oddly. */}
+        {!narrow && (
+          <span
+            style={{
+              ...styles.connector,
+              background: done ? phaseUI.nodeFill : t.background.overlayNormal,
+            }}
+          />
+        )}
+      </div>
+      <div style={styles.phaseBody}>
+        <div style={styles.phaseNameRow}>
+          <span
+            style={{ ...styles.phaseName, color: state === 'pending' ? t.text.muted : t.text.primary }}
+          >
+            {label}
+          </span>
+          <span style={{ ...styles.statusPill, background: pill.bg, borderColor: pill.border }}>
+            {pill.label}
+          </span>
+        </div>
+        {/* H8: minimalist link; tasks wiring lands in a later phase. */}
+        <Link to="/portal/projects#tasks" style={styles.tasksLink}>
+          Tasks &rsaquo;
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 function QuickCard({
   to,
   title,
@@ -431,81 +593,10 @@ function QuickCard({
   )
 }
 
-function Stepper({ currentIndex }: { currentIndex: number }) {
-  return (
-    // H6: grid with equal columns guarantees every circle and label is centred,
-    // including the first (Discovery) and last (Delivery) steps.
-    <div style={styles.stepper} aria-label="Project phase">
-      {PHASES.map((phase, i) => {
-        const done = i < currentIndex
-        const active = i === currentIndex
-        const isFirst = i === 0
-        const isLast = i === PHASES.length - 1
-        const circle: CSSProperties = {
-          ...styles.stepCircle,
-          background: done || active ? tokens.primary : tokens.surface,
-          borderColor: done || active ? tokens.primary : tokens.border,
-          color: done || active ? tokens.surface : tokens.textMuted,
-        }
-        return (
-          <div key={phase} style={styles.step}>
-            <div style={styles.stepRow}>
-              {/* End connectors are transparent so each circle stays centred. */}
-              <span
-                style={{
-                  ...styles.connector,
-                  background: isFirst
-                    ? 'transparent'
-                    : i <= currentIndex
-                      ? tokens.primary
-                      : tokens.border,
-                }}
-              />
-              <span style={circle}>{done ? '✓' : i + 1}</span>
-              <span
-                style={{
-                  ...styles.connector,
-                  background: isLast
-                    ? 'transparent'
-                    : i < currentIndex
-                      ? tokens.primary
-                      : tokens.border,
-                }}
-              />
-            </div>
-            <span
-              style={{
-                ...styles.stepLabel,
-                color: active ? tokens.primary : tokens.textMuted,
-                fontWeight: active ? 600 : 500,
-              }}
-            >
-              {phase}
-            </span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function formatPhaseStatus(s: string): string {
-  switch (s) {
-    case 'in_progress':
-      return 'In progress'
-    case 'done':
-      return 'Done'
-    case 'blocked':
-      return 'Blocked'
-    default:
-      return 'Pending'
-  }
-}
-
 const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
   container: {
-    maxWidth: 880,
+    maxWidth: 1080,
     margin: '0 auto',
     padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px`,
   },
@@ -572,92 +663,134 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
   },
+  // Figma: Fraunces SemiBold 28 / 42, tracking -0.28px, ink #0a1a1b.
   title: {
     margin: '0 0 24px',
     fontFamily: fonts.heading,
     fontSize: 28,
     fontWeight: 600,
-    letterSpacing: '-0.01em',
+    lineHeight: '42px',
+    letterSpacing: '-0.28px',
     color: tokens.text,
   },
+  // Figma: white card, neutral overlay-strong hairline, radius 16, padding 28.
   card: {
     background: tokens.surface,
-    border: `1px solid ${tokens.border}`,
-    borderRadius: 12,
+    border: `1px solid ${t.border.overlayStrong}`,
+    borderRadius: 16,
     padding: 28,
     marginBottom: 24,
   },
+  cardHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 16,
+    width: '100%',
+  },
+  cardHeaderText: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 },
+  // Figma: Fraunces SemiBold 20 / 30.
   projectTitle: {
-    margin: '0 0 28px',
+    margin: 0,
     fontFamily: fonts.heading,
     fontSize: 20,
     fontWeight: 600,
+    lineHeight: '30px',
     color: tokens.text,
   },
-  sectionHeading: {
-    margin: '0 0 16px',
-    fontFamily: fonts.heading,
-    fontSize: 16,
-    fontWeight: 600,
-    color: tokens.text,
-  },
-  phaseList: { display: 'flex', flexDirection: 'column', gap: 4 },
-  phaseRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    padding: '12px 0',
-    borderBottom: `1px solid ${tokens.border}`,
-  },
-  phaseName: { fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: tokens.text },
-  tasksLink: {
-    display: 'inline-block',
-    marginTop: 4,
-    color: tokens.accent,
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: 600,
-    textDecoration: 'none',
-  },
-  phaseStatus: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, flexShrink: 0 },
-  stepper: {
-    display: 'grid',
-    gridTemplateColumns: `repeat(${PHASES.length}, 1fr)`,
-    alignItems: 'start',
-  },
-  step: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 },
-  stepRow: { display: 'flex', alignItems: 'center', width: '100%' },
-  connector: { height: 2, flex: 1, minWidth: 0 },
-  stepCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: '50%',
-    border: `2px solid ${tokens.border}`,
+  projectMeta: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, flexWrap: 'wrap' },
+  metaStrong: { fontFamily: fonts.body, fontWeight: 600, color: t.text.secondary },
+  metaDot: { color: t.text.muted },
+  metaLabel: { fontFamily: fonts.body, fontWeight: 400, color: t.text.secondary },
+  ring: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 },
+  ringSvgWrap: {
+    position: 'relative',
+    width: 64,
+    height: 64,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  ringPct: {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 600,
+    color: t.text.primary,
+  },
+  ringCaption: { fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: t.text.secondary, whiteSpace: 'nowrap' },
+  phaseGrid: { display: 'grid', alignItems: 'stretch', marginTop: 24 },
+  phaseCol: { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 },
+  phaseNodeRow: { display: 'flex', alignItems: 'center', width: '100%' },
+  phaseNode: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    border: '2px solid',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 600,
     flexShrink: 0,
   },
-  stepLabel: { fontSize: 13, textAlign: 'center', fontFamily: fonts.body },
-  quickGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 },
+  phaseNodeFilled: { background: phaseUI.nodeFill, color: tokens.surface, borderColor: t.border.overlayStrong },
+  phaseNodeIdle: { background: tokens.surface, color: tokens.textMuted, borderColor: t.background.overlayNormal },
+  connector: { flex: 1, height: 2, minWidth: 0 },
+  phaseBody: { display: 'flex', flexDirection: 'column', gap: 8 },
+  phaseNameRow: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
+  // Figma: Inter SemiBold 15 / 20, tracking 0.27px.
+  phaseName: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, lineHeight: '20px', letterSpacing: 0.27 },
+  statusPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '2px 8px',
+    borderRadius: 999,
+    border: '1px solid',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 500,
+    color: t.text.primary,
+    whiteSpace: 'nowrap',
+  },
+  tasksLink: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 500,
+    color: t.text.urlLink, // design-system teal link (Figma library default blue intentionally not used)
+    textDecoration: 'none',
+    whiteSpace: 'nowrap',
+  },
+  docsBlock: { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${t.border.subtle}` },
+  docsHeading: {
+    margin: '0 0 8px',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 500,
+    color: t.text.secondary,
+  },
+  // Figma: three-up grid, gap 16; collapses responsively on narrow screens.
+  quickGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 },
   quickCard: {
     position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     gap: 6,
     background: tokens.surface,
-    border: `1px solid ${tokens.border}`,
+    border: `1px solid ${t.border.overlayStrong}`,
     borderRadius: 12,
     padding: 22,
     textDecoration: 'none',
     transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
   quickTitleRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  // H4: consistent text token - neutral not brand (card is clickable, but the title is static heading text)
-  quickTitle: { fontFamily: fonts.heading, fontSize: 16, fontWeight: 600, color: t.text.primary },
+  // Figma: Fraunces SemiBold 16 / 24, neutral ink.
+  quickTitle: { fontFamily: fonts.heading, fontSize: 16, fontWeight: 600, lineHeight: '24px', color: t.text.primary },
   quickBadge: {
     width: 8,
     height: 8,
@@ -666,10 +799,10 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
     animation: `dashBadgeIn ${motionTokens.durationFast} ${motionTokens.easeEnter}`,
   },
-  quickSub: { fontSize: 13, color: tokens.textMuted },
+  quickSub: { fontSize: 13, lineHeight: '19.5px', color: t.text.tertiary },
   empty: {
     background: tokens.surface,
-    border: `1px dashed ${tokens.border}`,
+    border: `1px dashed ${t.border.overlayStrong}`,
     borderRadius: 12,
     padding: 40,
     textAlign: 'center',

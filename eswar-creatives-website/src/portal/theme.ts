@@ -122,3 +122,19 @@ export const phasePalette: Record<
   2: { bg: tokens.goldLight,  fg: tokens.goldDark, border: tokens.gold },
   3: { bg: tokens.rubyLight,  fg: tokens.ruby,     border: tokens.ruby },
 }
+
+// Hi-fi client-dashboard project stepper — values taken from the EC Design
+// System master (Figma node 4149:31). nodeFill is the brand-subtle teal used
+// for completed/active phase nodes and connectors; the status palette drives
+// the per-phase Done / Active / Pending pills. Badge label text uses
+// t.text.primary. Raw hex is allowed here because this IS the token source.
+export const phaseUI = {
+  nodeFill: '#009990', // icon/brand-subtle: done + active node circles and the joining connector
+  status: {
+    done:    { bg: '#E8F8F0', border: '#A8E2C4', label: 'Done' },     // state/success-subtle + success-border
+    active:  { bg: '#FAF4EA', border: '#EDDDB5', label: 'Active' },   // status/sent-bg + sent-border
+    pending: { bg: '#F5F5F4', border: '#E5E5E4', label: 'Pending' },  // status/draft-bg + draft-border
+  },
+} as const
+
+export type PhaseState = keyof typeof phaseUI.status

@@ -6,7 +6,7 @@ import { NavLink, useLocation } from 'react-router'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { PortalProfile } from '../PortalGuard'
-import { tokens, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 import { useSignOut } from '../useSignOut'
 import { Spinner } from '../Spinner'
 import {
@@ -89,7 +89,8 @@ export function ClientNav({ profile }: { profile: PortalProfile }) {
       <div style={styles.inner}>
         <div style={styles.brand}>
           <img src={eswarLogo} alt="Eswar Creatives logo" width={28} height={28} style={styles.logo} />
-          <span style={styles.brandName}>Eswar Creatives</span>
+          {/* Figma master: italic Fraunces wordmark reading "Client portal". */}
+          <span style={styles.brandName}>Client portal</span>
         </div>
 
         {/* H6 (recognition rather than recall) + H1 (visibility of system status):
@@ -130,11 +131,11 @@ export function ClientNav({ profile }: { profile: PortalProfile }) {
           >
             {signingOut ? (
               <>
-                <Spinner size={12} color={tokens.primary} />
+                <Spinner size={12} color={t.text.secondary} />
                 <span>Signing out...</span>
               </>
             ) : (
-              'Log out'
+              'Sign out'
             )}
           </button>
           {signOutError && (
@@ -157,7 +158,7 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 90,
     height: CLIENT_NAV_HEIGHT,
     background: tokens.surface,
-    borderBottom: `1px solid ${tokens.border}`,
+    borderBottom: `1px solid ${t.border.overlayStrong}`, // Figma: neutral overlay-strong, not teal
   },
   inner: {
     maxWidth: 1080,
@@ -173,9 +174,10 @@ const styles: Record<string, CSSProperties> = {
   logo: { display: 'block' },
   brandName: {
     fontFamily: fonts.heading,
+    fontStyle: 'italic', // Figma master: Fraunces SemiBold Italic
     fontSize: 15,
     fontWeight: 600,
-    color: tokens.primary,
+    color: t.text.secondary,
     whiteSpace: 'nowrap',
   },
   links: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
@@ -185,12 +187,12 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 500,
-    color: tokens.textMuted,
+    color: t.text.secondary, // Figma master: inactive nav is neutral secondary
     textDecoration: 'none',
   },
   linkActive: {
-    background: tokens.tealLight,
-    color: tokens.primary,
+    background: t.background.overlayNormal, // Figma master: neutral selected pill, not teal
+    color: t.text.primary,
     fontWeight: 600,
   },
   linkLabel: { position: 'relative', display: 'inline-flex', alignItems: 'center' },
@@ -205,15 +207,15 @@ const styles: Record<string, CSSProperties> = {
     animation: `clientBadgeIn ${motionTokens.durationFast} ${motionTokens.easeEnter}`,
   },
   right: { position: 'relative', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 },
-  name: { fontSize: 13, color: tokens.textMuted, whiteSpace: 'nowrap' },
+  name: { fontSize: 13, color: t.text.secondary, whiteSpace: 'nowrap' }, // Figma master: secondary
   signout: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    background: 'transparent',
-    border: `1px solid ${tokens.border}`,
-    color: tokens.primary,
-    padding: '7px 14px',
+    background: tokens.surface, // Figma master: white neutral outline button
+    border: `1px solid ${t.border.medium}`,
+    color: t.text.secondary,
+    padding: '6px 12px',
     borderRadius: 8,
     fontSize: 13,
     fontFamily: fonts.body,
