@@ -9,6 +9,7 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { PortalGuard, type PortalProfile } from '../PortalGuard'
 import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
+import { ClientConceptSetPanel } from './ClientConceptSetPanel'
 import { formatDate } from '../admin/ui'
 import { tokens, fonts, motionTokens } from '../theme'
 
@@ -31,13 +32,17 @@ type RawSubmission = {
   logo_sketch_sets: {
     name: string | null
     project_slug: string | null
+    campaign_id: string | null
   } | null
 }
 
-// One set within a campaign, reduced to its latest submission.
+// One set within a campaign, reduced to its latest submission. campaignId is the
+// public_campaigns row the set belongs to (null when unlinked); the concept-set
+// panel needs it to fetch public-poll vote counts.
 type SetSummary = {
   setId: string
   name: string
+  campaignId: string | null
   accepted: number
   passed: number
   completedAt: string
@@ -74,6 +79,7 @@ function groupSubmissions(rows: RawSubmission[]): CampaignSummary[] {
     const setSummary: SetSummary = {
       setId: row.set_id,
       name: row.logo_sketch_sets?.name || 'Concept set',
+      campaignId: row.logo_sketch_sets?.campaign_id ?? null,
       accepted: row.accepted_count,
       passed: row.passed_count,
       completedAt: row.completed_at,
@@ -115,6 +121,10 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // The concept set whose selections panel is open, plus its campaign label.
+  const [panelSet, setPanelSet] = useState<
+    { setId: string; name: string; campaignId: string | null; campaignName: string } | null
+  >(null)
 
   useEffect(() => {
     let cancelled = false
@@ -133,7 +143,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
           supabase
             .from('logo_sketch_submissions')
             .select(
-              'id, accepted_count, passed_count, completed_at, set_id, logo_sketch_sets(name, project_slug)'
+              'id, accepted_count, passed_count, completed_at, set_id, logo_sketch_sets(name, project_slug, campaign_id)'
             )
             .eq('client_id', profile.id)
             .order('completed_at', { ascending: false }),
@@ -243,9 +253,20 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
                                 {s.passed} passed
                               </div>
                             </div>
-                            <Link to="/portal/sketch-review" style={styles.historyLink}>
+                            <button
+                              type="button"
+                              style={styles.historyLinkButton}
+                              onClick={() =>
+                                setPanelSet({
+                                  setId: s.setId,
+                                  name: s.name,
+                                  campaignId: s.campaignId,
+                                  campaignName: camp.label,
+                                })
+                              }
+                            >
                               View selections
-                            </Link>
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -257,6 +278,16 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
           </section>
         )}
       </main>
+
+      {panelSet && (
+        <ClientConceptSetPanel
+          campaignId={panelSet.campaignId}
+          setId={panelSet.setId}
+          setName={panelSet.name}
+          campaignName={panelSet.campaignName}
+          onClose={() => setPanelSet(null)}
+        />
+      )}
     </div>
   )
 }
@@ -370,6 +401,18 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     fontWeight: 600,
     textDecoration: 'none',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+  historyLinkButton: {
+    background: 'transparent',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    color: tokens.accent,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
     whiteSpace: 'nowrap',
     flexShrink: 0,
   },
