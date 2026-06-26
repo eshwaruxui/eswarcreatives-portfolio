@@ -188,6 +188,35 @@ Two exports:
 - Delivered to client email and WhatsApp
 - Shows current phase, completed tasks, next action
 
+**Mobile-friendly client portal (Phase 6 planned):**
+
+Scope: Client portal only (not admin portal).
+Backend unchanged — Supabase, RLS, edge functions all stay identical. Frontend-only effort.
+
+Architecture approach:
+- Add `src/portal/hooks/useBreakpoint.ts` as single source of truth for all responsive logic. Returns: `{ isMobile, isTablet, isDesktop }`
+- Document in COMPONENT_PATTERNS.md as standing pattern.
+- No Tailwind — use CSS media queries and inline style conditions via useBreakpoint hook.
+
+Screens and complexity:
+- Projects (phase stepper): Medium — 4-column stepper collapses to vertical stack on mobile
+- Proposals (list + panel): High — ClientProposalPanel goes full-screen overlay on mobile
+- Invoices: Low — table gets horizontal scroll or card layout
+- Mockups lightbox: Medium — touch swipe gestures replace prev/next buttons, thumbnail strip scrollable
+- Campaigns: Low — list view, minimal changes
+- Account: Low — form layout reflow
+
+Key UX decisions needed before build:
+- Nav: hamburger menu or bottom tab bar on mobile
+- Panels: full-screen overlay pattern (consistent across ClientProposalPanel, ClientConceptSetPanel)
+- Lightbox: touch swipe via touch events or a lightweight gesture library
+
+Prerequisites before starting:
+- Supabase Pro upgrade complete
+- Image transforms enabled
+- All Phase 5 pending debt resolved
+- PORTAL_ARCHITECTURE.md committed to repo
+
 ---
 
 ## 11. Execution rules

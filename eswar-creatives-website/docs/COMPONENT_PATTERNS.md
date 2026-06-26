@@ -56,6 +56,32 @@ Before using an img tag anywhere in the portal, check this doc first and use Pro
 
 ---
 
+## Responsive Breakpoint Pattern
+
+### Rule
+All responsive logic across the client portal must use the shared useBreakpoint hook. Never use ad-hoc `window.innerWidth` checks inline in components.
+
+### Hook
+- `src/portal/hooks/useBreakpoint.ts`
+- Returns: `{ isMobile, isTablet, isDesktop }`
+- Breakpoints: mobile < 768px, tablet 768-1024px, desktop > 1024px
+
+### Usage
+```ts
+const { isMobile } = useBreakpoint()
+```
+
+Panel behaviour on mobile:
+- Right-side slide-in panels (ClientProposalPanel, ClientConceptSetPanel) become full-screen overlays
+- Width: 100vw, height: 100vh
+- Close via X button or swipe down
+
+### Status
+- Planned for Phase 6
+- Hook not yet created — create it before any responsive work begins
+
+---
+
 ## Standing rules
 - No em dashes in any component copy or code
 - No raw hex outside theme.ts
