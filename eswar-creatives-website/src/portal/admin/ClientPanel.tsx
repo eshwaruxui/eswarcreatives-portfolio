@@ -421,7 +421,7 @@ function InlineField({
       <div style={styles.field}>
         <span style={styles.fieldLabel}>{label}</span>
         <div style={styles.fieldValueRow}>
-          <span style={{ ...styles.fieldValue, color: display === '—' ? tokens.textMuted : tokens.text }}>
+          <span style={{ ...styles.fieldValue, color: display === '—' ? t.text.muted : t.text.primary }}>
             {display}
           </span>
           {saved && <span style={styles.savedFlash}>Saved</span>}
@@ -489,13 +489,13 @@ function Empty({ text }: { text: string }) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  muted: { fontFamily: fonts.body, fontSize: 14, color: tokens.textMuted },
+  muted: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary },
   errorText: { fontFamily: fonts.body, fontSize: 14, color: tokens.ruby, margin: 0 },
   sectionTitle: {
     fontFamily: fonts.heading,
     fontSize: 16,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '0 0 12px',
   },
   fields: { display: 'flex', flexDirection: 'column', gap: 12 },
@@ -506,7 +506,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
-    color: tokens.textMuted,
+    color: t.text.tertiary,
   },
   fieldValueRow: { display: 'flex', alignItems: 'center', gap: 8, minHeight: 24 },
   fieldValue: { fontFamily: fonts.body, fontSize: 14 },
@@ -520,7 +520,7 @@ const styles: Record<string, CSSProperties> = {
   editBtn: {
     background: 'transparent',
     border: 'none',
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
     padding: 2,
     display: 'inline-flex',
@@ -530,7 +530,7 @@ const styles: Record<string, CSSProperties> = {
   input: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     background: tokens.inputBg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
@@ -560,7 +560,7 @@ const styles: Record<string, CSSProperties> = {
     height: 30,
     borderRadius: 8,
     background: tokens.surface,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     border: `1px solid ${tokens.border}`,
     cursor: 'pointer',
     flexShrink: 0,
@@ -581,25 +581,25 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     textAlign: 'left',
   },
-  itemNumber: { fontFamily: mono, fontSize: 12, color: tokens.textMuted, whiteSpace: 'nowrap' },
+  itemNumber: { fontFamily: mono, fontSize: 12, color: t.text.tertiary, whiteSpace: 'nowrap' },
   itemTitle: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     flex: 1,
     minWidth: 0,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
-  itemAmount: { fontFamily: mono, fontSize: 13, color: tokens.text, whiteSpace: 'nowrap' },
-  itemMeta: { fontFamily: fonts.body, fontSize: 12, color: tokens.textMuted, whiteSpace: 'nowrap' },
-  phaseBadge: { fontFamily: mono, fontSize: 12, color: tokens.textMuted, whiteSpace: 'nowrap' },
+  itemAmount: { fontFamily: mono, fontSize: 13, color: t.text.primary, whiteSpace: 'nowrap' },
+  itemMeta: { fontFamily: fonts.body, fontSize: 12, color: t.text.tertiary, whiteSpace: 'nowrap' },
+  phaseBadge: { fontFamily: mono, fontSize: 12, color: t.text.tertiary, whiteSpace: 'nowrap' },
   dangerNote: {
     fontFamily: fonts.body,
     fontSize: 13,
     lineHeight: 1.5,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     margin: '0 0 12px',
   },
   deleteBtn: {
@@ -650,14 +650,14 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 19,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '0 0 10px',
   },
   confirmBody: {
     fontFamily: fonts.body,
     fontSize: 14,
     lineHeight: 1.6,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     margin: '0 0 12px',
   },
   confirmError: {
@@ -678,7 +678,7 @@ const styles: Record<string, CSSProperties> = {
   },
   confirmCancel: {
     background: tokens.surface,
-    color: tokens.text,
+    color: t.text.primary,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
     padding: '9px 18px',

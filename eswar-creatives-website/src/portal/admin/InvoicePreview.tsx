@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens } from '../theme'
+import { tokens, t } from '../theme'
 import { InvoiceDocument, type InvoiceLine } from '../components/shared/InvoiceDocument'
 import type { CSSProperties } from 'react'
 
@@ -187,7 +187,7 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.bg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
     padding: 6,
     display: 'flex',

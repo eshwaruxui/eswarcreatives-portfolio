@@ -204,11 +204,11 @@ const styles: Record<string, CSSProperties> = {
   form: { display: 'flex', flexDirection: 'column', gap: 14 },
   row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.textMuted },
+  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: t.text.tertiary },
   input: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     background: tokens.inputBg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
@@ -232,7 +232,7 @@ const styles: Record<string, CSSProperties> = {
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 },
   secondaryBtn: {
     background: tokens.surface,
-    color: tokens.text,
+    color: t.text.primary,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
     padding: '10px 16px',

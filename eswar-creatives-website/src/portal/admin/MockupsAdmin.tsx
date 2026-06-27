@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, ArrowUp, ArrowDown, Trash2, Eye, UploadCloud, X, Lock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { PageHeader, Card, Modal, ui, formatDate } from './ui'
 import { usePortal, clientLabel } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
@@ -153,7 +153,7 @@ export function MockupsAdmin() {
                   style={{ ...styles.row, ...(openSetId === s.id ? styles.rowActive : null) }}
                   onClick={() => setOpenSetId(s.id)}
                 >
-                  <td style={{ ...styles.td, fontWeight: 600, color: tokens.text }}>{s.concept_name}</td>
+                  <td style={{ ...styles.td, fontWeight: 600, color: t.text.primary }}>{s.concept_name}</td>
                   <td style={styles.td}>{s.projects?.title || '—'}</td>
                   <td style={styles.td}>{clientName(s)}</td>
                   <td style={styles.td}>{s.phase || '—'}</td>
@@ -204,19 +204,19 @@ export function MockupsAdmin() {
 // (draft = grey, published = teal, archived = muted).
 function StatusPill({ status }: { status: SetStatus }) {
   const tone: Record<SetStatus, { bg: string; fg: string }> = {
-    draft: { bg: '#F0EEEA', fg: tokens.textMuted },
+    draft: { bg: '#F0EEEA', fg: t.text.tertiary },
     published: { bg: tokens.tealLight, fg: tokens.primary },
-    archived: { bg: '#F0EEEA', fg: '#9AA7A7' },
+    archived: { bg: '#F0EEEA', fg: t.text.muted },
   }
-  const t = tone[status]
+  const pill = tone[status]
   return (
     <span
       style={{
         display: 'inline-block',
         padding: '2px 10px',
         borderRadius: 999,
-        background: t.bg,
-        color: t.fg,
+        background: pill.bg,
+        color: pill.fg,
         fontFamily: fonts.body,
         fontSize: 11,
         fontWeight: 600,
@@ -1083,7 +1083,7 @@ function ConceptStatusBanner({ status }: { status: 'approved' | 'changes' | 'awa
   const config = {
     approved: { bg: tokens.greenLight, fg: tokens.green, label: 'Approved' },
     changes: { bg: tokens.rubyLight, fg: tokens.ruby, label: 'Changes requested' },
-    awaiting: { bg: '#F0EEEA', fg: tokens.textMuted, label: 'Awaiting feedback' },
+    awaiting: { bg: '#F0EEEA', fg: t.text.tertiary, label: 'Awaiting feedback' },
   }[status]
   return <div style={{ ...styles.conceptBanner, background: config.bg, color: config.fg }}>{config.label}</div>
 }
@@ -1186,7 +1186,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '12px 20px',
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     borderBottom: `1px solid ${tokens.border}`,
@@ -1197,25 +1197,25 @@ const styles: Record<string, CSSProperties> = {
   td: {
     padding: '14px 20px',
     fontSize: 14,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     borderBottom: `1px solid ${tokens.border}`,
     verticalAlign: 'middle',
   },
   emptyState: { padding: '48px 24px', textAlign: 'center' },
-  emptyHeading: { fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: tokens.text, margin: '0 0 8px' },
-  emptyBody: { fontFamily: fonts.body, fontSize: 14, color: tokens.textMuted, margin: '0 auto', maxWidth: 420, lineHeight: 1.5 },
+  emptyHeading: { fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary, margin: '0 0 8px' },
+  emptyBody: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: '0 auto', maxWidth: 420, lineHeight: 1.5 },
 
   // Form — H8: 16px between fields, 8px label-to-input (see field gap).
   detailGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 },
   detailActions: { display: 'flex', justifyContent: 'flex-end', gap: 12, margin: '16px 0 4px' },
   modalActions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 },
   field: { display: 'flex', flexDirection: 'column', gap: 8 },
-  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.textMuted },
-  fieldHelp: { fontFamily: fonts.body, fontSize: 12, color: tokens.textMuted, opacity: 0.85 },
+  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: t.text.tertiary },
+  fieldHelp: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, opacity: 0.85 },
   input: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     background: tokens.inputBg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
@@ -1229,7 +1229,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     background: tokens.bg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
@@ -1240,7 +1240,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: 6,
     background: tokens.surface,
-    color: tokens.text,
+    color: t.text.primary,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
     padding: '10px 16px',
@@ -1277,7 +1277,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     cursor: 'pointer',
   },
   tabActive: { color: tokens.primary, borderBottomColor: tokens.accent },
@@ -1294,7 +1294,7 @@ const styles: Record<string, CSSProperties> = {
     border: `1.5px dashed ${tokens.border}`,
     borderRadius: 10,
     background: tokens.inputBg,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 600,
@@ -1312,7 +1312,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '8px 12px',
   },
   uploadInfo: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 },
-  uploadName: { fontFamily: fonts.body, fontSize: 13, color: tokens.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  uploadName: { fontFamily: fonts.body, fontSize: 13, color: t.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   uploadErrText: { fontFamily: fonts.body, fontSize: 12, color: tokens.ruby },
   barTrack: { width: 120, height: 6, borderRadius: 999, background: tokens.border, overflow: 'hidden', flexShrink: 0 },
   barIndeterminate: { width: '40%', height: '100%', borderRadius: 999, background: tokens.accent, animation: 'mockupBar 1.1s ease-in-out infinite' },
@@ -1358,7 +1358,7 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 0,
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     background: 'transparent',
     border: '1px solid transparent',
     borderRadius: 6,
@@ -1374,7 +1374,7 @@ const styles: Record<string, CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
   },
   itemsFooter: { display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 6, paddingTop: 14, borderTop: `1px solid ${tokens.border}` },
@@ -1383,10 +1383,10 @@ const styles: Record<string, CSSProperties> = {
   feedbackWrap: { display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 16 },
   conceptBanner: { alignSelf: 'flex-start', padding: '6px 14px', borderRadius: 999, fontFamily: fonts.body, fontSize: 13, fontWeight: 600 },
   fbGroup: { display: 'flex', flexDirection: 'column', gap: 8 },
-  fbGroupTitle: { fontFamily: fonts.body, fontSize: 12, fontWeight: 700, color: tokens.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, margin: 0 },
+  fbGroupTitle: { fontFamily: fonts.body, fontSize: 12, fontWeight: 700, color: t.text.tertiary, textTransform: 'uppercase', letterSpacing: 0.4, margin: 0 },
   fbComment: { background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 8, padding: '10px 12px' },
-  fbCommentText: { fontFamily: fonts.body, fontSize: 14, color: tokens.text, margin: 0, lineHeight: 1.5 },
-  fbCommentMeta: { fontFamily: fonts.body, fontSize: 12, color: tokens.textMuted, margin: '6px 0 0' },
+  fbCommentText: { fontFamily: fonts.body, fontSize: 14, color: t.text.primary, margin: 0, lineHeight: 1.5 },
+  fbCommentMeta: { fontFamily: fonts.body, fontSize: 12, color: t.text.tertiary, margin: '6px 0 0' },
 
   // Right-side panel (mirrors InvoicePreview)
   panelBackdrop: { position: 'fixed', inset: 0, background: 'rgba(10, 26, 27, 0.4)', zIndex: 200 },
@@ -1407,7 +1407,7 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.bg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
     padding: 6,
     display: 'flex',
@@ -1415,6 +1415,6 @@ const styles: Record<string, CSSProperties> = {
   },
   panelBody: { padding: 28 },
   panelHeader: { display: 'flex', alignItems: 'center', gap: 12, paddingRight: 40 },
-  panelTitle: { fontFamily: fonts.heading, fontSize: 20, fontWeight: 600, color: tokens.text, margin: 0 },
-  panelMeta: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, margin: '6px 0 20px' },
+  panelTitle: { fontFamily: fonts.heading, fontSize: 20, fontWeight: 600, color: t.text.primary, margin: 0 },
+  panelMeta: { fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary, margin: '6px 0 20px' },
 }

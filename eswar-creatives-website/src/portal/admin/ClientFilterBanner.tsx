@@ -4,7 +4,7 @@
 // escape back to all clients (Nielsen #3, user control).
 import type { CSSProperties } from 'react'
 import { clientLabel, usePortal } from '../PortalContext'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 
 export function ClientFilterBanner() {
   const { selectedClient, setSelectedClientId } = usePortal()
@@ -35,10 +35,10 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 16,
     fontFamily: fonts.body,
     fontSize: 13,
-    color: tokens.text,
+    color: t.text.primary,
   },
   name: { fontWeight: 700, color: tokens.goldDark },
-  dot: { color: tokens.textMuted },
+  dot: { color: t.text.muted },
   clear: {
     background: 'transparent',
     border: 'none',

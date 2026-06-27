@@ -12,7 +12,7 @@ import {
 import type { CSSProperties } from 'react'
 import { PortalGuard } from '../PortalGuard'
 import { PortalProvider } from '../PortalContext'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { TopBar } from './TopBar'
 import { ToastHost } from './toast'
 
@@ -124,7 +124,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 500,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     textDecoration: 'none',
   },
   navItemActive: {

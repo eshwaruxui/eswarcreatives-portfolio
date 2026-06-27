@@ -220,7 +220,7 @@ export function InvoicesAdmin() {
           ))}
         </div>
         <div style={styles.searchWrap}>
-          <Search size={15} style={{ color: tokens.textMuted }} />
+          <Search size={15} style={{ color: t.text.muted }} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -260,10 +260,10 @@ export function InvoicesAdmin() {
                     {inv.invoice_number}
                   </td>
                   <td style={styles.td}>
-                    <div style={{ color: tokens.text, fontWeight: 600 }}>{displayName(inv)}</div>
+                    <div style={{ color: t.text.primary, fontWeight: 600 }}>{displayName(inv)}</div>
                     {inv.label && <div style={styles.subtle}>{inv.label}</div>}
                   </td>
-                  <td style={{ ...styles.td, fontFamily: mono, color: tokens.text }}>
+                  <td style={{ ...styles.td, fontFamily: mono, color: t.text.primary }}>
                     {formatMoney(Number(inv.amount), inv.currency)}
                   </td>
                   <td style={styles.td}>
@@ -861,8 +861,8 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     gap: 6,
   },
-  statLabel: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted },
-  statValue: { fontSize: 20, fontWeight: 600, color: tokens.text, fontFamily: fonts.heading },
+  statLabel: { fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary },
+  statValue: { fontSize: 20, fontWeight: 600, color: t.text.primary, fontFamily: fonts.heading },
   controls: {
     display: 'flex',
     alignItems: 'center',
@@ -880,7 +880,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 13,
     fontWeight: 500,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     cursor: 'pointer',
   },
   pillActive: {
@@ -905,7 +905,7 @@ const styles: Record<string, CSSProperties> = {
     background: 'transparent',
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     width: '100%',
   },
   table: { width: '100%', borderCollapse: 'collapse', fontFamily: fonts.body },
@@ -914,7 +914,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '12px 20px',
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     borderBottom: `1px solid ${tokens.border}`,
@@ -925,11 +925,11 @@ const styles: Record<string, CSSProperties> = {
   td: {
     padding: '14px 20px',
     fontSize: 14,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     borderBottom: `1px solid ${tokens.border}`,
     verticalAlign: 'middle',
   },
-  subtle: { fontSize: 12, color: tokens.textMuted, marginTop: 2 },
+  subtle: { fontSize: 12, color: t.text.muted, marginTop: 2 },
   actionCell: { display: 'inline-flex', gap: 12, alignItems: 'center' },
   linkBtn: {
     background: 'transparent',
@@ -986,7 +986,7 @@ const styles: Record<string, CSSProperties> = {
   confirmBtn: {
     background: tokens.primary,
     border: 'none',
-    color: '#fff',
+    color: t.text.onPrimary,
     fontFamily: fonts.body,
     fontSize: 13,
     fontWeight: 600,
@@ -1018,7 +1018,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     marginBottom: 4,
   },
   pickerRow: {
@@ -1048,8 +1048,8 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.surface,
   },
   checkboxOn: { background: tokens.primary, borderColor: tokens.primary },
-  pickerLabel: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 13, color: tokens.text },
-  pickerAmount: { fontFamily: mono, fontSize: 13, color: tokens.text, whiteSpace: 'nowrap' },
+  pickerLabel: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 13, color: t.text.primary },
+  pickerAmount: { fontFamily: mono, fontSize: 13, color: t.text.primary, whiteSpace: 'nowrap' },
   linesBox: {
     marginTop: 6,
     border: `1px solid ${t.border.default}`,
@@ -1092,18 +1092,18 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     padding: '7px 12px',
   },
-  totalChip: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted },
-  totalValue: { fontFamily: mono, fontSize: 15, fontWeight: 700, color: tokens.text, marginLeft: 6 },
+  totalChip: { fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary },
+  totalValue: { fontFamily: mono, fontSize: 15, fontWeight: 700, color: t.text.primary, marginLeft: 6 },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 },
-  detailLabel: { fontFamily: fonts.body, fontSize: 12, color: tokens.textMuted, marginBottom: 4 },
-  detailValue: { fontFamily: fonts.body, fontSize: 14, color: tokens.text },
-  notesText: { fontFamily: fonts.body, fontSize: 14, color: tokens.text, margin: 0, lineHeight: 1.5 },
+  detailLabel: { fontFamily: fonts.body, fontSize: 12, color: t.text.tertiary, marginBottom: 4 },
+  detailValue: { fontFamily: fonts.body, fontSize: 14, color: t.text.primary },
+  notesText: { fontFamily: fonts.body, fontSize: 14, color: t.text.primary, margin: 0, lineHeight: 1.5 },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.textMuted },
+  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: t.text.tertiary },
   input: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     background: tokens.inputBg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
@@ -1113,7 +1113,7 @@ const styles: Record<string, CSSProperties> = {
   },
   secondaryBtn: {
     background: tokens.surface,
-    color: tokens.text,
+    color: t.text.primary,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
     padding: '10px 16px',

@@ -309,7 +309,7 @@ function DecisionPill({ decision }: { decision: SetDecision }) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
+  page: { minHeight: '100vh', background: tokens.bg, color: t.text.primary, fontFamily: fonts.body },
   container: { maxWidth: 980, margin: '0 auto', padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px` },
   heroBlock: { marginBottom: 32 },
   title: {
@@ -318,9 +318,9 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 28,
     fontWeight: 600,
     letterSpacing: '-0.01em',
-    color: tokens.text,
+    color: t.text.primary,
   },
-  subtitle: { margin: '8px 0 0', fontSize: 15, color: tokens.textMuted },
+  subtitle: { margin: '8px 0 0', fontSize: 15, color: t.text.secondary },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
@@ -439,10 +439,10 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 15,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
   },
-  cardMeta: { margin: '8px 0 0', fontSize: 13, color: tokens.textMuted },
-  cardSub: { margin: '4px 0 0', fontSize: 12, color: tokens.textMuted },
+  cardMeta: { margin: '8px 0 0', fontSize: 13, color: t.text.tertiary },
+  cardSub: { margin: '4px 0 0', fontSize: 12, color: t.text.tertiary },
   reviewBtn: {
     display: 'flex',
     alignItems: 'center',
@@ -473,10 +473,10 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 20,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
   },
-  muted: { color: tokens.textMuted, fontSize: 14 },
-  mutedBody: { color: tokens.textMuted, fontSize: 14, margin: 0 },
+  muted: { color: t.text.secondary, fontSize: 14 },
+  mutedBody: { color: t.text.secondary, fontSize: 14, margin: 0 },
   error: {
     background: tokens.rubyLight,
     color: tokens.ruby,

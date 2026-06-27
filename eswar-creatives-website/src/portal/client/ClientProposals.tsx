@@ -30,12 +30,12 @@ const LOAD_ERROR =
 
 // Badge colours from theme tokens only (brief palette).
 const BADGE: Record<ProposalStatus, { bg: string; fg: string; label: string }> = {
-  draft: { bg: tokens.bg, fg: tokens.textMuted, label: 'Draft' },
+  draft: { bg: tokens.bg, fg: t.text.tertiary, label: 'Draft' },
   sent: { bg: tokens.tealLight, fg: tokens.primary, label: 'Sent' },
   viewed: { bg: tokens.goldLight, fg: tokens.goldDark, label: 'Viewed' },
   accepted: { bg: tokens.greenLight, fg: tokens.green, label: 'Accepted' },
   declined: { bg: tokens.rubyLight, fg: tokens.ruby, label: 'Declined' },
-  expired: { bg: tokens.bg, fg: tokens.textMuted, label: 'Expired' },
+  expired: { bg: tokens.bg, fg: t.text.tertiary, label: 'Expired' },
 }
 
 const VERTICAL_LABEL: Record<string, string> = {
@@ -151,7 +151,7 @@ function Proposals({ profile }: { profile: PortalProfile }) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
+  page: { minHeight: '100vh', background: tokens.bg, color: t.text.primary, fontFamily: fonts.body },
   container: {
     maxWidth: 760,
     margin: '0 auto',
@@ -163,7 +163,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 28,
     fontWeight: 600,
     letterSpacing: '-0.01em',
-    color: tokens.text,
+    color: t.text.primary,
   },
   list: { display: 'flex', flexDirection: 'column', gap: 16 },
   card: {
@@ -178,8 +178,8 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
   },
   cardHead: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  cardTitle: { margin: 0, fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: tokens.text },
-  cardMeta: { margin: '6px 0 0', fontSize: 13, color: tokens.textMuted },
+  cardTitle: { margin: 0, fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary },
+  cardMeta: { margin: '6px 0 0', fontSize: 13, color: t.text.tertiary },
   badge: {
     padding: '4px 12px',
     borderRadius: 999,
@@ -198,8 +198,8 @@ const styles: Record<string, CSSProperties> = {
     padding: 40,
     textAlign: 'center',
   },
-  emptyText: { margin: 0, fontSize: 15, color: tokens.textMuted },
-  muted: { color: tokens.textMuted, fontSize: 14 },
+  emptyText: { margin: 0, fontSize: 15, color: t.text.secondary },
+  muted: { color: t.text.secondary, fontSize: 14 },
   error: {
     background: tokens.rubyLight,
     color: tokens.ruby,

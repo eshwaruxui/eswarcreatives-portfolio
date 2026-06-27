@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
 import { Plus, Check, ChevronDown } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { Card, ui } from './ui'
 import { AddClientModal } from './AddClientModal'
 import { ClientPanel } from './ClientPanel'
@@ -158,7 +158,7 @@ export function ClientsList() {
                       ...styles.td,
                       ...styles.firstCell,
                       fontWeight: 600,
-                      color: tokens.text,
+                      color: t.text.primary,
                       borderLeftColor: c.id === highlightId ? tokens.gold : 'transparent', // H4: semantic token - no raw hex
                     }}
                   >
@@ -208,7 +208,7 @@ function MenuItem({
         <span style={{ width: 16, display: 'inline-flex' }}>
           {selected && <Check size={15} style={{ color: tokens.accent }} />}
         </span>
-        <span style={{ color: selected ? tokens.primary : tokens.text, fontWeight: selected ? 600 : 400 }}>
+        <span style={{ color: selected ? tokens.primary : t.text.primary, fontWeight: selected ? 600 : 400 }}>
           {label}
         </span>
       </button>
@@ -243,7 +243,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 500,
-    color: tokens.text,
+    color: t.text.primary,
     cursor: 'pointer',
   },
   menuBackdrop: { position: 'fixed', inset: 0, zIndex: 30 },
@@ -298,7 +298,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '12px 20px',
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     borderBottom: `1px solid ${tokens.border}`,
@@ -314,7 +314,7 @@ const styles: Record<string, CSSProperties> = {
   td: {
     padding: '14px 20px',
     fontSize: 14,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     borderBottom: `1px solid ${tokens.border}`,
   },
   firstCell: {

@@ -570,7 +570,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 6,
     fontFamily: fonts.body,
     fontSize: 13,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     textDecoration: 'none',
     marginBottom: 12,
   },
@@ -667,7 +667,7 @@ const styles: Record<string, CSSProperties> = {
   },
   dragging: { opacity: 0.5 },
   grip: {
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'grab',
     userSelect: 'none',
   },
@@ -682,7 +682,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 17,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '0 0 12px',
   },
   phaseTimeline: {
@@ -699,7 +699,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 15,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     marginBottom: 6,
   },
   viewItem: {
@@ -714,18 +714,18 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
   },
   viewItemScope: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     marginTop: 2,
   },
   viewItemAmount: {
     fontFamily: mono,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     whiteSpace: 'nowrap',
   },
 }

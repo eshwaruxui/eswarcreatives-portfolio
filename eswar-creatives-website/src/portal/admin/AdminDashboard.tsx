@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { FileText, Receipt } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import {
   PageHeader,
   Card,
@@ -248,19 +248,19 @@ const styles: Record<string, CSSProperties> = {
   statLabel: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
   },
   statValue: {
     fontSize: 22,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     wordBreak: 'break-word',
   },
   sectionTitle: {
     fontFamily: fonts.heading,
     fontSize: 18,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '0 0 16px',
   },
   feed: {
@@ -284,13 +284,13 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     whiteSpace: 'nowrap',
   },
   feedWhat: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     flex: 1,
     minWidth: 0,
     overflow: 'hidden',
@@ -300,13 +300,13 @@ const styles: Record<string, CSSProperties> = {
   feedAmount: {
     fontFamily: mono,
     fontSize: 13,
-    color: tokens.text,
+    color: t.text.primary,
     whiteSpace: 'nowrap',
   },
   feedTime: {
     fontFamily: fonts.body,
     fontSize: 12,
-    color: tokens.textMuted,
+    color: t.text.muted,
     whiteSpace: 'nowrap',
     minWidth: 60,
     textAlign: 'right',

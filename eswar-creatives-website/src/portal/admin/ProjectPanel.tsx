@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { StatusBadge, mono, formatDate, ui } from './ui'
 import { SidePanel } from './SidePanel'
 import type { CSSProperties } from 'react'
@@ -235,13 +235,13 @@ export function ProjectPanel({
 }
 
 const styles: Record<string, CSSProperties> = {
-  muted: { fontFamily: fonts.body, fontSize: 14, color: tokens.textMuted, margin: 0 },
+  muted: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
   errorText: { fontFamily: fonts.body, fontSize: 14, color: tokens.ruby, margin: 0 },
   metaRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 },
   phaseTag: {
     fontFamily: mono,
     fontSize: 12,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
   },
   field: { display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 },
   fieldLabel: {
@@ -250,14 +250,14 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
-    color: tokens.textMuted,
+    color: t.text.tertiary,
   },
-  fieldValue: { fontFamily: fonts.body, fontSize: 14, color: tokens.text },
+  fieldValue: { fontFamily: fonts.body, fontSize: 14, color: t.text.primary },
   sectionTitle: {
     fontFamily: fonts.heading,
     fontSize: 16,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '8px 0 12px',
   },
   phaseList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
@@ -270,7 +270,7 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.bg,
     borderRadius: 8,
   },
-  phaseName: { fontFamily: fonts.body, fontSize: 14, color: tokens.text },
+  phaseName: { fontFamily: fonts.body, fontSize: 14, color: t.text.primary },
   extWrap: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', margin: '4px 0 16px' },
   extBtn: {
     background: tokens.surface,
@@ -287,7 +287,7 @@ const styles: Record<string, CSSProperties> = {
   input: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     background: tokens.inputBg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
@@ -324,13 +324,13 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 18,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: 0,
   },
   modalClose: {
     background: 'transparent',
     border: 'none',
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
     padding: 4,
     display: 'flex',
@@ -348,7 +348,7 @@ const styles: Record<string, CSSProperties> = {
   modalActions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 },
   cancelBtn: {
     background: tokens.surface,
-    color: tokens.text,
+    color: t.text.primary,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
     padding: '10px 16px',

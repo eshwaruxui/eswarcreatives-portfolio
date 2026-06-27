@@ -4,7 +4,7 @@
 // max-height) so the container grows smoothly without animating layout width.
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { tokens, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 
 export type ClientDocument = { id: string; file_name: string; file_url: string }
 
@@ -99,5 +99,5 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     padding: 0,
   },
-  empty: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, margin: 0 },
+  empty: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary, margin: 0 },
 }

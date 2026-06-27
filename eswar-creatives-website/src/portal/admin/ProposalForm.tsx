@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2, Upload, FileText } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { Card, ui, mono, formatMoney } from './ui'
 import { ProposalPreview } from './ProposalPreview'
 import type { CSSProperties } from 'react'
@@ -1219,7 +1219,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 17,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '0 0 12px',
   },
   phaseTotalRow: {
@@ -1263,13 +1263,13 @@ const styles: Record<string, CSSProperties> = {
     padding: '6px 0',
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
   },
   scheduleHead: {
     fontFamily: fonts.body,
     fontSize: 13,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '20px 0 10px',
   },
   scheduleRow: {
@@ -1311,7 +1311,7 @@ const styles: Record<string, CSSProperties> = {
   docName: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
   },
   formGrid: {
     display: 'grid',
@@ -1327,7 +1327,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
   },
   requiredStar: { color: tokens.ruby },
   fieldError: {
@@ -1338,7 +1338,7 @@ const styles: Record<string, CSSProperties> = {
   input: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     background: tokens.inputBg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
@@ -1350,7 +1350,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     margin: '4px 0 8px',
   },
   itemEditRow: {
@@ -1361,7 +1361,7 @@ const styles: Record<string, CSSProperties> = {
   },
   itemGrip: {
     cursor: 'grab',
-    color: tokens.textMuted,
+    color: t.text.muted,
     fontSize: 16,
     lineHeight: 1,
     userSelect: 'none',
@@ -1394,7 +1394,7 @@ const styles: Record<string, CSSProperties> = {
   iconBtn: {
     background: 'transparent',
     border: 'none',
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
     padding: 4,
     display: 'flex',
@@ -1451,7 +1451,7 @@ const styles: Record<string, CSSProperties> = {
   },
   secondaryBtn: {
     background: tokens.surface,
-    color: tokens.text,
+    color: t.text.primary,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
     padding: '10px 16px',

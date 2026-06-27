@@ -4,7 +4,7 @@
 // AdminShell renders it top-right with enter/exit motion and auto-dismiss.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { CSSProperties } from 'react'
-import { tokens, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 
 export type ToastVariant = 'success' | 'error'
 type ToastData = { id: number; message: string; variant: ToastVariant }

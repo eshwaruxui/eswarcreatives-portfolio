@@ -9,7 +9,7 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { type PortalProfile } from '../PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './ClientNav'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { formatMoney, formatDate, mono } from '../admin/ui'
 import { InvoiceDocument, invoiceStatusPill, type InvoiceLine } from '../components/shared/InvoiceDocument'
 
@@ -130,7 +130,7 @@ function Invoices({ profile }: { profile: PortalProfile }) {
                         {displayInvoiceNumber(inv.invoice_number)}
                       </td>
                       <td style={styles.td}>{inv.label || '-'}</td>
-                      <td style={{ ...styles.td, fontFamily: mono, color: tokens.text }}>
+                      <td style={{ ...styles.td, fontFamily: mono, color: t.text.primary }}>
                         {formatMoney(Number(inv.amount), inv.currency)}
                       </td>
                       <td style={styles.td}>{formatDate(inv.due_date)}</td>
@@ -225,7 +225,7 @@ function InvoicePanel({
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
+  page: { minHeight: '100vh', background: tokens.bg, color: t.text.primary, fontFamily: fonts.body },
   container: {
     maxWidth: 880,
     margin: '0 auto',
@@ -237,7 +237,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 28,
     fontWeight: 600,
     letterSpacing: '-0.01em',
-    color: tokens.text,
+    color: t.text.primary,
   },
   tableWrap: {
     background: tokens.surface,
@@ -251,7 +251,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '12px 20px',
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     borderBottom: `1px solid ${tokens.border}`,
@@ -262,7 +262,7 @@ const styles: Record<string, CSSProperties> = {
   td: {
     padding: '14px 20px',
     fontSize: 14,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     borderBottom: `1px solid ${tokens.border}`,
     verticalAlign: 'middle',
   },
@@ -283,8 +283,8 @@ const styles: Record<string, CSSProperties> = {
     padding: 40,
     textAlign: 'center',
   },
-  emptyText: { margin: 0, fontSize: 15, color: tokens.textMuted },
-  muted: { color: tokens.textMuted, fontSize: 14 },
+  emptyText: { margin: 0, fontSize: 15, color: t.text.secondary },
+  muted: { color: t.text.secondary, fontSize: 14 },
   error: {
     background: tokens.rubyLight,
     color: tokens.ruby,
@@ -318,7 +318,7 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.bg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
     padding: 6,
     display: 'flex',

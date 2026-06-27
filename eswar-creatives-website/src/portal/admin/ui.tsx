@@ -4,7 +4,7 @@
 import { useEffect } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { X } from 'lucide-react'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 
 // SF Mono for monetary amounts and proposal/invoice numbers. There is no mono
 // token in theme.ts, so it lives here as the single admin-wide definition.
@@ -63,22 +63,22 @@ type Tone = { bg: string; fg: string }
 
 const STATUS_TONES: Record<string, Tone> = {
   // proposals
-  draft: { bg: '#F0EEEA', fg: tokens.textMuted },
+  draft: { bg: '#F0EEEA', fg: t.text.tertiary },
   sent: { bg: tokens.goldLight, fg: tokens.goldDark },
   viewed: { bg: tokens.tealLight, fg: tokens.primary },
   accepted: { bg: tokens.greenLight, fg: tokens.green },
   declined: { bg: tokens.rubyLight, fg: tokens.ruby },
-  expired: { bg: '#F0EEEA', fg: tokens.textMuted },
+  expired: { bg: '#F0EEEA', fg: t.text.tertiary },
   // invoices
   pending: { bg: tokens.goldLight, fg: tokens.goldDark },
   paid: { bg: tokens.greenLight, fg: tokens.green },
   overdue: { bg: tokens.rubyLight, fg: tokens.ruby },
-  cancelled: { bg: '#F0EEEA', fg: tokens.textMuted },
-  void: { bg: '#F0EEEA', fg: tokens.textMuted },
+  cancelled: { bg: '#F0EEEA', fg: t.text.tertiary },
+  void: { bg: '#F0EEEA', fg: t.text.tertiary },
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  const tone = STATUS_TONES[status] ?? { bg: '#F0EEEA', fg: tokens.textMuted }
+  const tone = STATUS_TONES[status] ?? { bg: '#F0EEEA', fg: t.text.tertiary }
   return (
     <span
       style={{
@@ -223,13 +223,13 @@ export const ui: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 28,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: 0,
   },
   pageSubtitle: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     margin: '6px 0 0',
   },
   card: {
@@ -241,7 +241,7 @@ export const ui: Record<string, CSSProperties> = {
   muted: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.textMuted,
+    color: t.text.secondary,
   },
   mono: {
     fontFamily: mono,
@@ -251,7 +251,7 @@ export const ui: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: 6,
     background: tokens.primary,
-    color: '#fff',
+    color: t.text.onPrimary,
     border: 'none',
     borderRadius: 8,
     padding: '10px 16px',
@@ -290,13 +290,13 @@ export const ui: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 18,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: 0,
   },
   modalClose: {
     background: 'transparent',
     border: 'none',
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
     padding: 4,
     display: 'flex',
@@ -308,7 +308,7 @@ export const ui: Record<string, CSSProperties> = {
     justifyContent: 'center',
     textAlign: 'center',
     padding: '64px 24px',
-    color: tokens.textMuted,
+    color: t.text.secondary,
   },
   emptyIcon: {
     color: tokens.accent,
@@ -319,13 +319,13 @@ export const ui: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 20,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '0 0 8px',
   },
   emptyBody: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     margin: 0,
     maxWidth: 420,
     lineHeight: 1.5,

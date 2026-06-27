@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Plus, X, ExternalLink } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { PageHeader, Card, ui, formatDate } from './ui'
 import { usePortal, clientLabel } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
@@ -49,7 +49,7 @@ const STATUSES = ['draft', 'active', 'closed'] as const
 function statusTone(status: string | null): { bg: string; fg: string } {
   if (status === 'active') return { bg: tokens.tealLight, fg: tokens.primary }
   if (status === 'closed') return { bg: tokens.rubyLight, fg: tokens.ruby }
-  return { bg: tokens.bg, fg: tokens.textMuted }
+  return { bg: tokens.bg, fg: t.text.tertiary }
 }
 
 export function CampaignsAdmin() {
@@ -401,7 +401,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '12px 20px',
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     borderBottom: `1px solid ${tokens.border}`,
@@ -411,10 +411,10 @@ const styles: Record<string, CSSProperties> = {
   td: {
     padding: '14px 20px',
     fontSize: 14,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     borderBottom: `1px solid ${tokens.border}`,
   },
-  titleCell: { fontWeight: 600, color: tokens.text },
+  titleCell: { fontWeight: 600, color: t.text.primary },
   titleLink: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -422,13 +422,13 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.primary,
     textDecoration: 'none',
   },
-  subtitle: { fontSize: 12, color: tokens.textMuted, marginTop: 2 },
+  subtitle: { fontSize: 12, color: t.text.tertiary, marginTop: 2 },
   visBadge: {
     display: 'inline-block',
     padding: '2px 10px',
     borderRadius: 999,
     background: tokens.bg,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     fontSize: 11,
     fontWeight: 600,
     border: `1px solid ${tokens.border}`,
@@ -466,7 +466,7 @@ const styles: Record<string, CSSProperties> = {
   statusSelect: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: tokens.text,
+    color: t.text.primary,
     background: tokens.surface,
     border: `1px solid ${tokens.border}`,
     borderRadius: 6,
@@ -498,15 +498,15 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: 'space-between',
     marginBottom: 20,
   },
-  modalTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: tokens.text, margin: 0 },
-  modalClose: { background: 'transparent', border: 'none', color: tokens.textMuted, cursor: 'pointer', padding: 4, display: 'flex' },
+  modalTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary, margin: 0 },
+  modalClose: { background: 'transparent', border: 'none', color: t.text.muted, cursor: 'pointer', padding: 4, display: 'flex' },
   form: { display: 'flex', flexDirection: 'column', gap: 14 },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.textMuted },
+  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: t.text.tertiary },
   input: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     background: tokens.inputBg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
@@ -530,7 +530,7 @@ const styles: Record<string, CSSProperties> = {
   toggleOff: {
     flex: 1,
     background: tokens.surface,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
     padding: '9px 12px',
@@ -539,11 +539,11 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
   },
-  helpText: { fontFamily: fonts.body, fontSize: 12, color: tokens.textMuted },
+  helpText: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 },
   secondaryBtn: {
     background: tokens.surface,
-    color: tokens.text,
+    color: t.text.primary,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
     padding: '10px 16px',

@@ -604,12 +604,12 @@ function Meta({
 }
 
 const STATUS_LABEL: Record<ProposalStatus, { bg: string; fg: string; label: string }> = {
-  draft: { bg: tokens.bg, fg: tokens.textMuted, label: 'Draft' },
+  draft: { bg: tokens.bg, fg: t.text.tertiary, label: 'Draft' },
   sent: { bg: tokens.tealLight, fg: tokens.primary, label: 'Sent' },
   viewed: { bg: tokens.goldLight, fg: tokens.goldDark, label: 'Viewed' },
   accepted: { bg: tokens.greenLight, fg: tokens.green, label: 'Accepted' },
   declined: { bg: tokens.rubyLight, fg: tokens.ruby, label: 'Declined' },
-  expired: { bg: tokens.bg, fg: tokens.textMuted, label: 'Expired' },
+  expired: { bg: tokens.bg, fg: t.text.tertiary, label: 'Expired' },
 }
 
 function StatusChip({ status }: { status: ProposalStatus }) {

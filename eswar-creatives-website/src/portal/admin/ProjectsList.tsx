@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 import { PageHeader, Card, StatusBadge, ui } from './ui'
 import { usePortal } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
@@ -118,7 +118,7 @@ export function ProjectsList() {
                     ...(highlightId === p.id ? styles.rowHighlight : null),
                   }}
                 >
-                  <td style={{ ...styles.td, fontWeight: 600, color: tokens.text }}>{p.title}</td>
+                  <td style={{ ...styles.td, fontWeight: 600, color: t.text.primary }}>{p.title}</td>
                   <td style={styles.td}>{clientLabel(p)}</td>
                   <td style={styles.td}>{p.current_phase || '—'}</td>
                   <td style={styles.td}>
@@ -271,7 +271,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '12px 20px',
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     borderBottom: `1px solid ${tokens.border}`,
@@ -287,7 +287,7 @@ const styles: Record<string, CSSProperties> = {
   td: {
     padding: '14px 20px',
     fontSize: 14,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     borderBottom: `1px solid ${tokens.border}`,
   },
 
@@ -319,7 +319,7 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.bg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
     padding: 6,
     display: 'flex',
@@ -332,16 +332,16 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-    color: tokens.textMuted,
+    color: t.text.tertiary,
   },
-  panelTitle: { fontFamily: fonts.heading, fontSize: 22, fontWeight: 700, color: tokens.text, margin: 0 },
-  panelClient: { fontFamily: fonts.body, fontSize: 14, color: tokens.textMuted, margin: '0 0 8px' },
+  panelTitle: { fontFamily: fonts.heading, fontSize: 22, fontWeight: 700, color: t.text.primary, margin: 0 },
+  panelClient: { fontFamily: fonts.body, fontSize: 14, color: t.text.tertiary, margin: '0 0 8px' },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.textMuted },
+  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: t.text.tertiary },
   input: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     background: tokens.inputBg,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
@@ -352,7 +352,7 @@ const styles: Record<string, CSSProperties> = {
   panelActions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   secondaryBtn: {
     background: tokens.surface,
-    color: tokens.text,
+    color: t.text.primary,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
     padding: '10px 16px',

@@ -407,7 +407,7 @@ function CampaignStatusBadge({ status }: { status: string | null }) {
   const map: Record<string, { background: string; color: string; label: string }> = {
     active: { background: tokens.tealLight, color: tokens.primary, label: 'Active' },
     closed: { background: tokens.rubyLight, color: tokens.ruby, label: 'Closed' },
-    draft: { background: tokens.bg, color: tokens.textMuted, label: 'Draft' },
+    draft: { background: tokens.bg, color: t.text.tertiary, label: 'Draft' },
   }
   const palette = map[status ?? 'draft'] ?? map.draft
   return (
@@ -418,7 +418,7 @@ function CampaignStatusBadge({ status }: { status: string | null }) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
+  page: { minHeight: '100vh', background: tokens.bg, color: t.text.primary, fontFamily: fonts.body },
   container: { maxWidth: 980, margin: '0 auto', padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px` },
   heroBlock: { marginBottom: 32 },
   title: {
@@ -427,9 +427,9 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 28,
     fontWeight: 600,
     letterSpacing: '-0.01em',
-    color: tokens.text,
+    color: t.text.primary,
   },
-  subtitle: { margin: '8px 0 0', fontSize: 15, color: tokens.textMuted },
+  subtitle: { margin: '8px 0 0', fontSize: 15, color: t.text.secondary },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
@@ -471,7 +471,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 20,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
   },
   historyList: {
     background: tokens.surface,
@@ -511,9 +511,9 @@ const styles: Record<string, CSSProperties> = {
     padding: '14px 20px 14px 48px',
     borderTop: `1px solid ${tokens.border}`,
   },
-  setName: { fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: tokens.text },
-  historyName: { display: 'block', fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: tokens.text },
-  historyMeta: { display: 'block', fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, marginTop: 2 },
+  setName: { fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: t.text.primary },
+  historyName: { display: 'block', fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: t.text.primary },
+  historyMeta: { display: 'block', fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary, marginTop: 2 },
   historyLink: {
     color: tokens.accent,
     fontFamily: fonts.body,
@@ -535,8 +535,8 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
     flexShrink: 0,
   },
-  cardTitle: { margin: 0, fontFamily: fonts.heading, fontSize: 15, fontWeight: 600, color: tokens.text },
-  cardSub: { margin: '6px 0 0', fontSize: 12, color: tokens.textMuted },
+  cardTitle: { margin: 0, fontFamily: fonts.heading, fontSize: 15, fontWeight: 600, color: t.text.primary },
+  cardSub: { margin: '6px 0 0', fontSize: 12, color: t.text.tertiary },
   cta: {
     alignSelf: 'flex-start',
     background: tokens.primary,
@@ -557,9 +557,9 @@ const styles: Record<string, CSSProperties> = {
     padding: 40,
     textAlign: 'center',
   },
-  emptyTitle: { margin: '0 0 8px', fontFamily: fonts.heading, fontSize: 20, fontWeight: 600, color: tokens.text },
-  muted: { color: tokens.textMuted, fontSize: 14 },
-  mutedBody: { color: tokens.textMuted, fontSize: 14, margin: 0 },
+  emptyTitle: { margin: '0 0 8px', fontFamily: fonts.heading, fontSize: 20, fontWeight: 600, color: t.text.primary },
+  muted: { color: t.text.secondary, fontSize: 14 },
+  mutedBody: { color: t.text.secondary, fontSize: 14, margin: 0 },
   error: {
     background: tokens.rubyLight,
     color: tokens.ruby,

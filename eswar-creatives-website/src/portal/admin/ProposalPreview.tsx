@@ -3,7 +3,7 @@
 // internal (no cost-breakdown controls, no document plumbing): just the studio
 // header, phases, line items, and totals the client would actually see.
 import type { CSSProperties } from 'react'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { mono, formatMoney } from './ui'
 
 type PreviewItem = { title: string; scope: string; amount: number }
@@ -130,31 +130,31 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 22,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
   },
   docType: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     marginTop: 2,
   },
   numberBox: { textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 2 },
-  numberLabel: { fontFamily: fonts.body, fontSize: 11, color: tokens.textMuted },
+  numberLabel: { fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary },
   number: { fontFamily: mono, fontSize: 14, color: tokens.primary, fontWeight: 600 },
   title: {
     fontFamily: fonts.heading,
     fontSize: 26,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '24px 0 4px',
   },
   preparedFor: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     margin: '0 0 24px',
   },
-  muted: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted },
+  muted: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary },
   phase: {
     marginBottom: 20,
   },
@@ -169,7 +169,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 17,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: 0,
   },
   timeline: {
@@ -190,9 +190,9 @@ const styles: Record<string, CSSProperties> = {
     padding: '10px 0',
     borderBottom: `1px solid ${tokens.border}`,
   },
-  itemTitle: { fontFamily: fonts.body, fontSize: 14, color: tokens.text, fontWeight: 500 },
-  itemScope: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, marginTop: 2 },
-  itemAmount: { fontFamily: mono, fontSize: 14, color: tokens.text, whiteSpace: 'nowrap' },
+  itemTitle: { fontFamily: fonts.body, fontSize: 14, color: t.text.primary, fontWeight: 500 },
+  itemScope: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary, marginTop: 2 },
+  itemAmount: { fontFamily: mono, fontSize: 14, color: t.text.primary, whiteSpace: 'nowrap' },
   totals: {
     marginTop: 8,
     paddingTop: 12,
@@ -203,7 +203,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     padding: '6px 0',
   },
-  totalNum: { fontFamily: mono, fontSize: 14, color: tokens.text },
+  totalNum: { fontFamily: mono, fontSize: 14, color: t.text.primary },
   grandRow: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -212,7 +212,7 @@ const styles: Record<string, CSSProperties> = {
     paddingTop: 12,
     borderTop: `1px solid ${tokens.border}`,
   },
-  grandLabel: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, color: tokens.text },
+  grandLabel: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, color: t.text.primary },
   grandNum: { fontFamily: mono, fontSize: 20, fontWeight: 700, color: tokens.primary },
   terms: {
     marginTop: 24,
@@ -224,13 +224,13 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     marginBottom: 6,
   },
   termsBody: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: tokens.text,
+    color: t.text.primary,
     margin: 0,
     lineHeight: 1.5,
   },

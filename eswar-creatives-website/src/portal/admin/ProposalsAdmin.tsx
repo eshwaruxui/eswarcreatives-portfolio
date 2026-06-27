@@ -321,19 +321,19 @@ const styles: Record<string, CSSProperties> = {
   number: {
     fontFamily: mono,
     fontSize: 12,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
   },
   title: {
     fontFamily: fonts.heading,
     fontSize: 18,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: 0,
   },
   client: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     margin: 0,
   },
   cardBottom: {
@@ -352,7 +352,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: mono,
     fontSize: 15,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
   },
   currencyBadge: {
     fontFamily: fonts.body,
@@ -367,6 +367,6 @@ const styles: Record<string, CSSProperties> = {
   validUntil: {
     fontFamily: fonts.body,
     fontSize: 12,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
   },
 }

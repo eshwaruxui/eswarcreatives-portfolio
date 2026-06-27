@@ -222,7 +222,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 19,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '0 0 14px',
   },
   summary: {
@@ -244,14 +244,14 @@ const styles: Record<string, CSSProperties> = {
   summaryLabel: {
     fontFamily: fonts.body,
     fontSize: 12,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     margin: 0,
   },
   summaryValue: {
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: 0,
     textAlign: 'right',
     minWidth: 0,
@@ -271,7 +271,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     lineHeight: 1.6,
-    color: tokens.textMuted,
+    color: t.text.secondary,
     margin: '0 0 12px',
   },
   error: {
@@ -292,7 +292,7 @@ const styles: Record<string, CSSProperties> = {
   },
   cancel: {
     background: tokens.surface,
-    color: tokens.text,
+    color: t.text.primary,
     border: `1px solid ${tokens.border}`,
     borderRadius: 8,
     padding: '9px 18px',

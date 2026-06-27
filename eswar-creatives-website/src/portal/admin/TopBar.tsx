@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router'
 import { Check, ChevronDown, Settings, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { clientLabel, usePortal } from '../PortalContext'
-import { tokens, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 import { useSignOut } from '../useSignOut'
 import { Spinner } from '../Spinner'
 import { AddClientModal } from './AddClientModal'
@@ -160,7 +160,7 @@ function SelectorItem({
         <span style={{ width: 16, display: 'inline-flex' }}>
           {selected && <Check size={15} style={{ color: tokens.accent }} />}
         </span>
-        <span style={{ color: selected ? tokens.primary : tokens.text, fontWeight: selected ? 600 : 400 }}>
+        <span style={{ color: selected ? tokens.primary : t.text.primary, fontWeight: selected ? 600 : 400 }}>
           {label}
         </span>
       </button>
@@ -261,7 +261,7 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   logoLetter: {
-    color: '#fff',
+    color: t.text.onPrimary,
     fontFamily: fonts.heading,
     fontSize: 16,
     fontWeight: 600,
@@ -272,7 +272,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 15,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     whiteSpace: 'nowrap',
   },
   selectorWrap: { position: 'relative' },
@@ -287,7 +287,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 500,
-    color: tokens.text,
+    color: t.text.primary,
     cursor: 'pointer',
   },
   // Outlined secondary button in the teal accent, compact to fit the 56px bar.
@@ -350,7 +350,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     background: 'transparent',
     border: `1px solid ${HAIRLINE}`,
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
   },
 
@@ -386,13 +386,13 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 16,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: 0,
   },
   panelClose: {
     background: 'transparent',
     border: 'none',
-    color: tokens.textMuted,
+    color: t.text.muted,
     cursor: 'pointer',
     padding: 4,
     display: 'flex',
@@ -402,7 +402,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     margin: '0 0 4px',
@@ -415,7 +415,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 500,
-    color: tokens.text,
+    color: t.text.primary,
     cursor: 'pointer',
     textAlign: 'left',
   },

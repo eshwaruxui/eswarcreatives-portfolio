@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import {
   PageHeader,
   Card,
@@ -214,7 +214,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.heading,
     fontSize: 18,
     fontWeight: 600,
-    color: tokens.text,
+    color: t.text.primary,
     margin: '0 0 12px',
   },
   itemRow: {
@@ -229,13 +229,13 @@ const styles: Record<string, CSSProperties> = {
   itemNumber: {
     fontFamily: mono,
     fontSize: 12,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     whiteSpace: 'nowrap',
   },
   itemTitle: {
     fontFamily: fonts.body,
     fontSize: 14,
-    color: tokens.text,
+    color: t.text.primary,
     flex: 1,
     minWidth: 0,
     overflow: 'hidden',
@@ -245,13 +245,13 @@ const styles: Record<string, CSSProperties> = {
   itemAmount: {
     fontFamily: mono,
     fontSize: 13,
-    color: tokens.text,
+    color: t.text.primary,
     whiteSpace: 'nowrap',
   },
   itemMeta: {
     fontFamily: fonts.body,
     fontSize: 12,
-    color: tokens.textMuted,
+    color: t.text.tertiary,
     whiteSpace: 'nowrap',
   },
 }
