@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router'
 import { Plus, Eye, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 import {
   PageHeader,
   Modal,
@@ -263,7 +263,8 @@ const styles: Record<string, CSSProperties> = {
   card: {
     background: tokens.surface,
     border: `1px solid ${tokens.border}`,
-    borderLeft: '3px solid transparent',
+    // Brand left accent, matching the expanded phase row in ProposalAccordion.
+    borderLeft: `3px solid ${t.border.brand}`,
     borderRadius: 12,
     padding: 20,
     cursor: 'pointer',
