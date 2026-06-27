@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router'
-import { ArrowLeft, FileText, Trash2 } from 'lucide-react'
+import { ArrowLeft, Eye, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import {
   PageHeader,
   Card,
-  StatusBadge,
   ui,
   mono,
   formatMoney,
@@ -14,6 +13,12 @@ import {
 } from './ui'
 import { ProposalForm, emptySolution, defaultSchedule } from './ProposalForm'
 import { DeleteProposalModal } from './DeleteProposalModal'
+import { SidePanel } from './SidePanel'
+import {
+  ProposalAccordion,
+  type AccordionProposal,
+  type ProposalStatus,
+} from '../components/shared/ProposalAccordion'
 import type { PortalProfile } from '../PortalGuard'
 import type {
   ProposalFull,
@@ -78,6 +83,8 @@ export function ProposalDetail() {
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDelete, setShowDelete] = useState(false)
+  // Opens the right-side panel that shows exactly what the client sees.
+  const [showPreview, setShowPreview] = useState(false)
 
   const [existing, setExisting] = useState<ProposalFull | null>(null)
   const [documents, setDocuments] = useState<DocumentRow[]>([])
@@ -242,23 +249,62 @@ export function ProposalDetail() {
     }
   }, [id, isNew])
 
-  // View-mode totals derive from the saved phases + the saved discount.
-  const subtotal = useMemo(
-    () =>
-      phases.reduce(
-        (sum, ph) =>
-          sum +
-          ph.solutions.reduce(
-            (s, sol) => s + sol.items.reduce((t, it) => t + (parseFloat(it.amount) || 0), 0),
-            0
-          ),
-        0
-      ),
-    [phases]
-  )
-  const discountPct = existing?.discount_pct ?? 0
-  const discountAmount = (subtotal * discountPct) / 100
-  const total = Math.max(0, subtotal - discountAmount)
+  // Normalise the loaded proposal + form state into the shape the shared
+  // ProposalAccordion renders, so the admin detail and client portal read the
+  // proposal through one component.
+  const accordionProposal = useMemo<AccordionProposal | null>(() => {
+    if (!existing) return null
+    return {
+      id: existing.id,
+      title: existing.title,
+      proposalNumber: existing.proposal_number,
+      clientName: existing.client_name,
+      companyName: existing.company_name,
+      vertical: existing.vertical,
+      status: existing.status as ProposalStatus,
+      validUntil: existing.valid_until,
+      currency: existing.currency,
+      totalAmount: Number(existing.total_amount),
+      discountPct: existing.discount_pct,
+      discountLabel: existing.discount_label,
+      paymentTerms: existing.payment_terms,
+      revisionRounds,
+      keyNote: existing.key_note,
+      phases: phases.map((ph, pi) => ({
+        id: ph.id ?? `phase-${pi}`,
+        phaseNumber: pi + 1,
+        name: ph.name,
+        timeline: ph.timeline || null,
+        solutions: ph.solutions.map((sol, si) => ({
+          id: `${ph.id ?? pi}-sol-${si}`,
+          title: sol.title,
+          overview: sol.overview,
+          timeline: sol.timeline || undefined,
+          keyNote: sol.keyNote || undefined,
+          items: sol.items.map((it, ii) => ({
+            id: it.id ?? `${ph.id ?? pi}-${si}-${ii}`,
+            title: it.title,
+            scope: it.scope || null,
+            amount: parseFloat(it.amount) || 0,
+          })),
+        })),
+        schedule: ph.schedule.map((s, sidx) => ({
+          id: `${ph.id ?? pi}-sched-${sidx}`,
+          label: s.label,
+          pct: s.pct === '' ? null : Number(s.pct),
+          triggeredBy: s.triggeredBy,
+        })),
+      })),
+      documents: documents.map((d) => ({ id: d.id, fileName: d.file_name })),
+    }
+  }, [existing, phases, documents, revisionRounds])
+
+  // The accordion hands back a lightweight {id, fileName}; map it to the loaded
+  // row so we can mint a signed URL for the private bucket.
+  function openAccordionDocument(docId: string) {
+    const row = documents.find((d) => d.id === docId)
+    if (row) void openDocument(row)
+  }
 
   async function openDocument(doc: DocumentRow) {
     if (!doc.storage_path) return
@@ -317,182 +363,146 @@ export function ProposalDetail() {
   }
 
   // ── View mode ───────────────────────────────────────────────────────
+  // The shared ProposalAccordion owns the title + meta + body, so the page
+  // chrome is just the back link and an action row. Reorder mode is the one
+  // exception: it keeps the flat draggable phase/solution cards (5g).
   return (
     <>
       <BackLink />
-      <PageHeader
-        title={existing.title}
-        subtitle={`${existing.proposal_number ?? 'No number'} · ${existing.company_name ?? ''}`}
-        action={
-          <div style={styles.headerActions}>
-            {locked ? (
-              <>
-                <span style={styles.acceptedBadge}>
-                  Accepted on {formatDate(existing.accepted_at)}
-                </span>
-                {/* 5g: reorder phases/solutions after approval (admin only). */}
-                <button
-                  type="button"
-                  style={reorderMode ? styles.reorderOn : styles.reorderToggle}
-                  onClick={() => setReorderMode((r) => !r)}
-                >
-                  {reorderMode ? 'Done reordering' : 'Reorder phases'}
-                </button>
-              </>
-            ) : (
-              <button type="button" style={ui.primaryBtn} onClick={() => setEditing(true)}>
-                Edit
-              </button>
-            )}
-            {/* Owner/admin only. Confirmation modal surfaces any linked invoices
-                before the irreversible delete. */}
-            {canDelete && (
-              <button
-                type="button"
-                style={styles.deleteBtn}
-                onClick={() => setShowDelete(true)}
-                aria-label="Delete proposal"
-                title="Delete proposal"
-              >
-                <Trash2 size={15} /> Delete
-              </button>
-            )}
-          </div>
-        }
-      />
+      <div style={styles.detailActions}>
+        {locked ? (
+          <>
+            <span style={styles.acceptedBadge}>
+              Accepted on {formatDate(existing.accepted_at)}
+            </span>
+            {/* 5g: reorder phases/solutions after approval (admin only). */}
+            <button
+              type="button"
+              style={reorderMode ? styles.reorderOn : styles.reorderToggle}
+              onClick={() => setReorderMode((r) => !r)}
+            >
+              {reorderMode ? 'Done reordering' : 'Reorder phases'}
+            </button>
+          </>
+        ) : (
+          <button type="button" style={ui.primaryBtn} onClick={() => setEditing(true)}>
+            Edit
+          </button>
+        )}
+        {/* See the proposal exactly as the client does, in a read-only drawer. */}
+        <button
+          type="button"
+          style={styles.previewBtn}
+          onClick={() => setShowPreview(true)}
+        >
+          <Eye size={15} /> Preview as client
+        </button>
+        {/* Owner/admin only. Confirmation modal surfaces any linked invoices
+            before the irreversible delete. */}
+        {canDelete && (
+          <button
+            type="button"
+            style={styles.deleteBtn}
+            onClick={() => setShowDelete(true)}
+            aria-label="Delete proposal"
+            title="Delete proposal"
+          >
+            <Trash2 size={15} /> Delete
+          </button>
+        )}
+      </div>
       {error && <div style={styles.error}>{error}</div>}
 
-      <Card style={{ marginBottom: 16 }}>
-        <div style={styles.metaGrid}>
-          <Meta label="Status" value={<StatusBadge status={existing.status} />} />
-          <Meta label="Client" value={existing.client_name ?? '—'} />
-          <Meta label="Company" value={existing.company_name ?? '—'} />
-          <Meta label="Vertical" value={existing.vertical} />
-          <Meta label="Valid until" value={formatDate(existing.valid_until)} />
-          <Meta
-            label="Total"
-            value={
-              <span style={{ fontFamily: mono, fontWeight: 600 }}>
-                {formatMoney(Number(existing.total_amount), existing.currency)}
-              </span>
-            }
-          />
-        </div>
-      </Card>
-
-      {phases.map((ph, pi) => (
-        <Card
-          key={ph.id ?? pi}
-          style={{
-            marginBottom: 12,
-            ...(reorderMode ? styles.reorderable : null),
-            ...(dragPhase === pi ? styles.dragging : null),
-          }}
-          draggable={reorderMode}
-          onDragStart={reorderMode ? () => setDragPhase(pi) : undefined}
-          onDragOver={reorderMode ? (e) => e.preventDefault() : undefined}
-          onDrop={reorderMode ? () => void dropPhase(pi) : undefined}
-          onDragEnd={reorderMode ? () => setDragPhase(null) : undefined}
-        >
-          <div style={styles.phaseHead}>
-            <h3 style={styles.phaseName}>
-              {reorderMode && (
+      {reorderMode ? (
+        phases.map((ph, pi) => (
+          <Card
+            key={ph.id ?? pi}
+            style={{
+              marginBottom: 12,
+              ...styles.reorderable,
+              ...(dragPhase === pi ? styles.dragging : null),
+            }}
+            draggable
+            onDragStart={() => setDragPhase(pi)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => void dropPhase(pi)}
+            onDragEnd={() => setDragPhase(null)}
+          >
+            <div style={styles.phaseHead}>
+              <h3 style={styles.phaseName}>
                 <span style={styles.grip} aria-hidden title="Drag to reorder phase">
                   ⠿{' '}
                 </span>
-              )}
-              {ph.name}
-            </h3>
-            {ph.timeline && <span style={styles.phaseTimeline}>{ph.timeline}</span>}
-          </div>
-          {ph.solutions.map((sol, si) => (
-            <div
-              key={si}
-              style={{
-                ...(si > 0 ? styles.solutionBlock : {}),
-                ...(reorderMode ? styles.reorderable : null),
-                ...(dragSolution?.pi === pi && dragSolution?.si === si ? styles.dragging : null),
-              }}
-              draggable={reorderMode}
-              onDragStart={reorderMode ? (e) => { e.stopPropagation(); setDragSolution({ pi, si }) } : undefined}
-              onDragOver={reorderMode ? (e) => e.preventDefault() : undefined}
-              onDrop={reorderMode ? (e) => { e.stopPropagation(); void dropSolution(pi, si) } : undefined}
-              onDragEnd={reorderMode ? () => setDragSolution(null) : undefined}
-            >
-              {(sol.title || reorderMode) && (
+                {ph.name}
+              </h3>
+              {ph.timeline && <span style={styles.phaseTimeline}>{ph.timeline}</span>}
+            </div>
+            {ph.solutions.map((sol, si) => (
+              <div
+                key={si}
+                style={{
+                  ...(si > 0 ? styles.solutionBlock : {}),
+                  ...styles.reorderable,
+                  ...(dragSolution?.pi === pi && dragSolution?.si === si ? styles.dragging : null),
+                }}
+                draggable
+                onDragStart={(e) => { e.stopPropagation(); setDragSolution({ pi, si }) }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.stopPropagation(); void dropSolution(pi, si) }}
+                onDragEnd={() => setDragSolution(null)}
+              >
                 <div style={styles.solutionTitle}>
-                  {reorderMode && (
-                    <span style={styles.grip} aria-hidden title="Drag to reorder solution">
-                      ⠿{' '}
-                    </span>
-                  )}
+                  <span style={styles.grip} aria-hidden title="Drag to reorder solution">
+                    ⠿{' '}
+                  </span>
                   {sol.title || `Solution ${si + 1}`}
                 </div>
-              )}
-              {sol.timeline && <div style={styles.phaseTimeline}>{sol.timeline}</div>}
-              {sol.overview && <p style={styles.phaseScope}>{sol.overview}</p>}
-              {sol.items.map((it, ii) => (
-                <div key={it.id ?? ii} style={styles.viewItem}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={styles.viewItemTitle}>{it.title}</div>
-                    {it.scope && <div style={styles.viewItemScope}>{it.scope}</div>}
+                {sol.items.map((it, ii) => (
+                  <div key={it.id ?? ii} style={styles.viewItem}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={styles.viewItemTitle}>{it.title}</div>
+                      {it.scope && <div style={styles.viewItemScope}>{it.scope}</div>}
+                    </div>
+                    <span style={styles.viewItemAmount}>
+                      {formatMoney(parseFloat(it.amount) || 0, existing.currency)}
+                    </span>
                   </div>
-                  <span style={styles.viewItemAmount}>
-                    {formatMoney(parseFloat(it.amount) || 0, existing.currency)}
-                  </span>
-                </div>
-              ))}
-              {sol.keyNote && <p style={styles.solutionKeyNote}>Note: {sol.keyNote}</p>}
-            </div>
-          ))}
-        </Card>
-      ))}
-
-      {(existing.key_note || revisionRounds) && (
-        <Card style={{ marginBottom: 12 }}>
-          <div style={styles.metaGrid}>
-            <Meta label="Revision rounds" value={revisionRounds} />
-            {existing.key_note && <Meta label="Key note" value={existing.key_note} />}
-          </div>
-        </Card>
+                ))}
+              </div>
+            ))}
+          </Card>
+        ))
+      ) : (
+        accordionProposal && (
+          <ProposalAccordion
+            mode="admin"
+            proposal={accordionProposal}
+            onOpenDocument={(d) => openAccordionDocument(d.id)}
+          />
+        )
       )}
 
-      <Card style={{ marginBottom: 16 }}>
-        <h3 style={styles.phaseName}>Pricing & terms</h3>
-        <div style={styles.totalsRow}>
-          <span style={ui.muted}>Subtotal</span>
-          <span style={{ fontFamily: mono }}>{formatMoney(subtotal, existing.currency)}</span>
-        </div>
-        {existing.discount_pct ? (
-          <div style={styles.totalsRow}>
-            <span style={ui.muted}>{existing.discount_label || `Discount ${existing.discount_pct}%`}</span>
-            <span style={{ fontFamily: mono, color: tokens.ruby }}>
-              -{formatMoney(discountAmount, existing.currency)}
-            </span>
+      {/* Client preview: the same proposal, rendered through the client view in
+          a read-only drawer. CTAs are present but disabled with a banner so the
+          admin can confirm the experience without firing any real action. */}
+      {showPreview && accordionProposal && (
+        <SidePanel
+          title="Client view"
+          subtitle="Preview"
+          onClose={() => setShowPreview(false)}
+          width={640}
+        >
+          <div style={styles.previewBanner}>
+            This is a preview. Actions are disabled.
           </div>
-        ) : null}
-        <div style={{ ...styles.totalsRow, borderTop: `1px solid ${tokens.border}`, paddingTop: 10 }}>
-          <span style={{ fontWeight: 600 }}>Total</span>
-          <span style={{ fontFamily: mono, fontWeight: 600, fontSize: 16 }}>
-            {formatMoney(total, existing.currency)}
-          </span>
-        </div>
-        <p style={styles.terms}>{existing.payment_terms}</p>
-      </Card>
-
-      <Card>
-        <h3 style={styles.phaseName}>Documents</h3>
-        {documents.length === 0 ? (
-          <p style={{ ...ui.muted, margin: 0 }}>No documents attached.</p>
-        ) : (
-          documents.map((d) => (
-            <button key={d.id} type="button" style={styles.docRow} onClick={() => openDocument(d)}>
-              <FileText size={16} style={{ color: tokens.accent }} />
-              <span style={styles.docName}>{d.file_name}</span>
-            </button>
-          ))
-        )}
-      </Card>
+          <ProposalAccordion
+            mode="client"
+            proposal={accordionProposal}
+            actionsDisabled
+            onOpenDocument={(d) => openAccordionDocument(d.id)}
+          />
+        </SidePanel>
+      )}
 
       {showDelete && (
         <DeleteProposalModal
@@ -514,15 +524,6 @@ function BackLink() {
     <Link to="/portal/admin/proposals" style={styles.backLink}>
       <ArrowLeft size={15} /> Proposals
     </Link>
-  )
-}
-
-function Meta({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <div style={styles.metaLabel}>{label}</div>
-      <div style={styles.metaValue}>{value}</div>
-    </div>
   )
 }
 
@@ -556,7 +557,37 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     padding: '8px 14px',
   },
-  headerActions: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  detailActions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    flexWrap: 'wrap',
+    marginBottom: 16,
+  },
+  previewBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: 'transparent',
+    color: t.text.primary,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: '8px 14px',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  previewBanner: {
+    background: t.background.subtle,
+    color: t.text.muted,
+    borderRadius: 8,
+    padding: '10px 14px',
+    marginBottom: 16,
+    fontFamily: fonts.body,
+    fontSize: 13,
+  },
   deleteBtn: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -604,31 +635,6 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'grab',
     userSelect: 'none',
   },
-  solutionKeyNote: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: tokens.goldDark,
-    background: tokens.goldLight,
-    borderRadius: 8,
-    padding: '8px 12px',
-    margin: '8px 0 0',
-  },
-  metaGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: 16,
-  },
-  metaLabel: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: tokens.textMuted,
-    marginBottom: 4,
-  },
-  metaValue: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: tokens.text,
-  },
   phaseHead: {
     display: 'flex',
     alignItems: 'baseline',
@@ -647,12 +653,6 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 12,
     color: tokens.accent,
-  },
-  phaseScope: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: tokens.textMuted,
-    margin: '0 0 12px',
   },
   solutionBlock: {
     marginTop: 16,
@@ -691,38 +691,5 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     color: tokens.text,
     whiteSpace: 'nowrap',
-  },
-  totalsRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '6px 0',
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: tokens.text,
-  },
-  terms: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: tokens.textMuted,
-    marginTop: 16,
-    marginBottom: 0,
-    lineHeight: 1.5,
-  },
-  docRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    padding: '8px 0',
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    width: '100%',
-    textAlign: 'left',
-  },
-  docName: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: tokens.text,
   },
 }
