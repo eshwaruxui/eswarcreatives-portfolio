@@ -10,7 +10,7 @@ import { PortalGuard, type PortalProfile } from '../PortalGuard'
 import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
 import { tokens, fonts } from '../theme'
 import { formatMoney, formatDate, mono } from '../admin/ui'
-import { InvoiceDocument, invoiceStatusPill } from '../components/shared/InvoiceDocument'
+import { InvoiceDocument, invoiceStatusPill, type InvoiceLine } from '../components/shared/InvoiceDocument'
 
 type Invoice = {
   id: string
@@ -170,10 +170,28 @@ function InvoicePanel({
   onClose: () => void
 }) {
   const [shown, setShown] = useState(false)
+  const [lines, setLines] = useState<InvoiceLine[]>([])
   useEffect(() => {
     const t = requestAnimationFrame(() => setShown(true))
     return () => cancelAnimationFrame(t)
   }, [])
+
+  // Itemised breakdown, if this invoice has one (read-own RLS on 0062).
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('invoice_line_items')
+        .select('label, amount, sort_order')
+        .eq('invoice_id', invoice.id)
+        .order('sort_order', { ascending: true })
+      if (cancelled || !data) return
+      setLines(data.map((r) => ({ label: r.label as string, amount: Number(r.amount) })))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [invoice.id])
 
   return (
     <>
@@ -202,6 +220,7 @@ function InvoicePanel({
             notes: invoice.notes,
           }}
           billedTo={billedTo}
+          lines={lines}
         />
       </aside>
     </>

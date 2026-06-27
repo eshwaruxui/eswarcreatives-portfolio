@@ -28,6 +28,10 @@ export type InvoiceBilledTo = {
   city?: string | null
 }
 
+// Itemised breakdown (from invoice_line_items). When absent, the document falls
+// back to a single line built from the invoice label + amount.
+export type InvoiceLine = { label: string; amount: number }
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -64,12 +68,19 @@ export function invoiceStatusPill(
 export function InvoiceDocument({
   invoice,
   billedTo,
+  lines,
 }: {
   invoice: InvoiceDoc
   billedTo: InvoiceBilledTo
+  lines?: InvoiceLine[]
 }) {
   const pill = invoiceStatusPill(invoice.status, invoice.dueDate)
-  const amount = Number(invoice.amount)
+  // Itemised lines when present, otherwise a single line from label + amount.
+  const items: InvoiceLine[] =
+    lines && lines.length > 0
+      ? lines
+      : [{ label: invoice.label || 'Professional services', amount: Number(invoice.amount) }]
+  const total = items.reduce((sum, l) => sum + Number(l.amount), 0)
 
   return (
     <div style={styles.body}>
@@ -119,23 +130,25 @@ export function InvoiceDocument({
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td style={styles.tdLeft}>{invoice.label || 'Professional services'}</td>
-            <td style={styles.tdNum}>1</td>
-            <td style={styles.tdNum}>{formatAmount(amount, invoice.currency)}</td>
-            <td style={styles.tdNum}>{formatAmount(amount, invoice.currency)}</td>
-          </tr>
+          {items.map((line, i) => (
+            <tr key={i}>
+              <td style={styles.tdLeft}>{line.label || 'Professional services'}</td>
+              <td style={styles.tdNum}>1</td>
+              <td style={styles.tdNum}>{formatAmount(Number(line.amount), invoice.currency)}</td>
+              <td style={styles.tdNum}>{formatAmount(Number(line.amount), invoice.currency)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
       <div style={styles.totals}>
         <div style={styles.subRow}>
           <span style={styles.subLabel}>Subtotal</span>
-          <span style={styles.subNum}>{formatAmount(amount, invoice.currency)}</span>
+          <span style={styles.subNum}>{formatAmount(total, invoice.currency)}</span>
         </div>
         <div style={styles.totalBand}>
           <span style={styles.totalLabel}>Total due</span>
-          <span style={styles.totalNum}>{formatAmount(amount, invoice.currency)}</span>
+          <span style={styles.totalNum}>{formatAmount(total, invoice.currency)}</span>
         </div>
       </div>
 

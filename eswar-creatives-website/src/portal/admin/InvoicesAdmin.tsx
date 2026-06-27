@@ -402,6 +402,30 @@ function StatCard({ label, byCur }: { label: string; byCur: Record<string, numbe
 }
 
 // ── New invoice modal ──────────────────────────────────────────────────
+// A billable item drawn from the linked approved proposal (a payment-schedule
+// instalment, a whole solution, or a single line item), with a computed amount.
+type Billable = {
+  key: string
+  group: 'schedule' | 'solution' | 'item'
+  label: string
+  amount: number
+  proposalItemId: string | null
+}
+// One editable line on the invoice being built; from a Billable or added by hand.
+type LineDraft = {
+  key: string
+  proposalItemId: string | null
+  label: string
+  amount: string
+}
+
+const GROUP_LABEL: Record<Billable['group'], string> = {
+  schedule: 'Payment schedule',
+  solution: 'Solutions',
+  item: 'Line items',
+}
+const GROUP_ORDER: Billable['group'][] = ['schedule', 'solution', 'item']
+
 function NewInvoiceModal({
   clients,
   proposals,
@@ -419,12 +443,18 @@ function NewInvoiceModal({
   const [proposalId, setProposalId] = useState('')
   const [clientName, setClientName] = useState('')
   const [companyName, setCompanyName] = useState('')
-  const [label, setLabel] = useState('')
-  const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('INR')
   const [dueDate, setDueDate] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Itemised invoice: editable lines + the billables offered by the proposal.
+  const [lines, setLines] = useState<LineDraft[]>([])
+  const [billables, setBillables] = useState<Billable[]>([])
+  const [loadingBillables, setLoadingBillables] = useState(false)
+
+  const total = lines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0)
+  const selectedKeys = new Set(lines.map((l) => l.key))
 
   function onPickClient(value: string) {
     setClientId(value)
@@ -438,6 +468,9 @@ function NewInvoiceModal({
 
   function onPickProposal(value: string) {
     setProposalId(value)
+    // Drop lines sourced from the previous proposal; keep hand-added ones.
+    setLines((prev) => prev.filter((l) => l.key.startsWith('manual-')))
+    setBillables([])
     const p = proposals.find((x) => x.id === value)
     if (p) {
       setClientId(p.client_id ?? '')
@@ -445,6 +478,136 @@ function NewInvoiceModal({
       setCompanyName(p.company_name ?? '')
       setCurrency(p.currency || 'INR')
     }
+    if (value) void loadBillables(value)
+  }
+
+  // Pull the proposal's billables: each schedule instalment (% of its phase
+  // subtotal), each solution group (sum of its items), and each line item.
+  async function loadBillables(pid: string) {
+    setLoadingBillables(true)
+    try {
+      const { data: phaseRows } = await supabase
+        .from('proposal_phases')
+        .select('id, name, sort_order')
+        .eq('proposal_id', pid)
+        .order('sort_order', { ascending: true })
+      const phaseIds = (phaseRows ?? []).map((p) => p.id)
+
+      const [itemsRes, schedRes] = await Promise.all([
+        phaseIds.length
+          ? supabase
+              .from('proposal_line_items')
+              .select('id, phase_id, title, amount, item_number, solution_title, solution_overview')
+              .in('phase_id', phaseIds)
+              .order('item_number', { ascending: true })
+          : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+        supabase
+          .from('proposal_payment_schedule')
+          .select('id, phase_id, label, pct_of_total, instalment_number')
+          .eq('proposal_id', pid)
+          .order('instalment_number', { ascending: true }),
+      ])
+      const items = (itemsRes.data ?? []) as {
+        id: string
+        phase_id: string
+        title: string
+        amount: number | null
+        solution_title: string | null
+        solution_overview: string | null
+      }[]
+      const sched = (schedRes.data ?? []) as {
+        id: string
+        phase_id: string | null
+        label: string
+        pct_of_total: number | null
+      }[]
+
+      const phaseName: Record<string, string> = {}
+      const phaseSubtotal: Record<string, number> = {}
+      for (const ph of phaseRows ?? []) phaseName[ph.id] = ph.name as string
+      for (const it of items)
+        phaseSubtotal[it.phase_id] = (phaseSubtotal[it.phase_id] ?? 0) + Number(it.amount ?? 0)
+
+      const out: Billable[] = []
+
+      // Payment-schedule instalments (% of their phase subtotal).
+      for (const s of sched) {
+        if (!s.phase_id) continue
+        const pct = Number(s.pct_of_total ?? 0)
+        const amt = Math.round((pct / 100) * (phaseSubtotal[s.phase_id] ?? 0))
+        const where = phaseName[s.phase_id] ? ` · ${phaseName[s.phase_id]}` : ''
+        out.push({
+          key: `sch-${s.id}`,
+          group: 'schedule',
+          label: `${s.label}${where}${pct ? ` (${pct}%)` : ''}`,
+          amount: amt,
+          proposalItemId: s.id,
+        })
+      }
+
+      // Solution groups: consecutive items sharing a solution title/overview.
+      let curKey: string | null = null
+      let cur: Billable | null = null
+      const solCount: Record<string, number> = {}
+      for (const it of items) {
+        const k = `${it.phase_id}|${it.solution_title ?? ''}|${it.solution_overview ?? ''}`
+        if (!cur || k !== curKey) {
+          const idx = (solCount[it.phase_id] = (solCount[it.phase_id] ?? 0) + 1)
+          const where = phaseName[it.phase_id] ? ` · ${phaseName[it.phase_id]}` : ''
+          cur = {
+            key: `sol-${it.phase_id}-${idx}`,
+            group: 'solution',
+            label: `${it.solution_title || `Solution ${idx}`}${where}`,
+            amount: 0,
+            proposalItemId: null,
+          }
+          out.push(cur)
+          curKey = k
+        }
+        cur.amount += Number(it.amount ?? 0)
+      }
+
+      // Individual line items.
+      for (const it of items) {
+        out.push({
+          key: `item-${it.id}`,
+          group: 'item',
+          label: it.title,
+          amount: Number(it.amount ?? 0),
+          proposalItemId: it.id,
+        })
+      }
+
+      setBillables(out)
+    } catch {
+      onError('Could not load the billable items for this proposal.')
+    } finally {
+      setLoadingBillables(false)
+    }
+  }
+
+  function toggleBillable(b: Billable) {
+    setLines((prev) =>
+      prev.some((l) => l.key === b.key)
+        ? prev.filter((l) => l.key !== b.key)
+        : [
+            ...prev,
+            { key: b.key, proposalItemId: b.proposalItemId, label: b.label, amount: String(b.amount) },
+          ]
+    )
+  }
+
+  function updateLine(key: string, field: 'label' | 'amount', value: string) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, [field]: value } : l)))
+  }
+  function removeLine(key: string) {
+    setLines((prev) => prev.filter((l) => l.key !== key))
+  }
+  function addManualLine() {
+    setLines((prev) => [
+      ...prev,
+      { key: `manual-${Date.now()}`, proposalItemId: null, label: '', amount: '' },
+    ])
   }
 
   async function nextInvoiceNumber(): Promise<string> {
@@ -463,27 +626,46 @@ function NewInvoiceModal({
   }
 
   async function handleCreate() {
-    if (!label.trim()) return onError('Label is required.')
-    if (!amount || parseFloat(amount) <= 0) return onError('A positive amount is required.')
+    const valid = lines.filter((l) => l.label.trim() && (parseFloat(l.amount) || 0) > 0)
+    if (valid.length === 0) return onError('Add at least one billable line with a label and amount.')
+    const amountTotal = valid.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0)
+    const summary = valid.length === 1 ? valid[0].label : `${valid[0].label} +${valid.length - 1} more`
+
     setSaving(true)
     try {
       const { data: sess } = await supabase.auth.getUser()
       const invoiceNumber = await nextInvoiceNumber()
-      const { error: err } = await supabase.from('invoices').insert({
-        invoice_number: invoiceNumber,
-        proposal_id: proposalId || null,
-        client_id: clientId || null,
-        client_name: clientName.trim() || null,
-        company_name: companyName.trim() || null,
-        label: label.trim(),
-        amount: parseFloat(amount),
-        currency,
-        status: 'pending',
-        due_date: dueDate || null,
-        notes: notes.trim() || null,
-        created_by: sess.user?.id ?? null,
-      })
+      const { data: inv, error: err } = await supabase
+        .from('invoices')
+        .insert({
+          invoice_number: invoiceNumber,
+          proposal_id: proposalId || null,
+          client_id: clientId || null,
+          client_name: clientName.trim() || null,
+          company_name: companyName.trim() || null,
+          label: summary,
+          amount: amountTotal,
+          currency,
+          status: 'pending',
+          due_date: dueDate || null,
+          notes: notes.trim() || null,
+          created_by: sess.user?.id ?? null,
+        })
+        .select('id')
+        .single()
       if (err) throw err
+
+      const { error: liErr } = await supabase.from('invoice_line_items').insert(
+        valid.map((l, i) => ({
+          invoice_id: (inv as { id: string }).id,
+          proposal_item_id: l.proposalItemId,
+          label: l.label.trim(),
+          amount: parseFloat(l.amount) || 0,
+          sort_order: i,
+        }))
+      )
+      if (liErr) throw liErr
+
       onCreated()
     } catch {
       onError('Could not create the invoice. Check the details and try again.')
@@ -492,7 +674,7 @@ function NewInvoiceModal({
   }
 
   return (
-    <Modal onClose={onClose} title="New invoice">
+    <Modal onClose={onClose} title="New invoice" size="lg">
       <div style={styles.modalForm}>
         <Field label="Link proposal (optional)">
           <select value={proposalId} onChange={(e) => onPickProposal(e.target.value)} style={styles.input}>
@@ -514,29 +696,120 @@ function NewInvoiceModal({
             ))}
           </select>
         </Field>
-        <Field label="Company name">
-          <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} style={styles.input} />
-        </Field>
-        <Field label="Client name">
-          <input value={clientName} onChange={(e) => setClientName(e.target.value)} style={styles.input} />
-        </Field>
-        <Field label="Label">
-          <input value={label} onChange={(e) => setLabel(e.target.value)} style={styles.input} placeholder="e.g. Advance payment" />
-        </Field>
         <div style={styles.modalRow}>
-          <Field label="Amount">
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} style={{ ...styles.input, fontFamily: mono }} inputMode="decimal" />
+          <Field label="Company name">
+            <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} style={styles.input} />
           </Field>
+          <Field label="Client name">
+            <input value={clientName} onChange={(e) => setClientName(e.target.value)} style={styles.input} />
+          </Field>
+        </div>
+
+        {/* Billable picker: only when a proposal is linked. */}
+        {proposalId && (
+          <div>
+            <span style={styles.fieldLabel}>Billable items from proposal</span>
+            <div style={styles.pickerBox}>
+              {loadingBillables ? (
+                <p style={{ ...ui.muted, margin: 0, fontSize: 13 }}>Loading billable items...</p>
+              ) : billables.length === 0 ? (
+                <p style={{ ...ui.muted, margin: 0, fontSize: 13 }}>
+                  This proposal has no billable items to pick.
+                </p>
+              ) : (
+                GROUP_ORDER.filter((g) => billables.some((b) => b.group === g)).map((g) => (
+                  <div key={g} style={styles.pickerGroup}>
+                    <div style={styles.pickerGroupLabel}>{GROUP_LABEL[g]}</div>
+                    {billables
+                      .filter((b) => b.group === g)
+                      .map((b) => {
+                        const checked = selectedKeys.has(b.key)
+                        return (
+                          <button
+                            key={b.key}
+                            type="button"
+                            style={styles.pickerRow}
+                            onClick={() => toggleBillable(b)}
+                          >
+                            <span
+                              style={{
+                                ...styles.checkbox,
+                                ...(checked ? styles.checkboxOn : null),
+                              }}
+                              aria-hidden
+                            >
+                              {checked ? '✓' : ''}
+                            </span>
+                            <span style={styles.pickerLabel}>{b.label}</span>
+                            <span style={styles.pickerAmount}>{formatMoney(b.amount, currency)}</span>
+                          </button>
+                        )
+                      })}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Editable invoice lines. */}
+        <div>
+          <span style={styles.fieldLabel}>Invoice lines</span>
+          <div style={styles.linesBox}>
+            {lines.length === 0 ? (
+              <p style={{ ...ui.muted, margin: 0, fontSize: 13 }}>
+                Pick billable items above, or add a line manually.
+              </p>
+            ) : (
+              lines.map((l) => (
+                <div key={l.key} style={styles.lineRow}>
+                  <input
+                    value={l.label}
+                    onChange={(e) => updateLine(l.key, 'label', e.target.value)}
+                    placeholder="Description"
+                    style={{ ...styles.input, flex: 1 }}
+                  />
+                  <input
+                    value={l.amount}
+                    onChange={(e) => updateLine(l.key, 'amount', e.target.value)}
+                    placeholder="0"
+                    inputMode="decimal"
+                    style={{ ...styles.input, width: 120, fontFamily: mono }}
+                  />
+                  <button
+                    type="button"
+                    style={styles.lineRemove}
+                    onClick={() => removeLine(l.key)}
+                    aria-label="Remove line"
+                    title="Remove line"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))
+            )}
+            <div style={styles.linesFooter}>
+              <button type="button" style={styles.addLineBtn} onClick={addManualLine}>
+                <Plus size={14} /> Add line
+              </button>
+              <span style={styles.totalChip}>
+                Total <span style={styles.totalValue}>{formatMoney(total, currency)}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.modalRow}>
           <Field label="Currency">
             <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={styles.input}>
               <option value="INR">INR</option>
               <option value="USD">USD</option>
             </select>
           </Field>
+          <Field label="Due date">
+            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={styles.input} />
+          </Field>
         </div>
-        <Field label="Due date">
-          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={styles.input} />
-        </Field>
         <Field label="Notes">
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...styles.input, minHeight: 56, resize: 'vertical' }} />
         </Field>
@@ -722,8 +995,105 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 6,
   },
   modalForm: { display: 'flex', flexDirection: 'column', gap: 14 },
-  modalRow: { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 },
+  modalRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   modalActions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 },
+
+  // Billable picker + invoice-line editor.
+  pickerBox: {
+    marginTop: 6,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: 12,
+    maxHeight: 220,
+    overflowY: 'auto',
+    background: tokens.surface,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+  },
+  pickerGroup: { display: 'flex', flexDirection: 'column', gap: 2 },
+  pickerGroupLabel: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: tokens.textMuted,
+    marginBottom: 4,
+  },
+  pickerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+    background: 'transparent',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 6px',
+    cursor: 'pointer',
+    textAlign: 'left',
+  },
+  checkbox: {
+    flexShrink: 0,
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    border: `1px solid ${t.border.medium}`,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 12,
+    fontWeight: 700,
+    color: t.text.onPrimary,
+    background: tokens.surface,
+  },
+  checkboxOn: { background: tokens.primary, borderColor: tokens.primary },
+  pickerLabel: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 13, color: tokens.text },
+  pickerAmount: { fontFamily: mono, fontSize: 13, color: tokens.text, whiteSpace: 'nowrap' },
+  linesBox: {
+    marginTop: 6,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  lineRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  lineRemove: {
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: 'none',
+    color: tokens.ruby,
+    cursor: 'pointer',
+    padding: 6,
+  },
+  linesFooter: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 2,
+  },
+  addLineBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: 'transparent',
+    border: `1px dashed ${t.border.medium}`,
+    borderRadius: 8,
+    color: t.text.primary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: '7px 12px',
+  },
+  totalChip: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted },
+  totalValue: { fontFamily: mono, fontSize: 15, fontWeight: 700, color: tokens.text, marginLeft: 6 },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 },
   detailLabel: { fontFamily: fonts.body, fontSize: 12, color: tokens.textMuted, marginBottom: 4 },
   detailValue: { fontFamily: fonts.body, fontSize: 14, color: tokens.text },

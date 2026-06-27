@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens } from '../theme'
-import { InvoiceDocument } from '../components/shared/InvoiceDocument'
+import { InvoiceDocument, type InvoiceLine } from '../components/shared/InvoiceDocument'
 import type { CSSProperties } from 'react'
 
 export type PreviewInvoice = {
@@ -51,12 +51,31 @@ export function InvoicePreview({
   const [shown, setShown] = useState(false)
   const [email, setEmail] = useState<string | null>(null)
   const [city, setCity] = useState<string | null>(null)
+  const [lines, setLines] = useState<InvoiceLine[]>([])
 
   // Trigger the slide-in transition once mounted.
   useEffect(() => {
     const t = requestAnimationFrame(() => setShown(true))
     return () => cancelAnimationFrame(t)
   }, [])
+
+  // Itemised breakdown, if this invoice has one (0062 invoice_line_items).
+  useEffect(() => {
+    let cancelled = false
+    setLines([])
+    ;(async () => {
+      const { data } = await supabase
+        .from('invoice_line_items')
+        .select('label, amount, sort_order')
+        .eq('invoice_id', invoice.id)
+        .order('sort_order', { ascending: true })
+      if (cancelled || !data) return
+      setLines(data.map((r) => ({ label: r.label as string, amount: Number(r.amount) })))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [invoice.id])
 
   // Email + city are not on the invoice row; fetch them from the linked client.
   useEffect(() => {
@@ -123,6 +142,7 @@ export function InvoicePreview({
             email,
             city,
           }}
+          lines={lines}
         />
       </aside>
     </>
