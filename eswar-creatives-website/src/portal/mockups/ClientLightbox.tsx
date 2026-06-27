@@ -282,6 +282,29 @@ export function ClientLightbox({
                 {decision === 'approved' ? 'Approved' : 'Changes requested'}
               </span>
             )}
+            {/* Concept decision is a global action, so it sits with the concept
+                title rather than at the foot of the panel. The optional note for
+                the decision stays in the feedback panel and feeds these buttons. */}
+            {!isAdmin && !decision && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => submitDecision('approved')}
+                  disabled={decisionSaving}
+                  style={{ ...fb.approveBtn, ...fb.topAction, ...(decisionSaving ? fb.btnDisabled : null) }}
+                >
+                  {Ic.check} Approve Concept
+                </button>
+                <button
+                  type="button"
+                  onClick={() => submitDecision('changes')}
+                  disabled={decisionSaving}
+                  style={{ ...fb.changesBtn, ...fb.topAction, ...(decisionSaving ? fb.btnDisabled : null) }}
+                >
+                  Request Changes
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -474,42 +497,24 @@ export function ClientLightbox({
             {itemSavedFor === mockups[idx]?.id && <span style={fb.savedFlash}>Comment added</span>}
           </div>
 
-          {/* Concept decision */}
-          <div style={fb.block}>
-            {decision ? (
-              <div style={fb.submitted}>
-                {Ic.check}
-                Feedback submitted
-              </div>
-            ) : (
-              <>
-                <input
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Add a note for the whole concept (optional)"
-                  style={fb.noteInput}
-                />
-                <div style={fb.decisionRow}>
-                  <button
-                    type="button"
-                    onClick={() => submitDecision('approved')}
-                    disabled={decisionSaving}
-                    style={{ ...fb.approveBtn, ...(decisionSaving ? fb.btnDisabled : null) }}
-                  >
-                    {Ic.check} Approve Concept
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => submitDecision('changes')}
-                    disabled={decisionSaving}
-                    style={{ ...fb.changesBtn, ...(decisionSaving ? fb.btnDisabled : null) }}
-                  >
-                    Request Changes
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          {/* Concept note (optional). The Approve / Request Changes actions now
+              live in the top bar beside the concept title; this note feeds into
+              whichever decision the client makes there. Once a decision is in,
+              the top bar shows the status chip and this field is retired. */}
+          {!decision && (
+            <div style={fb.block}>
+              <label style={fb.label} htmlFor="concept-note">
+                Add a note for the whole concept (optional)
+              </label>
+              <input
+                id="concept-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Share anything you would like us to know before deciding"
+                style={fb.noteInput}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -599,7 +604,14 @@ const fb: Record<string, CSSProperties> = {
     outline: 'none',
     boxSizing: 'border-box',
   },
-  decisionRow: { display: 'flex', gap: 10, flexWrap: 'wrap' },
+  // Compact override so the decision buttons sit comfortably inline with the
+  // concept title in the top bar; a soft shadow keeps them legible over the
+  // image gradient behind the header.
+  topAction: {
+    padding: '7px 14px',
+    fontSize: 12.5,
+    boxShadow: '0 2px 8px rgba(0,0,0,.35)',
+  },
   approveBtn: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -627,18 +639,5 @@ const fb: Record<string, CSSProperties> = {
     fontFamily: T.fB,
     fontWeight: 600,
     cursor: 'pointer',
-  },
-  submitted: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 8,
-    color: T.forest600,
-    background: T.forest50,
-    padding: '9px 16px',
-    borderRadius: T.r.md,
-    fontSize: 13,
-    fontFamily: T.fB,
-    fontWeight: 600,
-    alignSelf: 'flex-start',
   },
 }
