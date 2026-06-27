@@ -6,7 +6,7 @@ import { useOutletContext } from 'react-router'
 import { supabase } from '../../lib/supabase'
 import { type PortalProfile } from '../PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './ClientNav'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 import { formatDate } from '../admin/ui'
 import { ClientLightbox } from '../mockups/ClientLightbox'
 import { signMockupItems, type LightboxMockup, type LightboxMeta } from '../mockups/signItems'
@@ -28,7 +28,14 @@ export function MockupsPage() {
   return <Mockups profile={profile} />
 }
 
-type SetDecision = 'approved' | 'changes_requested'
+type SetDecision = 'approved' | 'changes_requested' | 'not_selected'
+
+// Decision -> the concept-level mockup_feedback type written for it.
+const FEEDBACK_TYPE: Record<SetDecision, string> = {
+  approved: 'concept_approval',
+  changes_requested: 'concept_rejection',
+  not_selected: 'concept_not_selected',
+}
 
 function Mockups({ profile }: { profile: PortalProfile }) {
   const [sets, setSets] = useState<PublishedSet[]>([])
@@ -47,14 +54,62 @@ function Mockups({ profile }: { profile: PortalProfile }) {
       .from('mockup_feedback')
       .select('set_id, feedback_type, created_at')
       .in('set_id', ids)
-      .in('feedback_type', ['concept_approval', 'concept_rejection'])
+      .in('feedback_type', [
+        'concept_approval',
+        'concept_rejection',
+        'concept_not_selected',
+        'concept_awaiting',
+      ])
       .eq('submitted_by', profile.id)
       .order('created_at', { ascending: true })
+    // Latest concept-level row wins; an 'awaiting' marker clears the decision.
     const map: Record<string, SetDecision> = {}
     for (const r of (data ?? []) as { set_id: string; feedback_type: string }[]) {
-      map[r.set_id] = r.feedback_type === 'concept_approval' ? 'approved' : 'changes_requested'
+      if (r.feedback_type === 'concept_awaiting') {
+        delete map[r.set_id]
+      } else if (r.feedback_type === 'concept_approval') {
+        map[r.set_id] = 'approved'
+      } else if (r.feedback_type === 'concept_not_selected') {
+        map[r.set_id] = 'not_selected'
+      } else {
+        map[r.set_id] = 'changes_requested'
+      }
     }
     setDecisions(map)
+  }
+
+  // Record (or reset) this client's concept decision. Optimistic, with a reload
+  // on failure so the card never lies about what was saved.
+  async function decide(setId: string, kind: SetDecision) {
+    setDecisions((p) => ({ ...p, [setId]: kind }))
+    const { error: err } = await supabase.from('mockup_feedback').insert({
+      set_id: setId,
+      item_id: null,
+      submitted_by: profile.id,
+      feedback_type: FEEDBACK_TYPE[kind],
+    })
+    if (err) {
+      setError('Could not save your decision. Try again.')
+      void loadDecisions(sets.map((s) => s.id))
+    }
+  }
+
+  async function resetDecision(setId: string) {
+    setDecisions((p) => {
+      const next = { ...p }
+      delete next[setId]
+      return next
+    })
+    const { error: err } = await supabase.from('mockup_feedback').insert({
+      set_id: setId,
+      item_id: null,
+      submitted_by: profile.id,
+      feedback_type: 'concept_awaiting',
+    })
+    if (err) {
+      setError('Could not change your decision. Try again.')
+      void loadDecisions(sets.map((s) => s.id))
+    }
   }
 
   useEffect(() => {
@@ -115,6 +170,13 @@ function Mockups({ profile }: { profile: PortalProfile }) {
     }
   }
 
+  // Set-level decision summary, shown only once every concept has a decision.
+  const decided = sets.map((s) => decisions[s.id]).filter(Boolean) as SetDecision[]
+  const allDecided = sets.length > 0 && decided.length === sets.length
+  const nApproved = decided.filter((d) => d === 'approved').length
+  const nNotSelected = decided.filter((d) => d === 'not_selected').length
+  const nChanges = decided.filter((d) => d === 'changes_requested').length
+
   return (
     <div style={styles.page}>
       <main style={styles.container}>
@@ -122,6 +184,12 @@ function Mockups({ profile }: { profile: PortalProfile }) {
           <h1 style={styles.title}>Mockups</h1>
           <p style={styles.subtitle}>Review concept designs and share your feedback.</p>
         </div>
+
+        {allDecided && (
+          <div style={styles.summaryBanner}>
+            {nApproved} approved · {nNotSelected} not selected · {nChanges} changes requested
+          </div>
+        )}
 
         {loading && <div style={styles.muted}>Loading mockups...</div>}
         {error && <div style={styles.error}>{error}</div>}
@@ -138,7 +206,6 @@ function Mockups({ profile }: { profile: PortalProfile }) {
             {sets.map((s) => (
               <article key={s.id} style={styles.card}>
                 <div>
-                  <MockupStatusBadge decision={decisions[s.id]} />
                   <h3 style={styles.cardTitle}>{s.concept_name}</h3>
                   <p style={styles.cardMeta}>
                     {s.projects?.title || '-'}
@@ -149,14 +216,43 @@ function Mockups({ profile }: { profile: PortalProfile }) {
                     {(s.mockup_items?.[0]?.count ?? 0) === 1 ? '' : 's'} · {formatDate(s.created_at)}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  style={styles.reviewBtn}
-                  onClick={() => openSet(s)}
-                  disabled={opening === s.id}
-                >
-                  {opening === s.id ? 'Opening...' : 'Review Mockups'}
-                </button>
+
+                <div style={styles.cardFooter}>
+                  {decisions[s.id] ? (
+                    // Decided: muted/coloured pill + a way back to awaiting.
+                    <div style={styles.decidedRow}>
+                      <DecisionPill decision={decisions[s.id]!} />
+                      <button
+                        type="button"
+                        style={styles.changeLink}
+                        onClick={() => void resetDecision(s.id)}
+                      >
+                        Change decision
+                      </button>
+                    </div>
+                  ) : (
+                    // Awaiting: the three concept decisions (single click each).
+                    <div style={styles.actionRow}>
+                      <button type="button" style={styles.approveBtn} onClick={() => void decide(s.id, 'approved')}>
+                        Approve concept
+                      </button>
+                      <button type="button" style={styles.changesBtn} onClick={() => void decide(s.id, 'changes_requested')}>
+                        Request changes
+                      </button>
+                      <button type="button" style={styles.notSelBtn} onClick={() => void decide(s.id, 'not_selected')}>
+                        Not selected
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    style={styles.reviewBtn}
+                    onClick={() => openSet(s)}
+                    disabled={opening === s.id}
+                  >
+                    {opening === s.id ? 'Opening...' : 'Review Mockups'}
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -180,14 +276,16 @@ function Mockups({ profile }: { profile: PortalProfile }) {
   )
 }
 
-// H1 (visibility of system status): every set advertises where it stands.
-function MockupStatusBadge({ decision }: { decision?: SetDecision }) {
+// H1 (visibility of system status): a decided concept advertises where it
+// stands. Approved uses success tokens, changes uses the ruby palette, and
+// not-selected is a neutral muted pill (t.background.subtle + t.text.muted).
+function DecisionPill({ decision }: { decision: SetDecision }) {
   const palette =
     decision === 'approved'
       ? { bg: tokens.greenLight, fg: tokens.green, label: 'Approved' }
       : decision === 'changes_requested'
       ? { bg: tokens.rubyLight, fg: tokens.ruby, label: 'Changes requested' }
-      : { bg: tokens.goldLight, fg: tokens.goldDark, label: 'Awaiting your review' }
+      : { bg: t.background.subtle, fg: t.text.muted, label: 'Not selected' }
   return (
     <span style={{ ...styles.statusBadge, background: palette.bg, color: palette.fg }}>
       {palette.label}
@@ -226,12 +324,73 @@ const styles: Record<string, CSSProperties> = {
   },
   statusBadge: {
     display: 'inline-block',
-    marginBottom: 10,
     padding: '4px 10px',
     borderRadius: 999,
     fontSize: 11,
     fontWeight: 600,
     fontFamily: fonts.body,
+  },
+  summaryBanner: {
+    background: t.background.subtle,
+    color: t.text.secondary,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 10,
+    padding: '12px 16px',
+    marginBottom: 24,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 500,
+  },
+  cardFooter: { display: 'flex', flexDirection: 'column', gap: 12 },
+  actionRow: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  approveBtn: {
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    border: 'none',
+    borderRadius: 8,
+    padding: '7px 11px',
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  changesBtn: {
+    background: 'transparent',
+    color: tokens.ruby,
+    border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8,
+    padding: '7px 11px',
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  // Ghost / neutral, per the not-selected token rule.
+  notSelBtn: {
+    background: 'transparent',
+    color: t.text.muted,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    padding: '7px 11px',
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  decidedRow: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  changeLink: {
+    background: 'transparent',
+    border: 'none',
+    color: t.text.primaryBrand,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: 0,
+    textDecoration: 'underline',
   },
   cardTitle: {
     margin: 0,
