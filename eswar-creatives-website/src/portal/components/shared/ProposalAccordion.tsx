@@ -110,6 +110,28 @@ function phaseTone(phaseNumber: number | null, index: number) {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
+// Compact payment-terms summary derived from the per-phase schedules. When every
+// phase shares the same schedule it collapses to one line ("35% Advance · 35%
+// Mid · 30% Final per phase"); otherwise it lists each phase compactly
+// ("Phase 1: 35/35/30 · Phase 2: 50/25/25"). Returns null when no phase carries
+// a schedule, so the caller can fall back to the free-text payment terms.
+function buildCompactTerms(phases: AccordionPhase[]): string | null {
+  const scheds = phases.map((p) => p.schedule ?? [])
+  if (!scheds.some((s) => s.length > 0)) return null
+  const sig = (s: AccordionScheduleRow[]) => s.map((r) => `${r.pct ?? ''}|${r.label}`).join(',')
+  const allHave = scheds.every((s) => s.length > 0)
+  const allSame = allHave && new Set(scheds.map(sig)).size === 1
+  if (allSame) {
+    const parts = scheds[0].map((r) => `${r.pct ?? 0}% ${r.label}`)
+    return `${parts.join(' · ')} per phase`
+  }
+  return phases
+    .map((p, i) => ({ i, s: p.schedule ?? [] }))
+    .filter((x) => x.s.length > 0)
+    .map((x) => `Phase ${x.i + 1}: ${x.s.map((r) => r.pct ?? 0).join('/')}`)
+    .join(' · ')
+}
+
 export function ProposalAccordion({
   proposal,
   mode,
@@ -159,6 +181,10 @@ export function ProposalAccordion({
   )
   const discountPct = proposal.discountPct ?? 0
   const discountAmount = (subtotal * discountPct) / 100
+  // Compact schedule summary, falling back to the free-text terms if no phase
+  // carries a payment schedule.
+  const compactTerms = useMemo(() => buildCompactTerms(proposal.phases), [proposal.phases])
+  const termsLine = compactTerms ?? proposal.paymentTerms
 
   function togglePhase(id: string) {
     setOpenPhases((prev) => {
@@ -446,7 +472,7 @@ export function ProposalAccordion({
             {formatMoney(proposal.totalAmount, currency)}
           </span>
         </div>
-        {proposal.paymentTerms && <p style={styles.terms}>{proposal.paymentTerms}</p>}
+        {termsLine && <p style={styles.terms}>{termsLine}</p>}
         <div style={styles.revRow}>
           <span style={styles.muted}>Revision rounds</span>
           <span style={styles.revValue}>{proposal.revisionRounds}</span>
@@ -887,8 +913,8 @@ const styles: Record<string, CSSProperties> = {
   totalValue: { fontFamily: mono, fontSize: 24, fontWeight: 700, color: t.text.primary },
   terms: {
     fontFamily: fonts.body,
-    fontSize: 13,
-    color: t.text.secondary,
+    fontSize: 12,
+    color: t.text.muted,
     lineHeight: 1.5,
     margin: '14px 0 0',
   },
