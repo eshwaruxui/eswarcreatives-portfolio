@@ -5,7 +5,10 @@
 export const tokens = {
   bg:         '#FAF8F4',  // cream
   surface:    '#FFFFFF',
-  border:     '#D8E8E8',
+  // Overlay-based neutral border (was a low-contrast teal tint #D8E8E8). A
+  // semi-transparent near-black reads with consistent contrast on both the
+  // white surfaces and the cream page. See t.border.* for the full scale.
+  border:     'rgba(10, 10, 23, 0.12)',
   primary:    '#024C4F',  // deep teal
   accent:     '#007872',  // teal-mid
   gold:       '#D5B067',
@@ -43,10 +46,13 @@ export const t = {
     urlLink:      '#024C4F',  // hyperlinks only
   },
   border: {
-    subtle:             '#F3F4F6',              // lightest dividers, card outlines
-    default:            '#E5E7EB',              // standard input/card borders
-    medium:             '#D1D5DB',              // stronger dividers
-    strong:             '#9CA3AF',              // emphasis borders
+    // Overlay-based neutral scale: semi-transparent near-black so borders keep
+    // consistent contrast on white surfaces and the cream page (the old solid
+    // greys washed out and looked invisible on light backgrounds).
+    subtle:             'rgba(10,10,23,0.06)',  // lightest dividers, card outlines
+    default:            'rgba(10,10,23,0.12)',  // standard input/card borders
+    medium:             'rgba(10,10,23,0.18)',  // stronger dividers
+    strong:             'rgba(10,10,23,0.30)',  // emphasis borders
     focus:              '#024C4F',              // focus ring on inputs
     overlaySubtle:      'rgba(10,10,23,0.04)',  // frosted/glass panels subtle edge
     overlayMedium:      'rgba(10,10,23,0.08)',  // panel borders on overlays
