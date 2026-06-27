@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router'
 import { ArrowLeft, Eye, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, t, fonts } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 import {
   PageHeader,
   Card,
@@ -99,6 +99,38 @@ export function ProposalDetail() {
   const [reorderMode, setReorderMode] = useState(false)
   const [dragPhase, setDragPhase] = useState<number | null>(null)
   const [dragSolution, setDragSolution] = useState<{ pi: number; si: number } | null>(null)
+
+  // FLIP animation for reordering: record each phase card's position, then after
+  // the order changes, invert the delta and transition it back to zero so cards
+  // glide to their new slot instead of jumping (H1: the move is visible).
+  const cardRefs = useRef(new Map<string, HTMLElement>())
+  const prevRects = useRef(new Map<string, DOMRect>())
+  const setCardRef = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) cardRefs.current.set(id, el)
+    else cardRefs.current.delete(id)
+  }, [])
+
+  useLayoutEffect(() => {
+    const prev = prevRects.current
+    const next = new Map<string, DOMRect>()
+    cardRefs.current.forEach((el, id) => {
+      const rect = el.getBoundingClientRect()
+      next.set(id, rect)
+      const old = prev.get(id)
+      if (old) {
+        const dy = old.top - rect.top
+        if (Math.abs(dy) > 1) {
+          el.style.transform = `translateY(${dy}px)`
+          el.style.transition = 'transform 0s'
+          requestAnimationFrame(() => {
+            el.style.transform = ''
+            el.style.transition = `transform ${motionTokens.durationBase} ${motionTokens.easeDefault}`
+          })
+        }
+      }
+    })
+    prevRects.current = next
+  }, [phases, reorderMode])
 
   async function dropPhase(targetIndex: number) {
     if (dragPhase === null || dragPhase === targetIndex) {
@@ -415,9 +447,13 @@ export function ProposalDetail() {
 
       {reorderMode ? (
         phases.map((ph, pi) => (
-          <Card
+          // Plain section (not <Card>) so the native drag handlers and the FLIP
+          // ref attach to a real DOM node; Card does not forward either.
+          <section
             key={ph.id ?? pi}
+            ref={(el) => setCardRef(ph.id ?? `phase-${pi}`, el)}
             style={{
+              ...ui.card,
               marginBottom: 12,
               ...styles.reorderable,
               ...(dragPhase === pi ? styles.dragging : null),
@@ -470,7 +506,7 @@ export function ProposalDetail() {
                 ))}
               </div>
             ))}
-          </Card>
+          </section>
         ))
       ) : (
         accordionProposal && (
