@@ -335,12 +335,7 @@ export function ProposalAccordion({
               >
                 <ChevronRight
                   size={18}
-                  style={{
-                    ...styles.chevron,
-                    ...(open ? styles.chevronOpen : null),
-                    // Expanded phase caret turns teal to read as the active row.
-                    ...(open ? { color: t.text.primaryBrand } : null),
-                  }}
+                  style={{ ...styles.chevron, ...(open ? styles.chevronOpen : null) }}
                 />
                 <span
                   style={{ ...styles.phasePill, background: tone.bg, color: tone.fg }}
@@ -748,7 +743,10 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
     transition: `transform ${motionTokens.durationFast} ${motionTokens.easeDefault}, color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
-  chevronOpen: { transform: 'rotate(90deg)' },
+  // Expanded caret rotates and turns teal so the open row reads as active
+  // (standing accordion pattern; see docs/COMPONENT_PATTERNS.md). Applies to
+  // both phase and solution rows.
+  chevronOpen: { transform: 'rotate(90deg)', color: t.text.primaryBrand },
   phasePill: {
     flexShrink: 0,
     width: 24,

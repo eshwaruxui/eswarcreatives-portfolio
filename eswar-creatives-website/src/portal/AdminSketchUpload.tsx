@@ -3,7 +3,7 @@ import { Link, useOutletContext, useSearchParams } from 'react-router'
 import { ChevronDown, ChevronUp, Trash2, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { type PortalProfile } from './PortalGuard'
-import { tokens, fonts } from './theme'
+import { tokens, t, fonts, motionTokens } from './theme'
 
 // NOTE: the spec referenced src/app/theme.ts, which only exists on the
 // design-system branch. On phase-3-portal the portal palette lives in
@@ -1266,7 +1266,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
                           </span>
                         </div>
                         {expanded ? (
-                          <ChevronUp size={18} style={styles.chevron} />
+                          <ChevronUp size={18} style={{ ...styles.chevron, ...styles.chevronOpen }} />
                         ) : (
                           <ChevronDown size={18} style={styles.chevron} />
                         )}
@@ -1435,7 +1435,7 @@ function AdminInner({ profile }: { profile: PortalProfile }) {
                       <div style={styles.campaignHeadRight}>
                         <span style={statusBadgeStyle(c.status)}>{c.status}</span>
                         {open ? (
-                          <ChevronUp size={18} style={styles.chevron} />
+                          <ChevronUp size={18} style={{ ...styles.chevron, ...styles.chevronOpen }} />
                         ) : (
                           <ChevronDown size={18} style={styles.chevron} />
                         )}
@@ -1974,7 +1974,15 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
     userSelect: 'none',
   },
-  chevron: { color: tokens.textMuted, flexShrink: 0 },
+  // Standing accordion chevron pattern: muted collapsed, brand expanded, fast
+  // colour transition (see docs/COMPONENT_PATTERNS.md). Up/down swap is the
+  // rotation here; chevronOpen applies to the expanded (up) caret.
+  chevron: {
+    color: t.text.muted,
+    flexShrink: 0,
+    transition: `color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  chevronOpen: { color: t.text.primaryBrand },
   setName: {
     fontFamily: fonts.heading,
     fontSize: 16,

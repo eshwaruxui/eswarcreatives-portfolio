@@ -82,6 +82,34 @@ Panel behaviour on mobile:
 
 ---
 
+## Accordion / Expand Chevron Pattern
+
+### Rule
+All chevron icons used for expand/collapse must follow this state pattern:
+- Collapsed state: t.text.muted
+- Expanded state: t.text.primaryBrand
+- Rotation: 90deg when expanded (for the rotating ChevronRight variant)
+- Transition: motionTokens.fast (120ms) for both color and rotation simultaneously
+- Never use raw hex for chevron color
+
+A down/right or up/down icon swap is an accepted alternative to rotation (it
+already conveys the 90deg state change); the color rule still applies to it.
+
+### Current usages
+- ProposalAccordion (phase rows, solution rows) - rotating ChevronRight; the
+  shared chevronOpen style carries both the rotation and the brand color.
+- ClientCampaigns (campaign history rows) - ChevronRight/ChevronDown swap.
+- AdminSketchUpload (sketch set rows, campaign rows) - ChevronUp/ChevronDown swap.
+
+Note: ClientConceptSetPanel and ClientProposalPanel have no expand chevrons of
+their own (ClientProposalPanel renders the proposal through ProposalAccordion).
+
+### Adding new expandable surfaces
+Any new accordion or expand/collapse pattern must follow this spec before
+shipping.
+
+---
+
 ## Standing rules
 - No em dashes in any component copy or code
 - No raw hex outside theme.ts

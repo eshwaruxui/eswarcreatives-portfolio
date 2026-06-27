@@ -302,7 +302,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
                       }
                       aria-expanded={open}
                     >
-                      <span style={styles.chevron}>
+                      <span style={{ ...styles.chevron, ...(open ? styles.chevronOpen : null) }}>
                         {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                       </span>
                       <span style={styles.campaignText}>
@@ -491,7 +491,16 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     textAlign: 'left',
   },
-  chevron: { flexShrink: 0, display: 'inline-flex', color: tokens.textMuted },
+  // Standing accordion chevron pattern: muted collapsed, brand expanded, with a
+  // fast colour transition (see docs/COMPONENT_PATTERNS.md). The down/right swap
+  // serves as the rotation here.
+  chevron: {
+    flexShrink: 0,
+    display: 'inline-flex',
+    color: t.text.muted,
+    transition: `color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  chevronOpen: { color: t.text.primaryBrand },
   campaignText: { minWidth: 0, flex: 1 },
   setList: { background: tokens.bg, borderBottom: `1px solid ${tokens.border}` },
   setRow: {
