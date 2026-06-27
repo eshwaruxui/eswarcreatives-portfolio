@@ -22,6 +22,12 @@ import eswarLogo from '../../imports/eswar-logo.svg'
 // Height the fixed bar occupies; client pages offset their content by this much.
 export const CLIENT_NAV_HEIGHT = 56
 
+// Resolved display name per profile, cached at module scope. Every client page
+// renders its own ClientNav, so navigating remounts this component; without the
+// cache the bar would flash profile.full_name ("Mohan A") and then snap to the
+// client contact name ("Mohan") on every tab click, shaking the top bar.
+const nameCache: Record<string, string> = {}
+
 // `badge` keys the nav item to a notification section; null means no badge ever
 // (Account never gets one, Campaigns is outside the badge matrix).
 const LINKS: { to: string; label: string; badge: BadgeSection | null }[] = [
@@ -43,12 +49,18 @@ const SECTION_BY_PATH: Record<string, BadgeSection> = {
 
 export function ClientNav({ profile }: { profile: PortalProfile }) {
   const { signingOut, error: signOutError, signOut } = useSignOut()
-  const [name, setName] = useState<string>(profile.full_name || profile.email)
+  // Start from the cached client name when we already have it, so a remount on
+  // navigation does not flash the profile name before the fetch resolves.
+  const [name, setName] = useState<string>(
+    nameCache[profile.id] || profile.full_name || profile.email
+  )
   const location = useLocation()
   const badges = useSyncExternalStore(subscribeBadges, getBadges, getBadges)
 
   // Prefer the client's contact/company name; fall back to the profile identity.
+  // The resolved value is cached so later remounts skip the flash entirely.
   useEffect(() => {
+    if (nameCache[profile.id]) return
     let cancelled = false
     ;(async () => {
       const { data } = await supabase
@@ -58,7 +70,10 @@ export function ClientNav({ profile }: { profile: PortalProfile }) {
         .maybeSingle()
       if (cancelled || !data) return
       const label = data.contact_name || data.company_name
-      if (label) setName(label)
+      if (label) {
+        nameCache[profile.id] = label
+        setName(label)
+      }
     })()
     return () => {
       cancelled = true

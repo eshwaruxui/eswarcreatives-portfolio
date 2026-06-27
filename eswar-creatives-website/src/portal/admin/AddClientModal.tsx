@@ -3,8 +3,9 @@
 // collects input, calls it via supabase.functions.invoke, and maps the returned
 // error codes to plain-language messages (never a raw Supabase string).
 import { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, fonts } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { Modal, ui } from './ui'
 import { showToast } from './toast'
 import type { CSSProperties } from 'react'
@@ -44,6 +45,7 @@ export function AddClientModal({
   const [country, setCountry] = useState('IN')
   const [currency, setCurrency] = useState('INR')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -135,14 +137,25 @@ export function AddClientModal({
           </Field>
         </div>
         <Field label="Password" required>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={styles.input}
-            autoComplete="new-password"
-            placeholder="Min 8 characters"
-          />
+          <div style={styles.passwordWrap}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ ...styles.input, paddingRight: 42 }}
+              autoComplete="new-password"
+              placeholder="Min 8 characters"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((s) => !s)}
+              style={styles.eyeBtn}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
         </Field>
       </div>
       <div style={styles.actions}>
@@ -202,6 +215,19 @@ const styles: Record<string, CSSProperties> = {
     padding: '9px 11px',
     width: '100%',
     boxSizing: 'border-box',
+  },
+  passwordWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
+  eyeBtn: {
+    position: 'absolute',
+    right: 6,
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    color: t.text.muted,
+    padding: 6,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 },
   secondaryBtn: {
