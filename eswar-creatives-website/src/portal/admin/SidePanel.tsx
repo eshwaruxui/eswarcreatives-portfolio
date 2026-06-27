@@ -3,10 +3,14 @@
 // backdrop at z-200 and panel at z-201, sliding in via transform only using the
 // shared motionTokens. Used by the manage-client and project panels so all admin
 // drawers animate and stack identically.
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { tokens, t, fonts, motionTokens } from '../theme'
+
+// Slide duration in ms, parsed from the shared motion token so the exit timer
+// and the CSS transition can never drift apart.
+const SLIDE_MS = parseInt(motionTokens.durationBase, 10)
 
 function useIsNarrow(): boolean {
   const [narrow, setNarrow] = useState(
@@ -42,6 +46,7 @@ export function SidePanel({
 }) {
   const narrow = useIsNarrow()
   const [shown, setShown] = useState(false)
+  const closingRef = useRef(false)
 
   // Trigger the slide-in once mounted (transform from offscreen to 0).
   useEffect(() => {
@@ -49,20 +54,33 @@ export function SidePanel({
     return () => cancelAnimationFrame(t)
   }, [])
 
+  // Animate out before unmounting: slide the panel back offscreen (and fade the
+  // backdrop), then hand control to the caller once the transition has run, so
+  // closing reads as the mirror image of opening (H4: consistent motion). The
+  // ref guards against a double trigger (e.g. Escape during an outside click).
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return
+    closingRef.current = true
+    setShown(false)
+    window.setTimeout(onClose, SLIDE_MS)
+  }, [onClose])
+
   // H7 (flexibility/efficiency): Escape closes the drawer.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') requestClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [requestClose])
 
   const panelStyle: CSSProperties = narrow
     ? {
         ...styles.panelBase,
         ...styles.sheet,
         zIndex: baseZIndex,
+        // easeEnter on the way in, easeExit on the way out.
+        transition: `transform ${motionTokens.durationBase} ${shown ? motionTokens.easeEnter : motionTokens.easeExit}`,
         transform: shown ? 'translateY(0)' : 'translateY(100%)',
       }
     : {
@@ -70,12 +88,21 @@ export function SidePanel({
         ...styles.drawer,
         width,
         zIndex: baseZIndex,
+        transition: `transform ${motionTokens.durationBase} ${shown ? motionTokens.easeEnter : motionTokens.easeExit}`,
         transform: shown ? 'translateX(0)' : 'translateX(100%)',
       }
 
   return (
     <>
-      <div style={{ ...styles.backdrop, zIndex: baseZIndex - 1 }} onClick={onClose} />
+      <div
+        style={{
+          ...styles.backdrop,
+          zIndex: baseZIndex - 1,
+          opacity: shown ? 1 : 0,
+          transition: `opacity ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
+        }}
+        onClick={requestClose}
+      />
       <aside style={panelStyle} role="dialog" aria-label={title}>
         <header style={styles.head}>
           <div style={{ minWidth: 0 }}>
@@ -84,7 +111,7 @@ export function SidePanel({
           </div>
           <div style={styles.headActions}>
             {headerExtra}
-            <button type="button" style={styles.close} onClick={onClose} aria-label="Close panel">
+            <button type="button" style={styles.close} onClick={requestClose} aria-label="Close panel">
               <X size={18} />
             </button>
           </div>

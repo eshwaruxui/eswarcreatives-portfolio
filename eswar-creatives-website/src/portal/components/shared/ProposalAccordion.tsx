@@ -686,15 +686,19 @@ const styles: Record<string, CSSProperties> = {
 
   phaseList: { display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 },
   phaseCard: {
+    // Full 1px border on all four sides in both states. The rounded corners are
+    // handled by border-radius alone (no overflow:hidden, which was clipping the
+    // left edge); the Collapsible wrapper already hides its own overflow.
     border: `1px solid ${t.border.default}`,
     borderRadius: 12,
-    overflow: 'hidden',
     background: t.background.surface,
-    transition: `background ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
+    transition: `background ${motionTokens.durationBase} ${motionTokens.easeDefault}, box-shadow ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
   },
   phaseCardOpen: {
-    // Active/expanded phase: brand left accent + subtle row background.
-    borderLeft: `3px solid ${t.border.brand}`,
+    // Active/expanded phase: brand left accent + subtle row background. The
+    // accent is an inset shadow, not a wider border, so the left edge never
+    // disappears and the content never shifts on expand.
+    boxShadow: `inset 3px 0 0 0 ${t.border.brand}`,
     background: t.background.subtle,
   },
   phaseRow: {
