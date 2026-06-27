@@ -458,8 +458,10 @@ export function ProposalAccordion({
         <div style={styles.actions}>
           {actionError && <div style={styles.actionError}>{actionError}</div>}
 
-          {actionsDisabled ? (
-            // Preview: greyed, inert CTAs (the banner above explains why).
+          {actionsDisabled && live ? (
+            // Preview: greyed, inert CTAs (the banner above explains why). Only
+            // while the proposal is still live; a locked proposal falls through
+            // to its status note below so the preview stays truthful.
             <div style={styles.actionRow}>
               <button type="button" style={styles.disabledBtn} disabled>
                 Accept
