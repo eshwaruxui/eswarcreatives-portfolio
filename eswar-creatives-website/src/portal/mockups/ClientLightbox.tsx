@@ -4,10 +4,9 @@
 // the portal are:
 //   - images come from Supabase signed URLs via the `url` on each mockup,
 //   - the loading spinner is removed so images fade in silently,
-//   - the demo "Approve" toggle in the header is replaced by a status chip that
-//     reflects the persisted concept decision,
-//   - a client-only feedback panel writes per-image comments and a concept
-//     decision (approve / request changes) to `mockup_feedback`.
+//   - a client-only feedback panel writes per-image comments to mockup_feedback.
+//     Concept decisions (approve / request changes / not selected) are made on
+//     the mockup cards, not here, so this view is purely for viewing + comments.
 //
 // The artifact's self-contained `T` design-token object is kept as-is rather
 // than remapped onto theme.ts: this is an immersive dark surface with its own
@@ -49,8 +48,6 @@ function fmtDate(d: string): string {
   return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-type Decision = 'approved' | 'changes'
-
 export function ClientLightbox({
   mockups,
   meta,
@@ -75,13 +72,11 @@ export function ClientLightbox({
   const containerRef = useRef<HTMLDivElement>(null)
   const total = mockups.length
 
-  // ── Feedback state (client view only) ──
+  // ── Feedback state (client view only): per-image comments. Concept decisions
+  // are made on the mockup cards, not here. ──
   const [comment, setComment] = useState('')
   const [itemSaving, setItemSaving] = useState(false)
   const [itemSavedFor, setItemSavedFor] = useState<string | null>(null)
-  const [note, setNote] = useState('')
-  const [decisionSaving, setDecisionSaving] = useState(false)
-  const [decision, setDecision] = useState<Decision | null>(null)
   const [fbError, setFbError] = useState<string | null>(null)
 
   // ── Fullscreen toggle ──
@@ -220,27 +215,6 @@ export function ClientLightbox({
     }
   }
 
-  async function submitDecision(kind: Decision) {
-    setDecisionSaving(true)
-    setFbError(null)
-    try {
-      const { data: sess } = await supabase.auth.getUser()
-      const { error } = await supabase.from('mockup_feedback').insert({
-        set_id: setId,
-        item_id: null,
-        submitted_by: sess.user?.id ?? null,
-        feedback_type: kind === 'approved' ? 'concept_approval' : 'concept_rejection',
-        comment: note.trim() || null,
-      })
-      if (error) throw error
-      setDecision(kind)
-    } catch {
-      setFbError('Could not submit your decision. Try again.')
-    } finally {
-      setDecisionSaving(false)
-    }
-  }
-
   return (
     <div
       ref={containerRef}
@@ -266,45 +240,10 @@ export function ClientLightbox({
         {/* Left: Project, Concept, status */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,.5)', fontWeight: 500, letterSpacing: '.04em' }}>{meta.projectName}</div>
+          {/* Concept decisions live on the mockup cards (single entry point);
+              the lightbox is for viewing images and leaving per-image comments. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontFamily: T.fH, fontSize: 18, fontWeight: 500, color: T.n0, lineHeight: 1.2 }}>{meta.conceptName}</span>
-            {!isAdmin && decision && (
-              <span
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                  border: decision === 'approved' ? `1.5px solid ${T.forest600}` : `1.5px solid ${T.ruby500}`,
-                  background: decision === 'approved' ? T.forest600 : 'transparent',
-                  color: decision === 'approved' ? T.n0 : T.ruby500,
-                }}
-              >
-                {decision === 'approved' && Ic.check}
-                {decision === 'approved' ? 'Approved' : 'Changes requested'}
-              </span>
-            )}
-            {/* Concept decision is a global action, so it sits with the concept
-                title rather than at the foot of the panel. The optional note for
-                the decision stays in the feedback panel and feeds these buttons. */}
-            {!isAdmin && !decision && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => submitDecision('approved')}
-                  disabled={decisionSaving}
-                  style={{ ...fb.approveBtn, ...fb.topAction, ...(decisionSaving ? fb.btnDisabled : null) }}
-                >
-                  {Ic.check} Approve Concept
-                </button>
-                <button
-                  type="button"
-                  onClick={() => submitDecision('changes')}
-                  disabled={decisionSaving}
-                  style={{ ...fb.changesBtn, ...fb.topAction, ...(decisionSaving ? fb.btnDisabled : null) }}
-                >
-                  Request Changes
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
@@ -496,25 +435,6 @@ export function ClientLightbox({
             </div>
             {itemSavedFor === mockups[idx]?.id && <span style={fb.savedFlash}>Comment added</span>}
           </div>
-
-          {/* Concept note (optional). The Approve / Request Changes actions now
-              live in the top bar beside the concept title; this note feeds into
-              whichever decision the client makes there. Once a decision is in,
-              the top bar shows the status chip and this field is retired. */}
-          {!decision && (
-            <div style={fb.block}>
-              <label style={fb.label} htmlFor="concept-note">
-                Add a note for the whole concept (optional)
-              </label>
-              <input
-                id="concept-note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Share anything you would like us to know before deciding"
-                style={fb.noteInput}
-              />
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -593,51 +513,4 @@ const fb: Record<string, CSSProperties> = {
   },
   btnDisabled: { opacity: 0.5, cursor: 'default' },
   savedFlash: { fontSize: 12, color: T.gold400, fontFamily: T.fB },
-  noteInput: {
-    padding: '8px 10px',
-    fontSize: 13,
-    fontFamily: T.fB,
-    color: T.n0,
-    background: 'rgba(255,255,255,.06)',
-    border: '1px solid rgba(255,255,255,.15)',
-    borderRadius: T.r.sm,
-    outline: 'none',
-    boxSizing: 'border-box',
-  },
-  // Compact override so the decision buttons sit comfortably inline with the
-  // concept title in the top bar; a soft shadow keeps them legible over the
-  // image gradient behind the header.
-  topAction: {
-    padding: '7px 14px',
-    fontSize: 12.5,
-    boxShadow: '0 2px 8px rgba(0,0,0,.35)',
-  },
-  approveBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '9px 18px',
-    background: T.forest600,
-    color: T.n0,
-    border: 'none',
-    borderRadius: T.r.md,
-    fontSize: 13,
-    fontFamily: T.fB,
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  changesBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '9px 18px',
-    background: 'transparent',
-    color: T.ruby500,
-    border: `1.5px solid ${T.ruby500}`,
-    borderRadius: T.r.md,
-    fontSize: 13,
-    fontFamily: T.fB,
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
 }
