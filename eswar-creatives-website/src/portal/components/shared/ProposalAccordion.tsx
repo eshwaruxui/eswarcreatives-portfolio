@@ -335,7 +335,12 @@ export function ProposalAccordion({
               >
                 <ChevronRight
                   size={18}
-                  style={{ ...styles.chevron, ...(open ? styles.chevronOpen : null) }}
+                  style={{
+                    ...styles.chevron,
+                    ...(open ? styles.chevronOpen : null),
+                    // Expanded phase caret turns teal to read as the active row.
+                    ...(open ? { color: t.text.primaryBrand } : null),
+                  }}
                 />
                 <span
                   style={{ ...styles.phasePill, background: tone.bg, color: tone.fg }}
@@ -741,7 +746,7 @@ const styles: Record<string, CSSProperties> = {
   chevron: {
     color: t.text.muted,
     flexShrink: 0,
-    transition: `transform ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+    transition: `transform ${motionTokens.durationFast} ${motionTokens.easeDefault}, color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
   chevronOpen: { transform: 'rotate(90deg)' },
   phasePill: {
