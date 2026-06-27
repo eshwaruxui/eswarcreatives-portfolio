@@ -3,6 +3,7 @@
 // shared ClientLightbox for review and feedback.
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router'
+import { ArrowRight, Check, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { type PortalProfile } from '../PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './ClientNav'
@@ -218,32 +219,7 @@ function Mockups({ profile }: { profile: PortalProfile }) {
                 </div>
 
                 <div style={styles.cardFooter}>
-                  {decisions[s.id] ? (
-                    // Decided: muted/coloured pill + a way back to awaiting.
-                    <div style={styles.decidedRow}>
-                      <DecisionPill decision={decisions[s.id]!} />
-                      <button
-                        type="button"
-                        style={styles.changeLink}
-                        onClick={() => void resetDecision(s.id)}
-                      >
-                        Change decision
-                      </button>
-                    </div>
-                  ) : (
-                    // Awaiting: the three concept decisions (single click each).
-                    <div style={styles.actionRow}>
-                      <button type="button" style={styles.approveBtn} onClick={() => void decide(s.id, 'approved')}>
-                        Approve concept
-                      </button>
-                      <button type="button" style={styles.changesBtn} onClick={() => void decide(s.id, 'changes_requested')}>
-                        Request changes
-                      </button>
-                      <button type="button" style={styles.notSelBtn} onClick={() => void decide(s.id, 'not_selected')}>
-                        Not selected
-                      </button>
-                    </div>
-                  )}
+                  {/* Primary exploration action, always visible, on top. */}
                   <button
                     type="button"
                     style={styles.reviewBtn}
@@ -251,7 +227,46 @@ function Mockups({ profile }: { profile: PortalProfile }) {
                     disabled={opening === s.id}
                   >
                     {opening === s.id ? 'Opening...' : 'Review Mockups'}
+                    <ArrowRight size={15} />
                   </button>
+
+                  {/* Decisions, separated from navigation. */}
+                  <div style={styles.decisionSection}>
+                    <div style={styles.decisionLabel}>Your decision</div>
+                    {decisions[s.id] ? (
+                      // Decided: pill + a way back to awaiting.
+                      <div style={styles.decidedRow}>
+                        <DecisionPill decision={decisions[s.id]!} />
+                        <button
+                          type="button"
+                          style={styles.changeLink}
+                          onClick={() => void resetDecision(s.id)}
+                        >
+                          Change decision
+                        </button>
+                      </div>
+                    ) : (
+                      // Awaiting: Approve + Not selected (equal weight), then the
+                      // less prominent Request changes (single click each).
+                      <>
+                        <div style={styles.decisionTwoCol}>
+                          <button type="button" style={styles.approveBtn} onClick={() => void decide(s.id, 'approved')}>
+                            <Check size={14} /> Approve
+                          </button>
+                          <button type="button" style={styles.notSelBtn} onClick={() => void decide(s.id, 'not_selected')}>
+                            <X size={14} /> Not selected
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          style={styles.requestChangesBtn}
+                          onClick={() => void decide(s.id, 'changes_requested')}
+                        >
+                          Request changes
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </article>
             ))}
@@ -342,42 +357,69 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500,
   },
   cardFooter: { display: 'flex', flexDirection: 'column', gap: 12 },
-  actionRow: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  // Divider + label separating navigation from the decision controls.
+  decisionSection: {
+    borderTop: `1px solid ${t.border.subtle}`,
+    paddingTop: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  decisionLabel: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    color: t.text.muted,
+  },
+  decisionTwoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 },
   approveBtn: {
-    background: tokens.primary,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    background: tokens.green,
     color: t.text.onPrimary,
     border: 'none',
     borderRadius: 8,
-    padding: '7px 11px',
+    padding: '8px 10px',
     fontFamily: fonts.body,
     fontSize: 12.5,
     fontWeight: 600,
     cursor: 'pointer',
     transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
-  changesBtn: {
-    background: 'transparent',
-    color: tokens.ruby,
-    border: `1px solid ${tokens.ruby}`,
+  // Neutral muted, per the not-selected token rule.
+  notSelBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    background: t.background.subtle,
+    color: t.text.muted,
+    border: `1px solid ${t.border.subtle}`,
     borderRadius: 8,
-    padding: '7px 11px',
+    padding: '8px 10px',
     fontFamily: fonts.body,
     fontSize: 12.5,
     fontWeight: 600,
     cursor: 'pointer',
     transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
-  // Ghost / neutral, per the not-selected token rule.
-  notSelBtn: {
+  // Less prominent than Approve / Not selected: outlined, full width.
+  requestChangesBtn: {
+    width: '100%',
     background: 'transparent',
-    color: t.text.muted,
-    border: `1px solid ${t.border.subtle}`,
+    color: t.text.secondary,
+    border: `1px solid ${t.border.default}`,
     borderRadius: 8,
-    padding: '7px 11px',
+    padding: '7px 10px',
     fontFamily: fonts.body,
-    fontSize: 12.5,
-    fontWeight: 600,
+    fontSize: 12,
+    fontWeight: 500,
     cursor: 'pointer',
+    boxSizing: 'border-box',
     transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
   decidedRow: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
@@ -402,16 +444,22 @@ const styles: Record<string, CSSProperties> = {
   cardMeta: { margin: '8px 0 0', fontSize: 13, color: tokens.textMuted },
   cardSub: { margin: '4px 0 0', fontSize: 12, color: tokens.textMuted },
   reviewBtn: {
-    alignSelf: 'flex-start',
-    background: tokens.primary,
-    color: tokens.surface,
-    border: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+    background: 'transparent',
+    color: t.text.primary,
+    border: `1px solid ${t.border.default}`,
     borderRadius: 8,
-    padding: '9px 16px',
+    padding: '10px 16px',
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 600,
     cursor: 'pointer',
+    boxSizing: 'border-box',
+    transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
   empty: {
     background: tokens.surface,
