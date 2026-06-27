@@ -10,6 +10,7 @@ import { PortalGuard, type PortalProfile } from '../PortalGuard'
 import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
 import { tokens, fonts } from '../theme'
 import { formatMoney, formatDate, mono } from '../admin/ui'
+import { InvoiceDocument, invoiceStatusPill } from '../components/shared/InvoiceDocument'
 
 type Invoice = {
   id: string
@@ -28,17 +29,7 @@ type Invoice = {
 
 const LOAD_ERROR = 'We could not load your invoices. Please contact eswar@eswarcreatives.in'
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-// Client-facing display: paid / overdue / unpaid. Overdue = past due and unpaid.
-function displayStatus(inv: Invoice): { key: 'paid' | 'overdue' | 'unpaid'; bg: string; fg: string; label: string } {
-  if (inv.status === 'paid') return { key: 'paid', bg: tokens.greenLight, fg: tokens.green, label: 'Paid' }
-  if (inv.due_date && inv.due_date < todayISO())
-    return { key: 'overdue', bg: tokens.rubyLight, fg: tokens.ruby, label: 'Overdue' }
-  return { key: 'unpaid', bg: tokens.goldLight, fg: tokens.goldDark, label: 'Unpaid' }
-}
+type BilledTo = { company: string; contactName: string | null; city: string | null }
 
 // Stored numbers are EC-I-YYYY-NNN; show the cleaner EC-YYYY-NNN (matches admin).
 function displayInvoiceNumber(stored: string): string {
@@ -55,6 +46,7 @@ export function ClientInvoicesPage() {
 
 function Invoices({ profile }: { profile: PortalProfile }) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [billedTo, setBilledTo] = useState<BilledTo>({ company: '', contactName: null, city: null })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState<Invoice | null>(null)
@@ -65,13 +57,20 @@ function Invoices({ profile }: { profile: PortalProfile }) {
       try {
         const { data: client, error: cErr } = await supabase
           .from('clients')
-          .select('id')
+          .select('id, company_name, contact_name, country')
           .eq('profile_id', profile.id)
           .maybeSingle()
         if (cErr) throw cErr
         if (!client) {
           if (!cancelled) setInvoices([])
           return
+        }
+        if (!cancelled) {
+          setBilledTo({
+            company: client.company_name || profile.full_name || 'Client',
+            contactName: client.contact_name ?? null,
+            city: (client as { country?: string }).country ?? null,
+          })
         }
         const { data, error: iErr } = await supabase
           .from('invoices')
@@ -122,7 +121,7 @@ function Invoices({ profile }: { profile: PortalProfile }) {
               </thead>
               <tbody>
                 {invoices.map((inv) => {
-                  const s = displayStatus(inv)
+                  const s = invoiceStatusPill(inv.status, inv.due_date)
                   return (
                     // H6: each row is clearly actionable and opens its detail.
                     <tr
@@ -150,19 +149,31 @@ function Invoices({ profile }: { profile: PortalProfile }) {
         )}
       </main>
 
-      {open && <InvoicePanel invoice={open} onClose={() => setOpen(null)} />}
+      {open && (
+        <InvoicePanel
+          invoice={open}
+          billedTo={{ ...billedTo, email: profile.email }}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </div>
   )
 }
 
-function InvoicePanel({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
+function InvoicePanel({
+  invoice,
+  billedTo,
+  onClose,
+}: {
+  invoice: Invoice
+  billedTo: BilledTo & { email: string | null }
+  onClose: () => void
+}) {
   const [shown, setShown] = useState(false)
   useEffect(() => {
     const t = requestAnimationFrame(() => setShown(true))
     return () => cancelAnimationFrame(t)
   }, [])
-
-  const s = displayStatus(invoice)
 
   return (
     <>
@@ -176,45 +187,24 @@ function InvoicePanel({ invoice, onClose }: { invoice: Invoice; onClose: () => v
           <X size={18} />
         </button>
 
-        <div style={styles.panelBody}>
-          <div style={styles.panelNumber}>{displayInvoiceNumber(invoice.invoice_number)}</div>
-          <div style={styles.panelAmount}>{formatMoney(Number(invoice.amount), invoice.currency)}</div>
-          <span style={{ ...styles.badge, background: s.bg, color: s.fg, marginTop: 8 }}>{s.label}</span>
-
-          <div style={styles.detailList}>
-            <Detail k="Label" v={invoice.label || '-'} />
-            <Detail
-              k="Percent of total"
-              v={invoice.pct_of_total != null ? `${Number(invoice.pct_of_total)}%` : '-'}
-            />
-            <Detail k="Due date" v={formatDate(invoice.due_date)} />
-            <Detail k="Paid date" v={invoice.paid_date ? formatDate(invoice.paid_date) : '-'} />
-            <Detail k="Payment method" v={invoice.payment_method || '-'} />
-          </div>
-
-          {invoice.notes && (
-            <div style={styles.notes}>
-              <div style={styles.notesLabel}>Notes</div>
-              <p style={styles.notesBody}>{invoice.notes}</p>
-            </div>
-          )}
-
-          <div style={styles.payBox}>
-            <div style={styles.payLabel}>Payment</div>
-            <p style={styles.payText}>Payment instructions will appear here.</p>
-          </div>
-        </div>
+        {/* Same template as the admin invoice preview (one shared document). */}
+        <InvoiceDocument
+          invoice={{
+            number: displayInvoiceNumber(invoice.invoice_number),
+            status: invoice.status,
+            label: invoice.label,
+            amount: Number(invoice.amount),
+            currency: invoice.currency,
+            issuedDate: invoice.created_at,
+            dueDate: invoice.due_date,
+            paidDate: invoice.paid_date,
+            paymentMethod: invoice.payment_method,
+            notes: invoice.notes,
+          }}
+          billedTo={billedTo}
+        />
       </aside>
     </>
-  )
-}
-
-function Detail({ k, v }: { k: string; v: string }) {
-  return (
-    <div style={styles.detailRow}>
-      <span style={styles.detailKey}>{k}</span>
-      <span style={styles.detailVal}>{v}</span>
-    </div>
   )
 }
 
@@ -296,7 +286,7 @@ const styles: Record<string, CSSProperties> = {
     top: 0,
     right: 0,
     height: '100vh',
-    width: 420,
+    width: 480,
     maxWidth: '92vw',
     background: tokens.surface,
     borderLeft: `1px solid ${tokens.border}`,
@@ -318,42 +308,4 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     zIndex: 1,
   },
-  panelBody: { padding: 32 },
-  panelNumber: { fontFamily: mono, fontSize: 13, color: tokens.textMuted },
-  panelAmount: {
-    fontFamily: fonts.heading,
-    fontSize: 28,
-    fontWeight: 700,
-    color: tokens.text,
-    marginTop: 6,
-  },
-  detailList: { marginTop: 24, display: 'flex', flexDirection: 'column', gap: 2 },
-  detailRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: 16,
-    padding: '8px 0',
-    borderBottom: `1px solid ${tokens.border}`,
-  },
-  detailKey: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted },
-  detailVal: { fontFamily: fonts.body, fontSize: 14, color: tokens.text, textAlign: 'right' },
-  notes: { marginTop: 20, background: tokens.bg, borderRadius: 8, padding: 14 },
-  notesLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 700, color: tokens.text, marginBottom: 4 },
-  notesBody: { fontFamily: fonts.body, fontSize: 13, color: tokens.textMuted, margin: 0, lineHeight: 1.5 },
-  payBox: {
-    marginTop: 24,
-    border: `1px dashed ${tokens.border}`,
-    borderRadius: 8,
-    padding: 16,
-  },
-  payLabel: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    color: tokens.textMuted,
-    marginBottom: 6,
-  },
-  payText: { margin: 0, fontFamily: fonts.body, fontSize: 14, color: tokens.textMuted },
 }
