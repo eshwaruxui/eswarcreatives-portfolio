@@ -2,9 +2,10 @@
 // the signed-in client (row-level security does the scoping) and opens the
 // shared ClientLightbox for review and feedback.
 import { useEffect, useState } from 'react'
+import { useOutletContext } from 'react-router'
 import { supabase } from '../../lib/supabase'
-import { PortalGuard, type PortalProfile } from '../PortalGuard'
-import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
+import { type PortalProfile } from '../PortalGuard'
+import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { tokens, fonts } from '../theme'
 import { formatDate } from '../admin/ui'
 import { ClientLightbox } from '../mockups/ClientLightbox'
@@ -23,9 +24,8 @@ type PublishedSet = {
 }
 
 export function MockupsPage() {
-  return (
-    <PortalGuard requireRole="client">{(profile) => <Mockups profile={profile} />}</PortalGuard>
-  )
+  const profile = useOutletContext<PortalProfile>()
+  return <Mockups profile={profile} />
 }
 
 type SetDecision = 'approved' | 'changes_requested'
@@ -117,8 +117,6 @@ function Mockups({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <ClientNav profile={profile} />
-
       <main style={styles.container}>
         <div style={styles.heroBlock}>
           <h1 style={styles.title}>Mockups</h1>

@@ -3,11 +3,12 @@
 // simplified for the client to paid / unpaid / overdue.
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only.
 import { useEffect, useState } from 'react'
+import { useOutletContext } from 'react-router'
 import { X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
-import { PortalGuard, type PortalProfile } from '../PortalGuard'
-import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
+import { type PortalProfile } from '../PortalGuard'
+import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { tokens, fonts } from '../theme'
 import { formatMoney, formatDate, mono } from '../admin/ui'
 import { InvoiceDocument, invoiceStatusPill, type InvoiceLine } from '../components/shared/InvoiceDocument'
@@ -37,11 +38,8 @@ function displayInvoiceNumber(stored: string): string {
 }
 
 export function ClientInvoicesPage() {
-  return (
-    <PortalGuard requireRole="client">
-      {(profile) => <Invoices profile={profile} />}
-    </PortalGuard>
-  )
+  const profile = useOutletContext<PortalProfile>()
+  return <Invoices profile={profile} />
 }
 
 function Invoices({ profile }: { profile: PortalProfile }) {
@@ -94,7 +92,6 @@ function Invoices({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <ClientNav profile={profile} />
       <main style={styles.container}>
         <h1 style={styles.title}>Invoices</h1>
 

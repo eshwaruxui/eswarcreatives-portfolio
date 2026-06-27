@@ -2,21 +2,19 @@
 // reset that emails a secure link (rather than changing the password inline).
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only.
 import { useState } from 'react'
+import { useOutletContext } from 'react-router'
 import { Pencil } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
-import { PortalGuard, type PortalProfile } from './PortalGuard'
-import { ClientNav, CLIENT_NAV_HEIGHT } from './client/ClientNav'
+import { type PortalProfile } from './PortalGuard'
+import { CLIENT_NAV_HEIGHT } from './client/ClientNav'
 import { tokens, fonts, motionTokens } from './theme'
 
 const RESET_REDIRECT = 'https://www.eswarcreatives.in/portal/reset-password'
 
 export function AccountPage() {
-  return (
-    <PortalGuard requireRole="client">
-      {(profile) => <Account profile={profile} />}
-    </PortalGuard>
-  )
+  const profile = useOutletContext<PortalProfile>()
+  return <Account profile={profile} />
 }
 
 function Account({ profile }: { profile: PortalProfile }) {
@@ -47,7 +45,6 @@ function Account({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <ClientNav profile={profile} />
       <main style={styles.container}>
         <h1 style={styles.title}>Account</h1>
 

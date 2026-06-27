@@ -27,6 +27,7 @@ import { MockupsAdmin } from "../portal/admin/MockupsAdmin";
 import { DiscoveryPlaceholder } from "../portal/admin/DiscoveryPlaceholder";
 import { CampaignsAdmin } from "../portal/admin/CampaignsAdmin";
 import { MockupsPage } from "../portal/client/MockupsPage";
+import { ClientShell } from "../portal/client/ClientShell";
 import { ClientDashboardPage } from "../portal/ClientDashboard";
 import { ClientProposalsPage } from "../portal/client/ClientProposals";
 import { ClientInvoicesPage } from "../portal/client/ClientInvoices";
@@ -37,15 +38,19 @@ export const routeConfig = [
   { path: "/portal/login",          Component: LoginPage  },
   { path: "/portal/verify",         Component: VerifyPage },
   { path: "/portal/sketch-review",  Component: SketchReviewPage },
-  { path: "/portal/account",        Component: AccountPage },
-  // Phase 5 client portal screens (PortalGuard requireRole="client" inside each).
-  { path: "/portal/projects",       Component: ClientDashboardPage },
-  { path: "/portal/proposals",      Component: ClientProposalsPage },
-  { path: "/portal/invoices",       Component: ClientInvoicesPage },
-  // Client-facing mockups review page (PortalGuard inside the component).
-  { path: "/portal/mockups",        Component: MockupsPage },
-  // Phase 5 client campaigns list (PortalGuard requireRole="client" inside).
-  { path: "/portal/campaigns",      Component: ClientCampaignsPage },
+  // Phase 5 client portal — persistent ClientShell (ClientNav + Outlet) so the
+  // top nav mounts once and never flashes on navigation. Role-gated in the shell.
+  {
+    Component: ClientShell,
+    children: [
+      { path: "/portal/projects",   Component: ClientDashboardPage },
+      { path: "/portal/proposals",  Component: ClientProposalsPage },
+      { path: "/portal/invoices",   Component: ClientInvoicesPage },
+      { path: "/portal/mockups",    Component: MockupsPage },
+      { path: "/portal/campaigns",  Component: ClientCampaignsPage },
+      { path: "/portal/account",    Component: AccountPage },
+    ],
+  },
   // Phase 5 reviewer landing (PortalGuard requireRole="reviewer" inside).
   { path: "/portal/review",             Component: ReviewCampaignPage },
   { path: "/portal/review/:campaignId", Component: ReviewCampaignPage },

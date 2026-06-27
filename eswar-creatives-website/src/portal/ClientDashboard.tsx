@@ -6,11 +6,11 @@
 // (Figma node 4149:31). Theme tokens only; no raw hex; no em dashes; plain
 // errors only.
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { Link } from 'react-router'
+import { Link, useOutletContext } from 'react-router'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
-import { PortalGuard, type PortalProfile } from './PortalGuard'
-import { ClientNav, CLIENT_NAV_HEIGHT } from './client/ClientNav'
+import { type PortalProfile } from './PortalGuard'
+import { CLIENT_NAV_HEIGHT } from './client/ClientNav'
 import { getBadges, subscribeBadges } from './client/clientNotifications'
 import { DocumentChips } from './client/DocumentChips'
 import type { ClientDocument } from './client/DocumentChips'
@@ -70,11 +70,8 @@ function useIsNarrow(): boolean {
 }
 
 export function ClientDashboardPage() {
-  return (
-    <PortalGuard requireRole="client">
-      {(profile) => <Dashboard profile={profile} />}
-    </PortalGuard>
-  )
+  const profile = useOutletContext<PortalProfile>()
+  return <Dashboard profile={profile} />
 }
 
 function Dashboard({ profile }: { profile: PortalProfile }) {
@@ -246,7 +243,6 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <ClientNav profile={profile} />
       {/* Banner enter + badge entrance keyframes (transform/opacity only). */}
       <style>{`
         @keyframes dashBannerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}

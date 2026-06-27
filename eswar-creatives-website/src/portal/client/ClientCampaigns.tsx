@@ -3,12 +3,12 @@
 // rows) and links into each campaign's review page.
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only.
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useOutletContext } from 'react-router'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
-import { PortalGuard, type PortalProfile } from '../PortalGuard'
-import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
+import { type PortalProfile } from '../PortalGuard'
+import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { ClientConceptSetPanel } from './ClientConceptSetPanel'
 import { formatDate, mono } from '../admin/ui'
 import { tokens, t, fonts, motionTokens } from '../theme'
@@ -175,11 +175,8 @@ async function loadCompletedPolls(profileId: string): Promise<CompletedPoll[]> {
 }
 
 export function ClientCampaignsPage() {
-  return (
-    <PortalGuard requireRole="client">
-      {(profile) => <Campaigns profile={profile} />}
-    </PortalGuard>
-  )
+  const profile = useOutletContext<PortalProfile>()
+  return <Campaigns profile={profile} />
 }
 
 function Campaigns({ profile }: { profile: PortalProfile }) {
@@ -239,7 +236,6 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <ClientNav profile={profile} />
       <main style={styles.container}>
         <div style={styles.heroBlock}>
           <h1 style={styles.title}>Campaigns</h1>

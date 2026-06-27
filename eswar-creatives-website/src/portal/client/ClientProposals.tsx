@@ -3,10 +3,11 @@
 // full proposal and its Accept / Decline actions (ClientProposalPanel).
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only.
 import { useEffect, useState } from 'react'
+import { useOutletContext } from 'react-router'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
-import { PortalGuard, type PortalProfile } from '../PortalGuard'
-import { ClientNav, CLIENT_NAV_HEIGHT } from './ClientNav'
+import { type PortalProfile } from '../PortalGuard'
+import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { ClientProposalPanel } from './ClientProposalPanel'
 import { tokens, t, fonts } from '../theme'
 import { formatMoney, formatDate } from '../admin/ui'
@@ -43,11 +44,8 @@ const VERTICAL_LABEL: Record<string, string> = {
 }
 
 export function ClientProposalsPage() {
-  return (
-    <PortalGuard requireRole="client">
-      {(profile) => <Proposals profile={profile} />}
-    </PortalGuard>
-  )
+  const profile = useOutletContext<PortalProfile>()
+  return <Proposals profile={profile} />
 }
 
 function Proposals({ profile }: { profile: PortalProfile }) {
@@ -98,7 +96,6 @@ function Proposals({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <ClientNav profile={profile} />
       <main style={styles.container}>
         <h1 style={styles.title}>Proposals</h1>
 
