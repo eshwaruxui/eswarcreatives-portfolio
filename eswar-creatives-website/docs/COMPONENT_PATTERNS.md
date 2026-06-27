@@ -110,6 +110,33 @@ shipping.
 
 ---
 
+## Text Color Token Rule
+
+### Rule
+All text colors across the portal must use t.text.* semantic tokens only. No raw
+hex, no tokens.n* values for text.
+
+### Token hierarchy
+- t.text.primary (neutral/900): headings, labels, key data, amounts
+- t.text.secondary (neutral/600): body, descriptions
+- t.text.tertiary (neutral/500): supporting, metadata
+- t.text.muted (neutral/450): hints, placeholders, timestamps, captions
+- t.text.disabled (neutral/350): disabled states only
+
+White text on a teal/brand fill uses t.text.onPrimary (not a raw hex).
+
+### Never use for text
+- Raw hex values
+- tokens.n* directly
+- Any color not in the t.text.* map
+
+Note: the legacy flat tokens.text / tokens.textMuted are teal-tinted and must not
+be used for text; teal character belongs on interactive elements only. The
+ClientLightbox is an intentionally self-contained dark surface with its own local
+palette and is exempt.
+
+---
+
 ## Standing rules
 - No em dashes in any component copy or code
 - No raw hex outside theme.ts
