@@ -189,7 +189,7 @@ export function ProposalDetail() {
         const { data: prop, error: pErr } = await supabase
           .from('proposals')
           .select(
-            'id, proposal_number, client_id, client_name, company_name, title, vertical, currency, total_amount, discount_pct, discount_label, payment_terms, revision_rounds, key_note, status, valid_until, accepted_at'
+            'id, proposal_number, client_id, client_name, company_name, title, vertical, currency, total_amount, discount_pct, discount_label, payment_terms, revision_rounds, key_note, status, valid_until, proposal_date, accepted_at'
           )
           .eq('id', id)
           .single()

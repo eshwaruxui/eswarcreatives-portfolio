@@ -21,6 +21,7 @@ type DraftShape = {
   vertical: string
   currency: string
   validUntil: string
+  proposalDate: string
   discountPct: string
   discountLabel: string
   revisionRounds: string
@@ -123,6 +124,7 @@ export type ProposalFull = {
   key_note: string | null
   status: string
   valid_until: string | null
+  proposal_date: string | null
   accepted_at: string | null
 }
 
@@ -184,6 +186,10 @@ export function ProposalForm({
   const [vertical, setVertical] = useState(draft?.vertical ?? existing?.vertical ?? 'brand')
   const [currency, setCurrency] = useState(draft?.currency ?? existing?.currency ?? 'INR')
   const [validUntil, setValidUntil] = useState(draft?.validUntil ?? existing?.valid_until ?? '')
+  // Proposal date: existing value on edit, otherwise today for a new proposal.
+  const [proposalDate, setProposalDate] = useState(
+    draft?.proposalDate ?? existing?.proposal_date ?? new Date().toISOString().slice(0, 10)
+  )
   const [discountPct, setDiscountPct] = useState(
     draft?.discountPct ?? (existing?.discount_pct != null ? String(existing.discount_pct) : '')
   )
@@ -249,6 +255,7 @@ export function ProposalForm({
         vertical,
         currency,
         validUntil,
+        proposalDate,
         discountPct,
         discountLabel,
         revisionRounds,
@@ -274,6 +281,7 @@ export function ProposalForm({
     vertical,
     currency,
     validUntil,
+    proposalDate,
     discountPct,
     discountLabel,
     revisionRounds,
@@ -522,6 +530,7 @@ export function ProposalForm({
         key_note: keyNote.trim() || null,
         status,
         valid_until: validUntil,
+        proposal_date: proposalDate || null,
         content: contentSnapshot,
       }
 
@@ -765,6 +774,14 @@ export function ProposalForm({
               <option value="brand">Brand</option>
               <option value="saas">SaaS</option>
             </select>
+          </Field>
+          <Field label="Proposal date">
+            <input
+              type="date"
+              value={proposalDate}
+              onChange={(e) => setProposalDate(e.target.value)}
+              style={styles.input}
+            />
           </Field>
           <Field label="Valid until" required error={showFieldError('validUntil', !validUntil) ? 'Valid-until date is required' : null}>
             <input
