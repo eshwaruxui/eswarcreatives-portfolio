@@ -397,8 +397,14 @@ export function ProposalAccordion({
                             {sol.overview && (
                               <p style={styles.solutionOverview}>{sol.overview}</p>
                             )}
-                            {sol.items.map((it) => (
-                              <div key={it.id} style={styles.itemRow}>
+                            {sol.items.map((it, ii) => (
+                              <div
+                                key={it.id}
+                                style={{
+                                  ...styles.itemRow,
+                                  ...(ii > 0 ? styles.itemRowDivider : null),
+                                }}
+                              >
                                 {/* Row 1: title + right-aligned amount. */}
                                 <div style={styles.itemTitleRow}>
                                   <span style={styles.itemTitle}>{it.title}</span>
@@ -829,6 +835,9 @@ const styles: Record<string, CSSProperties> = {
   },
   itemRow: {
     padding: '8px 0',
+  },
+  // Divider between consecutive line items (not above the first).
+  itemRowDivider: {
     borderTop: `1px solid ${t.border.subtle}`,
   },
   itemTitleRow: {
@@ -837,7 +846,7 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: 'space-between',
     gap: 16,
   },
-  itemTitle: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: t.text.primary },
+  itemTitle: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 14, fontWeight: 500, color: t.text.primary },
   itemScope: {
     fontFamily: fonts.body,
     fontSize: 13,
