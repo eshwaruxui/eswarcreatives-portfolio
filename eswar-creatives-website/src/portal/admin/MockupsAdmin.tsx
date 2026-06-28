@@ -72,6 +72,9 @@ function useIsNarrow(): boolean {
 export function MockupsAdmin() {
   const { selectedClientId, clients } = usePortal()
   const [sets, setSets] = useState<MockupSetRow[]>([])
+  // Latest client concept decision per set id ('approved' | 'not_selected' |
+  // 'changes_requested'); absent means awaiting.
+  const [decisions, setDecisions] = useState<Record<string, string>>({})
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -94,8 +97,36 @@ export function MockupsAdmin() {
       ])
       if (setsRes.error) throw setsRes.error
       if (projRes.error) throw projRes.error
-      setSets((setsRes.data ?? []) as unknown as MockupSetRow[])
+      const setRows = (setsRes.data ?? []) as unknown as MockupSetRow[]
+      setSets(setRows)
       setProjects((projRes.data ?? []) as ProjectOption[])
+
+      // Latest concept decision per set. concept_awaiting is a reset marker, so
+      // when it is the latest row the set falls back to awaiting (no decision).
+      const setIds = setRows.map((r) => r.id)
+      if (setIds.length > 0) {
+        const { data: fb } = await supabase
+          .from('mockup_feedback')
+          .select('set_id, feedback_type, created_at')
+          .in('set_id', setIds)
+          .in('feedback_type', [
+            'concept_approval',
+            'concept_rejection',
+            'concept_not_selected',
+            'concept_awaiting',
+          ])
+          .order('created_at', { ascending: true })
+        const map: Record<string, string> = {}
+        for (const r of (fb ?? []) as { set_id: string; feedback_type: string }[]) {
+          if (r.feedback_type === 'concept_awaiting') delete map[r.set_id]
+          else if (r.feedback_type === 'concept_approval') map[r.set_id] = 'approved'
+          else if (r.feedback_type === 'concept_not_selected') map[r.set_id] = 'not_selected'
+          else map[r.set_id] = 'changes_requested'
+        }
+        setDecisions(map)
+      } else {
+        setDecisions({})
+      }
     } catch {
       // H9: plain-language error, never a raw Supabase string.
       setError('Could not load mockups. Refresh to try again.')
@@ -143,6 +174,7 @@ export function MockupsAdmin() {
                 <th style={styles.th}>Phase</th>
                 <th style={{ ...styles.th, textAlign: 'right' }}>Images</th>
                 <th style={styles.th}>Status</th>
+                <th style={styles.th}>Client decision</th>
                 <th style={styles.th}>Created</th>
               </tr>
             </thead>
@@ -160,6 +192,10 @@ export function MockupsAdmin() {
                   <td style={{ ...styles.td, textAlign: 'right' }}>{itemCount(s)}</td>
                   <td style={styles.td}>
                     <StatusPill status={s.status} />
+                  </td>
+                  {/* Client concept decision, additive to and separate from status. */}
+                  <td style={styles.td}>
+                    <ClientDecisionPill decision={decisions[s.id]} />
                   </td>
                   {/* H2: human-readable date, never a raw timestamp. */}
                   <td style={styles.td}>{formatDate(s.created_at)}</td>
@@ -225,6 +261,37 @@ function StatusPill({ status }: { status: SetStatus }) {
       }}
     >
       {status}
+    </span>
+  )
+}
+
+// Latest client concept decision: success = approved, warning = changes
+// requested, muted = not selected, subtle/muted = awaiting (no feedback yet).
+function ClientDecisionPill({ decision }: { decision?: string }) {
+  const tone =
+    decision === 'approved'
+      ? { bg: tokens.greenLight, fg: tokens.green, label: 'Approved' }
+      : decision === 'changes_requested'
+      ? { bg: tokens.goldLight, fg: tokens.goldDark, label: 'Changes requested' }
+      : decision === 'not_selected'
+      ? { bg: t.background.subtle, fg: t.text.muted, label: 'Not selected' }
+      : { bg: t.background.subtle, fg: t.text.muted, label: 'Awaiting' }
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 10px',
+        borderRadius: 999,
+        background: tone.bg,
+        color: tone.fg,
+        fontFamily: fonts.body,
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: 0.2,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {tone.label}
     </span>
   )
 }
