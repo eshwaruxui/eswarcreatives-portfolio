@@ -637,7 +637,7 @@ const styles: Record<string, CSSProperties> = {
   metaLabel: {
     fontFamily: fonts.body,
     fontSize: 11,
-    color: t.text.muted,
+    color: t.text.tertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
