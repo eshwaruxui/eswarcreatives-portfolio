@@ -399,15 +399,15 @@ export function ProposalAccordion({
                             )}
                             {sol.items.map((it) => (
                               <div key={it.id} style={styles.itemRow}>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={styles.itemTitle}>{it.title}</div>
-                                  {it.scope && (
-                                    <div style={styles.itemScope}>{it.scope}</div>
-                                  )}
+                                {/* Row 1: title + right-aligned amount. */}
+                                <div style={styles.itemTitleRow}>
+                                  <span style={styles.itemTitle}>{it.title}</span>
+                                  <span style={styles.itemAmount}>
+                                    {formatMoney(it.amount, currency)}
+                                  </span>
                                 </div>
-                                <span style={styles.itemAmount}>
-                                  {formatMoney(it.amount, currency)}
-                                </span>
+                                {/* Row 2: description spans the full content width. */}
+                                {it.scope && <div style={styles.itemScope}>{it.scope}</div>}
                               </div>
                             ))}
                             {sol.keyNote && (
@@ -816,7 +816,9 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
     textAlign: 'right',
   },
-  solutionBody: { padding: '0 4px 10px 32px' },
+  // Line items align with the solution row's left edge; the chevron/number are
+  // the only hierarchy indicators, no extra indentation.
+  solutionBody: { padding: '0 4px 10px' },
   solutionTimeline: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, margin: '0 0 6px' },
   solutionOverview: {
     fontFamily: fonts.body,
@@ -826,14 +828,16 @@ const styles: Record<string, CSSProperties> = {
     margin: '0 0 8px',
   },
   itemRow: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 16,
     padding: '8px 0',
     borderTop: `1px solid ${t.border.subtle}`,
   },
-  itemTitle: { fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: t.text.primary },
+  itemTitleRow: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  itemTitle: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: t.text.primary },
   itemScope: {
     fontFamily: fonts.body,
     fontSize: 13,
