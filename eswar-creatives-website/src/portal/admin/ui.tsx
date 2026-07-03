@@ -72,9 +72,14 @@ const STATUS_TONES: Record<string, Tone> = {
   // invoices
   pending: { bg: tokens.goldLight, fg: tokens.goldDark },
   paid: { bg: tokens.greenLight, fg: tokens.green },
+  partially_paid: { bg: tokens.tealLight, fg: tokens.primary },
   overdue: { bg: tokens.rubyLight, fg: tokens.ruby },
   cancelled: { bg: '#F0EEEA', fg: t.text.tertiary },
   void: { bg: '#F0EEEA', fg: t.text.tertiary },
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  partially_paid: 'Partially paid',
 }
 
 export function StatusBadge({ status }: { status: string }) {
@@ -95,7 +100,7 @@ export function StatusBadge({ status }: { status: string }) {
         whiteSpace: 'nowrap',
       }}
     >
-      {status}
+      {STATUS_LABELS[status] ?? status}
     </span>
   )
 }
