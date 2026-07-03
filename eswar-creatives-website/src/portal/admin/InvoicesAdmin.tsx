@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router'
-import { Plus, Search, Trash2 } from 'lucide-react'
+import { Plus, Search, Trash2, CreditCard } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import {
@@ -14,6 +14,9 @@ import {
 } from './ui'
 import { InvoicePreview } from './InvoicePreview'
 import { DeleteInvoiceModal } from './DeleteInvoiceModal'
+import { RecordPaymentModal } from './RecordPaymentModal'
+import { PaymentsSection, type PaymentDraft } from './PaymentsSection'
+import { addInvoicePayment } from '../hooks/useInvoicePayments'
 import { usePortal } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
 import type { PortalProfile } from '../PortalGuard'
@@ -55,10 +58,10 @@ type ProposalOption = {
   currency: string
 }
 
-const FILTERS = ['all', 'draft', 'sent', 'paid', 'overdue'] as const
+const FILTERS = ['all', 'draft', 'sent', 'paid', 'overdue', 'partially_paid'] as const
 type Filter = (typeof FILTERS)[number]
 
-const UNPAID = new Set(['pending', 'sent', 'overdue', 'draft'])
+const UNPAID = new Set(['pending', 'sent', 'overdue', 'draft', 'partially_paid'])
 
 function displayName(r: { client_name: string | null; company_name: string | null }) {
   return r.client_name || r.company_name || '—'
@@ -95,6 +98,8 @@ export function InvoicesAdmin() {
   const [openInvoice, setOpenInvoice] = useState<Invoice | null>(null)
   // The invoice queued for deletion (drives the confirmation modal).
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null)
+  // The invoice for which a payment is being recorded via the quick-action modal.
+  const [recordPaymentTarget, setRecordPaymentTarget] = useState<Invoice | null>(null)
 
   // Inline "mark paid": which row is collecting a payment method, and its value.
   const [payingId, setPayingId] = useState<string | null>(null)
@@ -215,7 +220,7 @@ export function InvoicesAdmin() {
                 ...(filter === f ? styles.pillActive : null),
               }}
             >
-              {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === 'all' ? 'All' : f === 'partially_paid' ? 'Partial' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>
@@ -242,6 +247,7 @@ export function InvoicesAdmin() {
                 <th style={styles.th}>Number</th>
                 <th style={styles.th}>Client</th>
                 <th style={styles.th}>Amount</th>
+                <th style={{ ...styles.th, textAlign: 'right' }}>Balance due</th>
                 <th style={styles.th}>Status</th>
                 <th style={{ ...styles.th, textAlign: 'right' }}>Action</th>
               </tr>
@@ -265,6 +271,19 @@ export function InvoicesAdmin() {
                   </td>
                   <td style={{ ...styles.td, fontFamily: mono, color: t.text.primary }}>
                     {formatMoney(Number(inv.amount), inv.currency)}
+                  </td>
+                  <td style={{ ...styles.td, textAlign: 'right', fontFamily: mono }}>
+                    {inv.status === 'partially_paid' ? (
+                      <span style={{ color: tokens.ruby }}>partial</span>
+                    ) : inv.status === 'paid' ? (
+                      <span style={{ color: tokens.green }}>
+                        {formatMoney(0, inv.currency)}
+                      </span>
+                    ) : (
+                      <span style={{ color: t.text.secondary }}>
+                        {formatMoney(Number(inv.amount), inv.currency)}
+                      </span>
+                    )}
                   </td>
                   <td style={styles.td}>
                     <StatusBadge status={inv.status} />
@@ -302,16 +321,27 @@ export function InvoicesAdmin() {
                           Open
                         </button>
                         {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                          <button
-                            type="button"
-                            style={styles.paidBtn}
-                            onClick={() => {
-                              setPayingId(inv.id)
-                              setPayMethod('')
-                            }}
-                          >
-                            Mark paid
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              style={styles.recordBtn}
+                              onClick={() => setRecordPaymentTarget(inv)}
+                              title="Record payment"
+                              aria-label="Record payment"
+                            >
+                              <CreditCard size={13} /> Record payment
+                            </button>
+                            <button
+                              type="button"
+                              style={styles.paidBtn}
+                              onClick={() => {
+                                setPayingId(inv.id)
+                                setPayMethod('')
+                              }}
+                            >
+                              Mark paid
+                            </button>
+                          </>
                         )}
                         {/* Owner/admin only. Invoices raised from a proposal are
                             removed by deleting the proposal, so their button is
@@ -375,6 +405,16 @@ export function InvoicesAdmin() {
           onClose={() => setDeleteTarget(null)}
           onDeleted={() => {
             setDeleteTarget(null)
+            void load()
+          }}
+        />
+      )}
+
+      {recordPaymentTarget && (
+        <RecordPaymentModal
+          invoice={recordPaymentTarget}
+          onClose={() => setRecordPaymentTarget(null)}
+          onSaved={() => {
             void load()
           }}
         />
@@ -447,11 +487,15 @@ function NewInvoiceModal({
   const [dueDate, setDueDate] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
 
   // Itemised invoice: editable lines + the billables offered by the proposal.
   const [lines, setLines] = useState<LineDraft[]>([])
   const [billables, setBillables] = useState<Billable[]>([])
   const [loadingBillables, setLoadingBillables] = useState(false)
+
+  // Payment drafts: inserted after the invoice row is created.
+  const [paymentDrafts, setPaymentDrafts] = useState<PaymentDraft[]>([])
 
   const total = lines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0)
   const selectedKeys = new Set(lines.map((l) => l.key))
@@ -626,15 +670,34 @@ function NewInvoiceModal({
   }
 
   async function handleCreate() {
+    setPaymentError(null)
     const valid = lines.filter((l) => l.label.trim() && (parseFloat(l.amount) || 0) > 0)
     if (valid.length === 0) return onError('Add at least one billable line with a label and amount.')
     const amountTotal = valid.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0)
+
+    // Validate payments don't exceed total (H9 — prevent errors before save).
+    const validDrafts = paymentDrafts.filter((d) => (parseFloat(d.amount) || 0) > 0)
+    const paidTotal = validDrafts.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0)
+    if (paidTotal > amountTotal) {
+      setPaymentError(
+        `Total payments (${formatMoney(paidTotal, currency)}) cannot exceed the invoice total (${formatMoney(amountTotal, currency)}). Reduce the payment amounts.`
+      )
+      return
+    }
+
     const summary = valid.length === 1 ? valid[0].label : `${valid[0].label} +${valid.length - 1} more`
 
     setSaving(true)
     try {
       const { data: sess } = await supabase.auth.getUser()
+      const userId = sess.user?.id ?? null
       const invoiceNumber = await nextInvoiceNumber()
+
+      // Derive initial status from any payment drafts.
+      let initialStatus = 'pending'
+      if (paidTotal >= amountTotal && paidTotal > 0) initialStatus = 'paid'
+      else if (paidTotal > 0) initialStatus = 'partially_paid'
+
       const { data: inv, error: err } = await supabase
         .from('invoices')
         .insert({
@@ -646,18 +709,20 @@ function NewInvoiceModal({
           label: summary,
           amount: amountTotal,
           currency,
-          status: 'pending',
+          status: initialStatus,
           due_date: dueDate || null,
           notes: notes.trim() || null,
-          created_by: sess.user?.id ?? null,
+          created_by: userId,
         })
         .select('id')
         .single()
       if (err) throw err
 
+      const invoiceId = (inv as { id: string }).id
+
       const { error: liErr } = await supabase.from('invoice_line_items').insert(
         valid.map((l, i) => ({
-          invoice_id: (inv as { id: string }).id,
+          invoice_id: invoiceId,
           proposal_item_id: l.proposalItemId,
           label: l.label.trim(),
           amount: parseFloat(l.amount) || 0,
@@ -665,6 +730,17 @@ function NewInvoiceModal({
         }))
       )
       if (liErr) throw liErr
+
+      // Insert payment drafts if any.
+      for (const d of validDrafts) {
+        const err = await addInvoicePayment(invoiceId, {
+          amount: parseFloat(d.amount) || 0,
+          paid_on: d.paid_on,
+          method: d.method,
+          reference_note: d.reference_note,
+        }, userId)
+        if (err) throw new Error(err)
+      }
 
       onCreated()
     } catch {
@@ -798,6 +874,14 @@ function NewInvoiceModal({
             </div>
           </div>
         </div>
+
+        <PaymentsSection
+          drafts={paymentDrafts}
+          onChange={setPaymentDrafts}
+          invoiceTotal={total}
+          currency={currency}
+          validationError={paymentError}
+        />
 
         <div style={styles.modalRow}>
           <Field label="Currency">
@@ -940,6 +1024,20 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
     padding: 0,
+  },
+  recordBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    background: tokens.tealLight,
+    border: 'none',
+    color: tokens.primary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: '5px 10px',
+    borderRadius: 6,
   },
   paidBtn: {
     background: tokens.greenLight,
