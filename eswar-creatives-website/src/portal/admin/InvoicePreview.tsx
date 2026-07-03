@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t } from '../theme'
-import { InvoiceDocument, type InvoiceLine } from '../components/shared/InvoiceDocument'
+import { InvoiceDocument, type InvoiceLine, type InvoicePaymentRow } from '../components/shared/InvoiceDocument'
 import type { CSSProperties } from 'react'
 
 export type PreviewInvoice = {
@@ -52,6 +52,7 @@ export function InvoicePreview({
   const [email, setEmail] = useState<string | null>(null)
   const [city, setCity] = useState<string | null>(null)
   const [lines, setLines] = useState<InvoiceLine[]>([])
+  const [payments, setPayments] = useState<InvoicePaymentRow[]>([])
 
   // Trigger the slide-in transition once mounted.
   useEffect(() => {
@@ -71,6 +72,31 @@ export function InvoicePreview({
         .order('sort_order', { ascending: true })
       if (cancelled || !data) return
       setLines(data.map((r) => ({ label: r.label as string, amount: Number(r.amount) })))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [invoice.id])
+
+  // Partial payment history (0065 invoice_payments).
+  useEffect(() => {
+    let cancelled = false
+    setPayments([])
+    ;(async () => {
+      const { data } = await supabase
+        .from('invoice_payments')
+        .select('paid_on, method, amount, reference_note')
+        .eq('invoice_id', invoice.id)
+        .order('paid_on', { ascending: true })
+      if (cancelled || !data) return
+      setPayments(
+        data.map((r) => ({
+          paid_on: r.paid_on as string,
+          method: r.method as string | null,
+          amount: Number(r.amount),
+          reference_note: r.reference_note as string | null,
+        }))
+      )
     })()
     return () => {
       cancelled = true
@@ -143,6 +169,7 @@ export function InvoicePreview({
             city,
           }}
           lines={lines}
+          payments={payments.length > 0 ? payments : undefined}
         />
       </aside>
     </>

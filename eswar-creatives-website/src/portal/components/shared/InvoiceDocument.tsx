@@ -32,6 +32,14 @@ export type InvoiceBilledTo = {
 // back to a single line built from the invoice label + amount.
 export type InvoiceLine = { label: string; amount: number }
 
+// Structured payment record (from invoice_payments).
+export type InvoicePaymentRow = {
+  paid_on: string
+  method: string | null
+  amount: number
+  reference_note?: string | null
+}
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -60,6 +68,7 @@ export function invoiceStatusPill(
   dueDate?: string | null
 ): { bg: string; fg: string; label: string } {
   if (status === 'paid') return { bg: tokens.greenLight, fg: tokens.green, label: 'Paid' }
+  if (status === 'partially_paid') return { bg: tokens.tealLight, fg: tokens.primary, label: 'Partially paid' }
   if (status === 'overdue' || (dueDate && dueDate < todayISO()))
     return { bg: tokens.rubyLight, fg: tokens.ruby, label: 'Overdue' }
   return { bg: tokens.goldLight, fg: tokens.goldDark, label: 'Pending' }
@@ -69,10 +78,12 @@ export function InvoiceDocument({
   invoice,
   billedTo,
   lines,
+  payments,
 }: {
   invoice: InvoiceDoc
   billedTo: InvoiceBilledTo
   lines?: InvoiceLine[]
+  payments?: InvoicePaymentRow[]
 }) {
   const pill = invoiceStatusPill(invoice.status, invoice.dueDate)
   // Itemised lines when present, otherwise a single line from label + amount.
@@ -81,6 +92,10 @@ export function InvoiceDocument({
       ? lines
       : [{ label: invoice.label || 'Professional services', amount: Number(invoice.amount) }]
   const total = items.reduce((sum, l) => sum + Number(l.amount), 0)
+
+  const hasPayments = payments && payments.length > 0
+  const amountPaid = hasPayments ? payments!.reduce((s, p) => s + Number(p.amount), 0) : 0
+  const balanceDue = Math.max(0, total - amountPaid)
 
   return (
     <div style={styles.body}>
@@ -146,10 +161,35 @@ export function InvoiceDocument({
           <span style={styles.subLabel}>Subtotal</span>
           <span style={styles.subNum}>{formatAmount(total, invoice.currency)}</span>
         </div>
-        <div style={styles.totalBand}>
-          <span style={styles.totalLabel}>Total due</span>
-          <span style={styles.totalNum}>{formatAmount(total, invoice.currency)}</span>
-        </div>
+
+        {hasPayments ? (
+          <>
+            <div style={styles.paymentsSection}>
+              <div style={styles.paymentsSectionLabel}>Payments received</div>
+              {payments!.map((p, i) => (
+                <div key={i} style={styles.paymentRow}>
+                  <span style={styles.paymentDate}>{formatDate(p.paid_on)}</span>
+                  {p.method && <span style={styles.paymentMethod}>{p.method}</span>}
+                  {p.reference_note && <span style={styles.paymentRef}>{p.reference_note}</span>}
+                  <span style={styles.paymentAmt}>{formatAmount(Number(p.amount), invoice.currency)}</span>
+                </div>
+              ))}
+              <div style={styles.subRow}>
+                <span style={styles.subLabel}>Amount paid</span>
+                <span style={styles.subNum}>{formatAmount(amountPaid, invoice.currency)}</span>
+              </div>
+            </div>
+            <div style={{ ...styles.totalBand, background: balanceDue > 0 ? tokens.ruby : tokens.green }}>
+              <span style={styles.totalLabel}>Balance due</span>
+              <span style={styles.totalNum}>{formatAmount(balanceDue, invoice.currency)}</span>
+            </div>
+          </>
+        ) : (
+          <div style={styles.totalBand}>
+            <span style={styles.totalLabel}>Total due</span>
+            <span style={styles.totalNum}>{formatAmount(total, invoice.currency)}</span>
+          </div>
+        )}
       </div>
 
       {invoice.notes && (
@@ -274,6 +314,44 @@ const styles: Record<string, CSSProperties> = {
   },
   totalLabel: { fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: t.text.onPrimary },
   totalNum: { fontFamily: mono, fontSize: 18, fontWeight: 700, color: t.text.onPrimary },
+  paymentsSection: {
+    marginTop: 12,
+    marginBottom: 4,
+    background: tokens.bg,
+    borderRadius: 8,
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+  },
+  paymentsSectionLabel: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
+    color: t.text.tertiary,
+    marginBottom: 6,
+  },
+  paymentRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '3px 0',
+    fontSize: 13,
+  },
+  paymentDate: { fontFamily: mono, fontSize: 12, color: t.text.tertiary, minWidth: 88 },
+  paymentMethod: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.secondary,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 4,
+    padding: '1px 6px',
+    whiteSpace: 'nowrap' as const,
+  },
+  paymentRef: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, flex: 1 },
+  paymentAmt: { fontFamily: mono, fontSize: 13, color: t.text.primary, marginLeft: 'auto', whiteSpace: 'nowrap' as const },
   notes: { marginTop: 20, background: tokens.bg, borderRadius: 8, padding: 14 },
   notesLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 700, color: t.text.primary, marginBottom: 4 },
   notesBody: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary, margin: 0, lineHeight: 1.5 },
