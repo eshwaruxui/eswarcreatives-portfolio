@@ -39,6 +39,7 @@ type Invoice = {
   payment_method: string | null
   notes: string | null
   created_at: string
+  _amountPaid?: number
 }
 
 type ClientOption = {
@@ -128,7 +129,22 @@ export function InvoicesAdmin() {
           .order('created_at', { ascending: false }),
       ])
       if (invRes.error) throw invRes.error
-      setInvoices((invRes.data ?? []) as Invoice[])
+      const rows = (invRes.data ?? []) as Invoice[]
+      const partialIds = rows.filter((r) => r.status === 'partially_paid').map((r) => r.id)
+      if (partialIds.length > 0) {
+        const { data: pmtData } = await supabase
+          .from('invoice_payments')
+          .select('invoice_id, amount')
+          .in('invoice_id', partialIds)
+        const paidByInvoice: Record<string, number> = {}
+        for (const p of pmtData ?? []) {
+          paidByInvoice[p.invoice_id as string] = (paidByInvoice[p.invoice_id as string] ?? 0) + Number(p.amount)
+        }
+        for (const r of rows) {
+          if (r.status === 'partially_paid') r._amountPaid = paidByInvoice[r.id] ?? 0
+        }
+      }
+      setInvoices(rows)
       setClients((cliRes.data ?? []) as ClientOption[])
       setProposals((propRes.data ?? []) as ProposalOption[])
     } catch {
@@ -149,9 +165,16 @@ export function InvoicesAdmin() {
     const paid: Record<string, number> = {}
     const out: Record<string, number> = {}
     for (const inv of invoices) {
-      if (inv.status === 'paid') paid[inv.currency] = (paid[inv.currency] ?? 0) + Number(inv.amount)
-      else if (UNPAID.has(inv.status))
+      if (inv.status === 'paid') {
+        paid[inv.currency] = (paid[inv.currency] ?? 0) + Number(inv.amount)
+      } else if (inv.status === 'partially_paid') {
+        const amtPaid = inv._amountPaid ?? 0
+        const balance = Math.max(0, Number(inv.amount) - amtPaid)
+        if (amtPaid > 0) paid[inv.currency] = (paid[inv.currency] ?? 0) + amtPaid
+        if (balance > 0) out[inv.currency] = (out[inv.currency] ?? 0) + balance
+      } else if (UNPAID.has(inv.status)) {
         out[inv.currency] = (out[inv.currency] ?? 0) + Number(inv.amount)
+      }
     }
     return { paidByCur: paid, outstandingByCur: out }
   }, [invoices])

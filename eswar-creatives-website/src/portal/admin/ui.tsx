@@ -78,6 +78,10 @@ const STATUS_TONES: Record<string, Tone> = {
   void: { bg: '#F0EEEA', fg: t.text.tertiary },
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  partially_paid: 'Partially paid',
+}
+
 export function StatusBadge({ status }: { status: string }) {
   const tone = STATUS_TONES[status] ?? { bg: '#F0EEEA', fg: t.text.tertiary }
   return (
@@ -96,7 +100,7 @@ export function StatusBadge({ status }: { status: string }) {
         whiteSpace: 'nowrap',
       }}
     >
-      {status}
+      {STATUS_LABELS[status] ?? status}
     </span>
   )
 }
