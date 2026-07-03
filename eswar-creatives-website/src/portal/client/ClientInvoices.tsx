@@ -26,6 +26,8 @@ type Invoice = {
   payment_method: string | null
   notes: string | null
   created_at: string
+  // Client-computed after fetching invoice_payments; not in the DB row.
+  _amountPaid?: number
 }
 
 const LOAD_ERROR = 'We could not load your invoices. Please contact eswar@eswarcreatives.in'
@@ -78,7 +80,25 @@ function Invoices({ profile }: { profile: PortalProfile }) {
           .eq('client_id', client.id)
           .order('created_at', { ascending: false })
         if (iErr) throw iErr
-        if (!cancelled) setInvoices((data ?? []) as Invoice[])
+        const rows = (data ?? []) as Invoice[]
+
+        // Batch-fetch payments for partially_paid invoices so we can show balance due.
+        const partialIds = rows.filter((r) => r.status === 'partially_paid').map((r) => r.id)
+        if (partialIds.length > 0) {
+          const { data: pmtData } = await supabase
+            .from('invoice_payments')
+            .select('invoice_id, amount')
+            .in('invoice_id', partialIds)
+          const paidByInvoice: Record<string, number> = {}
+          for (const p of pmtData ?? []) {
+            paidByInvoice[p.invoice_id as string] = (paidByInvoice[p.invoice_id as string] ?? 0) + Number(p.amount)
+          }
+          for (const r of rows) {
+            if (r.status === 'partially_paid') r._amountPaid = paidByInvoice[r.id] ?? 0
+          }
+        }
+
+        if (!cancelled) setInvoices(rows)
       } catch {
         if (!cancelled) setError(LOAD_ERROR) // H9: plain-language error.
       } finally {
@@ -112,6 +132,7 @@ function Invoices({ profile }: { profile: PortalProfile }) {
                   <th style={styles.th}>Invoice #</th>
                   <th style={styles.th}>Label</th>
                   <th style={styles.th}>Amount</th>
+                  <th style={styles.th}>Balance due</th>
                   <th style={styles.th}>Due Date</th>
                   <th style={styles.th}>Status</th>
                 </tr>
@@ -119,6 +140,10 @@ function Invoices({ profile }: { profile: PortalProfile }) {
               <tbody>
                 {invoices.map((inv) => {
                   const s = invoiceStatusPill(inv.status, inv.due_date)
+                  const isPartial = inv.status === 'partially_paid'
+                  const balanceDue = isPartial && inv._amountPaid !== undefined
+                    ? Math.max(0, Number(inv.amount) - inv._amountPaid)
+                    : null
                   return (
                     // H6: each row is clearly actionable and opens its detail.
                     <tr
@@ -132,6 +157,22 @@ function Invoices({ profile }: { profile: PortalProfile }) {
                       <td style={styles.td}>{inv.label || '-'}</td>
                       <td style={{ ...styles.td, fontFamily: mono, color: t.text.primary }}>
                         {formatMoney(Number(inv.amount), inv.currency)}
+                      </td>
+                      <td style={styles.td}>
+                        {isPartial && balanceDue !== null ? (
+                          <div style={styles.balanceDueCell}>
+                            <span style={{ ...styles.balanceDueAmt, fontFamily: mono }}>
+                              {formatMoney(balanceDue, inv.currency)}
+                            </span>
+                            <span style={styles.viewHistory}>View payment history</span>
+                          </div>
+                        ) : inv.status === 'paid' ? (
+                          <span style={{ fontFamily: mono, color: tokens.green }}>
+                            {formatMoney(0, inv.currency)}
+                          </span>
+                        ) : (
+                          <span style={{ fontFamily: mono, color: t.text.muted }}>-</span>
+                        )}
                       </td>
                       <td style={styles.td}>{formatDate(inv.due_date)}</td>
                       <td style={styles.td}>
@@ -301,6 +342,23 @@ const styles: Record<string, CSSProperties> = {
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
+  },
+  balanceDueCell: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 2,
+  },
+  balanceDueAmt: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: tokens.ruby,
+  },
+  viewHistory: {
+    fontSize: 11,
+    color: tokens.accent,
+    fontFamily: fonts.body,
+    fontWeight: 600,
+    cursor: 'pointer',
   },
   empty: {
     background: tokens.surface,
