@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router'
-import { Plus, Search, Trash2, CreditCard } from 'lucide-react'
+import { Plus, Search, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import {
@@ -14,7 +14,7 @@ import {
 } from './ui'
 import { InvoicePreview } from './InvoicePreview'
 import { DeleteInvoiceModal } from './DeleteInvoiceModal'
-import { RecordPaymentModal } from './RecordPaymentModal'
+import { ConfirmPaymentModal, type PaymentModalMode } from './ConfirmPaymentModal'
 import { PaymentsSection, type PaymentDraft } from './PaymentsSection'
 import { addInvoicePayment } from '../hooks/useInvoicePayments'
 import { usePortal } from '../PortalContext'
@@ -74,10 +74,6 @@ function displayInvoiceNumber(stored: string): string {
   return stored.replace(/^EC-I-/, 'EC-')
 }
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10)
-}
-
 export function InvoicesAdmin() {
   const { selectedClientId } = usePortal()
   // AdminShell gates this whole area to owner/admin and passes the profile via
@@ -98,12 +94,17 @@ export function InvoicesAdmin() {
   const [openInvoice, setOpenInvoice] = useState<Invoice | null>(null)
   // The invoice queued for deletion (drives the confirmation modal).
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null)
-  // The invoice for which a payment is being recorded via the quick-action modal.
-  const [recordPaymentTarget, setRecordPaymentTarget] = useState<Invoice | null>(null)
+  // ConfirmPaymentModal target + mode.
+  const [confirmTarget, setConfirmTarget] = useState<Invoice | null>(null)
+  const [confirmMode, setConfirmMode] = useState<PaymentModalMode>('mark_paid')
+  // Success toast.
+  const [toast, setToast] = useState<string | null>(null)
 
-  // Inline "mark paid": which row is collecting a payment method, and its value.
-  const [payingId, setPayingId] = useState<string | null>(null)
-  const [payMethod, setPayMethod] = useState('')
+  useEffect(() => {
+    if (!toast) return
+    const id = setTimeout(() => setToast(null), 3500)
+    return () => clearTimeout(id)
+  }, [toast])
 
   async function load() {
     setLoading(true)
@@ -167,25 +168,6 @@ export function InvoicesAdmin() {
     })
   }, [invoices, filter, search])
 
-  async function markPaid(inv: Invoice) {
-    try {
-      const { error: err } = await supabase
-        .from('invoices')
-        .update({
-          status: 'paid',
-          paid_date: todayISO(),
-          payment_method: payMethod.trim() || null,
-        })
-        .eq('id', inv.id)
-      if (err) throw err
-      setPayingId(null)
-      setPayMethod('')
-      await load()
-    } catch {
-      setError('Could not mark this invoice paid. Try again.')
-    }
-  }
-
   return (
     <>
       <PageHeader
@@ -197,6 +179,7 @@ export function InvoicesAdmin() {
         }
       />
       <ClientFilterBanner />
+      {toast && <div style={styles.toast}>{toast}</div>}
       {error && <div style={styles.error}>{error}</div>}
 
       <div style={styles.statRow}>
@@ -292,84 +275,53 @@ export function InvoicesAdmin() {
                     style={{ ...styles.td, textAlign: 'right' }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {payingId === inv.id ? (
-                      <span style={styles.payRow}>
-                        <input
-                          autoFocus
-                          value={payMethod}
-                          onChange={(e) => setPayMethod(e.target.value)}
-                          placeholder="Payment method"
-                          style={styles.payInput}
-                        />
-                        <button type="button" style={styles.confirmBtn} onClick={() => markPaid(inv)}>
-                          Confirm
-                        </button>
+                    <span style={styles.actionCell}>
+                      <button type="button" style={styles.linkBtn} onClick={() => setOpenInvoice(inv)}>
+                        Open
+                      </button>
+                      {inv.status === 'partially_paid' ? (
                         <button
                           type="button"
-                          style={styles.linkBtn}
-                          onClick={() => {
-                            setPayingId(null)
-                            setPayMethod('')
-                          }}
+                          style={styles.recordBtn}
+                          onClick={() => { setConfirmTarget(inv); setConfirmMode('record_payment') }}
                         >
-                          Cancel
+                          Record payment
                         </button>
-                      </span>
-                    ) : (
-                      <span style={styles.actionCell}>
-                        <button type="button" style={styles.linkBtn} onClick={() => setOpenInvoice(inv)}>
-                          Open
+                      ) : inv.status !== 'paid' && inv.status !== 'cancelled' ? (
+                        <button
+                          type="button"
+                          style={styles.paidBtn}
+                          onClick={() => { setConfirmTarget(inv); setConfirmMode('mark_paid') }}
+                        >
+                          Mark paid
                         </button>
-                        {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                          <>
-                            <button
-                              type="button"
-                              style={styles.recordBtn}
-                              onClick={() => setRecordPaymentTarget(inv)}
-                              title="Record payment"
-                              aria-label="Record payment"
-                            >
-                              <CreditCard size={13} /> Record payment
-                            </button>
-                            <button
-                              type="button"
-                              style={styles.paidBtn}
-                              onClick={() => {
-                                setPayingId(inv.id)
-                                setPayMethod('')
-                              }}
-                            >
-                              Mark paid
-                            </button>
-                          </>
-                        )}
-                        {/* Owner/admin only. Invoices raised from a proposal are
-                            removed by deleting the proposal, so their button is
-                            disabled with a tooltip pointing there. */}
-                        {canDelete &&
-                          (inv.proposal_id ? (
-                            <button
-                              type="button"
-                              style={styles.deleteIconDisabled}
-                              disabled
-                              title="Delete via the proposal"
-                              aria-label="Delete via the proposal"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              style={styles.deleteIcon}
-                              onClick={() => setDeleteTarget(inv)}
-                              title="Delete invoice"
-                              aria-label="Delete invoice"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          ))}
-                      </span>
-                    )}
+                      ) : null}
+                      {/* Owner/admin only. Invoices raised from a proposal are
+                          removed by deleting the proposal, so their button is
+                          disabled with a tooltip pointing there. */}
+                      {canDelete &&
+                        (inv.proposal_id ? (
+                          <button
+                            type="button"
+                            style={styles.deleteIconDisabled}
+                            disabled
+                            title="Delete via the proposal"
+                            aria-label="Delete via the proposal"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            style={styles.deleteIcon}
+                            onClick={() => setDeleteTarget(inv)}
+                            title="Delete invoice"
+                            aria-label="Delete invoice"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        ))}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -410,11 +362,14 @@ export function InvoicesAdmin() {
         />
       )}
 
-      {recordPaymentTarget && (
-        <RecordPaymentModal
-          invoice={recordPaymentTarget}
-          onClose={() => setRecordPaymentTarget(null)}
-          onSaved={() => {
+      {confirmTarget && (
+        <ConfirmPaymentModal
+          invoice={confirmTarget}
+          mode={confirmMode}
+          onClose={() => setConfirmTarget(null)}
+          onSuccess={(msg) => {
+            setConfirmTarget(null)
+            setToast(msg)
             void load()
           }}
         />
@@ -1072,25 +1027,20 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'not-allowed',
     padding: 3,
   },
-  payRow: { display: 'inline-flex', gap: 8, alignItems: 'center' },
-  payInput: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    border: `1px solid ${tokens.border}`,
-    borderRadius: 6,
-    padding: '5px 8px',
-    width: 130,
-  },
-  confirmBtn: {
-    background: tokens.primary,
-    border: 'none',
-    color: t.text.onPrimary,
+  toast: {
+    position: 'fixed' as const,
+    bottom: 24,
+    right: 24,
+    background: tokens.green,
+    color: '#fff',
     fontFamily: fonts.body,
     fontSize: 13,
     fontWeight: 600,
-    cursor: 'pointer',
-    padding: '5px 10px',
-    borderRadius: 6,
+    borderRadius: 8,
+    padding: '10px 16px',
+    zIndex: 400,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+    pointerEvents: 'none' as const,
   },
   modalForm: { display: 'flex', flexDirection: 'column', gap: 14 },
   modalRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
