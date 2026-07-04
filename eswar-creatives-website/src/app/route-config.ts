@@ -15,6 +15,7 @@ import { SketchReviewPage } from "../portal/SketchReviewPage";
 import { AdminSketchUpload } from "../portal/AdminSketchUpload";
 import { AccountPage } from "../portal/AccountPage";
 import { PublicVotePage } from "../portal/PublicVotePage";
+import { PublicInvoicePage } from "../portal/PublicInvoicePage";
 import { AdminShell } from "../portal/admin/AdminShell";
 import { AdminDashboard } from "../portal/admin/AdminDashboard";
 import { ClientsList } from "../portal/admin/ClientsList";
@@ -56,6 +57,8 @@ export const routeConfig = [
   { path: "/portal/review/:campaignId", Component: ReviewCampaignPage },
   // Public, unauthenticated voting page (no PortalGuard) — migrations 0019-0021.
   { path: "/portal/vote/:token",    Component: PublicVotePage },
+  // Public invoice view — no auth required; token enforced server-side (0068).
+  { path: "/invoice/:token",        Component: PublicInvoicePage },
   // Phase 3 admin portal — persistent shell (sidebar + Outlet), admin-gated.
   {
     Component: AdminShell,
