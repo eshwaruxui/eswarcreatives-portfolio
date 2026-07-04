@@ -15,6 +15,7 @@ import { PortalProvider } from '../PortalContext'
 import { tokens, t, fonts } from '../theme'
 import { TopBar } from './TopBar'
 import { ToastHost } from './toast'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 
 // Persistent admin layout: a global TopBar (brand + client selector + settings)
 // above a fixed cream sidebar and scrollable content where each child route
@@ -50,12 +51,16 @@ export function AdminShell() {
 }
 
 function Shell({ profile }: { profile: PortalProfile }) {
+  // Light pass for iPad (768px): narrow sidebar prevents horizontal scroll.
+  // Desktop (1024px+): full-width sidebar with labels.
+  const { isTablet } = useBreakpoint()
+
   return (
-    <div style={styles.layout}>
+    <div style={{ ...styles.layout, overflowX: 'hidden' }}>
       <ToastHost />
       <TopBar />
       <div style={styles.body}>
-        <aside style={styles.sidebar}>
+        <aside style={{ ...styles.sidebar, width: isTablet ? 180 : 240 }}>
           <nav style={styles.nav}>
             {NAV.map(({ to, label, Icon, end }) => (
               <NavLink
@@ -64,17 +69,19 @@ function Shell({ profile }: { profile: PortalProfile }) {
                 end={end}
                 style={({ isActive }) => ({
                   ...styles.navItem,
+                  ...(isTablet ? styles.navItemTablet : null),
                   ...(isActive ? styles.navItemActive : null),
                 })}
               >
                 <Icon size={18} />
-                <span>{label}</span>
+                {/* Hide label text on tablet to reclaim horizontal space. */}
+                {!isTablet && <span>{label}</span>}
               </NavLink>
             ))}
           </nav>
         </aside>
         <main style={styles.content}>
-          <div style={styles.contentInner}>
+          <div style={{ ...styles.contentInner, padding: isTablet ? '32px 16px 64px' : '40px 32px 64px' }}>
             <Outlet context={profile} />
           </div>
         </main>
@@ -126,6 +133,12 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500,
     color: t.text.secondary,
     textDecoration: 'none',
+  },
+  // At tablet widths the sidebar is icon-only; center the icon for polish.
+  navItemTablet: {
+    justifyContent: 'center',
+    gap: 0,
+    padding: '12px',
   },
   navItemActive: {
     background: tokens.tealLight,
