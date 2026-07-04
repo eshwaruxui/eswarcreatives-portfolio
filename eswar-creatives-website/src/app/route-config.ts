@@ -7,7 +7,9 @@ import { BrandIdentityDiscoveryPage } from "./components/BrandIdentityDiscoveryP
 import { TtxCaseStudy } from "./components/TtxCaseStudy";
 import { ServicesPage } from "./components/ServicesPage";
 import { BrandingServicesPage } from "./components/BrandingServicesPage";
+import { BrandingLandingPage } from "./components/BrandingLandingPage";
 import { DesignSystemsServicesPage } from "./components/DesignSystemsServicesPage";
+import { DesignSystemsLandingPage } from "./components/DesignSystemsLandingPage";
 import { DesignSystemsEnquiryPage } from "./components/DesignSystemsEnquiryPage";
 import { NotFound } from "./components/NotFound";
 import { LoginPage } from "../portal/LoginPage";
@@ -26,6 +28,8 @@ export const routeConfig = [
       { path: "/branding/brand-identity-discovery", Component: BrandIdentityDiscoveryPage },
       { path: "/work/cygnvs-ttx",                   Component: TtxCaseStudy },
       { path: "/services",                          Component: ServicesPage },
+      { path: "/branding",                           Component: BrandingLandingPage },
+      { path: "/design-systems",                    Component: DesignSystemsLandingPage },
       { path: "/services/branding",                 Component: BrandingServicesPage },
       { path: "/services/design-systems",           Component: DesignSystemsServicesPage },
       { path: "/services/design-systems/enquiry",   Component: DesignSystemsEnquiryPage },
