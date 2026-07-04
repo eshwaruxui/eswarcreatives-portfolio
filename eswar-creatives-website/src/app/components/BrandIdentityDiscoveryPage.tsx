@@ -154,48 +154,91 @@ function ExampleModal({
         {/* Modal body */}
         <div style={{ padding: "16px 24px 0" }}>
           {qKey === "logoTypePreference" ? (
-            <>
-              <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
-                <svg width="160" height="32" viewBox="0 0 160 32" style={{ display: "block", marginBottom: 8 }}>
-                  <text x="0" y="24" fontFamily="'Playfair Display', serif" fontSize="18" fontWeight="400" fill="#1a1a1a">Palam Silks</text>
-                </svg>
-                <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
-                  WORDMARK — most common for premium South Indian brands
-                </p>
-                <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
-                  Clean, elegant, lets the name do the work. Works beautifully on saree tags, invitations, and signage.
-                </p>
-              </div>
-              <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <svg width="24" height="24" viewBox="-12 -12 24 24">
-                    <ellipse rx="4" ry="10" stroke="#1a1a1a" strokeWidth="1" fill="none" />
-                    <ellipse rx="4" ry="10" stroke="#1a1a1a" strokeWidth="1" fill="none" transform="rotate(-40)" />
-                    <ellipse rx="4" ry="10" stroke="#1a1a1a" strokeWidth="1" fill="none" transform="rotate(40)" />
+            packKey === "default" ? (
+              <>
+                <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
+                  <svg width="180" height="32" viewBox="0 0 180 32" style={{ display: "block", marginBottom: 8 }}>
+                    <text x="0" y="24" fontFamily="'Playfair Display', serif" fontSize="18" fontWeight="400" fill="#1a1a1a">Sunrise Consulting</text>
                   </svg>
-                  <svg width="110" height="24" viewBox="0 0 110 24">
-                    <text x="0" y="18" fontFamily="'Inter', sans-serif" fontSize="14" fill="#1a1a1a">Jasmine Events</text>
-                  </svg>
+                  <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
+                    WORDMARK — works when your business name carries the brand
+                  </p>
+                  <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
+                    Clean and direct — the name does the work. Scales easily across letterheads, signage, and digital touchpoints.
+                  </p>
                 </div>
-                <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
-                  COMBINATION MARK — popular for event &amp; floristry studios
-                </p>
-                <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
-                  The symbol gives you an icon for social media profiles; the full lockup works on everything else.
-                </p>
-              </div>
-              <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
-                <svg width="60" height="36" viewBox="0 0 60 36" style={{ display: "block", marginBottom: 8 }}>
-                  <text x="0" y="30" fontFamily="'Playfair Display', serif" fontSize="28" fontWeight="700" fill="#1a1a1a" letterSpacing="3">JE</text>
-                </svg>
-                <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
-                  LETTERMARK — works when the business name is long
-                </p>
-                <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
-                  Short, memorable, and scales to any size — from a 3mm stamp to a 3-metre banner.
-                </p>
-              </div>
-            </>
+                <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2L14.2 9.8L22 12L14.2 14.2L12 22L9.8 14.2L2 12L9.8 9.8Z" stroke="#1a1a1a" strokeWidth="1.4" strokeLinejoin="round" />
+                    </svg>
+                    <svg width="130" height="24" viewBox="0 0 130 24">
+                      <text x="0" y="18" fontFamily="'Inter', sans-serif" fontSize="14" fill="#1a1a1a">Northstar Studio</text>
+                    </svg>
+                  </div>
+                  <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
+                    COMBINATION MARK — works for studios, agencies, and product brands
+                  </p>
+                  <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
+                    The symbol stands alone in tight spaces — app icons, favicons, profile photos — while the full lockup carries the name everywhere else.
+                  </p>
+                </div>
+                <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
+                  <svg width="60" height="36" viewBox="0 0 60 36" style={{ display: "block", marginBottom: 8 }}>
+                    <text x="0" y="30" fontFamily="'Playfair Display', serif" fontSize="28" fontWeight="700" fill="#1a1a1a" letterSpacing="3">NS</text>
+                  </svg>
+                  <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
+                    LETTERMARK — useful when the full name is long or hard to read small
+                  </p>
+                  <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
+                    Short, memorable, and scales cleanly — from a 3mm stamp to a 3-metre banner.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
+                  <svg width="160" height="32" viewBox="0 0 160 32" style={{ display: "block", marginBottom: 8 }}>
+                    <text x="0" y="24" fontFamily="'Playfair Display', serif" fontSize="18" fontWeight="400" fill="#1a1a1a">Palam Silks</text>
+                  </svg>
+                  <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
+                    WORDMARK — most common for premium South Indian brands
+                  </p>
+                  <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
+                    Clean, elegant, lets the name do the work. Works beautifully on saree tags, invitations, and signage.
+                  </p>
+                </div>
+                <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <svg width="24" height="24" viewBox="-12 -12 24 24">
+                      <ellipse rx="4" ry="10" stroke="#1a1a1a" strokeWidth="1" fill="none" />
+                      <ellipse rx="4" ry="10" stroke="#1a1a1a" strokeWidth="1" fill="none" transform="rotate(-40)" />
+                      <ellipse rx="4" ry="10" stroke="#1a1a1a" strokeWidth="1" fill="none" transform="rotate(40)" />
+                    </svg>
+                    <svg width="110" height="24" viewBox="0 0 110 24">
+                      <text x="0" y="18" fontFamily="'Inter', sans-serif" fontSize="14" fill="#1a1a1a">Jasmine Events</text>
+                    </svg>
+                  </div>
+                  <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
+                    COMBINATION MARK — popular for event &amp; floristry studios
+                  </p>
+                  <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
+                    The symbol gives you an icon for social media profiles; the full lockup works on everything else.
+                  </p>
+                </div>
+                <div style={{ background: "#f8f7f5", padding: 14, borderRadius: 8, marginBottom: 10 }}>
+                  <svg width="60" height="36" viewBox="0 0 60 36" style={{ display: "block", marginBottom: 8 }}>
+                    <text x="0" y="30" fontFamily="'Playfair Display', serif" fontSize="28" fontWeight="700" fill="#1a1a1a" letterSpacing="3">JE</text>
+                  </svg>
+                  <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1px", margin: "0 0 6px" }}>
+                    LETTERMARK — works when the business name is long
+                  </p>
+                  <p style={{ fontSize: 13, color: "#4a4a4a", margin: 0, lineHeight: "20px" }}>
+                    Short, memorable, and scales to any size — from a 3mm stamp to a 3-metre banner.
+                  </p>
+                </div>
+              </>
+            )
           ) : qKey === "logosAdmired" && packKey === "creative" ? (
             <>
               <div style={{ background: "#f8f7f5", borderRadius: 10, padding: "16px 20px", marginBottom: 12 }}>
@@ -212,7 +255,7 @@ function ExampleModal({
                 <p style={{ display: "none", fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 400, letterSpacing: "4px", textTransform: "uppercase", color: "#1a1a1a", margin: "0 0 12px", lineHeight: 1.2 }}>
                   SABYASACHI
                 </p>
-                <span style={{ fontSize: 10, color: "#6b7280", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
+                <span style={{ fontSize: 10, color: "#9ca3af", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
                 <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1.5px", margin: "6px 0 0" }}>
                   SABYASACHI
                 </p>
@@ -234,7 +277,7 @@ function ExampleModal({
                 <p style={{ display: "none", fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 400, letterSpacing: "6px", textTransform: "uppercase", color: "#1a1a1a", margin: "0 0 12px", lineHeight: 1.2 }}>
                   THE LEELA
                 </p>
-                <span style={{ fontSize: 10, color: "#6b7280", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
+                <span style={{ fontSize: 10, color: "#9ca3af", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
                 <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1.5px", margin: "6px 0 0" }}>
                   THE LEELA HOTELS
                 </p>
@@ -256,7 +299,7 @@ function ExampleModal({
                 <p style={{ display: "none", fontFamily: "'DM Serif Display', serif", fontSize: 26, fontWeight: 400, letterSpacing: "1px", color: "#1a1a1a", margin: "0 0 12px", lineHeight: 1.2 }}>
                   Tanishq
                 </p>
-                <span style={{ fontSize: 10, color: "#6b7280", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
+                <span style={{ fontSize: 10, color: "#9ca3af", letterSpacing: "0.5px" }}>Reference only · Not affiliated</span>
                 <p style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "1.5px", margin: "6px 0 0" }}>
                   TANISHQ
                 </p>
@@ -1191,12 +1234,29 @@ function SuccessScreen({ title, text, font }: { title: string; text: string; fon
   );
 }
 
+// ── Selected-tier banner data ──────────────────────────────────────
+// Mirrors the three Brand Identity tiers from scripts/seed-catalog.mjs.
+// Hardcoded here so the banner doesn't pull Supabase just to render a
+// pill; the seed is the source of truth for live pricing.
+const TIER_INFO: Record<string, { name: string; price: string }> = {
+  foundation:   { name: "Foundation",   price: "₹25,000" },
+  professional: { name: "Professional", price: "₹55,000" },
+  complete:     { name: "Complete",     price: "₹95,000" },
+};
+
+function getTierFromSearch(search: string): { slug: string; name: string; price: string } | null {
+  const slug = (new URLSearchParams(search).get("tier") || "").toLowerCase();
+  const info = TIER_INFO[slug];
+  return info ? { slug, ...info } : null;
+}
+
 // ── Main page ──────────────────────────────────────────────────────
 export function BrandIdentityDiscoveryPage() {
   // Read ?pack= once on mount — defaults to creative (florist wording).
   const search = typeof window !== "undefined" ? window.location.search : "";
   const pack = useMemo(() => getPackFromSearch(search), [search]);
   const packKey = useMemo(() => getPackKeyFromSearch(search), [search]);
+  const selectedTier = useMemo(() => getTierFromSearch(search), [search]);
 
   const [form, setForm] = useState<FS>(BLANK);
   const [files, setFiles] = useState<FileList | null>(null);
@@ -1245,7 +1305,7 @@ export function BrandIdentityDiscoveryPage() {
     document.body.style.background = C.bg;
     document.title = "Brand Identity Discovery — Eswar Creatives";
     const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc) metaDesc.setAttribute("content", "Tell us about your business, your vision, and the soul of the work you do. Eswar Creatives will review your brief within three working days.");
+    if (metaDesc) metaDesc.setAttribute("content", "Tell us about your business, your audience, and the direction your brand should take. Eswar Creatives will review your brief within three working days.");
     return () => {
       document.documentElement.style.background = prevBg;
       document.body.style.background = "";
@@ -1363,6 +1423,9 @@ export function BrandIdentityDiscoveryPage() {
     try {
       const fd = new FormData();
       const fields: [string, string][] = [
+        ...(selectedTier
+          ? ([["Selected Package", `${selectedTier.name} (from ${selectedTier.price})`]] as [string, string][])
+          : []),
         ["01. Business Name", form.businessName],
         ["01b. Tagline", form.tagline],
         ["02. What You Do", form.whatYouDo],
@@ -1463,7 +1526,7 @@ export function BrandIdentityDiscoveryPage() {
       pageSubtitle: pack.pageSubtitle,
       pageNote: "We'll review your brief and follow up within three working days.",
       s1Title: "The Business",
-      s2Title: "The Brand Soul",
+      s2Title: pack.s2Title,
       s3Title: "Your Clients",
       s4Title: "Competitors & Positioning",
       s5Title: "Visual Direction",
@@ -1477,7 +1540,7 @@ export function BrandIdentityDiscoveryPage() {
       q2Label: "Tagline (if you have one)",
       q2Hint: "Even a rough one. Or leave blank — we'll help you find one.",
       q3Label: "What do you do? Tell us about your work.",
-      q3Hint: "Describe what you do, who you serve, and what makes your work special.",
+      q3Hint: "Describe what you do, who you serve, and what makes your business different.",
       q4Label: "How long have you been in business?",
       q4Hint: "Helps us understand where you are in your journey.",
       q5Label: "Where do you operate?",
@@ -1557,7 +1620,7 @@ export function BrandIdentityDiscoveryPage() {
       pageSubtitle: pack.pageSubtitleTamil,
       pageNote: "நீங்க submit பண்ண மூணு working days-ல நாங்க திரும்பி connect பண்றோம்.",
       s1Title: "Business பத்தி",
-      s2Title: "Brand-ஓட Soul",
+      s2Title: pack.s2TitleTamil,
       s3Title: "உங்க Clients",
       s4Title: "Competitors & Positioning",
       s5Title: "Visual Direction",
@@ -1685,7 +1748,7 @@ export function BrandIdentityDiscoveryPage() {
       <QDivider />
       <QL>{t[lang].q3Label}</QL>
       <ExTrigger qKey="whatYouDo" onOpen={setExampleModal} />
-      <TArea value={form.whatYouDo} onChange={(v) => set("whatYouDo", v)} placeholder="Describe what you do, who you serve, and what makes your work special…" />
+      <TArea value={form.whatYouDo} onChange={(v) => set("whatYouDo", v)} placeholder="Describe what you do, who you serve, and what makes your business different…" />
 
       <QDivider />
       <QL>{t[lang].q4Label}</QL>
@@ -1754,7 +1817,7 @@ export function BrandIdentityDiscoveryPage() {
 
       <QDivider />
       <QL>{t[lang].q5Label}</QL>
-      {["Local Chennai", "Tamil Nadu-wide", "Pan-India", "International"].map((o) => (
+      {["City / Local", "State / Regional", "Pan-India", "International"].map((o) => (
         <RadioOpt key={o} label={o} checked={form.operationArea === o} onSelect={() => set("operationArea", o)} />
       ))}
 
@@ -2126,7 +2189,7 @@ export function BrandIdentityDiscoveryPage() {
           <path d="M14 19V9M9 14l5-5 5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <p style={{ fontSize: 14, color: "#4a4a4a", margin: 0 }}>Drag files here or click to browse</p>
-        <p style={{ fontSize: 12, color: "#6b7280", margin: 0, marginTop: 4 }}>JPG, PNG, PDF, GIF · Up to 5 files · 10MB each</p>
+        <p style={{ fontSize: 12, color: "#9ca3af", margin: 0, marginTop: 4 }}>JPG, PNG, PDF, GIF · Up to 5 files · 10MB each</p>
         <input
           type="file"
           accept=".jpg,.jpeg,.png,.pdf,.gif"
@@ -2385,6 +2448,48 @@ export function BrandIdentityDiscoveryPage() {
             ))}
           </div>
         </div>
+
+        {/* Selected-tier pill — shown when /services/branding sent ?tier= */}
+        {selectedTier && (
+          <div
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              flexWrap: "wrap", gap: 10,
+              background: "#fbf6e8",
+              border: "1px solid #d6c79e",
+              borderRadius: 10,
+              padding: "10px 14px",
+              marginBottom: 18,
+              fontSize: 13.5,
+              lineHeight: "20px",
+              color: "#6b5938",
+              fontFamily: qlFont,
+            }}
+          >
+            <span>
+              You&rsquo;re starting with the{" "}
+              <strong style={{ color: "#2a1f14", fontWeight: 600 }}>
+                {selectedTier.name}
+              </strong>{" "}
+              package
+              <span style={{ color: "#8b7548" }}> — from {selectedTier.price}</span>
+            </span>
+            <Link
+              to="/services/branding"
+              style={{
+                color: "#a67932",
+                textDecoration: "underline",
+                textUnderlineOffset: 2,
+                fontWeight: 600,
+                fontSize: 12.5,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Change plan
+            </Link>
+          </div>
+        )}
+
         <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: "42px", color: C.text, marginBottom: 12, fontFamily: qlFont }}>
           {t[lang].pageTitle}
         </h1>

@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brand Identity Discovery — Newgen Event Makers</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --teal: #024C4F;
+    --teal-mid: #007872;
+    --teal-light: #EAF3F3;
+    --teal-border: #B0D4D4;
+    --gold: #D5B067;
+    --gold-dark: #8B6200;
+    --gold-light: #FDF6E8;
+    --cream: #FAF8F4;
+    --dark: #0A1A1B;
+    --muted: #3D6163;
+    --border: #D8E8E8;
+    --white: #FFFFFF;
+    --green: #2E7D32;
+    --green-light: #E8F5E9;
+    --ruby: #B00D2D;
+    --ruby-light: #FFF0F2;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--dark);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* Header */
+  .site-header {
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .site-logo {
+    width: 32px;
+    height: 32px;
+    background: var(--teal-mid);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .site-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--dark);
+  }
+
+  /* Progress bar */
+  .progress-bar-wrap {
+    height: 3px;
+    background: var(--border);
+    position: sticky;
+    top: 61px;
+    z-index: 99;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--teal-mid);
+    transition: width 0.5s ease;
+  }
+
+  /* Layout */
+  .page-wrapper {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Page header */
+  .page-badge {
+    display: inline-block;
+    background: var(--teal-light);
+    color: var(--teal);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--teal-border);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .page-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 8px;
+  }
+  .page-sub {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .page-note {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+
+  /* Pre-fill notice */
+  .prefill-notice {
+    background: var(--green-light);
+    border: 1px solid #81C784;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 28px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .prefill-icon {
+    width: 22px;
+    height: 22px;
+    background: var(--green);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+    font-size: 11px;
+    color: white;
+    font-weight: 700;
+  }
+  .prefill-text { font-size: 13px; color: #1B5E20; line-height: 1.5; }
+  .prefill-text strong { font-weight: 600; }
+
+  /* Section navigation */
+  .section-nav {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .section-nav-btn {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .section-nav-btn:hover, .section-nav-btn.active {
+    background: var(--teal);
+    color: white;
+    border-color: var(--teal);
+  }
+
+  /* Section card */
+  .section-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 20px;
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  .section-card.visible { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .section-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--teal-mid);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .section-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--dark);
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Field */
+  .field { margin-bottom: 22px; }
+  .field-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--dark);
+    margin-bottom: 6px;
+    display: block;
+  }
+  .field-hint {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .field-source {
+    font-size: 10.5px;
+    color: var(--teal-mid);
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .field-source::before {
+    content: '◉';
+    font-size: 8px;
+  }
+
+  /* Inputs */
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  textarea,
+  select {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    color: var(--dark);
+    background: var(--white);
+    outline: none;
+    transition: border-color 0.2s;
+    resize: none;
+  }
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--teal-mid);
+    box-shadow: 0 0 0 3px rgba(0,120,114,0.08);
+  }
+  .filled-input {
+    background: var(--gold-light) !important;
+    border-color: var(--gold) !important;
+    color: var(--dark);
+    font-weight: 500;
+  }
+  .filled-input:focus {
+    border-color: var(--gold-dark) !important;
+    box-shadow: 0 0 0 3px rgba(213,176,103,0.15) !important;
+  }
+
+  /* Radio / Checkbox options */
+  .options-list { display: flex; flex-direction: column; gap: 8px; }
+  .option-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13.5px;
+    color: var(--dark);
+    background: var(--white);
+  }
+  .option-item.selected {
+    border-color: var(--teal-mid);
+    background: var(--teal-light);
+    color: var(--teal);
+    font-weight: 500;
+  }
+  .option-item input { display: none; }
+  .option-dot {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .option-item.selected .option-dot {
+    border-color: var(--teal-mid);
+    background: var(--teal-mid);
+  }
+  .option-item.selected .option-dot::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: white;
+    border-radius: 50%;
+  }
+  .option-checkbox {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: white;
+  }
+  .option-item.selected .option-checkbox {
+    border-color: var(--teal-mid);
+    background: var(--teal-mid);
+  }
+
+  /* Checkbox grid */
+  .checkbox-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* Budget options */
+  .budget-options { display: flex; flex-direction: column; gap: 8px; }
+
+  /* Navigation buttons */
+  .nav-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0 0;
+    margin-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .btn-back {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    padding: 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-back:hover { color: var(--dark); }
+  .btn-continue {
+    background: var(--teal-mid);
+    color: white;
+    border: none;
+    padding: 11px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s;
+  }
+  .btn-continue:hover { background: var(--teal); }
+  .btn-submit {
+    background: var(--teal);
+    color: white;
+    border: none;
+    padding: 13px 28px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .btn-submit:hover { background: var(--dark); }
+
+  .sections-remaining {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 10px;
+  }
+
+  /* Progress steps */
+  .step-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .step-dots {
+    display: flex;
+    gap: 4px;
+  }
+  .step-dot {
+    width: 28px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+  .step-dot.done { background: var(--teal-mid); }
+  .step-dot.active { background: var(--teal); }
+
+  /* Contact fields row */
+  .contact-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .contact-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+  }
+
+  /* Copy button */
+  .copy-all-btn {
+    background: var(--teal-light);
+    border: 1px solid var(--teal-border);
+    color: var(--teal);
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .copy-all-btn:hover { background: var(--teal); color: white; }
+
+  /* Section header row */
+  .section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Confidence tag */
+  .confidence-tag {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .conf-high { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
+  .conf-med { background: var(--gold-light); color: var(--gold-dark); border: 1px solid #F0D080; }
+
+  /* Tooltip */
+  .transcript-ref {
+    background: #F0F8FF;
+    border-left: 3px solid var(--teal-mid);
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: #2A5A6A;
+    font-style: italic;
+  }
+  .transcript-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--teal-mid);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 3px;
+    font-style: normal;
+  }
+
+  @media (max-width: 480px) {
+    .checkbox-grid { grid-template-columns: 1fr; }
+    .page-title { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-logo">e</div>
+  <span class="site-name">Eswar Creatives</span>
+</header>
+<div class="progress-bar-wrap">
+  <div class="progress-bar-fill" id="progressBar" style="width:14%"></div>
+</div>
+
+<div class="page-wrapper">
+  <div class="page-badge">Brand Identity Discovery</div>
+  <h1 class="page-title">Tell us about your brand.</h1>
+  <p class="page-sub">This brief helps us understand the soul of your business before we begin. Take your time — there are no wrong answers.</p>
+  <p class="page-note">We'll review your brief and follow up within three working days.</p>
+
+  <div class="prefill-notice">
+    <div class="prefill-icon">✓</div>
+    <div class="prefill-text">
+      <strong>Pre-filled from your discovery session.</strong> Eswar Creatives has completed this form on your behalf based on your conversation with Mohan anna. Please review each answer, make any corrections, and submit. Fields highlighted in <span style="background:var(--gold-light); padding:1px 5px; border-radius:3px; color:var(--gold-dark); font-weight:600;">gold</span> are filled from the transcript.
+    </div>
+  </div>
+
+  <div class="step-indicator">
+    <span id="stepLabel">Section 1 of 7 — The Business</span>
+    <div style="margin-left:auto; font-size:12px; color:var(--muted);" id="stepCount">1 / 7</div>
+  </div>
+  <div class="step-dots" id="stepDots"></div>
+  <br>
+
+  <!-- ── SECTION 1: THE BUSINESS ───────────────────────────── -->
+  <div class="section-card visible" id="section-1">
+    <div class="section-header-row">
+      <div>
+        <div class="section-number">01</div>
+        <div class="section-title">The Business</div>
+      </div>
+      <span class="confidence-tag conf-high">High confidence</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Business name *</label>
+      <input type="text" class="filled-input" value="Newgen Event Makers">
+      <div class="field-source">From transcript — confirmed business name, preferred over "Newgen Wedding Decor"</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Tagline (if you have one)</label>
+      <input type="text" class="filled-input" placeholder="Optional" value="Where every celebration becomes a legacy">
+      <div class="field-source">Suggested — aligned with Mohan's 10-year vision and premium positioning</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What do you do? Tell us about your work.</label>
+      <div class="field-hint">Describe what you do, who you serve, and what makes your work special...</div>
+      <textarea class="filled-input" rows="5">Newgen Event Makers is a premium event decoration and management company based in Chennai, operating since 2018. We specialise in wedding decoration — our primary service — along with corporate events, social celebrations, destination weddings, and eco-friendly weddings. Every event begins with a hand-drawn concept sketch before a single decoration is placed. We hold 6 mandapam contracts across Chennai and operate branches in Tiruchi and Bengaluru. Over 1,500 events completed. Our clients include Aachi Masala, IC Mobile, and leading mandapam owners across Tamil Nadu.</textarea>
+      <div class="field-source">Directly from transcript — all details confirmed by Mohan</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">How long have you been in business?</label>
+      <div class="options-list">
+        <label class="option-item selected" onclick="selectRadio(this)">
+          <input type="radio" name="years" value="7+">
+          <div class="option-dot"></div>
+          7+ years (since 2018)
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="years" value="5-7">
+          <div class="option-dot"></div>
+          5–7 years
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="years" value="3-5">
+          <div class="option-dot"></div>
+          3–5 years
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="years" value="1-3">
+          <div class="option-dot"></div>
+          1–3 years
+        </label>
+      </div>
+      <div class="field-source">Operating since 2018 — confirmed in transcript</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Where do you operate?</label>
+      <div class="options-list">
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="location" value="local">
+          <div class="option-dot"></div>
+          Local Chennai
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="location" value="tn">
+          <div class="option-dot"></div>
+          Tamil Nadu-wide
+        </label>
+        <label class="option-item selected" onclick="selectRadio(this)">
+          <input type="radio" name="location" value="india">
+          <div class="option-dot"></div>
+          Pan-India
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="location" value="intl">
+          <div class="option-dot"></div>
+          International
+        </label>
+      </div>
+      <div class="field-source">Chennai HQ · Tiruchi branch · Bengaluru launching — Pan-India is most accurate</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What does success look like in 3 years?</label>
+      <div class="field-hint">Paint us a picture of where you want to be...</div>
+      <textarea class="filled-input" rows="4">Six mandapam contracts running simultaneously with independent teams. Newgen operating as a scalable system — not dependent on Mohan being physically present at every event. Company ready to be handed to my daughter by year 4. In 10 years, a 5-star hotel property under the Newgen brand, with capacity for IPL-level events, star nights, and audio launches.</textarea>
+      <div class="field-source">Verbatim from transcript — Mohan's own words on his 4-year and 10-year vision</div>
+    </div>
+
+    <div class="nav-buttons">
+      <span></span>
+      <button class="btn-continue" onclick="goTo(2)">Continue →</button>
+    </div>
+    <p class="sections-remaining">6 sections remaining</p>
+  </div>
+
+  <!-- ── SECTION 2: YOUR CLIENTS ───────────────────────────── -->
+  <div class="section-card" id="section-2">
+    <div class="section-header-row">
+      <div>
+        <div class="section-number">02</div>
+        <div class="section-title">Your Clients</div>
+      </div>
+      <span class="confidence-tag conf-high">High confidence</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Describe your ideal client in detail.</label>
+      <div class="field-hint">Age, lifestyle, values, what they care about most when hiring someone like you...</div>
+      <textarea class="filled-input" rows="5">Two distinct client types. Primary B2B: mandapam owners in Chennai and Tamil Nadu who need a reliable, premium decoration partner for all weddings booked at their venue — they value consistency, professionalism, and zero surprises on the event day. Secondary HNI individuals: families planning weddings or milestone celebrations with budgets of ₹5–25L who want a personalised, design-led experience from the first sketch. Corporate clients (Aachi Masala, IC Mobile) who value execution quality and brand representation at their events.</textarea>
+      <div class="field-source">From transcript — Mohan clearly articulated the B2B mandapam model as primary</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Price point</label>
+      <div class="options-list">
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="price" value="budget">
+          <div class="option-dot"></div>
+          Budget-conscious
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="price" value="mid">
+          <div class="option-dot"></div>
+          Mid-range
+        </label>
+        <label class="option-item selected" onclick="selectRadio(this)">
+          <input type="radio" name="price" value="premium">
+          <div class="option-dot"></div>
+          Premium
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="price" value="luxury">
+          <div class="option-dot"></div>
+          Luxury
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="price" value="mixed">
+          <div class="option-dot"></div>
+          Mixed
+        </label>
+      </div>
+      <div class="field-source">Mohan aspires to Vivahitha / Wedding Chakra level — premium is correct</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Where do clients find you?</label>
+      <div class="checkbox-grid">
+        <label class="option-item" onclick="toggleCheck(this)">
+          <input type="checkbox">
+          <div class="option-checkbox">✓</div>
+          Instagram
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Word of mouth
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Google search
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Referrals from vendors
+        </label>
+        <label class="option-item" onclick="toggleCheck(this)">
+          <input type="checkbox">
+          <div class="option-checkbox">✓</div>
+          Wedding expos
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          BNI network
+        </label>
+      </div>
+      <div class="field-source">Primary: mandapam referrals + BNI + word of mouth. Google search (4.9★ 26 reviews) is growing</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What's the biggest frustration clients have with similar businesses?</label>
+      <textarea class="filled-input" rows="4">Decorators who don't visualise before executing — clients are surprised on the day. Poor communication during setup. Vendors who treat every event the same without understanding the family's specific vision. No accountability when things go wrong. Generic setups that don't reflect the couple's personality.</textarea>
+      <div class="field-source">Inferred from Mohan's differentiation — "sketch first" philosophy directly addresses this</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What do clients say after working with you?</label>
+      <textarea class="filled-input" rows="3">That the event looked exactly like Mohan anna described it from day one. That they didn't have to chase anyone on the day. That the guests were genuinely surprised by the setup. 4.9 stars on Google from 26 verified reviews — multiple clients who said they could not believe what was done within their budget.</textarea>
+      <div class="field-source">From 4.9★ Google rating and Mohan's own statements about client satisfaction</div>
+    </div>
+
+    <div class="nav-buttons">
+      <button class="btn-back" onclick="goTo(1)">← Back</button>
+      <button class="btn-continue" onclick="goTo(3)">Continue →</button>
+    </div>
+    <p class="sections-remaining">5 sections remaining</p>
+  </div>
+
+  <!-- ── SECTION 3: BRAND SOUL ─────────────────────────────── -->
+  <div class="section-card" id="section-3">
+    <div class="section-header-row">
+      <div>
+        <div class="section-number">03</div>
+        <div class="section-title">The Brand Soul</div>
+      </div>
+      <span class="confidence-tag conf-high">High confidence</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Three words that describe your brand personality</label>
+      <input type="text" class="filled-input" value="Premium, Visionary, Trustworthy">
+      <div class="field-source">From transcript — "premium + creative" feel, "New Gen always refers to next generation"</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Three words you want to AVOID</label>
+      <input type="text" class="filled-input" value="Cheap, Generic, Informal">
+      <div class="field-source">Mohan said he wants to match Vivahitha / Wedding Chakra — not be perceived as a budget vendor</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">If your brand were a person, describe them.</label>
+      <textarea class="filled-input" rows="4">A well-dressed, soft-spoken entrepreneur who carries a sketchbook everywhere. They listen deeply, draw what you describe, and then build it exactly as promised. Calm under pressure. Speaks in both Tamil and English naturally. The kind of person who shows up before anyone else and leaves after everything is perfect. Respected by vendors and loved by clients.</textarea>
+      <div class="field-source">From transcript — Mohan described his own operating style and relationship with clients and workers</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What feeling should clients have when they encounter your brand?</label>
+      <div class="options-list">
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Confident and assured
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Moved and emotional
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Seen and understood
+        </label>
+        <label class="option-item" onclick="toggleCheck(this)">
+          <input type="checkbox">
+          <div class="option-checkbox">✓</div>
+          Calm and cared for
+        </label>
+        <label class="option-item" onclick="toggleCheck(this)">
+          <input type="checkbox">
+          <div class="option-checkbox">✓</div>
+          Excited and inspired
+        </label>
+      </div>
+      <div class="field-source">Primary feeling should be trust and assurance — "oru proof illame nadandhutten" is what Mohan is solving</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">If your brand were a place, which comes closest?</label>
+      <div class="options-list">
+        <label class="option-item selected" onclick="selectRadio(this)">
+          <input type="radio" name="place" value="boutique">
+          <div class="option-dot"></div>
+          A curated boutique hotel
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="place" value="garden">
+          <div class="option-dot"></div>
+          A lush private garden
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="place" value="studio">
+          <div class="option-dot"></div>
+          A sun-filled studio
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="place" value="heritage">
+          <div class="option-dot"></div>
+          A grand heritage hall
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="place" value="tamil">
+          <div class="option-dot"></div>
+          A quiet Tamil home
+        </label>
+      </div>
+      <div class="field-source">Mohan's 10-year vision is a 5-star hotel — "boutique hotel" best aligns with premium + Tamil hospitality</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">In one sentence, what is your brand promise?</label>
+      <input type="text" class="filled-input" value="We sketch your celebration before we build it — and what you see is exactly what your guests will feel.">
+      <div class="field-source">Derived from Mohan's core differentiator: hand-sketching every event concept before execution</div>
+    </div>
+
+    <div class="nav-buttons">
+      <button class="btn-back" onclick="goTo(2)">← Back</button>
+      <button class="btn-continue" onclick="goTo(4)">Continue →</button>
+    </div>
+    <p class="sections-remaining">4 sections remaining</p>
+  </div>
+
+  <!-- ── SECTION 4: COMPETITORS ────────────────────────────── -->
+  <div class="section-card" id="section-4">
+    <div class="section-header-row">
+      <div>
+        <div class="section-number">04</div>
+        <div class="section-title">Competitors & Positioning</div>
+      </div>
+      <span class="confidence-tag conf-high">High confidence</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Name 3 competitors or peers you respect</label>
+      <textarea class="filled-input" rows="4">1. Vivahitha — strong brand identity, consistent premium positioning in Chennai weddings
+2. Wedding Chakra — process-oriented, good content presence
+3. Manish Garland — 5 lakh Instagram followers, high visibility, strong event volume
+
+What I admire: their consistency, their social proof, and how their brand does the selling before the meeting even happens.</textarea>
+      <div class="field-source">Named directly by Mohan in the transcript as his aspiration benchmarks</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What makes you genuinely different?</label>
+      <textarea class="filled-input" rows="4">Every event starts with a hand-drawn concept sketch — clients see the vision before we build it. This is not standard in the industry. We also handle the full event stack: decoration, AV, sound, photography, videography, logistics, and catering coordination — all under one team. And we have proven eco-friendly wedding capability, which no competitor in Chennai has taken seriously.</textarea>
+      <div class="field-source">From transcript — Mohan's "visually think pannu" approach is the core differentiator</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What do clients sometimes choose competitors for, over you?</label>
+      <textarea class="filled-input" rows="3">Brand recognition — when a mandapam owner or corporate client sees a competitor's name, they already know what to expect. We have done 1,500 events but have no visible proof online. Our social media has 200 followers despite our volume. Clients who don't know us personally have no way to verify our quality before calling.</textarea>
+      <div class="field-source">Mohan's exact insight: "1,500 events panni 200 followers — oru proof illame nadandhutten"</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Where do you want to be positioned in the market?</label>
+      <div class="options-list">
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="position" value="affordable">
+          <div class="option-dot"></div>
+          Most affordable
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="position" value="value">
+          <div class="option-dot"></div>
+          Best value
+        </label>
+        <label class="option-item selected" onclick="selectRadio(this)">
+          <input type="radio" name="position" value="premium">
+          <div class="option-dot"></div>
+          Premium quality
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="position" value="luxury">
+          <div class="option-dot"></div>
+          Absolute luxury
+        </label>
+      </div>
+      <div class="field-source">Mohan's aspiration is Vivahitha level — premium quality is correct</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What should clients never think or say about you?</label>
+      <textarea class="filled-input" rows="3">That we are just another decorator. That we are not serious enough for a corporate client. That we are only good for small-scale weddings. That we lack systems or professionalism. The brand must signal scale, trust, and permanence — not a single person running a business from a phone.</textarea>
+      <div class="field-source">Inferred from Mohan's frustration with his current brand not communicating business credibility</div>
+    </div>
+
+    <div class="nav-buttons">
+      <button class="btn-back" onclick="goTo(3)">← Back</button>
+      <button class="btn-continue" onclick="goTo(5)">Continue →</button>
+    </div>
+    <p class="sections-remaining">3 sections remaining</p>
+  </div>
+
+  <!-- ── SECTION 5: VISUAL DIRECTION ──────────────────────── -->
+  <div class="section-card" id="section-5">
+    <div class="section-header-row">
+      <div>
+        <div class="section-number">05</div>
+        <div class="section-title">Visual Direction</div>
+      </div>
+      <span class="confidence-tag conf-med">Confirmed + interpreted</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Typography direction — which feels most like you?</label>
+      <div class="options-list">
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="typo" value="elegance">
+          <div class="option-dot"></div>
+          Elegance — Traditional · Established · Timeless (Classic serif)
+        </label>
+        <label class="option-item selected" onclick="selectRadio(this)">
+          <input type="radio" name="typo" value="editorial">
+          <div class="option-dot"></div>
+          Editorial — Contemporary · Refined · Forward (Modern serif)
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="typo" value="graceful">
+          <div class="option-dot"></div>
+          Graceful — Romantic · Personal · Handcrafted (Script)
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="typo" value="minimal">
+          <div class="option-dot"></div>
+          Minimal — Modern · Architectural · Clean (Sans-serif)
+        </label>
+      </div>
+      <div class="field-source">Confirmed by Mohan on phone call — Editorial (Contemporary · Refined · Forward) is his choice</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What type of logo feels right for your brand?</label>
+      <div class="options-list">
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="logoType" value="combination">
+          <div class="option-dot"></div>
+          Combination mark — A symbol and your name together (versatile and recognisable)
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="logoType" value="lettermark">
+          <div class="option-dot"></div>
+          Lettermark — Your initials crafted into a distinctive identity
+        </label>
+        <label class="option-item selected" onclick="selectRadio(this)">
+          <input type="radio" name="logoType" value="abstract">
+          <div class="option-dot"></div>
+          Abstract mark — A unique geometric shape (modern, open to interpretation)
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="logoType" value="wordmark">
+          <div class="option-dot"></div>
+          Wordmark — Full business name as the logo
+        </label>
+      </div>
+      <div class="field-source">Confirmed by Mohan on phone call — Abstract mark + Pictorial mark direction. A unique symbol that stands alone, not tied to the event industry</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Logos you admire — share 3 to 5 examples</label>
+      <textarea class="filled-input" rows="4">1. Vivahitha Events — clean, premium feel, gold and dark palette
+2. The Leela (hotel brand) — timeless, elevated, works for both weddings and corporate
+3. Taj Hotels logo — traditional yet refined, carries trust immediately
+4. Manish Garland — recognisable, consistent across all touchpoints
+
+What I love about them: they communicate quality before you read a single word.</textarea>
+      <div class="field-source">Derived from Mohan's competitor benchmarks and hotel aspiration — Eswar to confirm directly</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Logos or visual styles you dislike — share 2 to 3</label>
+      <textarea class="filled-input" rows="3">Generic decorative fonts with flowers or vines that look like every other event company. Overly playful or cartoon-like logos that don't convey seriousness. Black as a dominant colour for weddings — Mohan specifically mentioned avoiding black in wedding contexts.</textarea>
+      <div class="field-source">From transcript — Mohan explicitly said no black for weddings; general premium sensibility</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Any symbols, motifs, or floral elements you'd like explored?</label>
+      <input type="text" class="filled-input" value="Kolam / mandala motif + Abstract / minimal geometric elements — confirmed by Mohan on call">
+      <div class="field-source">Confirmed by Mohan on phone call — Kolam/mandala (South Indian cultural rooting) + Abstract/minimal (modern, hotel-ready)</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Cultural & regional cues to consider</label>
+      <input type="text" class="filled-input" value="South Indian roots, global finish — Temple, Heritage, Global, Premium. Culturally specific but presented with international polish.">
+      <div class="field-source">Confirmed by Mohan on phone call — South Indian roots, global finish. Temple + Heritage + Global + Premium direction</div>
+    </div>
+
+    <div class="nav-buttons">
+      <button class="btn-back" onclick="goTo(4)">← Back</button>
+      <button class="btn-continue" onclick="goTo(6)">Continue →</button>
+    </div>
+    <p class="sections-remaining">2 sections remaining</p>
+  </div>
+
+  <!-- ── SECTION 6: PRACTICAL DETAILS ─────────────────────── -->
+  <div class="section-card" id="section-6">
+    <div class="section-header-row">
+      <div>
+        <div class="section-number">06</div>
+        <div class="section-title">Practical Details</div>
+      </div>
+      <span class="confidence-tag conf-high">High confidence</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Where will this identity be used?</label>
+      <div class="checkbox-grid">
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Instagram & social
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Website
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Signage at venues
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Printed invitations
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Vehicle branding
+        </label>
+        <label class="option-item" onclick="toggleCheck(this)">
+          <input type="checkbox">
+          <div class="option-checkbox">✓</div>
+          Staff uniforms
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Business cards
+        </label>
+        <label class="option-item" onclick="toggleCheck(this)">
+          <input type="checkbox">
+          <div class="option-checkbox">✓</div>
+          Gift packaging
+        </label>
+        <label class="option-item selected" onclick="toggleCheck(this)">
+          <input type="checkbox" checked>
+          <div class="option-checkbox">✓</div>
+          Brochures & decks
+        </label>
+      </div>
+      <div class="field-source">From scope — all these are included in Brand Identity application proofs</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Existing logo or visual assets (optional)</label>
+      <div style="border: 1.5px dashed var(--border); border-radius: 8px; padding: 24px; text-align: center; color: var(--muted); font-size: 13px;">
+        📎 Existing JPG logo available — no source files (AI/EPS)<br>
+        <span style="font-size:11px; margin-top:4px; display:block;">Mohan to share via WhatsApp before kickoff session</span>
+      </div>
+      <div class="field-source">Confirmed in transcript — existing logo is JPG only, full rebuild required</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Project timeline</label>
+      <input type="text" class="filled-input" value="Needed by June 2025 — Bengaluru branch launch is a key milestone. Deliver within 2–3 weeks of kickoff.">
+      <div class="field-source">Bengaluru launch mentioned in transcript; 2–3 week timeline agreed</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Budget range</label>
+      <div class="options-list">
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="budget" value="25-50">
+          <div class="option-dot"></div>
+          ₹25k–50k
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="budget" value="50-1">
+          <div class="option-dot"></div>
+          ₹50k–1L
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="budget" value="1-2">
+          <div class="option-dot"></div>
+          ₹1L–2L
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="budget" value="2-3.5">
+          <div class="option-dot"></div>
+          ₹2L–3.5L
+        </label>
+        <label class="option-item" onclick="selectRadio(this)">
+          <input type="radio" name="budget" value="3.5+">
+          <div class="option-dot"></div>
+          ₹3.5L+
+        </label>
+        <label class="option-item selected" onclick="selectRadio(this)">
+          <input type="radio" name="budget" value="discuss">
+          <div class="option-dot"></div>
+          Open to discuss
+        </label>
+      </div>
+      <div class="field-source">As agreed — budget to be discussed directly with Mohan anna</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Who is the final decision-maker for this project?</label>
+      <input type="text" class="filled-input" value="Mohan (Founder) + wife (Co-owner) — both must approve the final logo concept before production">
+      <div class="field-source">Critical note from transcript — wife is co-owner and must be present at concept presentation</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Preferred way to communicate</label>
+      <input type="text" class="filled-input" value="WhatsApp — primary channel. Voice notes preferred over text for detailed feedback. 6am–9pm window.">
+      <div class="field-source">From transcript — Mohan operates on WhatsApp exclusively; 25,000+ unread emails</div>
+    </div>
+
+    <div class="nav-buttons">
+      <button class="btn-back" onclick="goTo(5)">← Back</button>
+      <button class="btn-continue" onclick="goTo(7)">Continue →</button>
+    </div>
+    <p class="sections-remaining">1 section remaining</p>
+  </div>
+
+  <!-- ── SECTION 7: FINAL THOUGHTS ────────────────────────── -->
+  <div class="section-card" id="section-7">
+    <div class="section-header-row">
+      <div>
+        <div class="section-number">07</div>
+        <div class="section-title">Final Thoughts</div>
+      </div>
+      <span class="confidence-tag conf-med">Suggested — review before submitting</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Anything personal or symbolic you'd like carried into the brand?</label>
+      <textarea class="filled-input" rows="5">The name "Newgen" is intentional — it means next generation, and it should never need to change. The brand must work for Mohan's daughter when she takes over. The NG monogram should carry the weight of everything built since 2018. The colour gold represents the royalty and celebration in our work. Teal grounds it with professionalism and calm. The brand must work equally well on a wedding stage, a corporate stage, and eventually a 5-star hotel — it cannot be event-specific.</textarea>
+      <div class="field-source">Directly from Mohan: "New Gen always refers to next generation — no need to change the name ever"</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Anything else you'd like us to know before we begin?</label>
+      <textarea class="filled-input" rows="5">We have been operating since 2018 and have changed logos 4–5 times. This time must be final. The logo must survive ownership transfer to my daughter in 4 years and eventually live on a 5-star hotel property. Do not make it look like a typical event or wedding company logo — it must look like a brand that could own a hotel. I want a brand that does the selling before I walk into the room.</textarea>
+      <div class="field-source">Verbatim from transcript — "naan 4-5 logo mattittu irukken" and the hotel vision</div>
+    </div>
+
+    <div class="contact-section">
+      <div class="contact-label">Contact details</div>
+
+      <div class="field">
+        <label class="field-label">Full name *</label>
+        <input type="text" class="filled-input" value="Mohan">
+        <div class="field-source">From transcript</div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Email address *</label>
+        <input type="email" placeholder="you@example.com — to be filled by Mohan">
+      </div>
+
+      <div class="field">
+        <label class="field-label">Phone / WhatsApp *</label>
+        <input type="tel" placeholder="Mohan's WhatsApp number — to be confirmed">
+        <div class="field-source">Mohan's number to be added before submission</div>
+      </div>
+    </div>
+
+    <div class="nav-buttons">
+      <button class="btn-back" onclick="goTo(6)">← Back</button>
+      <button class="btn-submit" onclick="handleSubmit()">Submit Discovery Brief →</button>
+    </div>
+    <p class="sections-remaining" style="margin-top:12px;">We'll review your brief within three working days.</p>
+  </div>
+
+</div>
+
+<script>
+  let current = 1;
+  const total = 7;
+  const labels = [
+    "The Business",
+    "Your Clients",
+    "The Brand Soul",
+    "Competitors & Positioning",
+    "Visual Direction",
+    "Practical Details",
+    "Final Thoughts"
+  ];
+
+  // Build dots
+  function buildDots() {
+    const container = document.getElementById('stepDots');
+    container.innerHTML = '';
+    for (let i = 1; i <= total; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'step-dot ' + (i < current ? 'done' : i === current ? 'active' : '');
+      container.appendChild(dot);
+    }
+  }
+
+  function goTo(n) {
+    document.getElementById('section-' + current).classList.remove('visible');
+    current = n;
+    document.getElementById('section-' + current).classList.add('visible');
+    document.getElementById('stepLabel').textContent = `Section ${n} of ${total} — ${labels[n-1]}`;
+    document.getElementById('stepCount').textContent = `${n} / ${total}`;
+    document.getElementById('progressBar').style.width = ((n / total) * 100) + '%';
+    buildDots();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function selectRadio(el) {
+    const name = el.querySelector('input').getAttribute('name');
+    document.querySelectorAll(`input[name="${name}"]`).forEach(inp => {
+      inp.closest('.option-item').classList.remove('selected');
+    });
+    el.classList.add('selected');
+  }
+
+  function toggleCheck(el) {
+    el.classList.toggle('selected');
+  }
+
+  function handleSubmit() {
+    const emailEl = document.querySelector('input[type="email"]');
+    const phoneEl = document.querySelector('input[type="tel"]');
+    if (!emailEl.value || !phoneEl.value) {
+      emailEl.style.borderColor = '#B00D2D';
+      phoneEl.style.borderColor = '#B00D2D';
+      emailEl.placeholder = 'Required — please fill before submitting';
+      phoneEl.placeholder = 'Required — please fill before submitting';
+      emailEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    alert('✓ Discovery brief ready to submit!\n\nAll sections are filled from Mohan\'s transcript. Please forward this to eswarcreatives.in/branding/brand-identity-discovery and paste the answers section by section, or share this file directly with Eswar Creatives.');
+  }
+
+  // Init
+  buildDots();
+</script>
+</body>
+</html>
