@@ -2,14 +2,14 @@
 // with status and balance due prominent. Opening an invoice on mobile shows a
 // full-screen overlay; on desktop a right-side slide-in panel.
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only.
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
 import { X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { type PortalProfile } from '../PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './ClientNav'
-import { tokens, t, fonts } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 import { formatMoney, formatDate, mono } from '../admin/ui'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { InvoiceDocument, invoiceStatusPill, type InvoiceLine, type InvoicePaymentRow } from '../components/shared/InvoiceDocument'
@@ -112,11 +112,28 @@ function Invoices({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
+      <style>{`
+        @keyframes ecShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+        .ec-shimmer{background:linear-gradient(90deg,${t.background.subtle} 25%,${t.background.muted} 50%,${t.background.subtle} 75%);background-size:200% 100%;animation:ecShimmer 1.5s linear infinite;border-radius:6px}
+      `}</style>
       <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         <h1 style={styles.title}>Invoices</h1>
 
         {error && <div style={styles.error}>{error}</div>}
-        {loading && <div style={styles.muted}>Loading your invoices...</div>}
+        {loading && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 12, padding: '16px 18px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div className="ec-shimmer" style={{ height: 13, width: 110 }} />
+                  <div className="ec-shimmer" style={{ height: 22, width: 72, borderRadius: 999 }} />
+                </div>
+                <div className="ec-shimmer" style={{ height: 22, width: 130, margin: '8px 0' }} />
+                <div className="ec-shimmer" style={{ height: 13, width: 90 }} />
+              </div>
+            ))}
+          </div>
+        )}
 
         {!loading && !error && invoices.length === 0 && (
           <div style={styles.empty}>
@@ -270,6 +287,8 @@ function InvoiceTable({ invoices, openId, onOpen }: { invoices: Invoice[]; openI
   )
 }
 
+const PANEL_MS = parseInt(motionTokens.durationBase, 10)
+
 function InvoicePanel({
   invoice,
   billedTo,
@@ -284,10 +303,20 @@ function InvoicePanel({
   const [shown, setShown] = useState(false)
   const [lines, setLines] = useState<InvoiceLine[]>([])
   const [payments, setPayments] = useState<InvoicePaymentRow[]>([])
+  const closingRef = useRef(false)
+
   useEffect(() => {
     const raf = requestAnimationFrame(() => setShown(true))
     return () => cancelAnimationFrame(raf)
   }, [])
+
+  // Animate out before unmounting so entry and exit are mirrored (H4).
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return
+    closingRef.current = true
+    setShown(false)
+    window.setTimeout(onClose, PANEL_MS)
+  }, [onClose])
 
   // Itemised breakdown (read-own RLS on 0062).
   useEffect(() => {
@@ -347,10 +376,18 @@ function InvoicePanel({
   )
 
   if (isMobile) {
-    // Full-screen overlay: slide up from bottom.
+    // Full-screen overlay: slides up from bottom on entry, back down on exit.
+    // Backdrop fades in/out simultaneously with the panel (H4 mirrored motion).
     return (
       <>
-        <div style={styles.backdrop} onClick={onClose} />
+        <div
+          style={{
+            ...styles.backdrop,
+            opacity: shown ? 1 : 0,
+            transition: `opacity ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
+          }}
+          onClick={requestClose}
+        />
         <div
           style={{
             ...styles.fullscreenOverlay,
@@ -359,12 +396,11 @@ function InvoicePanel({
           role="dialog"
           aria-label={`Invoice ${displayInvoiceNumber(invoice.invoice_number)}`}
         >
-          {/* Close button: fixed top-right, >= 44px touch target. */}
           <div style={styles.fullscreenHeader}>
             <span style={{ fontFamily: fonts.body, fontSize: 15, fontWeight: 600, color: t.text.primary }}>
               Invoice {displayInvoiceNumber(invoice.invoice_number)}
             </span>
-            <button type="button" style={styles.fullscreenClose} onClick={onClose} aria-label="Close">
+            <button type="button" style={styles.fullscreenClose} onClick={requestClose} aria-label="Close">
               <X size={20} />
             </button>
           </div>
@@ -545,7 +581,7 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 201,
     display: 'flex',
     flexDirection: 'column',
-    transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+    transition: `transform ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
   },
   fullscreenHeader: {
     display: 'flex',

@@ -288,11 +288,9 @@ const styles: Record<string, CSSProperties> = {
   backdrop: { position: 'fixed', inset: 0, background: 'rgba(10, 26, 27, 0.4)', zIndex: 200 },
   mobileOverlay: {
     position: 'fixed',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    // 100dvh covers the full dynamic viewport including the address bar area.
-    height: '100dvh',
+    // inset: 0 guarantees coverage to the status bar on all devices; no gap can
+    // appear above even on phones where 100dvh is slightly smaller than the screen.
+    inset: 0,
     background: tokens.surface,
     zIndex: 201,
     display: 'flex',

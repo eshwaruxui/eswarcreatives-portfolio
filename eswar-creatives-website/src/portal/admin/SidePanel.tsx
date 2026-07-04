@@ -9,9 +9,10 @@ import type { CSSProperties, ReactNode } from 'react'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 
-// Slide duration in ms, parsed from the shared motion token so the exit timer
-// and the CSS transition can never drift apart.
+// Slide duration in ms. Desktop drawer uses durationBase; mobile sheet uses
+// durationSlow so the longer travel distance (full-height entry) reads naturally.
 const SLIDE_MS = parseInt(motionTokens.durationBase, 10)
+const SLIDE_MS_SLOW = parseInt(motionTokens.durationSlow, 10)
 
 export function SidePanel({
   title,
@@ -50,8 +51,8 @@ export function SidePanel({
     if (closingRef.current) return
     closingRef.current = true
     setShown(false)
-    window.setTimeout(onClose, SLIDE_MS)
-  }, [onClose])
+    window.setTimeout(onClose, narrow ? SLIDE_MS_SLOW : SLIDE_MS)
+  }, [onClose, narrow])
 
   // H7 (flexibility/efficiency): Escape closes the drawer.
   useEffect(() => {
@@ -67,8 +68,9 @@ export function SidePanel({
         ...styles.panelBase,
         ...styles.sheet,
         zIndex: baseZIndex,
-        // easeEnter on the way in, easeExit on the way out.
-        transition: `transform ${motionTokens.durationBase} ${shown ? motionTokens.easeEnter : motionTokens.easeExit}`,
+        // Single continuous motion from translateY(100%) to translateY(0) with no
+        // intermediate state. durationSlow (350ms) suits the longer travel distance.
+        transition: `transform ${motionTokens.durationSlow} ${motionTokens.easeDefault}`,
         transform: shown ? 'translateY(0)' : 'translateY(100%)',
       }
     : {

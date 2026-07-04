@@ -236,6 +236,8 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         @keyframes dashBadgeIn{from{transform:scale(0)}to{transform:scale(1)}}
         .ec-phase-track{scroll-padding-left:16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
         .ec-phase-track::-webkit-scrollbar{display:none}
+        @keyframes ecShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+        .ec-shimmer{background:linear-gradient(90deg,${t.background.subtle} 25%,${t.background.muted} 50%,${t.background.subtle} 75%);background-size:200% 100%;animation:ecShimmer 1.5s linear infinite;border-radius:6px}
       `}</style>
       <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         {/* H1 (visibility of system status): the single most relevant next action,
@@ -279,7 +281,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
 
         <h1 style={styles.title}>Your project</h1>
 
-        {loading && <div style={styles.muted}>Loading your project...</div>}
+        {loading && <ProjectSkeleton />}
         {error && <div style={styles.error}>{error}</div>}
 
         {!loading && !error && !project && (
@@ -627,6 +629,31 @@ function PhaseColumn({
   )
 }
 
+// Shimmer skeleton shown while the project data loads. Mirrors the card header
+// and 4-step phase grid so the layout shift on data arrival is minimal.
+function ProjectSkeleton() {
+  return (
+    <div style={{ background: tokens.surface, border: `1px solid ${t.border.overlayStrong}`, borderRadius: 16, padding: 28, marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div style={{ flex: 1, marginRight: 16 }}>
+          <div className="ec-shimmer" style={{ height: 22, width: '55%', marginBottom: 10 }} />
+          <div className="ec-shimmer" style={{ height: 14, width: '35%' }} />
+        </div>
+        <div className="ec-shimmer" style={{ width: 64, height: 64, borderRadius: 32, flexShrink: 0 }} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="ec-shimmer" style={{ width: 32, height: 32, borderRadius: 16 }} />
+            <div className="ec-shimmer" style={{ height: 14, width: '80%' }} />
+            <div className="ec-shimmer" style={{ height: 10, width: '50%' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // Mobile-only horizontal snap-scroll phase carousel. Bleeds to the viewport
 // edge via -16px margins (cancelling the main container's horizontal padding)
 // so 85vw cards have a meaningful peek affordance on the right.
@@ -638,15 +665,29 @@ function PhaseCarousel({
   currentIndex: number
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
+  // activeDot tracks the visually snapped card as the user swipes (not just mount).
+  const [activeDot, setActiveDot] = useState(currentIndex)
 
   useEffect(() => {
     const track = trackRef.current
     if (!track) return
-    // Card width is 85vw; gap between cards is 12px. Scroll to the active phase
-    // synchronously (no animation) so it lands in place before the user sees the page.
     const cardWidth = window.innerWidth * 0.85
     track.scrollLeft = currentIndex * (cardWidth + 12)
+    setActiveDot(currentIndex)
   }, [currentIndex])
+
+  // Derive active dot from scroll position in real time so swipes update the dots.
+  useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    const onScroll = () => {
+      const cardWidth = window.innerWidth * 0.85
+      const idx = Math.round(track.scrollLeft / (cardWidth + 12))
+      setActiveDot(Math.max(0, Math.min(PHASES.length - 1, idx)))
+    }
+    track.addEventListener('scroll', onScroll, { passive: true })
+    return () => track.removeEventListener('scroll', onScroll)
+  }, [])
 
   return (
     <div style={styles.carouselOuter}>
@@ -662,7 +703,7 @@ function PhaseCarousel({
         {PHASES.map((_, i) => (
           <span
             key={i}
-            style={i === currentIndex ? { ...styles.dot, ...styles.dotActive } : { ...styles.dot, ...styles.dotIdle }}
+            style={i === activeDot ? { ...styles.dot, ...styles.dotActive } : { ...styles.dot, ...styles.dotIdle }}
           />
         ))}
       </div>
@@ -915,6 +956,7 @@ const styles: Record<string, CSSProperties> = {
     overflowX: 'auto',
     scrollSnapType: 'x mandatory',
     paddingLeft: 16,
+    paddingRight: 16,
     paddingBottom: 4,
     gap: 12,
   },

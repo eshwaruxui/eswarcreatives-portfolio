@@ -25,9 +25,9 @@ import eswarLogo from '../../imports/eswar-logo.svg'
 
 // Height the fixed top bar occupies; client pages offset their top padding.
 export const CLIENT_NAV_HEIGHT = 56
-// Height of the mobile bottom tab bar (without safe-area-inset-bottom, which
-// pages add via padding-bottom CSS when on mobile).
-export const CLIENT_BOTTOM_NAV_HEIGHT = 56
+// Height of the mobile bottom tab bar content area. Pages add
+// env(safe-area-inset-bottom) on top of this via ClientShell paddingBottom.
+export const CLIENT_BOTTOM_NAV_HEIGHT = 64
 
 // Resolved display name per profile, cached at module scope. Every client page
 // renders its own ClientNav; without the cache the bar flashes on tab change.
@@ -187,7 +187,7 @@ export function ClientNav({ profile }: { profile: PortalProfile }) {
                   <>
                     <span style={styles.tabIconWrap}>
                       <item.Icon
-                        size={20}
+                        size={22}
                         color={isActive ? tokens.primary : t.text.muted}
                       />
                       {showBadge && (
@@ -315,7 +315,7 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: '0 6px 18px rgba(176, 13, 45, 0.14)',
   },
 
-  // Bottom tab bar: fixed to bottom, 56px + safe-area-inset-bottom.
+  // Bottom tab bar: 64px content area + safe-area-inset-bottom for home indicator.
   bottomNav: {
     position: 'fixed',
     bottom: 0,
@@ -323,7 +323,7 @@ const styles: Record<string, CSSProperties> = {
     right: 0,
     zIndex: 90,
     height: CLIENT_BOTTOM_NAV_HEIGHT,
-    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+    paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
     background: tokens.surface,
     borderTop: `1px solid ${t.border.overlayStrong}`,
     display: 'flex',
@@ -358,10 +358,8 @@ const styles: Record<string, CSSProperties> = {
   },
   tabLabel: {
     fontFamily: fonts.body,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 500,
     lineHeight: 1,
-    // 10px is below 12px body minimum but tab labels at this density are
-    // conventionally smaller; the icon carries the primary recognition (H6).
   },
 }

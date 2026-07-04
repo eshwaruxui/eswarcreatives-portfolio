@@ -182,6 +182,10 @@ function Mockups({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
+      <style>{`
+        @keyframes ecShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+        .ec-shimmer{background:linear-gradient(90deg,${t.background.subtle} 25%,${t.background.muted} 50%,${t.background.subtle} 75%);background-size:200% 100%;animation:ecShimmer 1.5s linear infinite;border-radius:6px}
+      `}</style>
       <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         <div style={styles.heroBlock}>
           <h1 style={styles.title}>Mockups</h1>
@@ -194,7 +198,19 @@ function Mockups({ profile }: { profile: PortalProfile }) {
           </div>
         )}
 
-        {loading && <div style={styles.muted}>Loading mockups...</div>}
+        {loading && (
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 16 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} style={{ background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                <div className="ec-shimmer" style={{ height: 180, borderRadius: 0 }} />
+                <div style={{ padding: 16 }}>
+                  <div className="ec-shimmer" style={{ height: 16, width: '70%', marginBottom: 8 }} />
+                  <div className="ec-shimmer" style={{ height: 13, width: '45%' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {error && <div style={styles.error}>{error}</div>}
 
         {!loading && !error && sets.length === 0 && (
