@@ -6,26 +6,44 @@ Last updated: 4 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md
 
 ## 1. Current branch state
 
-**Active branch:** `feature/phase6-mobile-responsive`
-**Base:** `main` (includes invoice payments from `feature/invoice-payments`)
-**Status:** In review. Do not merge to main without Cloudflare preview review and incognito test on a real phone.
+**Active branch:** `main`
+**Status:** Stable. All recent PRs merged.
 
-Key commits on this branch:
-- `useBreakpoint` hook confirmed as single source of truth (no inline breakpoint logic allowed)
-- ClientNav: mobile bottom tab bar (6 icon+label tabs, safe-area-inset-bottom, ruby badges); desktop unchanged
+**Shipped and merged to main:**
+
+_Invoice payments (PR #2 — `feature/invoice-payments`):_
+- `invoice_payments` table (migration 0065): partial payment tracking with proof upload
+- `ConfirmPaymentModal`: mark paid + record payment modes
+- `PaymentsSection`: reusable payment draft editor
+- `balance_due` computed client-side from `amount` minus `sum(invoice_payments.amount)`
+- `proof_url` on invoice_payments + `payment_proofs` private storage bucket
+
+_Phase 6 mobile-responsive client portal (PR #3 — `feature/phase6-mobile-responsive`):_
+- `useBreakpoint` hook — single source of truth for all breakpoint logic (no exceptions)
+- ClientNav: mobile collapses to 64px bottom tab bar (6 tabs, safe-area-inset-bottom, ruby badges); desktop unchanged
 - ClientShell: `paddingBottom` on mobile for bottom tab bar clearance
 - All client routes: 16px horizontal padding on mobile, 24px on desktop
-- `/portal/projects`: stepper vertical on mobile; quick-link grid 1/2/auto-fill columns by breakpoint
-- `/portal/proposals`: full-width cards; ClientProposalPanel bottom-sheet on mobile via SidePanel
-- `/portal/invoices`: card list on mobile (table on desktop); invoice detail full-screen overlay on mobile
-- `/portal/mockups`: explicit 1/2/3 col grid; decision buttons 44px; ConceptSetPanel 100dvh overlay on mobile with swipe-down-to-close; lightbox buttons 44px
-- `/portal/campaigns`: historyLinkButton 44px touch target
-- `/portal/account`: name edit row stacks on mobile; reset button full-width on mobile
+- `/portal/projects`: horizontal snap-scroll phase carousel on mobile, vertical stepper on desktop
+- `/portal/proposals`: full-width cards; ClientProposalPanel bottom-sheet on mobile
+- `/portal/invoices`: card list on mobile (table on desktop); invoice detail full-screen overlay
+- `/portal/mockups`: 1/2/3 col grid; ConceptSetPanel 100dvh overlay with swipe-down-to-close; lightbox buttons 44px
+- Mobile polish: skeleton loaders, transitions, overlay coverage, bottom nav height
 - Admin iPad pass: sidebar 180px icon-only at 768px; overflowX hidden on layout root
 
-**Previous branches (do not merge these to main separately):**
-- `feature/client-portal-phase5` -- Phase 5 screens
-- `feature/invoice-payments` -- Invoice payments (merged to main)
+_Invoice nudge system (PR #4 — `feature/invoice-nudge-system`):_
+- `InvoiceDocument` header: SVG logo, `EswarCreatives`, `Branding Solution`
+- `public_token` + expiry on invoices (migration 0068); `get_invoice_by_token` RPC callable by anon
+- `nudge_log` table (migration 0069): per-invoice reminder history
+- `/invoice/:token` public invoice page — no auth required, token + expiry enforced server-side
+- `NudgeModal`: WhatsApp (wa.me) + email channel; token rotates on every send (7-day TTL)
+- `send-invoice-nudge` edge function: admin-JWT-verified, sends via Resend
+- Nudge history section in the admin invoice open drawer
+
+**Merged branches (reference only):**
+- `feature/client-portal-phase5` — Phase 5 screens
+- `feature/invoice-payments` — Invoice payments
+- `feature/phase6-mobile-responsive` — Phase 6 mobile
+- `feature/invoice-nudge-system` — Nudge system + public invoice view
 
 ---
 
@@ -56,8 +74,15 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 **Public vote system (legacy, live data):**
 `public_campaigns` (+ visibility column added), `public_votes`, `logo_sketch_sets`, `logo_sketch_submissions`, `logo_sketch_reviews`
 
-**New tables this phase:**
+**Notification and timeline tables:**
 `client_notifications` (type, reference_id, is_read), `timeline_extensions` (project timeline change proposals)
+
+**Invoice payment tables (migration 0065):**
+- `invoice_payments`: id, invoice_id, amount, paid_on, method, reference_note, proof_url, created_at, created_by
+- `invoice_line_items`: id, invoice_id, label, amount, sort_order, proposal_item_id
+
+**Nudge log table (migration 0069):**
+- `nudge_log`: id, invoice_id, sent_at, channel (whatsapp|email), message_preview, sent_by
 
 **Key columns added:**
 - `proposal_phases`: solution_title, timeline, key_note
@@ -65,9 +90,15 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 - `proposals`: revision_rounds, key_note, accepted_at, declined_at, decline_reason
 - `clients`: founder_name, whatsapp_number
 - `projects`: timeline
-- `invoices`: full schema confirmed (id, project_id, proposal_id, client_id, invoice_number, label, amount, currency, status, due_date, issued_at, paid_date, payment_method, pct_of_total, notes, client_name, company_name, created_by, created_at)
+- `invoices`: full schema (id, project_id, proposal_id, client_id, invoice_number, label, amount, currency, status, due_date, issued_at, paid_date, payment_method, pct_of_total, notes, client_name, company_name, created_by, created_at)
+- `invoices` (migration 0068): public_token (uuid, unique, default gen_random_uuid()), public_token_expires_at (timestamptz), last_nudge_sent_at (timestamptz), nudge_count (integer, default 0)
+
+**RPCs:**
+- `get_invoice_by_token(p_token uuid) → jsonb` — SECURITY DEFINER, callable by `anon`. Returns invoice + line_items + payments for a valid non-expired token only. Returns null otherwise. No other rows exposed.
 
 **Invoice number sequence:** Starts at EC-I-2026-105 (via invoice_number_seq)
+
+**FK delete order (full):** `invoice_payments` → `nudge_log` → `invoices` → `invoice_line_items` → `projects` → `orders` → `proposals` → `clients`
 
 ---
 
@@ -78,7 +109,8 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 | Admin portal | `/portal/admin/*` | is_admin() SECURITY DEFINER |
 | Client portal | `/portal/projects`, `/portal/proposals`, `/portal/invoices`, `/portal/mockups`, `/portal/campaigns`, `/portal/account` | role = client |
 | Reviewer portal | `/portal/review/:campaignId` | role = reviewer |
-| Public vote | `/vote/:slug` | No auth |
+| Public vote | `/portal/vote/:token` | No auth |
+| Public invoice | `/invoice/:token` | No auth — token + expiry enforced server-side via RPC |
 
 **Login redirects:**
 - `admin` / `owner` → `/portal/admin` (not /portal/admin/sketches)
@@ -87,23 +119,46 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 
 ---
 
-## 5. Edge functions (all deployed)
+## 5. Key components and patterns
+
+### Responsive breakpoints
+- **Single source of truth:** `src/portal/hooks/useBreakpoint.ts`
+- Returns `{ isMobile, isTablet, isDesktop }`
+- Breakpoints: mobile `< 768px`, tablet `768–1023px`, desktop `>= 1024px`
+- **Rule:** Never use `window.innerWidth`, `window.matchMedia`, or ad-hoc resize listeners in component files. Only `useBreakpoint`.
+
+### Key shared components
+
+| Component | Location | Notes |
+|---|---|---|
+| `InvoiceDocument` | `src/portal/components/shared/InvoiceDocument.tsx` | Read-only invoice template; shared by admin drawer + client panel + public page. Header: SVG logo, EswarCreatives, Branding Solution. Accepts `readOnly` prop. |
+| `ClientNav` | `src/portal/client/ClientNav.tsx` | Desktop top bar + mobile 64px bottom tab bar (safe-area-inset aware, ruby badges) |
+| `useBreakpoint` | `src/portal/hooks/useBreakpoint.ts` | Sole breakpoint authority; matchMedia-backed, no polling |
+| `NudgeModal` | `src/portal/admin/NudgeModal.tsx` | WhatsApp + email nudge; rotates `public_token` on every send (7-day TTL); inserts `nudge_log` row |
+| `PublicInvoicePage` | `src/portal/PublicInvoicePage.tsx` | `/invoice/:token` — no auth; fetches via `get_invoice_by_token` RPC; shows expired-link error (Nielsen H9) |
+| `ConfirmPaymentModal` | `src/portal/admin/ConfirmPaymentModal.tsx` | Mark paid + record partial payment modes; proof upload |
+| `ProgressiveImage` | `src/portal/components/shared/ProgressiveImage.tsx` | All remote image rendering; shimmer placeholder; never use raw `<img>` for remote URLs |
+
+---
+
+## 6. Edge functions (all deployed)
 
 | Function | Version | jwt_verify | Purpose |
 |---|---|---|---|
 | admin-create-client | v3 | true | Creates auth user + profile + client row |
-| admin-delete-client | v1 | true | FK-safe atomic delete (payments→invoices→projects→orders→proposals→clients) |
+| admin-delete-client | v1 | true | FK-safe atomic delete |
 | confirm-proposal | v2 | true | Accepts proposal, creates per-phase advance invoices |
 | send-welcome-email | v3 | true | Sends branded welcome email via Resend |
 | decline-proposal | v1 | true | SECURITY DEFINER, captures decline reason |
 | respond-to-timeline-extension | v1 | true | Client approves/denies timeline change |
 | update-own-full-name | v1 | true | SECURITY DEFINER, client updates their profile name |
+| send-invoice-nudge | v1 | true | Sends payment reminder email via Resend; verifies admin JWT; never surfaces raw errors |
 
 **Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`
 
 ---
 
-## 6. Theme and token system
+## 7. Theme and token system
 
 **File:** `src/portal/theme.ts`
 
@@ -128,7 +183,7 @@ Two exports:
 
 ---
 
-## 7. Real clients
+## 8. Real clients
 
 | Client | Email | Company | Currency | Status |
 |---|---|---|---|---|
@@ -144,72 +199,61 @@ Two exports:
 
 ---
 
-## 8. Payment schedule model
+## 9. Payment and invoice model
 
-`proposal_payment_schedule` table:
+**Proposal payment schedule** (`proposal_payment_schedule`):
 - `id`, `proposal_id`, `phase_id`, `instalment_number`, `label`, `pct_of_total`, `triggered_by` (acceptance|manual)
-- Per-phase schedule: each phase has its own instalment rows
-- On proposal acceptance: `confirm_proposal()` creates one advance invoice per phase (first instalment where triggered_by = 'acceptance')
-- Default schedule: 35% advance, 35% mid, 30% final (admin can customise freely, must sum to 100%)
+- Per-phase schedule; on proposal acceptance `confirm_proposal()` creates one advance invoice per phase
+- Default schedule: 35% advance, 35% mid, 30% final (admin can customise, must sum to 100%)
+
+**Partial payment tracking** (`invoice_payments`, migration 0065):
+- `balance_due` computed client-side: `amount - sum(invoice_payments.amount)`
+- Status derivation: `paid` when balance = 0; `partially_paid` when 0 < paid < amount
+- `proof_url` stores optional payment proof in the `payment_proofs` private bucket
+
+**Public token + nudge system** (migration 0068):
+- `public_token` regenerates on every nudge send; expires after 7 days (`public_token_expires_at`)
+- `/invoice/:token` fetches via `get_invoice_by_token` RPC — token + expiry enforced server-side
+- WhatsApp nudge: opens `wa.me/[whatsapp_number]?text=[encoded message]` in new tab
+- Email nudge: calls `send-invoice-nudge` edge function via Resend
+- Every send inserts a row into `nudge_log`; history shown in the admin invoice drawer
 
 ---
 
-## 9. Pending debt (do after staging audit passes)
+## 10. Pending work
 
 | Item | Priority |
 |---|---|
-| Surgical fix/client-login-redirect merge to main | High, in progress |
 | Moorthy 123 Adsprint re-add via Add Client modal | High |
-| PORTAL_ARCHITECTURE.md commit to repo | High |
-| Staging audit completion before phase-5 merge to main | High |
 | design-system-v1 Task 4 (About, Services, case study pages) | Medium |
 | design-system-v1 Cloudflare preview review | Medium, blocked on Task 4 |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | AdminSketchUpload Nielsen audit (~20 raw error surfaces) | Medium |
 | Portal UX writing pass (raw err.message strings) | Medium |
 | AccountPage.tsx full polish | Low |
-| Public campaign responses pagination + filters (6f deferred) | Low |
-| Razorpay/Stripe payment integration | Phase 6 |
-| WhatsApp notifications provider setup | Phase 10 |
+| Public campaign responses pagination + filters (deferred) | Low |
+| Invoice nudge automation (scheduled reminders at due date, +3d, +7d) | Future phase |
+| Razorpay/Stripe payment integration | Next phase |
+| Admin portal mobile responsive | Future consideration |
+| WhatsApp Business API (replace wa.me deep-link with full API) | Phase 10 |
 
 ---
 
-## 10. Roadmap ideas in pipeline
-
-**Invoice nudge system (planned):**
-- Auto scheduled reminders at due date, +3 days, +7 days
-- Manual CTA per invoice: [Nudge via email] [Nudge via WhatsApp]
-- Strategic message with invoice PDF attachment
-- Triggered by invoice status = pending or overdue
+## 11. Roadmap in pipeline
 
 **Project status share button (planned):**
 - Per-project button in admin and client portal
-- One click sends visual progress brief (phase stepper + summary)
-- Delivered to client email and WhatsApp
+- One click sends visual progress brief (phase stepper + summary) to client email and WhatsApp
 - Shows current phase, completed tasks, next action
 
-**Mobile-friendly client portal (Phase 6 planned):**
+**Invoice nudge automation (future phase):**
+- Scheduled reminders at due date, +3 days, +7 days (manual nudge already shipped)
+- Invoice PDF attachment
+- Triggered automatically by status = pending or overdue
 
-Scope: Client portal only (not admin portal).
-Backend unchanged — Supabase, RLS, edge functions all stay identical. Frontend-only effort.
-
-Architecture approach:
-- Add `src/portal/hooks/useBreakpoint.ts` as single source of truth for all responsive logic. Returns: `{ isMobile, isTablet, isDesktop }`
-- Document in COMPONENT_PATTERNS.md as standing pattern.
-- No Tailwind — use CSS media queries and inline style conditions via useBreakpoint hook.
-
-Screens and complexity:
-- Projects (phase stepper): Medium — 4-column stepper collapses to vertical stack on mobile
-- Proposals (list + panel): High — ClientProposalPanel goes full-screen overlay on mobile
-- Invoices: Low — table gets horizontal scroll or card layout
-- Mockups lightbox: Medium — touch swipe gestures replace prev/next buttons, thumbnail strip scrollable
-- Campaigns: Low — list view, minimal changes
-- Account: Low — form layout reflow
-
-Key UX decisions needed before build:
-- Nav: hamburger menu or bottom tab bar on mobile
-- Panels: full-screen overlay pattern (consistent across ClientProposalPanel, ClientConceptSetPanel)
-- Lightbox: touch swipe via touch events or a lightweight gesture library
+**Razorpay/Stripe payment integration (next phase):**
+- Replace manual "Mark paid" with a real payment gateway
+- Client-facing pay button on the public invoice page
 
 Prerequisites before starting:
 - Supabase Pro upgrade complete
@@ -219,7 +263,7 @@ Prerequisites before starting:
 
 ---
 
-## 11. Execution rules
+## 12. Execution rules
 
 - One branch per phase. One commit per logical layer.
 - Never merge to main without Cloudflare preview review and incognito test.
@@ -231,30 +275,31 @@ Prerequisites before starting:
 - Cloudflare preview needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (not ANON_KEY).
 - Password reset: `UPDATE auth.users SET encrypted_password = crypt('pw', gen_salt('bf'))` if needed.
 - Schema changes applied via Supabase MCP `apply_migration`. SELECT preview before any DELETE.
-- FK delete order: payments → invoices → projects → orders → proposals → clients.
+- FK delete order: `invoice_payments` → `nudge_log` → `invoices` → `invoice_line_items` → `projects` → `orders` → `proposals` → `clients`.
 - **Responsive breakpoints:** Use `useBreakpoint` from `src/portal/hooks/useBreakpoint.ts` exclusively. No inline `window.innerWidth`, no `window.matchMedia` in components, no ad-hoc resize listeners. See `docs/COMPONENT_PATTERNS.md` for the full pattern.
 
 ---
 
-## 12. One-line summary
+## 13. One-line summary
 
 Three roles, three portals, reviews never need a project, accounts always go through the admin API, no UI ships on raw hex, teal only on interactive elements.
 
 ---
 
-## 13. Phase 6 — Mobile-responsive client portal
+## 14. Phase 6 — Mobile-responsive client portal
 
 **Branch:** `feature/phase6-mobile-responsive`
-**Status:** Complete. Pending Cloudflare preview review and incognito test on real phone.
+**Status:** Shipped and merged to main.
 
 Breakpoints: mobile < 768px, tablet 768-1023px, desktop >= 1024px.
 
 Key patterns shipped:
 - `useBreakpoint` is the single source of truth for all breakpoint logic (no exceptions)
-- ClientNav: desktop top bar unchanged; mobile collapses to 56px bottom tab bar (6 tabs, safe-area-inset-bottom)
+- ClientNav: desktop top bar unchanged; mobile collapses to 64px bottom tab bar (6 tabs, safe-area-inset-bottom)
 - ClientShell: adds `paddingBottom` on mobile to clear bottom tab bar
 - All client page containers: 16px horizontal padding on mobile, 24px on desktop
+- `/portal/projects`: horizontal snap-scroll phase carousel on mobile; vertical stepper on desktop
 - Panels on mobile: SidePanel renders as bottom sheet; InvoicePanel and ClientConceptSetPanel render as 100dvh full-screen overlays (slide up from bottom)
 - ClientConceptSetPanel: swipe-down-to-close (80px threshold) on mobile
-- ClientLightbox: touch swipe left/right (existing); close/fullscreen/thumbnail buttons bumped to 44px
+- ClientLightbox: touch swipe left/right; close/fullscreen/thumbnail buttons bumped to 44px
 - Admin: sidebar 180px icon-only at tablet (768px), overflowX: hidden on layout root
