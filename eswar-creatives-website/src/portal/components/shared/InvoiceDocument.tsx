@@ -6,6 +6,7 @@
 import type { CSSProperties } from 'react'
 import { tokens, t, fonts } from '../../theme'
 import { mono, formatDate } from '../../admin/ui'
+import eswarLogo from '../../../imports/eswar-logo.svg'
 
 export type InvoiceDoc = {
   // Already display-formatted (e.g. EC-2026-001).
@@ -79,11 +80,15 @@ export function InvoiceDocument({
   billedTo,
   lines,
   payments,
+  readOnly: _readOnly,
 }: {
   invoice: InvoiceDoc
   billedTo: InvoiceBilledTo
   lines?: InvoiceLine[]
   payments?: InvoicePaymentRow[]
+  // Signals that this render is for a public or read-only surface.
+  // The document is already non-editable; this prop is for future controls.
+  readOnly?: boolean
 }) {
   const pill = invoiceStatusPill(invoice.status, invoice.dueDate)
   // Itemised lines when present, otherwise a single line from label + amount.
@@ -101,10 +106,10 @@ export function InvoiceDocument({
     <div style={styles.body}>
       <header style={styles.topRow}>
         <div style={styles.brand}>
-          <div style={styles.logo}>e</div>
+          <img src={eswarLogo} alt="EswarCreatives" width={32} height={32} style={styles.logo} />
           <div>
-            <div style={styles.studio}>Eswar Creatives</div>
-            <div style={styles.studioSub}>Design & website studio</div>
+            <div style={styles.studio}>EswarCreatives</div>
+            <div style={styles.studioSub}>Branding Solution</div>
             <div style={styles.studioEmail}>hello@eswarcreatives.in</div>
           </div>
         </div>
@@ -220,15 +225,7 @@ const styles: Record<string, CSSProperties> = {
   logo: {
     width: 32,
     height: 32,
-    borderRadius: 6,
-    background: tokens.primary,
-    color: t.text.onPrimary,
-    fontFamily: fonts.heading,
-    fontWeight: 700,
-    fontSize: 18,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    display: 'block',
     flexShrink: 0,
   },
   studio: { fontFamily: fonts.heading, fontSize: 16, fontWeight: 700, color: t.text.primary },
