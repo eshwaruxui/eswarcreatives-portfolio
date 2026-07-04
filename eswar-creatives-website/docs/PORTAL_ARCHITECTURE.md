@@ -1,31 +1,31 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 25 June 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 4 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
-**Active branch:** `feature/client-portal-phase5`
-**Draft PR:** https://github.com/eshwaruxui/eswarcreatives-portfolio/pull/1
-**Status:** Staging audit in progress. Do not merge to main until audit is complete.
+**Active branch:** `feature/phase6-mobile-responsive`
+**Base:** `main` (includes invoice payments from `feature/invoice-payments`)
+**Status:** In review. Do not merge to main without Cloudflare preview review and incognito test on a real phone.
 
 Key commits on this branch:
-- Migrations 0038–0057 applied via Supabase MCP
-- Phase 5 client portal screens: dashboard, proposals, invoices, mockups, account, campaigns
-- Reviewer role + reviewers table, review_campaigns/items/votes
-- Route guards by role, login redirect by role
-- confirm-proposal edge function (per-phase advance invoices)
-- send-welcome-email edge function via Resend (domain eswarcreatives.in verified)
-- admin-delete-client edge function (FK-safe atomic delete via service role)
-- Proposal modal: solution groups, per-phase payment schedule builder, error prevention
-- ClientProposalPanel: full proposal detail in right-side slide-in
-- Campaign module: public/private visibility, unified public_campaigns + review_campaigns view
-- Global neutral text + border token audit (t export added to theme.ts)
-- Client dashboard Figma hi-fi rebuild: progress ring, 4-column phase stepper, quick link cards
-- ClientNav: "Client portal" label, Sign out button, active nav pill
+- `useBreakpoint` hook confirmed as single source of truth (no inline breakpoint logic allowed)
+- ClientNav: mobile bottom tab bar (6 icon+label tabs, safe-area-inset-bottom, ruby badges); desktop unchanged
+- ClientShell: `paddingBottom` on mobile for bottom tab bar clearance
+- All client routes: 16px horizontal padding on mobile, 24px on desktop
+- `/portal/projects`: stepper vertical on mobile; quick-link grid 1/2/auto-fill columns by breakpoint
+- `/portal/proposals`: full-width cards; ClientProposalPanel bottom-sheet on mobile via SidePanel
+- `/portal/invoices`: card list on mobile (table on desktop); invoice detail full-screen overlay on mobile
+- `/portal/mockups`: explicit 1/2/3 col grid; decision buttons 44px; ConceptSetPanel 100dvh overlay on mobile with swipe-down-to-close; lightbox buttons 44px
+- `/portal/campaigns`: historyLinkButton 44px touch target
+- `/portal/account`: name edit row stacks on mobile; reset button full-width on mobile
+- Admin iPad pass: sidebar 180px icon-only at 768px; overflowX hidden on layout root
 
-**Surgical fix on main (pending):** `fix/client-login-redirect` — client role redirects to `/portal/projects` not `/portal/sketch-review`. Magic-link emailRedirectTo also fixed.
+**Previous branches (do not merge these to main separately):**
+- `feature/client-portal-phase5` -- Phase 5 screens
+- `feature/invoice-payments` -- Invoice payments (merged to main)
 
 ---
 
@@ -232,9 +232,29 @@ Prerequisites before starting:
 - Password reset: `UPDATE auth.users SET encrypted_password = crypt('pw', gen_salt('bf'))` if needed.
 - Schema changes applied via Supabase MCP `apply_migration`. SELECT preview before any DELETE.
 - FK delete order: payments → invoices → projects → orders → proposals → clients.
+- **Responsive breakpoints:** Use `useBreakpoint` from `src/portal/hooks/useBreakpoint.ts` exclusively. No inline `window.innerWidth`, no `window.matchMedia` in components, no ad-hoc resize listeners. See `docs/COMPONENT_PATTERNS.md` for the full pattern.
 
 ---
 
 ## 12. One-line summary
 
 Three roles, three portals, reviews never need a project, accounts always go through the admin API, no UI ships on raw hex, teal only on interactive elements.
+
+---
+
+## 13. Phase 6 — Mobile-responsive client portal
+
+**Branch:** `feature/phase6-mobile-responsive`
+**Status:** Complete. Pending Cloudflare preview review and incognito test on real phone.
+
+Breakpoints: mobile < 768px, tablet 768-1023px, desktop >= 1024px.
+
+Key patterns shipped:
+- `useBreakpoint` is the single source of truth for all breakpoint logic (no exceptions)
+- ClientNav: desktop top bar unchanged; mobile collapses to 56px bottom tab bar (6 tabs, safe-area-inset-bottom)
+- ClientShell: adds `paddingBottom` on mobile to clear bottom tab bar
+- All client page containers: 16px horizontal padding on mobile, 24px on desktop
+- Panels on mobile: SidePanel renders as bottom sheet; InvoicePanel and ClientConceptSetPanel render as 100dvh full-screen overlays (slide up from bottom)
+- ClientConceptSetPanel: swipe-down-to-close (80px threshold) on mobile
+- ClientLightbox: touch swipe left/right (existing); close/fullscreen/thumbnail buttons bumped to 44px
+- Admin: sidebar 180px icon-only at tablet (768px), overflowX: hidden on layout root

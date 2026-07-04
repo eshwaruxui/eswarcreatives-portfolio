@@ -11,6 +11,7 @@ import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { ClientProposalPanel } from './ClientProposalPanel'
 import { tokens, t, fonts } from '../theme'
 import { formatMoney, formatDate } from '../admin/ui'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 
 type ProposalStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined' | 'expired'
 
@@ -52,6 +53,7 @@ function Proposals({ profile }: { profile: PortalProfile }) {
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { isMobile } = useBreakpoint()
 
   // Clicking a card opens the full-detail slide-in panel for that proposal.
   const [openId, setOpenId] = useState<string | null>(null)
@@ -96,11 +98,30 @@ function Proposals({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <main style={styles.container}>
+      <style>{`
+        @keyframes ecShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+        .ec-shimmer{background:linear-gradient(90deg,${t.background.subtle} 25%,${t.background.muted} 50%,${t.background.subtle} 75%);background-size:200% 100%;animation:ecShimmer 1.5s linear infinite;border-radius:6px}
+      `}</style>
+      <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         <h1 style={styles.title}>Proposals</h1>
 
         {error && <div style={styles.error}>{error}</div>}
-        {loading && <div style={styles.muted}>Loading your proposals...</div>}
+        {loading && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 12, padding: 22 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+                  <div style={{ flex: 1, marginRight: 12 }}>
+                    <div className="ec-shimmer" style={{ height: 18, width: '60%', marginBottom: 8 }} />
+                    <div className="ec-shimmer" style={{ height: 13, width: '40%' }} />
+                  </div>
+                  <div className="ec-shimmer" style={{ height: 26, width: 72, borderRadius: 999, flexShrink: 0 }} />
+                </div>
+                <div className="ec-shimmer" style={{ height: 18, width: 120 }} />
+              </div>
+            ))}
+          </div>
+        )}
 
         {!loading && !error && proposals.length === 0 && (
           <div style={styles.empty}>
@@ -155,7 +176,7 @@ const styles: Record<string, CSSProperties> = {
   container: {
     maxWidth: 760,
     margin: '0 auto',
-    padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px`,
+    // Padding overridden inline with responsive values (16px mobile / 24px desktop).
   },
   title: {
     margin: '0 0 24px',
@@ -181,13 +202,15 @@ const styles: Record<string, CSSProperties> = {
   cardTitle: { margin: 0, fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary },
   cardMeta: { margin: '6px 0 0', fontSize: 13, color: t.text.tertiary },
   badge: {
-    padding: '4px 12px',
+    padding: '6px 12px',
     borderRadius: 999,
     fontSize: 11,
     fontWeight: 600,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
+    // Generous padding so the badge reads clearly on small screens.
+    flexShrink: 0,
   },
   // H4: consistent text token - neutral not brand (amount is a static value, not interactive)
   amount: { margin: '14px 0 0', fontSize: 18, fontWeight: 600, color: t.text.primary, fontFamily: fonts.body },

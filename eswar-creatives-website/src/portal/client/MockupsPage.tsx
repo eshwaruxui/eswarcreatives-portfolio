@@ -9,6 +9,7 @@ import { type PortalProfile } from '../PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { formatDate } from '../admin/ui'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ClientLightbox } from '../mockups/ClientLightbox'
 import { signMockupItems, type LightboxMockup, type LightboxMeta } from '../mockups/signItems'
 import type { CSSProperties } from 'react'
@@ -43,6 +44,7 @@ function Mockups({ profile }: { profile: PortalProfile }) {
   const [decisions, setDecisions] = useState<Record<string, SetDecision>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { isMobile, isTablet } = useBreakpoint()
 
   // The set currently open in the lightbox, with its signed images loaded.
   const [active, setActive] = useState<{ set: PublishedSet; mockups: LightboxMockup[] } | null>(null)
@@ -180,7 +182,11 @@ function Mockups({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <main style={styles.container}>
+      <style>{`
+        @keyframes ecShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+        .ec-shimmer{background:linear-gradient(90deg,${t.background.subtle} 25%,${t.background.muted} 50%,${t.background.subtle} 75%);background-size:200% 100%;animation:ecShimmer 1.5s linear infinite;border-radius:6px}
+      `}</style>
+      <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         <div style={styles.heroBlock}>
           <h1 style={styles.title}>Mockups</h1>
           <p style={styles.subtitle}>Review concept designs and share your feedback.</p>
@@ -192,7 +198,19 @@ function Mockups({ profile }: { profile: PortalProfile }) {
           </div>
         )}
 
-        {loading && <div style={styles.muted}>Loading mockups...</div>}
+        {loading && (
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 16 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} style={{ background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                <div className="ec-shimmer" style={{ height: 180, borderRadius: 0 }} />
+                <div style={{ padding: 16 }}>
+                  <div className="ec-shimmer" style={{ height: 16, width: '70%', marginBottom: 8 }} />
+                  <div className="ec-shimmer" style={{ height: 13, width: '45%' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {error && <div style={styles.error}>{error}</div>}
 
         {!loading && !error && sets.length === 0 && (
@@ -203,7 +221,8 @@ function Mockups({ profile }: { profile: PortalProfile }) {
         )}
 
         {!loading && sets.length > 0 && (
-          <div style={styles.grid}>
+          // 1-col on mobile, 2-col on tablet, 3-col on desktop (spec Step 4).
+          <div style={{ ...styles.grid, gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)' }}>
             {sets.map((s) => (
               <article key={s.id} style={styles.card}>
                 <div>
@@ -310,7 +329,7 @@ function DecisionPill({ decision }: { decision: SetDecision }) {
 
 const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: t.text.primary, fontFamily: fonts.body },
-  container: { maxWidth: 980, margin: '0 auto', padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px` },
+  container: { maxWidth: 980, margin: '0 auto' },
   heroBlock: { marginBottom: 32 },
   title: {
     margin: 0,
@@ -383,7 +402,8 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.onPrimary,
     border: 'none',
     borderRadius: 8,
-    padding: '8px 10px',
+    // 44px min touch target per H7 (flexibility for mobile context).
+    padding: '12px 10px',
     fontFamily: fonts.body,
     fontSize: 12.5,
     fontWeight: 600,
@@ -400,7 +420,7 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.muted,
     border: `1px solid ${t.border.subtle}`,
     borderRadius: 8,
-    padding: '8px 10px',
+    padding: '12px 10px',
     fontFamily: fonts.body,
     fontSize: 12.5,
     fontWeight: 600,
@@ -414,7 +434,7 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.secondary,
     border: `1px solid ${t.border.default}`,
     borderRadius: 8,
-    padding: '7px 10px',
+    padding: '11px 10px',
     fontFamily: fonts.body,
     fontSize: 12,
     fontWeight: 500,

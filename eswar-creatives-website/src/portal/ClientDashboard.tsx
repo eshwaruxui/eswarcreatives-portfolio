@@ -5,7 +5,7 @@
 // sections. Layout, spacing and typography follow the EC Design System master
 // (Figma node 4149:31). Theme tokens only; no raw hex; no em dashes; plain
 // errors only.
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
@@ -17,6 +17,7 @@ import type { ClientDocument } from './client/DocumentChips'
 import { formatDate } from './admin/ui'
 import { tokens, t, fonts, motionTokens, phaseUI } from './theme'
 import type { PhaseState } from './theme'
+import { useBreakpoint } from './hooks/useBreakpoint'
 
 // The fixed client journey. The project's phase pointer maps onto these.
 const PHASES = ['Discovery', 'Design', 'Review', 'Delivery'] as const
@@ -55,20 +56,6 @@ type Milestone = {
 type BannerVariant = 'ruby' | 'gold' | 'teal'
 type Banner = { text: string; to: string; variant: BannerVariant }
 
-// Phase stepper and quick grid collapse to a single column below this width.
-function useIsNarrow(): boolean {
-  const [narrow, setNarrow] = useState(
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const on = () => setNarrow(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
-  }, [])
-  return narrow
-}
-
 export function ClientDashboardPage() {
   const profile = useOutletContext<PortalProfile>()
   return <Dashboard profile={profile} />
@@ -85,7 +72,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const badges = useSyncExternalStore(subscribeBadges, getBadges, getBadges)
-  const narrow = useIsNarrow()
+  const { isMobile, isTablet } = useBreakpoint()
 
   useEffect(() => {
     let cancelled = false
@@ -247,8 +234,12 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
       <style>{`
         @keyframes dashBannerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes dashBadgeIn{from{transform:scale(0)}to{transform:scale(1)}}
+        .ec-phase-track{scroll-padding-left:16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+        .ec-phase-track::-webkit-scrollbar{display:none}
+        @keyframes ecShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+        .ec-shimmer{background:linear-gradient(90deg,${t.background.subtle} 25%,${t.background.muted} 50%,${t.background.subtle} 75%);background-size:200% 100%;animation:ecShimmer 1.5s linear infinite;border-radius:6px}
       `}</style>
-      <main style={styles.container}>
+      <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         {/* H1 (visibility of system status): the single most relevant next action,
             as a fully clickable card that routes to the right place. */}
         {!loading && !error && banner && <BannerCard banner={banner} />}
@@ -290,7 +281,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
 
         <h1 style={styles.title}>Your project</h1>
 
-        {loading && <div style={styles.muted}>Loading your project...</div>}
+        {loading && <ProjectSkeleton />}
         {error && <div style={styles.error}>{error}</div>}
 
         {!loading && !error && !project && (
@@ -303,86 +294,98 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         )}
 
         {!loading && !error && project && (
-          <section style={styles.card}>
-            {/* Card header: project name + phase meta on the left, progress ring right. */}
-            <div style={styles.cardHeader}>
-              <div style={styles.cardHeaderText}>
-                <h2 style={styles.projectTitle}>{project.title}</h2>
-                <div style={styles.projectMeta}>
-                  <span style={styles.metaStrong}>
-                    Phase {project.phase_number ?? currentIndex + 1}
-                  </span>
-                  <span style={styles.metaDot} aria-hidden="true">
-                    &bull;
-                  </span>
-                  <span style={styles.metaLabel}>
-                    {project.current_phase ?? PHASES[currentIndex]}
-                  </span>
+          <>
+            <section style={styles.card}>
+              {/* Card header: project name + phase meta on the left, progress ring right. */}
+              <div style={styles.cardHeader}>
+                <div style={styles.cardHeaderText}>
+                  <h2 style={styles.projectTitle}>{project.title}</h2>
+                  <div style={styles.projectMeta}>
+                    <span style={styles.metaStrong}>
+                      Phase {project.phase_number ?? currentIndex + 1}
+                    </span>
+                    <span style={styles.metaDot} aria-hidden="true">
+                      &bull;
+                    </span>
+                    <span style={styles.metaLabel}>
+                      {project.current_phase ?? PHASES[currentIndex]}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <ProgressRing
-                percent={progressPct}
-                caption={`Phase ${currentIndex + 1} of ${PHASES.length}`}
-              />
-            </div>
-
-            {/* Four-phase stepper with per-phase status pills. */}
-            <div
-              style={{
-                ...styles.phaseGrid,
-                gridTemplateColumns: narrow ? '1fr' : `repeat(${PHASES.length}, minmax(0, 1fr))`,
-              }}
-              aria-label="Project phase"
-            >
-              {PHASES.map((label, i) => (
-                <PhaseColumn
-                  key={label}
-                  label={label}
-                  index={i}
-                  state={phaseStates[i]}
-                  isFirst={i === 0}
-                  isLast={i === PHASES.length - 1}
-                  narrow={narrow}
+                <ProgressRing
+                  percent={progressPct}
+                  caption={`Phase ${currentIndex + 1} of ${PHASES.length}`}
                 />
-              ))}
-            </div>
-
-            {/* Documents are project-scoped (no per-phase linkage in the schema). */}
-            {documents.length > 0 && (
-              <div style={styles.docsBlock}>
-                <h3 style={styles.docsHeading}>Documents</h3>
-                <DocumentChips documents={documents} />
               </div>
-            )}
 
-            {/* 6d/6f: completed public polls as read-only project milestones. */}
-            {milestones.length > 0 && (
-              <div style={styles.milestonesBlock}>
-                <h3 style={styles.docsHeading}>Milestones</h3>
-                <div style={styles.milestoneList}>
-                  {milestones.map((m) => (
-                    <div key={m.id} style={styles.milestoneCard}>
-                      <span style={styles.milestoneIcon} aria-hidden="true">
-                        ✓
-                      </span>
-                      <div style={styles.milestoneMain}>
-                        <div style={styles.milestoneLabel}>{m.title}</div>
-                        <div style={styles.milestoneDate}>{formatDate(m.createdAt)}</div>
-                        <div style={styles.milestoneOutcome}>
-                          {m.totalVotes} votes collected. Top concepts shortlisted.
-                        </div>
-                      </div>
-                      <span style={styles.completePill}>Complete</span>
-                    </div>
+              {/* Desktop: four-phase stepper with per-phase status pills and connectors.
+                  Mobile gets a snap-scroll carousel rendered outside the card below. */}
+              {!isMobile && (
+                <div
+                  style={{
+                    ...styles.phaseGrid,
+                    gridTemplateColumns: `repeat(${PHASES.length}, minmax(0, 1fr))`,
+                  }}
+                  aria-label="Project phases"
+                >
+                  {PHASES.map((label, i) => (
+                    <PhaseColumn
+                      key={label}
+                      label={label}
+                      index={i}
+                      state={phaseStates[i]}
+                      isFirst={i === 0}
+                      isLast={i === PHASES.length - 1}
+                      narrow={false}
+                    />
                   ))}
                 </div>
-              </div>
+              )}
+
+              {/* Documents are project-scoped (no per-phase linkage in the schema). */}
+              {documents.length > 0 && (
+                <div style={styles.docsBlock}>
+                  <h3 style={styles.docsHeading}>Documents</h3>
+                  <DocumentChips documents={documents} />
+                </div>
+              )}
+
+              {/* 6d/6f: completed public polls as read-only project milestones. */}
+              {milestones.length > 0 && (
+                <div style={styles.milestonesBlock}>
+                  <h3 style={styles.docsHeading}>Milestones</h3>
+                  <div style={styles.milestoneList}>
+                    {milestones.map((m) => (
+                      <div key={m.id} style={styles.milestoneCard}>
+                        <span style={styles.milestoneIcon} aria-hidden="true">
+                          ✓
+                        </span>
+                        <div style={styles.milestoneMain}>
+                          <div style={styles.milestoneLabel}>{m.title}</div>
+                          <div style={styles.milestoneDate}>{formatDate(m.createdAt)}</div>
+                          <div style={styles.milestoneOutcome}>
+                            {m.totalVotes} votes collected. Top concepts shortlisted.
+                          </div>
+                        </div>
+                        <span style={styles.completePill}>Complete</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {/* Mobile: snap-scroll phase carousel. Lives outside the card so it can
+                bleed to the viewport edge (negative margins cancel the main 16px padding). */}
+            {isMobile && (
+              <PhaseCarousel phaseStates={phaseStates} currentIndex={currentIndex} />
             )}
-          </section>
+          </>
         )}
 
         {/* H6: recognition over recall, quick paths to every section. */}
-        <div style={styles.quickGrid}>
+        {/* 1-col on mobile, 2-col on tablet, auto-fill on desktop. */}
+        <div style={{ ...styles.quickGrid, gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(260px, 1fr))' }}>
           <QuickCard
             to="/portal/proposals"
             title="View Proposal"
@@ -626,6 +629,126 @@ function PhaseColumn({
   )
 }
 
+// Shimmer skeleton shown while the project data loads. Mirrors the card header
+// and 4-step phase grid so the layout shift on data arrival is minimal.
+function ProjectSkeleton() {
+  return (
+    <div style={{ background: tokens.surface, border: `1px solid ${t.border.overlayStrong}`, borderRadius: 16, padding: 28, marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div style={{ flex: 1, marginRight: 16 }}>
+          <div className="ec-shimmer" style={{ height: 22, width: '55%', marginBottom: 10 }} />
+          <div className="ec-shimmer" style={{ height: 14, width: '35%' }} />
+        </div>
+        <div className="ec-shimmer" style={{ width: 64, height: 64, borderRadius: 32, flexShrink: 0 }} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="ec-shimmer" style={{ width: 32, height: 32, borderRadius: 16 }} />
+            <div className="ec-shimmer" style={{ height: 14, width: '80%' }} />
+            <div className="ec-shimmer" style={{ height: 10, width: '50%' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Mobile-only horizontal snap-scroll phase carousel. Bleeds to the viewport
+// edge via -16px margins (cancelling the main container's horizontal padding)
+// so 85vw cards have a meaningful peek affordance on the right.
+function PhaseCarousel({
+  phaseStates,
+  currentIndex,
+}: {
+  phaseStates: PhaseState[]
+  currentIndex: number
+}) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  // activeDot tracks the visually snapped card as the user swipes (not just mount).
+  const [activeDot, setActiveDot] = useState(currentIndex)
+
+  useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    const cardWidth = window.innerWidth * 0.85
+    track.scrollLeft = currentIndex * (cardWidth + 12)
+    setActiveDot(currentIndex)
+  }, [currentIndex])
+
+  // Derive active dot from scroll position in real time so swipes update the dots.
+  useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    const onScroll = () => {
+      const cardWidth = window.innerWidth * 0.85
+      const idx = Math.round(track.scrollLeft / (cardWidth + 12))
+      setActiveDot(Math.max(0, Math.min(PHASES.length - 1, idx)))
+    }
+    track.addEventListener('scroll', onScroll, { passive: true })
+    return () => track.removeEventListener('scroll', onScroll)
+  }, [])
+
+  return (
+    <div style={styles.carouselOuter}>
+      <div ref={trackRef} className="ec-phase-track" style={styles.carouselTrack} aria-label="Project phases">
+        {PHASES.map((label, i) => (
+          <div key={label} style={styles.carouselCardWrap}>
+            <PhaseCard label={label} index={i} state={phaseStates[i]} />
+          </div>
+        ))}
+      </div>
+      {/* Dot indicators: active dot stretches to a pill in teal; idle dots are neutral. */}
+      <div style={styles.dots} aria-hidden="true">
+        {PHASES.map((_, i) => (
+          <span
+            key={i}
+            style={i === activeDot ? { ...styles.dot, ...styles.dotActive } : { ...styles.dot, ...styles.dotIdle }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PhaseCard({
+  label,
+  index,
+  state,
+}: {
+  label: string
+  index: number
+  state: PhaseState
+}) {
+  const done = state === 'done'
+  const active = state === 'active'
+  const filled = done || active
+  const pill = phaseUI.status[state]
+
+  return (
+    <div style={{ ...styles.phaseCardInner, ...(active ? styles.phaseCardActive : null) }}>
+      <div style={styles.phaseCardNodeRow}>
+        <span style={{ ...styles.phaseNode, ...(filled ? styles.phaseNodeFilled : styles.phaseNodeIdle) }}>
+          {done ? '✓' : index + 1}
+        </span>
+      </div>
+      <div style={styles.phaseCardBody}>
+        <div style={styles.phaseNameRow}>
+          <span style={{ ...styles.phaseName, color: state === 'pending' ? t.text.muted : t.text.primary }}>
+            {label}
+          </span>
+          <span style={{ ...styles.statusPill, background: pill.bg, borderColor: pill.border }}>
+            {pill.label}
+          </span>
+        </div>
+        <Link to="/portal/projects#tasks" style={styles.tasksLink}>
+          Tasks &rsaquo;
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 function QuickCard({
   to,
   title,
@@ -653,7 +776,7 @@ const styles: Record<string, CSSProperties> = {
   container: {
     maxWidth: 1080,
     margin: '0 auto',
-    padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px`,
+    // Padding overridden inline with responsive values (16px mobile / 24px desktop).
   },
   banner: {
     display: 'flex',
@@ -820,6 +943,72 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.urlLink, // design-system teal link (Figma library default blue intentionally not used)
     textDecoration: 'none',
     whiteSpace: 'nowrap',
+  },
+  // Carousel outer: negative margins cancel the main container's 16px side padding so
+  // the track bleeds to the viewport edge and 85vw cards have a visible right peek.
+  carouselOuter: {
+    marginLeft: -16,
+    marginRight: -16,
+    marginBottom: 24,
+  },
+  carouselTrack: {
+    display: 'flex',
+    overflowX: 'auto',
+    scrollSnapType: 'x mandatory',
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingBottom: 4,
+    gap: 12,
+  },
+  carouselCardWrap: {
+    scrollSnapAlign: 'start',
+    flexShrink: 0,
+    width: '85vw',
+  },
+  phaseCardInner: {
+    background: tokens.surface,
+    border: `1px solid ${t.border.overlayStrong}`,
+    borderRadius: 12,
+    padding: 20,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+    height: '100%',
+    boxSizing: 'border-box',
+  },
+  phaseCardActive: {
+    border: `1px solid ${tokens.primary}`,
+    background: tokens.tealLight,
+  },
+  phaseCardNodeRow: {
+    display: 'flex',
+    alignItems: 'center',
+  },
+  phaseCardBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  dots: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+  },
+  dot: {
+    height: 6,
+    borderRadius: 999,
+    flexShrink: 0,
+    transition: `all ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  dotActive: {
+    width: 16,
+    background: tokens.primary,
+  },
+  dotIdle: {
+    width: 6,
+    background: t.border.default,
   },
   docsBlock: { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${t.border.subtle}` },
   docsHeading: {

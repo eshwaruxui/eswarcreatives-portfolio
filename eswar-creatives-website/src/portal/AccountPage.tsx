@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase'
 import { type PortalProfile } from './PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './client/ClientNav'
 import { tokens, fonts, motionTokens } from './theme'
+import { useBreakpoint } from './hooks/useBreakpoint'
 
 const RESET_REDIRECT = 'https://www.eswarcreatives.in/portal/reset-password'
 
@@ -21,6 +22,7 @@ function Account({ profile }: { profile: PortalProfile }) {
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { isMobile } = useBreakpoint()
 
   async function handleReset() {
     setBusy(true)
@@ -45,11 +47,11 @@ function Account({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <main style={styles.container}>
+      <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         <h1 style={styles.title}>Account</h1>
 
         <div style={styles.card}>
-          <FullNameField initialName={profile.full_name} />
+          <FullNameField initialName={profile.full_name} isMobile={isMobile} />
           <Field label="Email" value={profile.email} />
         </div>
 
@@ -62,7 +64,7 @@ function Account({ profile }: { profile: PortalProfile }) {
             type="button"
             onClick={handleReset}
             disabled={busy}
-            style={{ ...styles.button, opacity: busy ? 0.6 : 1 }}
+            style={{ ...styles.button, ...(isMobile ? styles.buttonFullWidth : null), opacity: busy ? 0.6 : 1 }}
           >
             {busy ? 'Sending...' : 'Send reset link'}
           </button>
@@ -84,8 +86,9 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 // Editable full name. Read-only by default with an Edit affordance; switches to
-// an input with Save/Cancel. H1: every action gives inline feedback.
-function FullNameField({ initialName }: { initialName: string | null }) {
+// an input with Save/Cancel (stacked vertically on mobile). H1: every action
+// gives inline feedback.
+function FullNameField({ initialName, isMobile }: { initialName: string | null; isMobile: boolean }) {
   const [name, setName] = useState(initialName ?? '')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(name)
@@ -128,7 +131,8 @@ function FullNameField({ initialName }: { initialName: string | null }) {
     <div style={styles.field}>
       <span style={styles.label}>Full name</span>
       {editing ? (
-        <div style={styles.nameEditRow}>
+        // Stack vertically on mobile so three elements don't fight for space.
+        <div style={{ ...styles.nameEditRow, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -136,22 +140,24 @@ function FullNameField({ initialName }: { initialName: string | null }) {
             aria-label="Full name"
             autoFocus
           />
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            style={{ ...styles.nameSave, opacity: saving ? 0.6 : 1 }}
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditing(false)}
-            disabled={saving}
-            style={styles.nameCancel}
-          >
-            Cancel
-          </button>
+          <div style={isMobile ? { display: 'flex', gap: 8 } : undefined}>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              style={{ ...styles.nameSave, ...(isMobile ? { flex: 1 } : null), opacity: saving ? 0.6 : 1 }}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              disabled={saving}
+              style={{ ...styles.nameCancel, ...(isMobile ? { flex: 1 } : null) }}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       ) : (
         <div style={styles.nameViewRow}>
@@ -174,7 +180,7 @@ const styles: Record<string, CSSProperties> = {
   container: {
     maxWidth: 560,
     margin: '0 auto',
-    padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px`,
+    // Padding overridden inline with responsive values (16px mobile / 24px desktop).
   },
   title: {
     margin: '0 0 24px',
@@ -281,6 +287,12 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     fontFamily: fonts.body,
     cursor: 'pointer',
+  },
+  // Full-width variant applied on mobile so the CTA uses the full card width.
+  buttonFullWidth: {
+    alignSelf: 'stretch',
+    width: '100%',
+    boxSizing: 'border-box',
   },
   toast: {
     background: tokens.greenLight,

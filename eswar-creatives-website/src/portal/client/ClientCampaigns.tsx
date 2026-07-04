@@ -12,6 +12,7 @@ import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { ClientConceptSetPanel } from './ClientConceptSetPanel'
 import { formatDate, mono } from '../admin/ui'
 import { tokens, t, fonts, motionTokens } from '../theme'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 
 type Campaign = {
   id: string
@@ -186,6 +187,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [completedPolls, setCompletedPolls] = useState<CompletedPoll[]>([])
+  const { isMobile } = useBreakpoint()
   // The concept set whose selections panel is open, plus its campaign label.
   const [panelSet, setPanelSet] = useState<
     { setId: string; name: string; campaignId: string | null; campaignName: string } | null
@@ -236,13 +238,29 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <main style={styles.container}>
+      <style>{`
+        @keyframes ecShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+        .ec-shimmer{background:linear-gradient(90deg,${t.background.subtle} 25%,${t.background.muted} 50%,${t.background.subtle} 75%);background-size:200% 100%;animation:ecShimmer 1.5s linear infinite;border-radius:6px}
+      `}</style>
+      <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         <div style={styles.heroBlock}>
           <h1 style={styles.title}>Campaigns</h1>
           <p style={styles.subtitle}>Your design review campaigns.</p>
         </div>
 
-        {loading && <div style={styles.muted}>Loading campaigns...</div>}
+        {loading && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 12, padding: 22 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div className="ec-shimmer" style={{ height: 16, width: '50%' }} />
+                  <div className="ec-shimmer" style={{ height: 20, width: 64, borderRadius: 999 }} />
+                </div>
+                <div className="ec-shimmer" style={{ height: 13, width: '30%' }} />
+              </div>
+            ))}
+          </div>
+        )}
         {error && <div style={styles.error}>{error}</div>}
 
         {!loading &&
@@ -419,7 +437,7 @@ function CampaignStatusBadge({ status }: { status: string | null }) {
 
 const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: t.text.primary, fontFamily: fonts.body },
-  container: { maxWidth: 980, margin: '0 auto', padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px` },
+  container: { maxWidth: 980, margin: '0 auto' },
   heroBlock: { marginBottom: 32 },
   title: {
     margin: 0,
@@ -526,7 +544,8 @@ const styles: Record<string, CSSProperties> = {
   historyLinkButton: {
     background: 'transparent',
     border: 'none',
-    padding: 0,
+    // 44px min touch target via padding (H7: flexibility for mobile context).
+    padding: '12px 0',
     cursor: 'pointer',
     color: tokens.accent,
     fontFamily: fonts.body,

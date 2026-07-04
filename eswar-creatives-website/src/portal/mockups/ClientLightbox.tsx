@@ -258,7 +258,8 @@ export function ClientLightbox({
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
               onClick={toggleFullscreen}
-              style={{ background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,.7)', transition: 'all .15s ease' }}
+              // 44px min touch target per H7 (flexibility for mobile context).
+              style={{ background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,.7)', transition: 'all .15s ease' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,.18)'; e.currentTarget.style.color = '#fff' }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,.08)'; e.currentTarget.style.color = 'rgba(255,255,255,.7)' }}
               aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
@@ -272,7 +273,7 @@ export function ClientLightbox({
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,.7)', transition: 'all .15s ease', flexShrink: 0 }}
+            style={{ background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,.7)', transition: 'all .15s ease', flexShrink: 0 }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,.18)'; e.currentTarget.style.color = '#fff' }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,.08)'; e.currentTarget.style.color = 'rgba(255,255,255,.7)' }}
             aria-label="Close"
@@ -377,7 +378,8 @@ export function ClientLightbox({
                 }
               }}
               style={{
-                width: 40, height: 30, borderRadius: T.r.sm, overflow: 'hidden',
+                // 44px min touch target (H7): extra height via padding, visual size stays 40x36.
+                width: 40, height: 44, borderRadius: T.r.sm, overflow: 'hidden',
                 border: i === idx ? `2px solid ${T.gold400}` : '2px solid transparent',
                 opacity: i === idx ? 1 : 0.5, cursor: 'pointer', flexShrink: 0, padding: 0, background: T.n800,
                 transition: 'all .2s ease',
