@@ -77,8 +77,8 @@ Panel behaviour on mobile:
 - Close via X button or swipe down
 
 ### Status
-- Planned for Phase 6
-- Hook not yet created — create it before any responsive work begins
+- Shipped in Phase 6 (`feature/phase6-mobile-responsive`)
+- Hook lives at `src/portal/hooks/useBreakpoint.ts` — matchMedia-backed, no polling
 
 ---
 
