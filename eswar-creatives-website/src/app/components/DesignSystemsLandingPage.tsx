@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ArrowRight, Search, Package, Users } from "lucide-react";
+import { ArrowRight, Check, Search, Package, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { PortfolioButton } from "./ui/portfolio-button";
@@ -468,7 +468,125 @@ export function DesignSystemsLandingPage() {
         </div>
       </section>
 
-      {/* ── 6. CTA STRIP (teal) ─────────────────────────────────── */}
+      {/* ── 6. UX AUDIT WEDGE ──────────────────────────────────── */}
+      <section style={{ background: C.pageBg, padding: "80px 0" }}>
+        <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.5 }}
+            style={{ maxWidth: "560px", margin: "0 auto", textAlign: "center" }}
+          >
+            <p style={{ ...overline, marginBottom: "12px" }}>Start smaller</p>
+
+            <h2
+              style={{
+                fontFamily:    SERIF,
+                fontWeight:    600,
+                fontSize:      "28px",
+                lineHeight:    1.25,
+                letterSpacing: "-0.02em",
+                color:         C.text,
+                marginBottom:  "16px",
+              }}
+            >
+              Start with a UX Audit.
+            </h2>
+
+            <p
+              style={{
+                fontSize:      "var(--typo-ol-body-size)",
+                fontWeight:    "var(--typo-ol-body-weight)",
+                lineHeight:    1.65,
+                letterSpacing: "var(--typo-ol-body-letter-spacing)",
+                color:         C.textSec,
+                marginBottom:  "32px",
+              }}
+            >
+              A 5-day teardown of one core flow. Prioritised findings, before/after direction,
+              and a conversion-focused action plan. Fixed fee: $750. Credited in full toward
+              any follow-on design systems engagement.
+            </p>
+
+            <div
+              style={{
+                background:    C.surface,
+                border:        `1px solid ${C.border}`,
+                borderRadius:  "16px",
+                boxShadow:     CARD_SHADOW,
+                padding:       "32px",
+                marginBottom:  "28px",
+                textAlign:     "left",
+              }}
+            >
+              {[
+                "5 business days. One flow. Every friction point mapped.",
+                "Before/after direction for the top 3 issues.",
+                "30-min walkthrough call on delivery.",
+              ].map((row, i, arr) => (
+                <div
+                  key={i}
+                  style={{
+                    display:       "flex",
+                    alignItems:    "flex-start",
+                    gap:           "12px",
+                    marginBottom:  i < arr.length - 1 ? "16px" : "0",
+                  }}
+                >
+                  <span
+                    style={{
+                      width:           "20px",
+                      height:          "20px",
+                      borderRadius:    "50%",
+                      background:      C.pageBg,
+                      border:          `1px solid ${C.border}`,
+                      display:         "flex",
+                      alignItems:      "center",
+                      justifyContent:  "center",
+                      flexShrink:      0,
+                      marginTop:       "1px",
+                    }}
+                  >
+                    <Check style={{ width: "11px", height: "11px", color: C.teal }} strokeWidth={3} />
+                  </span>
+                  <p
+                    style={{
+                      fontSize:   "var(--typo-p-sm-size)",
+                      fontWeight: "var(--typo-p-sm-weight)",
+                      lineHeight: "var(--typo-p-sm-line-height)",
+                      color:      C.text,
+                    }}
+                  >
+                    {row}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href="mailto:eswar@eswarcreatives.in?subject=UX Audit Enquiry"
+              style={{
+                display:        "inline-flex",
+                alignItems:     "center",
+                gap:            "6px",
+                background:     C.inverse,
+                color:          C.textInv,
+                borderRadius:   "8px",
+                padding:        "10px 20px",
+                fontSize:       "var(--typo-p-sm-size)",
+                fontWeight:     "var(--typo-p-sm-weight)",
+                fontFamily:     "var(--font-family-primary)",
+                textDecoration: "none",
+              }}
+            >
+              Book a UX Audit →
+            </a>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── 7. CTA STRIP (teal) ─────────────────────────────────── */}
       <section style={{ background: C.tealHex, padding: "80px 0" }}>
         <div
           style={{
