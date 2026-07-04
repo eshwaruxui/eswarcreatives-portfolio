@@ -111,12 +111,12 @@ export function HeroSection() {
               <ImageWithFallback
                 src={portraitMobileImg}
                 alt="Eswar, Senior UX Designer"
-                className="w-full h-full object-contain relative z-10 translate-y-[12px] mix-blend-luminosity md:hidden"
+                className="w-full h-full object-contain relative z-10 translate-y-[12px] md:hidden"
               />
               <ImageWithFallback
                 src={portraitImg}
                 alt="Eswar, Senior UX Designer"
-                className="w-full h-full object-contain relative z-10 translate-y-[12px] mix-blend-luminosity hidden md:block"
+                className="w-full h-full object-contain relative z-10 translate-y-[12px] hidden md:block"
               />
 
               {/* CUA badge — md+ only, bottom-right of portrait */}
