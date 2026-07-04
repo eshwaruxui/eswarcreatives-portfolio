@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router'
-import { Plus, Search, Trash2 } from 'lucide-react'
+import { Bell, Plus, Search, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import {
@@ -16,6 +16,7 @@ import { InvoicePreview } from './InvoicePreview'
 import { DeleteInvoiceModal } from './DeleteInvoiceModal'
 import { ConfirmPaymentModal, type PaymentModalMode } from './ConfirmPaymentModal'
 import { PaymentsSection, type PaymentDraft } from './PaymentsSection'
+import { NudgeModal, NUDGEABLE } from './NudgeModal'
 import { addInvoicePayment } from '../hooks/useInvoicePayments'
 import { usePortal } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
@@ -39,6 +40,7 @@ type Invoice = {
   payment_method: string | null
   notes: string | null
   created_at: string
+  nudge_count?: number
   _amountPaid?: number
 }
 
@@ -98,6 +100,8 @@ export function InvoicesAdmin() {
   // ConfirmPaymentModal target + mode.
   const [confirmTarget, setConfirmTarget] = useState<Invoice | null>(null)
   const [confirmMode, setConfirmMode] = useState<PaymentModalMode>('mark_paid')
+  // NudgeModal target.
+  const [nudgeTarget, setNudgeTarget] = useState<Invoice | null>(null)
   // Success toast.
   const [toast, setToast] = useState<string | null>(null)
 
@@ -113,7 +117,7 @@ export function InvoicesAdmin() {
       let invQuery = supabase
         .from('invoices')
         .select(
-          'id, invoice_number, proposal_id, client_id, client_name, company_name, label, amount, currency, status, pct_of_total, due_date, paid_date, payment_method, notes, created_at'
+          'id, invoice_number, proposal_id, client_id, client_name, company_name, label, amount, currency, status, pct_of_total, due_date, paid_date, payment_method, notes, created_at, nudge_count'
         )
         .order('created_at', { ascending: false })
       if (selectedClientId) invQuery = invQuery.eq('client_id', selectedClientId)
@@ -319,6 +323,19 @@ export function InvoicesAdmin() {
                           Mark paid
                         </button>
                       ) : null}
+                      {/* Nudge button: only for invoices with an outstanding balance. */}
+                      {NUDGEABLE.has(inv.status) && (
+                        <button
+                          type="button"
+                          style={styles.nudgeBtn}
+                          onClick={() => setNudgeTarget(inv)}
+                          title="Send payment reminder"
+                          aria-label="Send payment reminder"
+                        >
+                          <Bell size={14} />
+                          Nudge
+                        </button>
+                      )}
                       {/* Owner/admin only. Invoices raised from a proposal are
                           removed by deleting the proposal, so their button is
                           disabled with a tooltip pointing there. */}
@@ -393,6 +410,20 @@ export function InvoicesAdmin() {
           onSuccess={(msg) => {
             setConfirmTarget(null)
             setToast(msg)
+            void load()
+          }}
+        />
+      )}
+
+      {nudgeTarget && (
+        <NudgeModal
+          invoice={nudgeTarget}
+          sentById={profile.id}
+          onClose={() => setNudgeTarget(null)}
+          onSuccess={(msg) => {
+            setNudgeTarget(null)
+            setToast(msg)
+            // Reload so nudge_count reflects the increment.
             void load()
           }}
         />
@@ -1021,6 +1052,20 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.greenLight,
     border: 'none',
     color: tokens.green,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: '5px 10px',
+    borderRadius: 6,
+  },
+  nudgeBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    background: tokens.goldLight,
+    border: 'none',
+    color: tokens.goldDark,
     fontFamily: fonts.body,
     fontSize: 13,
     fontWeight: 600,

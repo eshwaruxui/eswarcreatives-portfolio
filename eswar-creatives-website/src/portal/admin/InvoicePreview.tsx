@@ -5,9 +5,17 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, t } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { InvoiceDocument, type InvoiceLine, type InvoicePaymentRow } from '../components/shared/InvoiceDocument'
+import { mono, formatDate } from './ui'
 import type { CSSProperties } from 'react'
+
+type NudgeLogRow = {
+  id: string
+  sent_at: string
+  channel: string
+  message_preview: string | null
+}
 
 export type PreviewInvoice = {
   id: string
@@ -53,6 +61,7 @@ export function InvoicePreview({
   const [city, setCity] = useState<string | null>(null)
   const [lines, setLines] = useState<InvoiceLine[]>([])
   const [payments, setPayments] = useState<InvoicePaymentRow[]>([])
+  const [nudgeLogs, setNudgeLogs] = useState<NudgeLogRow[]>([])
 
   // Trigger the slide-in transition once mounted.
   useEffect(() => {
@@ -97,6 +106,25 @@ export function InvoicePreview({
           reference_note: r.reference_note as string | null,
         }))
       )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [invoice.id])
+
+  // Nudge history (0069 nudge_log). Falls back to empty if table does not exist
+  // yet (migration pending), so the drawer works before the migration is applied.
+  useEffect(() => {
+    let cancelled = false
+    setNudgeLogs([])
+    ;(async () => {
+      const { data } = await supabase
+        .from('nudge_log')
+        .select('id, sent_at, channel, message_preview')
+        .eq('invoice_id', invoice.id)
+        .order('sent_at', { ascending: false })
+      if (cancelled || !data) return
+      setNudgeLogs(data as NudgeLogRow[])
     })()
     return () => {
       cancelled = true
@@ -171,9 +199,76 @@ export function InvoicePreview({
           lines={lines}
           payments={payments.length > 0 ? payments : undefined}
         />
+
+        {/* Nudge history: shows reminders sent for this invoice (0069). */}
+        {nudgeLogs.length > 0 && (
+          <div style={nudgeStyles.section}>
+            <div style={nudgeStyles.heading}>Reminders sent</div>
+            {nudgeLogs.map((log) => (
+              <div key={log.id} style={nudgeStyles.row}>
+                <div style={nudgeStyles.rowTop}>
+                  <span style={nudgeStyles.channel}>
+                    {log.channel === 'whatsapp' ? 'WhatsApp' : 'Email'}
+                  </span>
+                  <span style={nudgeStyles.date}>{formatDate(log.sent_at)}</span>
+                </div>
+                {log.message_preview && (
+                  <p style={nudgeStyles.preview}>{log.message_preview}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </aside>
     </>
   )
+}
+
+const nudgeStyles: Record<string, CSSProperties> = {
+  section: {
+    margin: '0 32px 32px',
+    borderTop: `1px solid ${t.border.subtle}`,
+    paddingTop: 20,
+  },
+  heading: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: t.text.tertiary,
+    marginBottom: 12,
+  },
+  row: {
+    padding: '10px 0',
+    borderBottom: `1px solid ${t.border.subtle}`,
+  },
+  rowTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 4,
+  },
+  channel: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    color: t.text.primary,
+  },
+  date: {
+    fontFamily: mono,
+    fontSize: 12,
+    color: t.text.muted,
+  },
+  preview: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.tertiary,
+    margin: 0,
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap',
+  },
 }
 
 const styles: Record<string, CSSProperties> = {
