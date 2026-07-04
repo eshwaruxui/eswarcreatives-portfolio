@@ -12,6 +12,7 @@ import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { ClientConceptSetPanel } from './ClientConceptSetPanel'
 import { formatDate, mono } from '../admin/ui'
 import { tokens, t, fonts, motionTokens } from '../theme'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 
 type Campaign = {
   id: string
@@ -186,6 +187,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [completedPolls, setCompletedPolls] = useState<CompletedPoll[]>([])
+  const { isMobile } = useBreakpoint()
   // The concept set whose selections panel is open, plus its campaign label.
   const [panelSet, setPanelSet] = useState<
     { setId: string; name: string; campaignId: string | null; campaignName: string } | null
@@ -236,7 +238,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <main style={styles.container}>
+      <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         <div style={styles.heroBlock}>
           <h1 style={styles.title}>Campaigns</h1>
           <p style={styles.subtitle}>Your design review campaigns.</p>
@@ -419,7 +421,7 @@ function CampaignStatusBadge({ status }: { status: string | null }) {
 
 const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: t.text.primary, fontFamily: fonts.body },
-  container: { maxWidth: 980, margin: '0 auto', padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px` },
+  container: { maxWidth: 980, margin: '0 auto' },
   heroBlock: { marginBottom: 32 },
   title: {
     margin: 0,
@@ -526,7 +528,8 @@ const styles: Record<string, CSSProperties> = {
   historyLinkButton: {
     background: 'transparent',
     border: 'none',
-    padding: 0,
+    // 44px min touch target via padding (H7: flexibility for mobile context).
+    padding: '12px 0',
     cursor: 'pointer',
     color: tokens.accent,
     fontFamily: fonts.body,
