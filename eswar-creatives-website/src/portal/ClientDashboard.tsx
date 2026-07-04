@@ -17,6 +17,7 @@ import type { ClientDocument } from './client/DocumentChips'
 import { formatDate } from './admin/ui'
 import { tokens, t, fonts, motionTokens, phaseUI } from './theme'
 import type { PhaseState } from './theme'
+import { useBreakpoint } from './hooks/useBreakpoint'
 
 // The fixed client journey. The project's phase pointer maps onto these.
 const PHASES = ['Discovery', 'Design', 'Review', 'Delivery'] as const
@@ -55,20 +56,6 @@ type Milestone = {
 type BannerVariant = 'ruby' | 'gold' | 'teal'
 type Banner = { text: string; to: string; variant: BannerVariant }
 
-// Phase stepper and quick grid collapse to a single column below this width.
-function useIsNarrow(): boolean {
-  const [narrow, setNarrow] = useState(
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const on = () => setNarrow(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
-  }, [])
-  return narrow
-}
-
 export function ClientDashboardPage() {
   const profile = useOutletContext<PortalProfile>()
   return <Dashboard profile={profile} />
@@ -85,7 +72,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const badges = useSyncExternalStore(subscribeBadges, getBadges, getBadges)
-  const narrow = useIsNarrow()
+  const { isMobile: narrow } = useBreakpoint()
 
   useEffect(() => {
     let cancelled = false

@@ -7,23 +7,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { tokens, t, fonts, motionTokens } from '../theme'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 
 // Slide duration in ms, parsed from the shared motion token so the exit timer
 // and the CSS transition can never drift apart.
 const SLIDE_MS = parseInt(motionTokens.durationBase, 10)
-
-function useIsNarrow(): boolean {
-  const [narrow, setNarrow] = useState(
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const on = () => setNarrow(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
-  }, [])
-  return narrow
-}
 
 export function SidePanel({
   title,
@@ -44,7 +32,7 @@ export function SidePanel({
   headerExtra?: ReactNode
   children: ReactNode
 }) {
-  const narrow = useIsNarrow()
+  const { isMobile: narrow } = useBreakpoint()
   const [shown, setShown] = useState(false)
   const closingRef = useRef(false)
 
