@@ -1,13 +1,17 @@
-// Shared top navigation for the client-facing portal screens (Projects,
-// Proposals, Invoices, Mockups, Account). Fixed to the top at the same layer as
-// the admin TopBar (z-index 90). Theme tokens only; no raw hex; no em dashes.
+// Shared navigation for the client-facing portal.
+// Desktop: fixed top bar (brand + nav links + sign-out). Mobile: minimal top
+// bar (brand + sign-out) + fixed bottom tab bar (6 icon+label tabs). All
+// breakpoint logic via useBreakpoint -- no inline window.innerWidth checks.
+// Theme tokens only; no raw hex; no em dashes.
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { NavLink, useLocation } from 'react-router'
+import { FolderKanban, FileText, Receipt, Images, Megaphone, User } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { PortalProfile } from '../PortalGuard'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { useSignOut } from '../useSignOut'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import { Spinner } from '../Spinner'
 import {
   getBadges,
@@ -19,46 +23,48 @@ import {
 import type { BadgeSection } from './clientNotifications'
 import eswarLogo from '../../imports/eswar-logo.svg'
 
-// Height the fixed bar occupies; client pages offset their content by this much.
+// Height the fixed top bar occupies; client pages offset their top padding.
 export const CLIENT_NAV_HEIGHT = 56
+// Height of the mobile bottom tab bar (without safe-area-inset-bottom, which
+// pages add via padding-bottom CSS when on mobile).
+export const CLIENT_BOTTOM_NAV_HEIGHT = 56
 
 // Resolved display name per profile, cached at module scope. Every client page
-// renders its own ClientNav, so navigating remounts this component; without the
-// cache the bar would flash profile.full_name ("Mohan A") and then snap to the
-// client contact name ("Mohan") on every tab click, shaking the top bar.
+// renders its own ClientNav; without the cache the bar flashes on tab change.
 const nameCache: Record<string, string> = {}
 
-// `badge` keys the nav item to a notification section; null means no badge ever
-// (Account never gets one, Campaigns is outside the badge matrix).
-const LINKS: { to: string; label: string; badge: BadgeSection | null }[] = [
-  { to: '/portal/projects', label: 'Projects', badge: 'projects' },
-  { to: '/portal/proposals', label: 'Proposals', badge: 'proposals' },
-  { to: '/portal/invoices', label: 'Invoices', badge: 'invoices' },
-  { to: '/portal/mockups', label: 'Mockups', badge: 'mockups' },
-  { to: '/portal/campaigns', label: 'Campaigns', badge: null },
-  { to: '/portal/account', label: 'Account', badge: null },
+type NavItem = {
+  to: string
+  label: string
+  badge: BadgeSection | null
+  Icon: React.ComponentType<{ size?: number; color?: string }>
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { to: '/portal/projects',  label: 'Projects',  badge: 'projects',  Icon: FolderKanban },
+  { to: '/portal/proposals', label: 'Proposals', badge: 'proposals', Icon: FileText },
+  { to: '/portal/invoices',  label: 'Invoices',  badge: 'invoices',  Icon: Receipt },
+  { to: '/portal/mockups',   label: 'Mockups',   badge: 'mockups',   Icon: Images },
+  { to: '/portal/campaigns', label: 'Campaigns', badge: null,         Icon: Megaphone },
+  { to: '/portal/account',   label: 'Account',   badge: null,         Icon: User },
 ]
 
-// Which badge section, if any, a path opens (so it can be marked read on entry).
 const SECTION_BY_PATH: Record<string, BadgeSection> = {
-  '/portal/projects': 'projects',
+  '/portal/projects':  'projects',
   '/portal/proposals': 'proposals',
-  '/portal/invoices': 'invoices',
-  '/portal/mockups': 'mockups',
+  '/portal/invoices':  'invoices',
+  '/portal/mockups':   'mockups',
 }
 
 export function ClientNav({ profile }: { profile: PortalProfile }) {
   const { signingOut, error: signOutError, signOut } = useSignOut()
-  // Start from the cached client name when we already have it, so a remount on
-  // navigation does not flash the profile name before the fetch resolves.
   const [name, setName] = useState<string>(
     nameCache[profile.id] || profile.full_name || profile.email
   )
   const location = useLocation()
   const badges = useSyncExternalStore(subscribeBadges, getBadges, getBadges)
+  const { isMobile } = useBreakpoint()
 
-  // Prefer the client's contact/company name; fall back to the profile identity.
-  // The resolved value is cached so later remounts skip the flash entirely.
   useEffect(() => {
     if (nameCache[profile.id]) return
     let cancelled = false
@@ -75,20 +81,16 @@ export function ClientNav({ profile }: { profile: PortalProfile }) {
         setName(label)
       }
     })()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [profile.id])
 
-  // Mark the current section read first (writes the seen marker), then trigger
-  // the once-per-login fetch so it computes badges against the fresh marker.
   useEffect(() => {
     const section = SECTION_BY_PATH[location.pathname]
     if (section) markSectionRead(profile.id, section)
     loadBadgesOnce(profile.id)
   }, [profile.id, location.pathname])
 
-  // H1 (visibility of system status): re-check on tab focus, no polling.
+  // H1: re-check on tab focus, no polling.
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === 'visible') void refreshBadges(profile.id)
@@ -98,69 +100,116 @@ export function ClientNav({ profile }: { profile: PortalProfile }) {
   }, [profile.id])
 
   return (
-    <nav style={styles.nav}>
-      {/* Badge entrance: transform only, durationFast + easeEnter per motion rules. */}
+    <>
       <style>{`@keyframes clientBadgeIn{from{transform:scale(0)}to{transform:scale(1)}}`}</style>
-      <div style={styles.inner}>
-        <div style={styles.brand}>
-          <img src={eswarLogo} alt="Eswar Creatives logo" width={28} height={28} style={styles.logo} />
-          {/* Figma master: italic Fraunces wordmark reading "Client portal". */}
-          <span style={styles.brandName}>Client portal</span>
-        </div>
 
-        {/* H6 (recognition rather than recall) + H1 (visibility of system status):
-            every section is labelled, the current one is highlighted, and a ruby
-            dot flags sections with new activity. */}
-        <div style={styles.links}>
-          {LINKS.map((l) => {
-            const showBadge = l.badge ? badges[l.badge] : false
+      {/* Top bar (always visible): brand + sign-out. On desktop also shows nav links. */}
+      <nav style={styles.nav}>
+        <div style={{ ...styles.inner, ...(isMobile ? styles.innerMobile : null) }}>
+          <div style={styles.brand}>
+            <img src={eswarLogo} alt="Eswar Creatives logo" width={28} height={28} style={styles.logo} />
+            <span style={styles.brandName}>Client portal</span>
+          </div>
+
+          {/* Desktop nav links -- hidden on mobile (bottom tab bar takes over) */}
+          {!isMobile && (
+            <div style={styles.links}>
+              {NAV_ITEMS.map((item) => {
+                const showBadge = item.badge ? badges[item.badge] : false
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    style={({ isActive }) => ({
+                      ...styles.link,
+                      ...(isActive ? styles.linkActive : null),
+                    })}
+                  >
+                    <span style={styles.linkLabel}>
+                      {item.label}
+                      {showBadge && (
+                        <span style={styles.badge} role="status" aria-label="New activity" />
+                      )}
+                    </span>
+                  </NavLink>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Right: user name (desktop only) + sign-out (always) */}
+          <div style={styles.right}>
+            {!isMobile && <span style={styles.name}>{name}</span>}
+            <button
+              type="button"
+              onClick={signOut}
+              disabled={signingOut}
+              style={{
+                ...styles.signout,
+                ...(isMobile ? styles.signoutCompact : null),
+                ...(signingOut ? styles.signoutBusy : null),
+              }}
+            >
+              {signingOut ? (
+                <>
+                  <Spinner size={12} color={t.text.secondary} />
+                  {!isMobile && <span>Signing out...</span>}
+                </>
+              ) : (
+                isMobile ? 'Sign out' : 'Sign out'
+              )}
+            </button>
+            {signOutError && (
+              <span role="alert" style={styles.signoutError}>{signOutError}</span>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* Mobile bottom tab bar */}
+      {isMobile && (
+        <nav
+          style={styles.bottomNav}
+          aria-label="Main navigation"
+        >
+          {NAV_ITEMS.map((item) => {
+            const showBadge = item.badge ? badges[item.badge] : false
             return (
               <NavLink
-                key={l.to}
-                to={l.to}
+                key={item.to}
+                to={item.to}
                 style={({ isActive }) => ({
-                  ...styles.link,
-                  ...(isActive ? styles.linkActive : null),
+                  ...styles.tab,
+                  ...(isActive ? styles.tabActive : null),
                 })}
               >
-                <span style={styles.linkLabel}>
-                  {l.label}
-                  {showBadge && (
-                    <span style={styles.badge} role="status" aria-label="New activity" />
-                  )}
-                </span>
+                {({ isActive }) => (
+                  <>
+                    <span style={styles.tabIconWrap}>
+                      <item.Icon
+                        size={20}
+                        color={isActive ? tokens.primary : t.text.muted}
+                      />
+                      {showBadge && (
+                        <span style={styles.tabBadge} role="status" aria-label="New activity" />
+                      )}
+                    </span>
+                    <span
+                      style={{
+                        ...styles.tabLabel,
+                        color: isActive ? tokens.primary : t.text.muted,
+                      }}
+                    >
+                      {item.label}
+                    </span>
+                  </>
+                )}
               </NavLink>
             )
           })}
-        </div>
-
-        <div style={styles.right}>
-          <span style={styles.name}>{name}</span>
-          {/* H1 (visibility of system status): the click is acknowledged inline
-              with a spinner and the button is disabled to block double-clicks. */}
-          <button
-            type="button"
-            onClick={signOut}
-            disabled={signingOut}
-            style={{ ...styles.signout, ...(signingOut ? styles.signoutBusy : null) }}
-          >
-            {signingOut ? (
-              <>
-                <Spinner size={12} color={t.text.secondary} />
-                <span>Signing out...</span>
-              </>
-            ) : (
-              'Sign out'
-            )}
-          </button>
-          {signOutError && (
-            <span role="alert" style={styles.signoutError}>
-              {signOutError}
-            </span>
-          )}
-        </div>
-      </div>
-    </nav>
+        </nav>
+      )}
+    </>
   )
 }
 
@@ -173,7 +222,7 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 90,
     height: CLIENT_NAV_HEIGHT,
     background: tokens.surface,
-    borderBottom: `1px solid ${t.border.overlayStrong}`, // Figma: neutral overlay-strong, not teal
+    borderBottom: `1px solid ${t.border.overlayStrong}`,
   },
   inner: {
     maxWidth: 1080,
@@ -185,11 +234,16 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: 'space-between',
     gap: 16,
   },
+  // On mobile: full-width, no max-width centering, tighter padding.
+  innerMobile: {
+    maxWidth: '100%',
+    padding: '0 16px',
+  },
   brand: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
   logo: { display: 'block' },
   brandName: {
     fontFamily: fonts.heading,
-    fontStyle: 'italic', // Figma master: Fraunces SemiBold Italic
+    fontStyle: 'italic',
     fontSize: 15,
     fontWeight: 600,
     color: t.text.secondary,
@@ -202,11 +256,11 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: 500,
-    color: t.text.secondary, // Figma master: inactive nav is neutral secondary
+    color: t.text.secondary,
     textDecoration: 'none',
   },
   linkActive: {
-    background: t.background.overlayNormal, // Figma master: neutral selected pill, not teal
+    background: t.background.overlayNormal,
     color: t.text.primary,
     fontWeight: 600,
   },
@@ -222,12 +276,12 @@ const styles: Record<string, CSSProperties> = {
     animation: `clientBadgeIn ${motionTokens.durationFast} ${motionTokens.easeEnter}`,
   },
   right: { position: 'relative', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 },
-  name: { fontSize: 13, color: t.text.secondary, whiteSpace: 'nowrap' }, // Figma master: secondary
+  name: { fontSize: 13, color: t.text.secondary, whiteSpace: 'nowrap' },
   signout: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    background: tokens.surface, // Figma master: white neutral outline button
+    background: tokens.surface,
     border: `1px solid ${t.border.medium}`,
     color: t.text.secondary,
     padding: '6px 12px',
@@ -236,8 +290,14 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontWeight: 500,
     cursor: 'pointer',
-    // Interactive element: fade transition per the motion rules.
     transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+    // Ensure 44px min touch target via padding on mobile.
+    minHeight: 32,
+  },
+  // Compact variant for mobile top bar.
+  signoutCompact: {
+    padding: '6px 10px',
+    fontSize: 12,
   },
   signoutBusy: { opacity: 0.7, cursor: 'default' },
   signoutError: {
@@ -253,5 +313,55 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     whiteSpace: 'nowrap',
     boxShadow: '0 6px 18px rgba(176, 13, 45, 0.14)',
+  },
+
+  // Bottom tab bar: fixed to bottom, 56px + safe-area-inset-bottom.
+  bottomNav: {
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 90,
+    height: CLIENT_BOTTOM_NAV_HEIGHT,
+    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+    background: tokens.surface,
+    borderTop: `1px solid ${t.border.overlayStrong}`,
+    display: 'flex',
+    alignItems: 'stretch',
+  },
+  tab: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    textDecoration: 'none',
+    // Minimum 44px touch target per H7 (flexibility for mobile context).
+    minHeight: 44,
+    padding: '4px 2px',
+  },
+  tabActive: {},
+  tabIconWrap: {
+    position: 'relative',
+    display: 'inline-flex',
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    width: 7,
+    height: 7,
+    borderRadius: '50%',
+    background: tokens.ruby,
+    animation: `clientBadgeIn ${motionTokens.durationFast} ${motionTokens.easeEnter}`,
+  },
+  tabLabel: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    fontWeight: 500,
+    lineHeight: 1,
+    // 10px is below 12px body minimum but tab labels at this density are
+    // conventionally smaller; the icon carries the primary recognition (H6).
   },
 }
