@@ -1,19 +1,21 @@
 // Right-side slide-in panel showing one concept set's public-poll results as a
 // read-only track record, opened when a client clicks "View selections" on a
-// set row. Reuses the shared SidePanel (z-201, motionTokens slide, neutral
-// scrim) so every portal drawer animates and stacks identically (H4).
+// set row. On desktop: reuses the shared SidePanel (z-201, motionTokens slide,
+// neutral scrim) so every portal drawer animates and stacks identically (H4).
+// On mobile: full-screen overlay (position fixed, 100vw 100dvh) with a close
+// button top-right, slides up from bottom, and supports swipe-down to dismiss.
 //
-// Data path: thumbnails come straight from the public logo-sketches bucket
-// (mirroring PublicVotePage so file position == sketch_index), while pass/reject
-// counts come from the ownership-gated get_portal_campaign_vote_summary RPC. The
-// client never reads public_votes directly, so no voter PII reaches the portal.
+// Data path: thumbnails from the public logo-sketches bucket; pass/reject counts
+// from the ownership-gated get_portal_campaign_vote_summary RPC. No voter PII.
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only (H9).
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { SidePanel } from '../admin/SidePanel'
 import { mono } from '../admin/ui'
 import { tokens, t, fonts, motionTokens } from '../theme'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 
 const BUCKET = 'logo-sketches'
 
@@ -28,7 +30,6 @@ type Concept = {
   total: number
 }
 
-// One row of the RPC result. Counts only, never PII.
 type VoteSummaryRow = {
   set_id: string
   sketch_index: number
@@ -44,8 +45,6 @@ export function ClientConceptSetPanel({
   campaignName,
   onClose,
 }: {
-  // Null when the set is not tied to a portal-linked public campaign; the panel
-  // then shows the empty state rather than failing.
   campaignId: string | null
   setId: string
   setName: string
@@ -55,8 +54,11 @@ export function ClientConceptSetPanel({
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // Drives the 120ms badge/stat entrance once the data is in.
   const [shown, setShown] = useState(false)
+  const { isMobile } = useBreakpoint()
+
+  // Swipe-down-to-close: track pointer position on the overlay handle.
+  const swipeRef = useRef({ startY: 0, active: false })
 
   useEffect(() => {
     let cancelled = false
@@ -64,9 +66,6 @@ export function ClientConceptSetPanel({
       setLoading(true)
       setError(null)
       try {
-        // 1. Thumbnails: list the set's folder, sorted by name asc. The position
-        // in that list IS the sketch_index (mirrors PublicVotePage:175-181 so the
-        // indices line up with how votes were recorded).
         const { data: files } = await supabase.storage
           .from(BUCKET)
           .list(setId, { limit: 1000, sortBy: { column: 'name', order: 'asc' } })
@@ -76,8 +75,6 @@ export function ClientConceptSetPanel({
           url: supabase.storage.from(BUCKET).getPublicUrl(`${setId}/${f.name}`).data.publicUrl,
         }))
 
-        // 2. Vote aggregates (counts only) via the ownership-gated RPC, filtered
-        // to this set. Skipped when there is no linked campaign.
         const countsByIndex = new Map<number, { passed: number; rejected: number; total: number }>()
         if (campaignId) {
           const { data: rows, error: rpcErr } = await supabase.rpc(
@@ -95,29 +92,20 @@ export function ClientConceptSetPanel({
           }
         }
 
-        // 3. Merge thumbnails with counts; strongest concepts (most passes) lead.
         const merged: Concept[] = thumbs.map((th) => {
           const c = countsByIndex.get(th.index)
-          return {
-            index: th.index,
-            url: th.url,
-            passed: c?.passed ?? 0,
-            rejected: c?.rejected ?? 0,
-            total: c?.total ?? 0,
-          }
+          return { index: th.index, url: th.url, passed: c?.passed ?? 0, rejected: c?.rejected ?? 0, total: c?.total ?? 0 }
         })
         merged.sort((a, b) => b.passed - a.passed || a.index - b.index)
 
         if (!cancelled) setConcepts(merged)
       } catch {
-        if (!cancelled) setError(LOAD_ERROR) // H9: plain-language only.
+        if (!cancelled) setError(LOAD_ERROR)
       } finally {
         if (!cancelled) setLoading(false)
       }
     })()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [campaignId, setId])
 
   useEffect(() => {
@@ -129,61 +117,114 @@ export function ClientConceptSetPanel({
   const totalPassed = concepts.reduce((n, c) => n + c.passed, 0)
   const totalRejected = concepts.reduce((n, c) => n + c.rejected, 0)
 
+  const body = loading ? (
+    <p style={styles.muted}>Loading...</p>
+  ) : error ? (
+    <p style={styles.errorText}>{error}</p>
+  ) : concepts.length === 0 ? (
+    <p style={styles.empty}>No selections recorded for this set.</p>
+  ) : (
+    <>
+      <div style={styles.summaryRow}>
+        <span style={{ ...styles.stat, ...styles.passStat }}>{totalPassed} passed</span>
+        <span style={{ ...styles.stat, ...styles.rejectStat }}>{totalRejected} rejected</span>
+      </div>
+      <div style={styles.divider} />
+      <div
+        style={{
+          ...styles.list,
+          opacity: shown ? 1 : 0,
+          transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+        }}
+      >
+        {concepts.map((c) => (
+          <div key={c.index} style={styles.conceptRow}>
+            <div style={styles.thumbWrap}>
+              {c.url ? (
+                <img
+                  src={c.url}
+                  alt={`${setName} concept ${c.index + 1}`}
+                  style={styles.thumb}
+                  loading="lazy"
+                />
+              ) : (
+                <div style={styles.thumbFallback} />
+              )}
+            </div>
+            <div style={styles.conceptMain}>
+              <div style={styles.conceptTitle}>{`${setName} · Concept ${c.index + 1}`}</div>
+              <div style={styles.badgeRow}>
+                <span style={{ ...styles.stat, ...styles.passStat }}>{c.passed} passed</span>
+                <span style={{ ...styles.stat, ...styles.rejectStat }}>{c.rejected} rejected</span>
+              </div>
+            </div>
+            <span style={styles.voteCount}>{c.total} votes</span>
+          </div>
+        ))}
+      </div>
+      <p style={styles.footerNote}>Closed. View only.</p>
+    </>
+  )
+
+  // Mobile: full-screen overlay with swipe-down-to-close.
+  if (isMobile) {
+    const handleTouchStart = (e: React.TouchEvent) => {
+      swipeRef.current = { startY: e.touches[0].clientY, active: true }
+    }
+    const handleTouchEnd = (e: React.TouchEvent) => {
+      if (!swipeRef.current.active) return
+      swipeRef.current.active = false
+      const dy = e.changedTouches[0].clientY - swipeRef.current.startY
+      // Swipe down >= 80px from the top drag handle dismisses the panel (H7).
+      if (dy > 80) onClose()
+    }
+
+    return (
+      <>
+        <div style={styles.backdrop} onClick={onClose} />
+        <div
+          style={{
+            ...styles.mobileOverlay,
+            transform: shown ? 'translateY(0)' : 'translateY(100%)',
+          }}
+          role="dialog"
+          aria-label={setName}
+        >
+          {/* Drag handle -- the swipe target at the top of the sheet. */}
+          <div
+            style={styles.dragHandle}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div style={styles.dragPill} />
+          </div>
+
+          {/* Header with title + close button (>= 44px). */}
+          <div style={styles.mobileHeader}>
+            <div style={{ minWidth: 0 }}>
+              <div style={styles.mobileTitle}>{setName}</div>
+              <div style={styles.mobileSub}>{campaignName}</div>
+            </div>
+            <button
+              type="button"
+              style={styles.mobileClose}
+              onClick={onClose}
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div style={styles.mobileBody}>{body}</div>
+        </div>
+      </>
+    )
+  }
+
+  // Desktop: shared SidePanel.
   return (
     <SidePanel title={setName} subtitle={campaignName} onClose={onClose} width={480}>
-      {loading ? (
-        <p style={styles.muted}>Loading...</p>
-      ) : error ? (
-        <p style={styles.errorText}>{error}</p>
-      ) : concepts.length === 0 ? (
-        <p style={styles.empty}>No selections recorded for this set.</p>
-      ) : (
-        <>
-          {/* Sub-header: set-level pass/reject totals. */}
-          <div style={styles.summaryRow}>
-            <span style={{ ...styles.stat, ...styles.passStat }}>{totalPassed} passed</span>
-            <span style={{ ...styles.stat, ...styles.rejectStat }}>{totalRejected} rejected</span>
-          </div>
-
-          <div style={styles.divider} />
-
-          <div
-            style={{
-              ...styles.list,
-              opacity: shown ? 1 : 0,
-              transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
-            }}
-          >
-            {concepts.map((c) => (
-              <div key={c.index} style={styles.conceptRow}>
-                <div style={styles.thumbWrap}>
-                  {c.url ? (
-                    <img
-                      src={c.url}
-                      alt={`${setName} concept ${c.index + 1}`}
-                      style={styles.thumb}
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div style={styles.thumbFallback} />
-                  )}
-                </div>
-                <div style={styles.conceptMain}>
-                  <div style={styles.conceptTitle}>{`${setName} · Concept ${c.index + 1}`}</div>
-                  <div style={styles.badgeRow}>
-                    <span style={{ ...styles.stat, ...styles.passStat }}>{c.passed} passed</span>
-                    <span style={{ ...styles.stat, ...styles.rejectStat }}>{c.rejected} rejected</span>
-                  </div>
-                </div>
-                <span style={styles.voteCount}>{c.total} votes</span>
-              </div>
-            ))}
-          </div>
-
-          {/* H1: the state is made explicit. This is a closed, read-only record. */}
-          <p style={styles.footerNote}>Closed. View only.</p>
-        </>
-      )}
+      {body}
     </SidePanel>
   )
 }
@@ -240,17 +281,74 @@ const styles: Record<string, CSSProperties> = {
   },
   passStat: { background: tokens.greenLight, color: tokens.green },
   rejectStat: { background: tokens.rubyLight, color: tokens.ruby },
-  voteCount: {
+  voteCount: { flexShrink: 0, fontFamily: mono, fontSize: 12, color: t.text.muted, whiteSpace: 'nowrap' },
+  footerNote: { fontFamily: fonts.body, fontSize: 13, color: t.text.muted, margin: '20px 0 0' },
+
+  // Mobile overlay styles.
+  backdrop: { position: 'fixed', inset: 0, background: 'rgba(10, 26, 27, 0.4)', zIndex: 200 },
+  mobileOverlay: {
+    position: 'fixed',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    // 100dvh covers the full dynamic viewport including the address bar area.
+    height: '100dvh',
+    background: tokens.surface,
+    zIndex: 201,
+    display: 'flex',
+    flexDirection: 'column',
+    transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  dragHandle: {
+    // 48px tall drag zone for comfortable swipe affordance (H7).
+    height: 48,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 0,
-    fontFamily: mono,
-    fontSize: 12,
-    color: t.text.muted,
+    cursor: 'grab',
+  },
+  dragPill: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    background: t.border.medium,
+  },
+  mobileHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '0 20px 16px',
+    flexShrink: 0,
+    borderBottom: `1px solid ${t.border.subtle}`,
+  },
+  mobileTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 18,
+    fontWeight: 600,
+    color: t.text.primary,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
-  footerNote: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: t.text.muted,
-    margin: '20px 0 0',
+  mobileSub: { fontFamily: fonts.body, fontSize: 13, color: t.text.muted, marginTop: 2 },
+  // 44px touch target for close button (H7).
+  mobileClose: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    background: t.background.subtle,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    color: t.text.tertiary,
+    cursor: 'pointer',
+    padding: 0,
+    flexShrink: 0,
   },
+  mobileBody: { flex: 1, overflowY: 'auto', padding: '16px 20px 32px' },
 }

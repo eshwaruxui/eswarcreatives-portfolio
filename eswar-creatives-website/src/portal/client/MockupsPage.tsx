@@ -9,6 +9,7 @@ import { type PortalProfile } from '../PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { formatDate } from '../admin/ui'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ClientLightbox } from '../mockups/ClientLightbox'
 import { signMockupItems, type LightboxMockup, type LightboxMeta } from '../mockups/signItems'
 import type { CSSProperties } from 'react'
@@ -43,6 +44,7 @@ function Mockups({ profile }: { profile: PortalProfile }) {
   const [decisions, setDecisions] = useState<Record<string, SetDecision>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { isMobile, isTablet } = useBreakpoint()
 
   // The set currently open in the lightbox, with its signed images loaded.
   const [active, setActive] = useState<{ set: PublishedSet; mockups: LightboxMockup[] } | null>(null)
@@ -180,7 +182,7 @@ function Mockups({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <main style={styles.container}>
+      <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         <div style={styles.heroBlock}>
           <h1 style={styles.title}>Mockups</h1>
           <p style={styles.subtitle}>Review concept designs and share your feedback.</p>
@@ -203,7 +205,8 @@ function Mockups({ profile }: { profile: PortalProfile }) {
         )}
 
         {!loading && sets.length > 0 && (
-          <div style={styles.grid}>
+          // 1-col on mobile, 2-col on tablet, 3-col on desktop (spec Step 4).
+          <div style={{ ...styles.grid, gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)' }}>
             {sets.map((s) => (
               <article key={s.id} style={styles.card}>
                 <div>
@@ -310,7 +313,7 @@ function DecisionPill({ decision }: { decision: SetDecision }) {
 
 const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: t.text.primary, fontFamily: fonts.body },
-  container: { maxWidth: 980, margin: '0 auto', padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px` },
+  container: { maxWidth: 980, margin: '0 auto' },
   heroBlock: { marginBottom: 32 },
   title: {
     margin: 0,
@@ -383,7 +386,8 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.onPrimary,
     border: 'none',
     borderRadius: 8,
-    padding: '8px 10px',
+    // 44px min touch target per H7 (flexibility for mobile context).
+    padding: '12px 10px',
     fontFamily: fonts.body,
     fontSize: 12.5,
     fontWeight: 600,
@@ -400,7 +404,7 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.muted,
     border: `1px solid ${t.border.subtle}`,
     borderRadius: 8,
-    padding: '8px 10px',
+    padding: '12px 10px',
     fontFamily: fonts.body,
     fontSize: 12.5,
     fontWeight: 600,
@@ -414,7 +418,7 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.secondary,
     border: `1px solid ${t.border.default}`,
     borderRadius: 8,
-    padding: '7px 10px',
+    padding: '11px 10px',
     fontFamily: fonts.body,
     fontSize: 12,
     fontWeight: 500,
