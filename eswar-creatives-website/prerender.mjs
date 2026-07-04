@@ -6,9 +6,19 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const routes = ['/', '/about', '/design-system', '/contact', '/services', '/branding/brand-identity-discovery', '/work/cygnvs-ttx'];
+const routes = ['/', '/about', '/design-system', '/contact', '/services', '/branding', '/design-systems', '/branding/brand-identity-discovery', '/work/cygnvs-ttx'];
 
 const routeMeta = {
+  '/branding': {
+    title: 'Brand Identity Design · Eswar Creatives',
+    description: 'Visual identities for businesses that want to look as good as they perform. Logo, colour, typography, and collateral. Three packages from ₹25,000.',
+    url: 'https://eswarcreatives.in/branding',
+  },
+  '/design-systems': {
+    title: 'Design Systems for B2B SaaS · Eswar Creatives',
+    description: 'Token architecture, component libraries, and governance for SaaS teams shipping across Web, iOS, and Android. 60+ components, 180+ semantic tokens. Three engagement tiers from $2,500.',
+    url: 'https://eswarcreatives.in/design-systems',
+  },
   '/services': {
     title: 'Services — Eswar Creatives',
     description: 'Design systems, SaaS UX, and UX audits for enterprise teams. Detailed service pages coming soon — book a 30-min intro call in the meantime.',
@@ -69,13 +79,17 @@ async function main() {
         `<div id="root">${appHtml}</div>`
       );
       if (meta) {
+        const setAttr = (val) => (_, open, close) => `${open}${val}${close}`;
         html = html
           .replace(/<title>[^<]*<\/title>/, `<title>${meta.title}</title>`)
-          .replace(/(<meta name="description" content=")[^"]*(")/,  `$1${meta.description}$2`)
-          .replace(/(<meta property="og:title" content=")[^"]*(")/,  `$1${meta.title}$2`)
-          .replace(/(<meta property="og:description" content=")[^"]*(")/,  `$1${meta.description}$2`)
-          .replace(/(<meta name="twitter:title" content=")[^"]*(")/,  `$1${meta.title}$2`)
-          .replace(/(<meta name="twitter:description" content=")[^"]*(")/,  `$1${meta.description}$2`);
+          .replace(/(<meta name="description" content=")[^"]*(")/,         setAttr(meta.description))
+          .replace(/(<meta property="og:title" content=")[^"]*(")/,        setAttr(meta.title))
+          .replace(/(<meta property="og:description" content=")[^"]*(")/,  setAttr(meta.description))
+          .replace(/(<meta name="twitter:title" content=")[^"]*(")/,       setAttr(meta.title))
+          .replace(/(<meta name="twitter:description" content=")[^"]*(")/,  setAttr(meta.description));
+        if (meta.url) {
+          html = html.replace(/(<meta property="og:url" content=")[^"]*(")/,  setAttr(meta.url));
+        }
       }
 
       const outDir =
