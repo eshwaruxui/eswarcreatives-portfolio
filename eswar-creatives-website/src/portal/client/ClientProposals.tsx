@@ -11,6 +11,7 @@ import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { ClientProposalPanel } from './ClientProposalPanel'
 import { tokens, t, fonts } from '../theme'
 import { formatMoney, formatDate } from '../admin/ui'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 
 type ProposalStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined' | 'expired'
 
@@ -52,6 +53,7 @@ function Proposals({ profile }: { profile: PortalProfile }) {
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { isMobile } = useBreakpoint()
 
   // Clicking a card opens the full-detail slide-in panel for that proposal.
   const [openId, setOpenId] = useState<string | null>(null)
@@ -96,7 +98,7 @@ function Proposals({ profile }: { profile: PortalProfile }) {
 
   return (
     <div style={styles.page}>
-      <main style={styles.container}>
+      <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         <h1 style={styles.title}>Proposals</h1>
 
         {error && <div style={styles.error}>{error}</div>}
@@ -155,7 +157,7 @@ const styles: Record<string, CSSProperties> = {
   container: {
     maxWidth: 760,
     margin: '0 auto',
-    padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px`,
+    // Padding overridden inline with responsive values (16px mobile / 24px desktop).
   },
   title: {
     margin: '0 0 24px',
@@ -181,13 +183,15 @@ const styles: Record<string, CSSProperties> = {
   cardTitle: { margin: 0, fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary },
   cardMeta: { margin: '6px 0 0', fontSize: 13, color: t.text.tertiary },
   badge: {
-    padding: '4px 12px',
+    padding: '6px 12px',
     borderRadius: 999,
     fontSize: 11,
     fontWeight: 600,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     whiteSpace: 'nowrap',
+    // Generous padding so the badge reads clearly on small screens.
+    flexShrink: 0,
   },
   // H4: consistent text token - neutral not brand (amount is a static value, not interactive)
   amount: { margin: '14px 0 0', fontSize: 18, fontWeight: 600, color: t.text.primary, fontFamily: fonts.body },
