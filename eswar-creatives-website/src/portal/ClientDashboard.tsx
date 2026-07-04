@@ -72,7 +72,9 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const badges = useSyncExternalStore(subscribeBadges, getBadges, getBadges)
-  const { isMobile: narrow } = useBreakpoint()
+  const { isMobile, isTablet } = useBreakpoint()
+  // Keep the local alias for the phase-stepper (vertical stack on mobile).
+  const narrow = isMobile
 
   useEffect(() => {
     let cancelled = false
@@ -235,7 +237,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         @keyframes dashBannerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes dashBadgeIn{from{transform:scale(0)}to{transform:scale(1)}}
       `}</style>
-      <main style={styles.container}>
+      <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
         {/* H1 (visibility of system status): the single most relevant next action,
             as a fully clickable card that routes to the right place. */}
         {!loading && !error && banner && <BannerCard banner={banner} />}
@@ -369,7 +371,8 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         )}
 
         {/* H6: recognition over recall, quick paths to every section. */}
-        <div style={styles.quickGrid}>
+        {/* 1-col on mobile, 2-col on tablet, auto-fill on desktop. */}
+        <div style={{ ...styles.quickGrid, gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(260px, 1fr))' }}>
           <QuickCard
             to="/portal/proposals"
             title="View Proposal"
@@ -640,7 +643,7 @@ const styles: Record<string, CSSProperties> = {
   container: {
     maxWidth: 1080,
     margin: '0 auto',
-    padding: `${CLIENT_NAV_HEIGHT + 40}px 24px 80px`,
+    // Padding overridden inline with responsive values (16px mobile / 24px desktop).
   },
   banner: {
     display: 'flex',
