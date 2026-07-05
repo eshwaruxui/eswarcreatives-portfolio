@@ -1,71 +1,63 @@
 import { useRef } from "react";
 import { Link } from "react-router";
 import { motion, useInView } from "motion/react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Lock } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { SectionHeader } from "./SectionHeader";
 import { Tag } from "./ui/tag";
 
 const MotionLink = motion(Link);
 
-const projects: {
+type Project = {
   title: string;
   tags: string[];
-  role: string;
+  roleLabel: string;
   context: string;
   result: string;
   image: string;
-  flagship: boolean;
-  comingSoon?: boolean;
-  href?: string;
-}[] = [
+  href: string;
+  flagship?: boolean;
+};
+
+const projects: Project[] = [
   {
-    title: "Redesigning the TTX platform end-to-end — room, injects, navigation, and state model",
+    title: "Redesigning the TTX platform end-to-end, room, injects, navigation, and state",
     tags: ["Enterprise SaaS", "Cybersecurity", "Cross-platform"],
-    role: "Lead Product Designer",
+    roleLabel: "Lead Product Designer",
     context:
-      '"Participants joined from multiple entry points — mobile, web, late to the room — with no common understanding of whether the exercise was running, paused, or already over."',
-    result: "Result: −32% median triage time · +18% analyst satisfaction · Shipped across Web, iOS, and Android",
+      '"Participants joined from multiple entry points, mobile, web, late to the room, with no common understanding of whether the exercise was running, paused, or already over."',
+    result:
+      "−32% median triage time · +18% analyst satisfaction · Shipped across Web, iOS, and Android",
     image: "/assets/ttx/preview/cover.webp",
-    flagship: true,
     href: "/work/cygnvs-ttx",
+    flagship: true,
   },
   {
     title: "Design System Audit & Roadmap",
-    tags: ["Process case study", "Design Systems", "Documentation"],
-    role: "DS Manager Assignment",
+    tags: ["Process case", "Design Systems", "Documentation"],
+    roleLabel: "DS Manager",
     context:
-      '"Systems don’t fail because of bad components, they fail because of invisible ones — hard-coded values, no token adoption, and documentation nobody reads."',
-    result: "First 30 days, token architecture, and documentation strategy for a broken Figma library.",
+      '"Systems don’t fail because of bad components, they fail because of invisible ones. Hard-coded values, no token adoption, and documentation nobody reads."',
+    result:
+      "First 30 days, token architecture, and documentation strategy for a broken Figma library.",
     image: "/assets/ds-audit/cover.webp",
-    flagship: false,
     href: "/work/ds-audit-roadmap",
   },
-  {
-    title: "Streamlining onboarding for a subscription billing platform",
-    tags: ["Enterprise SaaS", "Productivity", "Web & Mobile"],
-    role: "Product designer",
-    context:
-      '"Onboarding was fragmented across tools, causing delays and drop-offs."',
-    result: "Result: +14% completion rate for new customer onboarding.",
-    image:
-      "https://images.unsplash.com/photo-1765226410758-9ae3d34cd791?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzYWFzJTIwYmlsbGluZyUyMHBsYXRmb3JtJTIwaW50ZXJmYWNlfGVufDF8fHx8MTc3MzU2MDY3OHww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    flagship: false,
-    comingSoon: true,
-  },
-  {
-    title: "Building an analytics dashboard for data-driven decisions",
-    tags: ["Enterprise SaaS", "Analytics", "Web"],
-    role: "Product designer",
-    context:
-      '"Stakeholders lacked real-time visibility into key performance metrics."',
-    result: "Result: –28% time spent searching for actionable insights.",
-    image:
-      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXRhJTIwYW5hbHl0aWNzJTIwZGFzaGJvYXJkJTIwZGVzaWdufGVufDF8fHx8MTc3MzU2MDY3OXww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    flagship: false,
-    comingSoon: true,
-  },
 ];
+
+/** Number of generic "coming soon" placeholders that round the grid out to 3×2. */
+const PLACEHOLDERS = 4;
+
+function MetaGroup({ label, body }: { label: string; body: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="uppercase font-bold text-text-primary text-sm" style={{ letterSpacing: "1.14px" }}>
+        {label}
+      </span>
+      <p className="text-text-secondary text-base">{body}</p>
+    </div>
+  );
+}
 
 export function SelectedWorks() {
   const ref = useRef(null);
@@ -80,7 +72,6 @@ export function SelectedWorks() {
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6 }}
         >
-          {/* Section Header */}
           <SectionHeader
             label="Portfolio"
             title="Selected Works"
@@ -88,191 +79,92 @@ export function SelectedWorks() {
           />
 
           <div className="grid md:grid-cols-3 gap-6">
-            {projects.map((project, i) =>
-              project.comingSoon ? (
-                <motion.div
-                  key={project.title}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={inView ? { opacity: 1, y: 0 } : {}}
-                  transition={{ duration: 0.5, delay: i * 0.15 }}
-                  className="bg-white rounded-2xl border border-black/[0.06] overflow-hidden flex flex-col"
-                >
-                  {/* Coming soon — image area */}
-                  <div
-                    className="relative m-2 rounded-xl overflow-hidden"
-                    style={{
-                      height: 192,
-                      background: "#f0eeea",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#9ca3af"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                    <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 8, textAlign: "center" }}>
-                      Case study coming soon
-                    </p>
-                  </div>
-
-                  {/* Coming soon — content area */}
-                  <div style={{ padding: 20 }}>
-                    <div
-                      style={{
-                        background: "#e8e3dc",
-                        borderRadius: 4,
-                        height: 16,
-                        width: "70%",
-                        marginBottom: 12,
-                      }}
-                    />
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {["90%", "80%", "60%"].map((w) => (
-                        <div
-                          key={w}
-                          style={{
-                            background: "#e8e3dc",
-                            borderRadius: 4,
-                            height: 10,
-                            width: w,
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <button
-                      disabled
-                      style={{
-                        marginTop: 16,
-                        border: "1px solid #e8e3dc",
-                        color: "#9ca3af",
-                        borderRadius: 8,
-                        padding: "8px 16px",
-                        fontSize: 13,
-                        cursor: "default",
-                        background: "transparent",
-                        display: "block",
-                      }}
-                    >
-                      In progress →
-                    </button>
-                  </div>
-                </motion.div>
-              ) : (
-                <MotionLink
-                  key={project.title}
-                  to={project.href ?? "#!"}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={inView ? { opacity: 1, y: 0 } : {}}
-                  transition={{ duration: 0.5, delay: i * 0.15 }}
-                  className="group bg-white rounded-2xl border border-black/[0.06] overflow-hidden flex flex-col"
-                  style={{ textDecoration: "none", color: "inherit", transition: "box-shadow 0.3s, transform 0.3s" }}
-                >
-                  {/* Image */}
-                  <div className="relative h-48 bg-gray-100 overflow-hidden m-2 rounded-xl">
+            {/* Real case studies */}
+            {projects.map((project, i) => (
+              <MotionLink
+                key={project.title}
+                to={project.href}
+                initial={{ opacity: 0, y: 30 }}
+                animate={inView ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.5, delay: i * 0.15 }}
+                className="group flex flex-col rounded-xl border border-border-default bg-bg-surface overflow-hidden no-underline text-inherit transition-shadow duration-300 hover:shadow-md"
+              >
+                {/* Image */}
+                <div className="p-2">
+                  <div className="relative h-48 overflow-hidden rounded-md bg-bg-muted">
                     <ImageWithFallback
                       src={project.image}
                       alt={project.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     {project.flagship && (
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: 12,
-                          right: 12,
-                          background: "#0d9488",
-                          color: "#fff",
-                          fontSize: 11,
-                          fontWeight: 600,
-                          borderRadius: 20,
-                          padding: "3px 10px",
-                        }}
-                      >
+                      <span className="absolute top-3 right-3 rounded-full bg-bg-inverse-subtle px-2 py-1 text-text-inverse text-xs font-medium">
                         Flagship
                       </span>
                     )}
                   </div>
+                </div>
 
-                  {/* Content */}
-                  <div className="p-5 pt-4 flex flex-col flex-1">
-                    {/* Title */}
-                    <h3
-                      className="text-text-primary mb-3"
-                      style={{
-                        fontSize: "var(--typo-ol-body-semi-size)",
-                        lineHeight: "var(--typo-ol-body-semi-line-height)",
-                        fontWeight: "var(--typo-ol-body-semi-weight)",
-                        letterSpacing: "var(--typo-ol-body-semi-letter-spacing)",
-                      }}
-                    >
-                      {project.title}
-                    </h3>
+                {/* Content */}
+                <div className="flex flex-1 flex-col gap-4 px-5 pb-5 pt-4">
+                  <h3 className="truncate font-semibold text-text-primary text-md" style={{ letterSpacing: "-0.31px" }}>
+                    {project.title}
+                  </h3>
 
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-1.5 mb-4">
-                      {project.tags.map((tag) => (
-                        <Tag key={tag} variant="outlined" size="sm">{tag}</Tag>
-                      ))}
-                    </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {project.tags.map((tag) => (
+                      <Tag key={tag} variant="outlined" size="sm">{tag}</Tag>
+                    ))}
+                  </div>
 
-                    {/* Meta group — role + context + result tightly grouped */}
-                    <div className="space-y-2 mb-5">
-                      <p
-                        className="text-text-quaternary uppercase"
-                        style={{
-                          fontSize: "var(--typo-h9-size)",
-                          lineHeight: "var(--typo-h9-line-height)",
-                          fontWeight: "var(--typo-h9-weight)",
-                          letterSpacing: "var(--typo-h9-letter-spacing)",
-                        }}
-                      >
-                        {project.role}
-                      </p>
-                      <p
-                        className="text-text-tertiary italic"
-                        style={{
-                          fontSize: "var(--typo-p-xs-size)",
-                          lineHeight: "var(--typo-p-xs-line-height)",
-                          fontWeight: "var(--typo-p-xs-weight)",
-                        }}
-                      >
-                        {project.context}
-                      </p>
-                      <p
-                        className="text-text-secondary"
-                        style={{
-                          fontSize: "var(--typo-h8m-size)",
-                          lineHeight: "var(--typo-h8m-line-height)",
-                          fontWeight: "var(--typo-h8m-weight)",
-                        }}
-                      >
-                        {project.result}
-                      </p>
-                    </div>
+                  <div className="flex flex-col gap-4">
+                    <MetaGroup label={project.roleLabel} body={project.context} />
+                    <MetaGroup label="Result" body={project.result} />
+                  </div>
 
-                    {/* CTA — styled div, not a nested anchor */}
-                    <div
-                      className="mt-auto flex items-center gap-1.5 w-fit rounded-lg border border-black/[0.1] px-3 py-2 text-xs font-medium text-gray-600 group-hover:border-[#0d9488] group-hover:text-[#0f766e] transition-colors duration-200"
-                    >
-                      View case study
-                      <ArrowRight className="w-3 h-3" />
+                  {/* CTA — dark */}
+                  <div className="mt-auto inline-flex w-fit items-center justify-center gap-1 rounded-md bg-bg-inverse px-2 py-2 text-text-inverse text-xs font-medium transition-transform duration-200 group-hover:-translate-y-0.5">
+                    View full case study
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+              </MotionLink>
+            ))}
+
+            {/* Coming-soon placeholders */}
+            {Array.from({ length: PLACEHOLDERS }).map((_, i) => (
+              <motion.div
+                key={`soon-${i}`}
+                initial={{ opacity: 0, y: 30 }}
+                animate={inView ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.5, delay: (projects.length + i) * 0.1 }}
+                className="flex flex-col rounded-xl border border-border-default bg-bg-surface overflow-hidden"
+              >
+                {/* Placeholder image */}
+                <div className="p-2">
+                  <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-md bg-skeleton-base">
+                    <Lock className="w-5 h-5 text-text-muted" />
+                    <span className="text-text-muted text-base">Case study coming soon</span>
+                  </div>
+                </div>
+
+                {/* Placeholder content */}
+                <div className="flex flex-1 flex-col justify-between p-5">
+                  <div className="flex flex-col gap-3">
+                    <div className="h-4 w-[70%] rounded bg-skeleton-base" />
+                    <div className="flex flex-col gap-2">
+                      <div className="h-2.5 w-[90%] rounded bg-skeleton-base" />
+                      <div className="h-2.5 w-[80%] rounded bg-skeleton-base" />
+                      <div className="h-2.5 w-[60%] rounded bg-skeleton-base" />
                     </div>
                   </div>
-                </MotionLink>
-              )
-            )}
+                  <div className="mt-6 inline-flex w-fit items-center justify-center gap-1 rounded-md border border-border-default bg-bg-surface px-2 py-2 text-text-primary text-xs font-medium opacity-80">
+                    View full case study
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </motion.div>
       </div>

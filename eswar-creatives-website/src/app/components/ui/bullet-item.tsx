@@ -19,14 +19,14 @@ function BulletItem({
       className={cn("flex gap-2.5 items-start", className)}
       {...props}
     >
-      <span className="w-[5px] h-[5px] rounded-full bg-text-quaternary mt-[9px] shrink-0" />
+      <span className="w-[5px] h-[5px] rounded-full bg-text-primary mt-[9px] shrink-0" />
       <span
-        className="text-text-tertiary"
+        className="text-text-primary"
         style={{
-          fontSize: "var(--typo-p-sm-size)",
-          lineHeight: "var(--typo-p-sm-line-height)",
-          fontWeight: "var(--typo-p-sm-weight)",
-          letterSpacing: "var(--typo-p-sm-letter-spacing)",
+          fontSize: "var(--typo-p-sm-med-size)",
+          lineHeight: "var(--typo-p-sm-med-line-height)",
+          fontWeight: "var(--typo-p-sm-med-weight)",
+          letterSpacing: "var(--typo-p-sm-med-letter-spacing)",
         }}
       >
         {children}

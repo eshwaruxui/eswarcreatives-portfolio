@@ -7,18 +7,6 @@
   display: none;
 }
 
-/* Admin sketch upload — thumbnail grid: 2 cols on mobile, capped 4 on desktop */
-.sketch-thumb-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-@media (min-width: 640px) {
-  .sketch-thumb-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
 /* ── Progressive image loading ───────────────────────────── */
 @keyframes shimmer {
   0%   { background-position: -200% 0; }

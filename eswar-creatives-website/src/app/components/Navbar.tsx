@@ -59,14 +59,15 @@ export function Navbar() {
         <Link to="/" className="flex items-center gap-2 group">
           <img src={eswarLogo} alt="Eswar logo" className="w-8 h-8 group-hover:scale-105 transition-transform" />
           <span
-            className="tracking-tight"
+            className="font-heading font-semibold italic text-text-primary"
             style={{
-              fontSize: "var(--typo-ol-body-semi-size)",
-              lineHeight: "var(--typo-ol-body-semi-line-height)",
-              fontWeight: "var(--typo-ol-body-semi-weight)",
+              fontSize: "var(--ds-text-lg)",
+              lineHeight: "26px",
+              letterSpacing: "-0.25px",
+              fontVariationSettings: '"SOFT" 0, "WONK" 1',
             }}
           >
-            Eswar
+            eswar
           </span>
         </Link>
 
@@ -79,7 +80,7 @@ export function Navbar() {
                 onClick={() => setContactOpen(true)}
                 className="px-4 py-2 text-text-secondary hover:text-text-primary rounded-xl hover:bg-black/[0.04] transition-all duration-200 cursor-pointer"
                 style={{
-                  fontSize: "var(--typo-h7-size)",
+                  fontSize: "var(--ds-text-md)",
                   lineHeight: "var(--typo-h7-line-height)",
                   fontWeight: "var(--typo-h7-weight)",
                 }}
@@ -96,7 +97,7 @@ export function Navbar() {
                     : "text-text-secondary hover:text-text-primary hover:bg-black/[0.04]"
                 }`}
                 style={{
-                  fontSize: "var(--typo-h7-size)",
+                  fontSize: "var(--ds-text-md)",
                   lineHeight: "var(--typo-h7-line-height)",
                   fontWeight: "var(--typo-h7-weight)",
                 }}
@@ -109,7 +110,7 @@ export function Navbar() {
                 href={link.href}
                 className="px-4 py-2 text-text-secondary hover:text-text-primary rounded-xl hover:bg-black/[0.04] transition-all duration-200"
                 style={{
-                  fontSize: "var(--typo-h7-size)",
+                  fontSize: "var(--ds-text-md)",
                   lineHeight: "var(--typo-h7-line-height)",
                   fontWeight: "var(--typo-h7-weight)",
                 }}
@@ -118,19 +119,6 @@ export function Navbar() {
               </a>
             )
           )}
-
-          {/* Portal login — plain text link, last nav item before Book a call */}
-          <Link
-            to="/portal/login"
-            className="px-4 py-2 transition-colors hover:text-text-primary"
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: "14px",
-              color: "#6B7280",
-            }}
-          >
-            Portal
-          </Link>
         </div>
 
         {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
@@ -138,7 +126,7 @@ export function Navbar() {
           href="https://calendly.com/eswarcreatives/25-min-intro-call"
           target="_blank"
           rel="noopener noreferrer"
-          variant="primary"
+          variant="brand"
           size="md"
           className="hidden md:flex px-4 py-2"
         >
@@ -175,7 +163,7 @@ export function Navbar() {
                 }}
                 className="block w-full text-left px-4 py-2.5 text-text-secondary hover:text-text-primary rounded-xl hover:bg-black/[0.04] transition-all cursor-pointer"
                 style={{
-                  fontSize: "var(--typo-h7-size)",
+                  fontSize: "var(--ds-text-md)",
                   lineHeight: "var(--typo-h7-line-height)",
                   fontWeight: "var(--typo-h7-weight)",
                 }}
@@ -194,7 +182,7 @@ export function Navbar() {
                     : "text-text-secondary hover:text-text-primary hover:bg-black/[0.04]"
                 }`}
                 style={{
-                  fontSize: "var(--typo-h7-size)",
+                  fontSize: "var(--ds-text-md)",
                   lineHeight: "var(--typo-h7-line-height)",
                   fontWeight: "var(--typo-h7-weight)",
                 }}
@@ -209,7 +197,7 @@ export function Navbar() {
                 onClick={() => setMobileOpen(false)}
                 className="block px-4 py-2.5 text-text-secondary hover:text-text-primary rounded-xl hover:bg-black/[0.04] transition-all"
                 style={{
-                  fontSize: "var(--typo-h7-size)",
+                  fontSize: "var(--ds-text-md)",
                   lineHeight: "var(--typo-h7-line-height)",
                   fontWeight: "var(--typo-h7-weight)",
                 }}
@@ -219,22 +207,6 @@ export function Navbar() {
               </a>
             )
           )}
-
-          {/* Portal login — plain text link, last nav item before Book a call */}
-          <Link
-            to="/portal/login"
-            onClick={() => setMobileOpen(false)}
-            className="block px-4 py-2.5 transition-colors hover:text-text-primary"
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: "14px",
-              color: "#6B7280",
-            }}
-            role="menuitem"
-          >
-            Portal
-          </Link>
-
           {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
           <PortfolioButton
             href="https://calendly.com/eswarcreatives/25-min-intro-call"

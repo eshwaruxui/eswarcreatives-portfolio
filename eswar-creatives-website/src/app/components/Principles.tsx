@@ -2,14 +2,13 @@ import { useRef, useState } from "react";
 import { motion, useInView, AnimatePresence } from "motion/react";
 import { ArrowRight, Plus, Minus } from "lucide-react";
 import { SectionHeader } from "./SectionHeader";
-import { AccentBar } from "./ui/accent-bar";
 
 const principles = [
   {
     num: "01",
     title: "Start from business outcomes",
     description:
-      "Define success in metrics first, then design flows and UI to move those numbers. Every design decision traces back to a KPI — whether that's reducing time-to-resolution, increasing activation rates, or cutting support tickets.",
+      "Define success in metrics first, then design flows and UI to move those numbers. Every design decision traces back to a KPI, whether that's reducing time-to-resolution, increasing activation rates, or cutting support tickets.",
     link: "See example in billing platform case",
   },
   {
@@ -66,15 +65,19 @@ export function Principles() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={inView ? { opacity: 1, y: 0 } : {}}
                   transition={{ duration: 0.45, delay: i * 0.08 }}
-                  className="border-b border-gray-200 first:border-t"
+                  className="border-b border-border-default first:border-t"
                 >
                   <button
                     onClick={() => toggle(i)}
                     className="w-full flex items-center gap-5 md:gap-8 py-6 md:py-8 text-left cursor-pointer group"
                   >
-                    {/* Accent bar */}
-                    <div className="relative flex items-center self-stretch">
-                      <AccentBar active={isOpen} />
+                    {/* Accent bar — gold on the open item */}
+                    <div className="flex self-stretch">
+                      <div
+                        className={`w-[3px] self-stretch rounded-full transition-colors duration-300 ${
+                          isOpen ? "bg-gold-400" : "bg-transparent"
+                        }`}
+                      />
                     </div>
 
                     {/* Number */}
@@ -95,14 +98,14 @@ export function Principles() {
 
                     {/* Title */}
                     <h3
-                      className={`flex-1 transition-colors duration-300 ${
-                        isOpen ? "text-text-primary" : "text-text-tertiary group-hover:text-text-secondary"
+                      className={`flex-1 font-heading font-semibold transition-colors duration-300 ${
+                        isOpen ? "text-text-primary" : "text-text-secondary group-hover:text-text-primary"
                       }`}
                       style={{
-                        fontSize: "var(--typo-h4-size)",
-                        lineHeight: "var(--typo-h4-line-height)",
-                        fontWeight: "var(--typo-h4-weight)",
-                        letterSpacing: "var(--typo-h4-letter-spacing)",
+                        fontSize: "var(--ds-text-xl)",
+                        lineHeight: "28px",
+                        letterSpacing: "-0.25px",
+                        fontVariationSettings: '"SOFT" 0, "WONK" 1',
                       }}
                     >
                       {p.title}
@@ -112,8 +115,8 @@ export function Principles() {
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${
                         isOpen
-                          ? "bg-black text-text-inverse"
-                          : "bg-gray-100 text-text-quaternary group-hover:bg-gray-200"
+                          ? "bg-gold-700 text-text-inverse"
+                          : "bg-gold-400 text-text-on-accent group-hover:bg-gold-500"
                       }`}
                     >
                       {isOpen ? (
@@ -139,11 +142,11 @@ export function Principles() {
                       >
                         <div className="pl-[52px] md:pl-[76px] pb-8">
                           <p
-                            className="text-text-tertiary max-w-xl mb-5"
+                            className="text-text-primary max-w-xl mb-5"
                             style={{
-                              fontSize: "var(--typo-p-base-size)",
-                              lineHeight: "var(--typo-p-base-line-height)",
-                              fontWeight: "var(--typo-p-base-weight)",
+                              fontSize: "var(--typo-p-lg-size)",
+                              lineHeight: "var(--typo-p-lg-line-height)",
+                              fontWeight: "var(--typo-p-lg-weight)",
                             }}
                           >
                             {p.description}

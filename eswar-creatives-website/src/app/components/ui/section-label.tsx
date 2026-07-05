@@ -5,11 +5,11 @@ import { cn } from "./utils";
  * SectionLabel — uppercase overline text used as a section category label.
  *
  * Found in SectionHeader (4 instances) and FooterSection (2 instances).
- * Maps to typography token: H9 (11px/600/uppercase/0.08em tracking).
+ * Design System v1: 12px / 700 / uppercase / 1.14px tracking.
  *
  * Surfaces:
- *   light   → text-text-quaternary (portfolio sections)
- *   inverse → text-text-inverse-quaternary (dark footer)
+ *   light   → text-text-muted (portfolio sections)
+ *   inverse → text-text-inverse-tertiary (dark footer)
  */
 type SectionLabelProps = React.ComponentProps<"span"> & {
   surface?: "light" | "inverse";
@@ -25,17 +25,16 @@ function SectionLabel({
     <span
       data-slot="section-label"
       className={cn(
-        "tracking-widest uppercase block",
+        "uppercase block font-bold",
         surface === "inverse"
-          ? "text-text-inverse-quaternary"
-          : "text-text-quaternary",
+          ? "text-text-inverse-tertiary"
+          : "text-text-muted",
         className
       )}
       style={{
-        fontSize: "var(--typo-h9-size)",
-        lineHeight: "var(--typo-h9-line-height)",
-        fontWeight: "var(--typo-h9-weight)",
-        letterSpacing: "var(--typo-h9-letter-spacing)",
+        fontSize: "var(--ds-text-sm)",
+        lineHeight: "16px",
+        letterSpacing: "1.14px",
         ...props.style,
       }}
       {...props}

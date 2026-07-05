@@ -5,7 +5,7 @@ import { cn } from "./utils";
  * AccentBar — vertical 3px indicator used in Testimonials sidebar
  * and Principles accordion (7+ instances).
  *
- * States: active (solid black) → hover (gray-200) → default (transparent)
+ * States: active (gold) → hover (gold-200) → default (transparent)
  */
 type AccentBarProps = {
   active?: boolean;
@@ -19,8 +19,8 @@ function AccentBar({ active = false, className }: AccentBarProps) {
       className={cn(
         "w-[3px] rounded-full transition-all duration-300",
         active
-          ? "bg-black h-full"
-          : "bg-transparent group-hover:bg-gray-200 h-full",
+          ? "bg-gold-400 h-full"
+          : "bg-transparent group-hover:bg-gold-200 h-full",
         className
       )}
     />

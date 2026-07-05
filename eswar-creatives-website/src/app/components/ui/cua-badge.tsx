@@ -4,27 +4,28 @@ import { cn } from "./utils";
 
 export interface CuaBadgeProps {
   /** Accent color for the CUA™ label and verified icon */
-  accent?: "warning" | "brand";
-  /** Visual variant — "default" for standard frosted-glass, "elevated" for stronger blur + shadow */
+  accent?: "danger" | "warning" | "brand";
+  /** Visual variant: "default" for standard frosted-glass, "elevated" for stronger blur + shadow */
   variant?: "default" | "elevated";
   /** Additional class names on the outer pill container */
   className?: string;
 }
 
 const accentMap = {
+  danger: "text-text-danger",
   warning: "text-text-warning",
   brand: "text-text-brand",
 } as const;
 
 const variantStyles = {
   default:
-    "bg-white/70 backdrop-blur-sm border border-black/[0.06] shadow-sm shadow-black/[0.02]",
+    "bg-white/70 backdrop-blur-sm border border-border-subtle shadow-sm",
   elevated:
-    "bg-white/80 backdrop-blur-md border border-black/[0.06] shadow-lg shadow-black/[0.04]",
+    "bg-white/80 backdrop-blur-md border border-border-subtle shadow-lg",
 } as const;
 
 export function CuaBadge({
-  accent = "warning",
+  accent = "danger",
   variant = "default",
   className,
 }: CuaBadgeProps) {
@@ -42,7 +43,7 @@ export function CuaBadge({
       <div className="w-[30px] h-[30px] rounded-full overflow-hidden shrink-0 ring-1 ring-black/[0.04]">
         <img
           src={hfiLogo}
-          alt="HFI — Human Factors International"
+          alt="HFI, Human Factors International"
           className="w-full h-full object-cover"
         />
       </div>
