@@ -153,9 +153,9 @@ export function FooterSection() {
           <nav className="flex items-center gap-6" aria-label="Footer navigation">
             {[
               { label: "Work", href: "/" },
-              { label: "Services", href: "/services" },
               { label: "About", href: "/about" },
               { label: "Contact", href: "/contact" },
+              { label: "Portal", href: "/portal/login" },
             ].map((link) => (
               <a
                 key={link.label}

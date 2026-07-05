@@ -34,13 +34,11 @@ export function Navbar() {
   const navLinks: NavLink[] = isHome
     ? [
         { label: "Work", href: "#work" },
-        { label: "Services", href: "/services", isRoute: true },
         { label: "About", href: "/about", isRoute: true },
         { label: "Contact", href: "#contact", isModal: true },
       ]
     : [
         { label: "Work", href: "/#work", isRoute: true },
-        { label: "Services", href: "/services", isRoute: true },
         { label: "About", href: "/about", isRoute: true, active: true },
         { label: "Contact", href: "#contact", isModal: true },
       ];
