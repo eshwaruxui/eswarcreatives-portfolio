@@ -86,6 +86,14 @@ async function main() {
         '<div id="root"></div>',
         `<div id="root">${appHtml}</div>`
       );
+
+      // Inject canonical tag for every route.
+      const canonicalUrl = `https://eswarcreatives.in${route === '/' ? '/' : route}`;
+      html = html.replace(
+        /(<link rel="canonical"[^>]*>|(?=<\/head>))/,
+        `<link rel="canonical" href="${canonicalUrl}" />\n  `
+      );
+
       if (meta) {
         const setAttr = (val) => (_, open, close) => `${open}${val}${close}`;
         html = html
