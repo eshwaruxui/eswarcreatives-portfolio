@@ -596,23 +596,46 @@ export function DesignSystemsLandingPage() {
                 lineHeight:    1.65,
                 letterSpacing: "var(--typo-ol-body-letter-spacing)",
                 color:         C.textSec,
-                marginBottom:  "32px",
+                marginBottom:  "28px",
               }}
             >
-              A 5-day teardown of one core flow. Prioritised findings, before/after direction,
-              and a conversion-focused action plan. Fixed fee: $750. Credited in full toward
-              any follow-on design systems engagement.
+              A full design systems engagement starts at $2,500. The audit gives you the same diagnostic clarity for $750, and every dollar credits toward the full engagement if you proceed. Most teams find the report alone is worth the fee.
             </p>
+
+            {/* Price anchor display */}
+            <div style={{ marginBottom: "28px" }}>
+              <p
+                style={{
+                  fontFamily:      "var(--font-mono, 'SF Mono', monospace)",
+                  fontSize:        "13px",
+                  color:           C.textMuted,
+                  textDecoration:  "line-through",
+                  marginBottom:    "4px",
+                }}
+              >
+                $2,500 value
+              </p>
+              <p
+                style={{
+                  fontFamily: "var(--font-mono, 'SF Mono', monospace)",
+                  fontSize:   "20px",
+                  fontWeight: 700,
+                  color:      C.text,
+                }}
+              >
+                Fixed fee: $750
+              </p>
+            </div>
 
             <div
               style={{
-                background:    C.surface,
-                border:        `1px solid ${C.border}`,
-                borderRadius:  "16px",
-                boxShadow:     CARD_SHADOW,
-                padding:       "32px",
-                marginBottom:  "28px",
-                textAlign:     "left",
+                background:   C.surface,
+                border:       `1px solid ${C.border}`,
+                borderRadius: "16px",
+                boxShadow:    CARD_SHADOW,
+                padding:      "32px",
+                marginBottom: "28px",
+                textAlign:    "left",
               }}
             >
               {[
@@ -623,24 +646,24 @@ export function DesignSystemsLandingPage() {
                 <div
                   key={i}
                   style={{
-                    display:       "flex",
-                    alignItems:    "flex-start",
-                    gap:           "12px",
-                    marginBottom:  i < arr.length - 1 ? "16px" : "0",
+                    display:      "flex",
+                    alignItems:   "flex-start",
+                    gap:          "12px",
+                    marginBottom: i < arr.length - 1 ? "16px" : "0",
                   }}
                 >
                   <span
                     style={{
-                      width:           "20px",
-                      height:          "20px",
-                      borderRadius:    "50%",
-                      background:      C.pageBg,
-                      border:          `1px solid ${C.border}`,
-                      display:         "flex",
-                      alignItems:      "center",
-                      justifyContent:  "center",
-                      flexShrink:      0,
-                      marginTop:       "1px",
+                      width:          "20px",
+                      height:         "20px",
+                      borderRadius:   "50%",
+                      background:     C.pageBg,
+                      border:         `1px solid ${C.border}`,
+                      display:        "flex",
+                      alignItems:     "center",
+                      justifyContent: "center",
+                      flexShrink:     0,
+                      marginTop:      "1px",
                     }}
                   >
                     <Check style={{ width: "11px", height: "11px", color: C.teal }} strokeWidth={3} />
@@ -660,7 +683,7 @@ export function DesignSystemsLandingPage() {
             </div>
 
             <a
-              href="mailto:eswar@eswarcreatives.in?subject=UX Audit Enquiry"
+              href="/services/design-systems/enquiry?type=ux-audit"
               style={{
                 display:        "inline-flex",
                 alignItems:     "center",
@@ -675,14 +698,14 @@ export function DesignSystemsLandingPage() {
                 textDecoration: "none",
               }}
             >
-              Book a UX Audit →
+              Start with the audit →
             </a>
           </motion.div>
         </div>
       </section>
 
-      {/* ── 7. CTA STRIP (teal) ─────────────────────────────────── */}
-      <section style={{ background: C.tealHex, padding: "80px 0" }}>
+      {/* ── 7. FINAL CTA BAND ───────────────────────────────────── */}
+      <section style={{ background: C.tealHex, padding: "100px 0" }}>
         <div
           style={{
             maxWidth:  "1152px",
@@ -697,46 +720,57 @@ export function DesignSystemsLandingPage() {
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.5 }}
           >
+            <p
+              style={{
+                ...overline,
+                color:        "rgba(255,255,255,0.5)",
+                marginBottom: "16px",
+              }}
+            >
+              Still figuring out where to start?
+            </p>
             <h2
               style={{
                 fontFamily:    SERIF,
                 fontWeight:    600,
                 fontStyle:     "italic",
-                fontSize:      "clamp(28px, 3.5vw, 34px)",
-                lineHeight:    1.2,
+                fontSize:      "clamp(28px, 3.5vw, 40px)",
+                lineHeight:    1.15,
                 letterSpacing: "-0.02em",
                 color:         C.textInv,
-                marginBottom:  "12px",
+                marginBottom:  "16px",
+                maxWidth:      "600px",
+                margin:        "0 auto 16px",
               }}
             >
-              Let's scope your system.
+              Tell us what you are working with.
             </h2>
             <p
               style={{
                 fontSize:     "var(--typo-ol-body-size)",
                 lineHeight:   1.65,
-                color:        "rgba(255,255,255,0.7)",
-                marginBottom: "36px",
-                maxWidth:     "480px",
-                margin:       "0 auto 36px",
+                color:        "rgba(255,255,255,0.65)",
+                maxWidth:     "520px",
+                margin:       "0 auto 40px",
               }}
             >
-              Three engagement tiers. Fixed scope. Delivered in weeks, not quarters.
+              Describe your platform mix, team size, and biggest current pain. We will come back with a scoped recommendation in 48 hours. No pitch deck. No retainer conversation.
             </p>
             <PortfolioButton
-              href="/services/design-systems"
+              href="/services/design-systems/enquiry?ref=landing-cta"
               variant="primary"
               size="lg"
               style={{
-                background:   C.textInv,
-                color:        C.tealHex,
-                borderColor:  C.textInv,
-                borderRadius: "8px",
-                fontSize:     "var(--typo-p-sm-size)",
+                background:   C.gold,
+                color:        C.text,
+                borderColor:  C.gold,
+                borderRadius: "12px",
+                fontFamily:   SERIF,
+                fontSize:     "var(--typo-ol-body-semi-size)",
                 fontWeight:   "var(--typo-ol-body-semi-weight)",
               }}
             >
-              See pricing and start a project
+              Send a note
               <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
           </motion.div>
