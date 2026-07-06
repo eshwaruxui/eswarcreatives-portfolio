@@ -4,19 +4,13 @@ import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { PortfolioButton } from "./ui/portfolio-button";
 import { useService, formatStartingPrice, type ServiceTier } from "../../lib/catalog";
+import { BeforeAfterVisual } from "./ui/BeforeAfterVisual";
 
 const PAGE_BG = "#FAF8F4";
 const GOLD    = "#D5B067";
 const BORDER  = "#E5E5E4";
 const SERIF   = "'Fraunces', Georgia, 'Times New Roman', serif";
-
-const TOKEN_SWATCHES = [
-  { name: "--color-brand",   hex: "#007872" },
-  { name: "--color-gold",    hex: "#D5B067" },
-  { name: "--color-surface", hex: "#FFFFFF" },
-  { name: "--text-primary",  hex: "#181A19" },
-  { name: "--text-muted",    hex: "#6F7371" },
-];
+const MONO    = "'SF Mono', 'Fira Code', ui-monospace, monospace";
 
 export function DesignSystemsServicesPage() {
   const state = useService("saas_design");
@@ -98,34 +92,9 @@ export function DesignSystemsServicesPage() {
                 : "Design systems for SaaS teams that need to scale — tokens, components, governance, and the documentation to keep it all from drifting."}
             </p>
 
-            {/* Token swatch strip */}
-            <div className="flex flex-wrap items-center gap-2 mb-9">
-              {TOKEN_SWATCHES.map(t => (
-                <div
-                  key={t.name}
-                  className="inline-flex items-center gap-2 px-2 py-1 rounded-full"
-                  style={{
-                    background: "var(--card)",
-                    border: `1px solid ${BORDER}`,
-                  }}
-                >
-                  <span
-                    className="inline-block w-3 h-3 rounded-full"
-                    style={{ background: t.hex, border: `1px solid ${BORDER}`, flexShrink: 0 }}
-                  />
-                  <code
-                    style={{
-                      fontSize: "var(--typo-ol-overline-bold-size)",
-                      fontWeight: "var(--typo-ol-overline-bold-weight)",
-                      letterSpacing: "0.03em",
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-family-primary)",
-                    }}
-                  >
-                    {t.name}
-                  </code>
-                </div>
-              ))}
+            {/* Before/after visual — replaces token swatch strip */}
+            <div className="mb-9">
+              <BeforeAfterVisual />
             </div>
 
             <div className="flex flex-wrap gap-3">

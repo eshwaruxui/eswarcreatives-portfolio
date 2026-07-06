@@ -3,6 +3,7 @@ import { ArrowRight, Check, Search, Package, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { PortfolioButton } from "./ui/portfolio-button";
+import { BeforeAfterVisual } from "./ui/BeforeAfterVisual";
 
 const C = {
   pageBg:      "#FAF8F4",
@@ -32,13 +33,6 @@ const overline = {
   color:         C.textMuted,
 };
 
-const TOKEN_SWATCHES = [
-  { name: "--primary",  hex: "#007872" },
-  { name: "--accent",   hex: "#D5B067" },
-  { name: "--surface",  hex: "#FFFFFF" },
-  { name: "--text-hi",  hex: "#F1F5F9" },
-  { name: "--text-mid", hex: "#94A3B8" },
-];
 
 const PROOF_STATS = [
   { value: "60+",    label: "Components" },
@@ -136,52 +130,28 @@ export function DesignSystemsLandingPage() {
                 lineHeight:   1.65,
                 color:        C.textInvTert,
                 maxWidth:     "580px",
-                marginBottom: "36px",
+                marginBottom: "12px",
               }}
             >
-              I build token-based design systems for B2B SaaS teams that need to ship consistently across web, iOS, and Android. No full design systems team required.
+              Token-based design systems for B2B SaaS teams scaling past the point where fixing it later stops being an option. No full design systems team required.
             </p>
 
-            {/* Token swatch strip */}
-            <div
-              className="flex flex-wrap gap-2"
-              style={{ marginBottom: "40px" }}
+            <p
+              style={{
+                fontSize:     "var(--typo-p-sm-size)",
+                fontWeight:   "var(--typo-p-sm-weight)",
+                lineHeight:   1.6,
+                color:        "rgba(255,255,255,0.38)",
+                maxWidth:     "520px",
+                marginBottom: "40px",
+              }}
             >
-              {TOKEN_SWATCHES.map(t => (
-                <div
-                  key={t.name}
-                  className="inline-flex items-center gap-2"
-                  style={{
-                    background:   "rgba(255,255,255,0.07)",
-                    border:       "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: "9999px",
-                    padding:      "4px 10px 4px 6px",
-                  }}
-                >
-                  <span
-                    style={{
-                      width:        "12px",
-                      height:       "12px",
-                      borderRadius: "50%",
-                      background:   t.hex,
-                      border:       "1px solid rgba(255,255,255,0.15)",
-                      flexShrink:   0,
-                      display:      "inline-block",
-                    }}
-                  />
-                  <code
-                    style={{
-                      fontSize:      "var(--typo-ol-overline-bold-size)",
-                      fontWeight:    "var(--typo-ol-overline-bold-weight)",
-                      letterSpacing: "0.03em",
-                      color:         "rgba(255,255,255,0.55)",
-                      fontFamily:    "var(--font-family-primary)",
-                    }}
-                  >
-                    {t.name}
-                  </code>
-                </div>
-              ))}
+              Built for Series A to C product teams, 30 to 200 employees, shipping across web, iOS, and Android.
+            </p>
+
+            {/* Before/After visual — replaces token swatch strip */}
+            <div style={{ marginBottom: "40px" }}>
+              <BeforeAfterVisual />
             </div>
 
             <PortfolioButton
