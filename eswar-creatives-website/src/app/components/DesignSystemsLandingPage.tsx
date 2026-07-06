@@ -117,19 +117,19 @@ const HOW_I_WORK = [
     step: "01",
     Icon: Search,
     title: "Audit",
-    desc:  "Map the existing codebase, surface hardcoded values, and document the gaps between design and engineering.",
+    desc:  "Most teams have 400 hardcoded values when they need 40. We find the 20% causing 80% of the drift before touching a single component.",
   },
   {
     step: "02",
     Icon: Package,
     title: "Build",
-    desc:  "Design the token architecture, build the component library, and write the documentation your team will actually use.",
+    desc:  "Token architecture ships before components. Every component after that is just assembly, consistent by construction, not by convention.",
   },
   {
     step: "03",
     Icon: Users,
     title: "Embed",
-    desc:  "Establish the governance model, versioning strategy, and team enablement so the system outlives the engagement.",
+    desc:  "We write documentation for the engineer searching at 11pm before a deadline, not the one reading it cover to cover. The system outlives the engagement.",
   },
 ];
 
@@ -479,11 +479,42 @@ export function DesignSystemsLandingPage() {
                 maxWidth:     "800px",
               }}
             >
+              {/* TODO: replace placeholder with actual HEX Portal palette screenshot (200x120px) */}
+              <div
+                style={{
+                  width:        "200px",
+                  height:       "120px",
+                  borderRadius: "8px",
+                  border:       `1px solid ${C.border}`,
+                  marginBottom: "20px",
+                  overflow:     "hidden",
+                  display:      "grid",
+                  gridTemplateColumns: "repeat(5, 1fr)",
+                  gridTemplateRows:    "repeat(3, 1fr)",
+                  gap:          "2px",
+                  padding:      "8px",
+                  background:   C.pageBg,
+                }}
+                aria-hidden="true"
+              >
+                {[C.tealHex, C.gold, "#FFFFFF", C.border, C.textMuted,
+                  C.tealHex, C.gold, C.pageBg, C.textMuted, "#FFFFFF",
+                  C.border, C.tealHex, C.gold, C.border, C.textMuted].map((col, i) => (
+                  <span
+                    key={i}
+                    style={{ borderRadius: "50%", background: col, display: "block" }}
+                  />
+                ))}
+              </div>
+
               <p
                 style={{
-                  ...overline,
-                  color:        C.teal,
-                  marginBottom: "16px",
+                  fontSize:      "14px",
+                  fontWeight:    700,
+                  letterSpacing: "var(--typo-ol-overline-bold-letter-spacing)",
+                  textTransform: "uppercase" as const,
+                  color:         C.gold,
+                  marginBottom:  "16px",
                 }}
               >
                 CYGNVS
