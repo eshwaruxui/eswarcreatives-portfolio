@@ -102,8 +102,9 @@ export function InvoicesAdmin() {
   const [confirmMode, setConfirmMode] = useState<PaymentModalMode>('mark_paid')
   // NudgeModal target.
   const [nudgeTarget, setNudgeTarget] = useState<Invoice | null>(null)
-  // Overflow menu: which invoice row's menu is open.
+  // Overflow menu: which invoice row's menu is open + its fixed position.
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   // Success toast.
   const [toast, setToast] = useState<string | null>(null)
@@ -113,10 +114,11 @@ export function InvoicesAdmin() {
     function onDoc(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpenId(null)
+        setMenuPos(null)
       }
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setMenuOpenId(null)
+      if (e.key === 'Escape') { setMenuOpenId(null); setMenuPos(null) }
     }
     document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onKey)
@@ -347,14 +349,23 @@ export function InvoicesAdmin() {
                         <button
                           type="button"
                           style={styles.dotMenuBtn}
-                          onClick={() => setMenuOpenId(menuOpenId === inv.id ? null : inv.id)}
+                          onClick={(e) => {
+                            if (menuOpenId === inv.id) {
+                              setMenuOpenId(null)
+                              setMenuPos(null)
+                            } else {
+                              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+                              setMenuOpenId(inv.id)
+                              setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                            }
+                          }}
                           aria-label="More actions"
                           title="More actions"
                         >
                           <MoreVertical size={16} />
                         </button>
-                        {menuOpenId === inv.id && (
-                          <div style={styles.dropMenu}>
+                        {menuOpenId === inv.id && menuPos && (
+                          <div style={{ ...styles.dropMenu, top: menuPos.top, right: menuPos.right }}>
                             <button
                               type="button"
                               style={styles.dropItem}
@@ -1151,10 +1162,8 @@ const styles: Record<string, CSSProperties> = {
     padding: 0,
   },
   dropMenu: {
-    position: 'absolute' as const,
-    right: 0,
-    top: 'calc(100% + 4px)',
-    zIndex: 100,
+    position: 'fixed' as const,
+    zIndex: 1000,
     background: tokens.surface,
     border: `1px solid ${tokens.border}`,
     borderRadius: 10,
