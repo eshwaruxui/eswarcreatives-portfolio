@@ -246,7 +246,7 @@ export function DesignSystemsServicesPage() {
                 color:         "rgba(255,255,255,0.5)",
               }}
             >
-              Not sure where to start?
+              Start a project
             </p>
             <h3
               className="mb-5"

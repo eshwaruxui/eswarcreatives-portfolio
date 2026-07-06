@@ -70,7 +70,7 @@ export function BeforeAfterVisual() {
             marginBottom:  "14px",
           }}
         >
-          Before
+          Without a system
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {BEFORE_BTNS.map(({ platform, style }) => (
@@ -135,7 +135,7 @@ export function BeforeAfterVisual() {
             marginBottom:  "14px",
           }}
         >
-          After
+          With a system
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {["Web", "iOS", "Android"].map((platform) => (
