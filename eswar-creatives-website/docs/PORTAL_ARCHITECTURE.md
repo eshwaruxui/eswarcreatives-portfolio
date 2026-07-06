@@ -4,10 +4,17 @@ Last updated: 6 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md
 
 ---
 
+> **Razorpay integration shipped** (`feature/razorpay-integration`) — see Section 15 for details.
+
+---
+
 ## 1. Current branch state
 
 **Active branch:** `main`
 **Status:** Stable. All recent PRs merged.
+
+**In progress (not yet merged):**
+- `feature/razorpay-integration` — Razorpay checkout on public invoice page (Section 15)
 
 **Shipped and merged to main:**
 
@@ -162,8 +169,10 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 | respond-to-timeline-extension | v1 | true | Client approves/denies timeline change |
 | update-own-full-name | v1 | true | SECURITY DEFINER, client updates their profile name |
 | send-invoice-nudge | v1 | true | Sends payment reminder email via Resend; verifies admin JWT; never surfaces raw errors |
+| create-razorpay-order | v1 | false | Creates a Razorpay order for a public invoice; verifies token server-side; returns order_id + key_id; never exposes key_secret |
+| verify-razorpay-payment | v1 | false | Verifies Razorpay HMAC-SHA256 signature; cross-checks stored razorpay_order_id; inserts invoice_payments row; syncs invoice status |
 
-**Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`
+**Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`
 
 ---
 
@@ -242,7 +251,7 @@ Two exports:
 | AccountPage.tsx full polish | Low |
 | Public campaign responses pagination + filters (deferred) | Low |
 | Invoice nudge automation (scheduled reminders at due date, +3d, +7d) | Future phase |
-| Razorpay/Stripe payment integration | Next phase |
+| Razorpay/Stripe payment integration | Shipped (feature/razorpay-integration) |
 | Admin portal mobile responsive | Future consideration |
 | WhatsApp Business API (replace wa.me deep-link with full API) | Phase 10 |
 
@@ -292,6 +301,49 @@ Prerequisites before starting:
 ## 13. One-line summary
 
 Three roles, three portals, reviews never need a project, accounts always go through the admin API, no UI ships on raw hex, teal only on interactive elements.
+
+---
+
+## 15. Razorpay payment integration
+
+**Branch:** `feature/razorpay-integration`
+**Status:** In progress; pending migration apply + Cloudflare preview test before merge.
+
+### Migration
+
+**0070** (`supabase/migrations/0070_razorpay_order_id_on_invoices.sql`): adds `razorpay_order_id text` (nullable) to `invoices`. Apply manually in Supabase SQL Editor.
+
+### Edge functions (no JWT auth)
+
+Both functions are called from the unauthenticated public invoice page (`/invoice/:token`).
+
+| Function | What it does |
+|---|---|
+| `create-razorpay-order` | Verifies public token, creates Razorpay order via Basic-auth REST, stores `razorpay_order_id`, returns `{ order_id, amount, currency, key_id }` |
+| `verify-razorpay-payment` | Re-verifies token, cross-checks stored order ID, validates HMAC-SHA256 signature, inserts `invoice_payments` row, syncs invoice status |
+
+### Environment variables to set
+
+| Where | Variable | Notes |
+|---|---|---|
+| Cloudflare Pages | `VITE_RAZORPAY_KEY_ID` | Public key ID; embedded at build time (safe for browser) |
+| Supabase function secrets | `RAZORPAY_KEY_ID` | Same key ID; used by create-razorpay-order to return in response |
+| Supabase function secrets | `RAZORPAY_KEY_SECRET` | Private; used for HMAC verification only; never exposed to client |
+
+Use `rzp_test_*` keys in development. Switch to `rzp_live_*` in production Cloudflare env vars.
+Test card: 4111 1111 1111 1111, any future date, CVV 123.
+
+### Frontend changes
+
+- `PublicInvoicePage.tsx`: replaces static CTA with a teal "Pay Rs X now" button when `balance_due > 0`. Checkout.js loaded dynamically (never bundled). Shows creating / opening / verifying / success / error states (Nielsen H9: all errors have plain-language copy + next step).
+- `InvoicePreview.tsx` (admin drawer): "Payment link" section shows the `/invoice/:token` URL, copy button, and "Test payment flow" external link.
+
+### Security rules
+
+- `RAZORPAY_KEY_SECRET` never appears in frontend code or Vite env vars.
+- Signature verification uses HMAC-SHA256 (Deno Web Crypto) on `order_id|payment_id`.
+- Stored `razorpay_order_id` is cross-checked against what the client sends before verifying.
+- Raw Razorpay error strings never surfaced to the client.
 
 ---
 
