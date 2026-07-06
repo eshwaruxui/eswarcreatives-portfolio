@@ -306,7 +306,16 @@ export function InvoicesAdmin() {
                       <button type="button" style={styles.linkBtn} onClick={() => setOpenInvoice(inv)}>
                         Open
                       </button>
-                      {!['paid', 'draft', 'cancelled'].includes(inv.status) ? (
+                      {['pending', 'sent', 'overdue'].includes(inv.status) && (
+                        <button
+                          type="button"
+                          style={styles.paidBtn}
+                          onClick={() => { setConfirmTarget(inv); setConfirmMode('mark_paid') }}
+                        >
+                          Mark paid
+                        </button>
+                      )}
+                      {!['paid', 'draft', 'cancelled'].includes(inv.status) && (
                         <button
                           type="button"
                           style={styles.recordBtn}
@@ -314,7 +323,7 @@ export function InvoicesAdmin() {
                         >
                           Record payment
                         </button>
-                      ) : null}
+                      )}
                       {/* Nudge button: only for invoices with an outstanding balance. */}
                       {NUDGEABLE.has(inv.status) && (
                         <button
