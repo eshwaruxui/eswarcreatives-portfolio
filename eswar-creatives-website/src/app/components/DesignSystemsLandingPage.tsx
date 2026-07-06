@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { ArrowRight, Check, Search, Package, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
@@ -35,16 +35,81 @@ const overline = {
 
 
 const PROOF_STATS = [
-  { value: "60+",    label: "Components" },
-  { value: "180+",   label: "Semantic tokens" },
-  { value: "3",      label: "Platforms: Web, iOS, Android" },
-  { value: "-32%",   label: "Triage time at CYGNVS" },
+  { value: "60+",   label: "Components" },
+  { value: "180+",  label: "Semantic tokens" },
+  { value: "3",     label: "Platforms" },
+  { value: "+18%",  label: "Analyst satisfaction" },
 ];
 
-const PAIN_POINTS = [
-  "Designers and engineers use different values for the same colour.",
-  "Every new feature starts from scratch instead of a shared library.",
-  "Dark mode, accessibility, and mobile parity become last-minute patches.",
+const ICP_QUESTIONS: { question: string; icon: ReactNode }[] = [
+  {
+    question: "Are your designers and engineers using different values for the same color?",
+    icon: (
+      <svg width="56" height="28" viewBox="0 0 56 28" fill="none" aria-hidden="true">
+        {/* Before: two mismatched swatches */}
+        <circle cx="8"  cy="10" r="6" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <circle cx="8"  cy="22" r="4" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        {/* Arrow */}
+        <path d="M20 14h6M23 11l3 3-3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+        {/* After: two matched swatches */}
+        <circle cx="38" cy="10" r="5" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <circle cx="38" cy="22" r="5" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <line x1="34" y1="16" x2="42" y2="16" stroke="var(--text-brand)" strokeWidth="1" opacity="0.4" />
+      </svg>
+    ),
+  },
+  {
+    question: "Does every new feature start from scratch because there is no shared component library?",
+    icon: (
+      <svg width="56" height="28" viewBox="0 0 56 28" fill="none" aria-hidden="true">
+        {/* Before: three scattered rects */}
+        <rect x="2"  y="2"  width="9" height="7"  rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <rect x="4"  y="12" width="7" height="6"  rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <rect x="1"  y="21" width="11" height="5" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        {/* Arrow */}
+        <path d="M20 14h6M23 11l3 3-3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+        {/* After: aligned stack */}
+        <rect x="32" y="4"  width="10" height="6" rx="1.5" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <rect x="32" y="12" width="10" height="6" rx="1.5" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <rect x="32" y="20" width="10" height="6" rx="1.5" stroke="var(--text-brand)" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
+    question: "Did dark mode or a rebrand just become a six-week fire drill?",
+    icon: (
+      <svg width="56" height="28" viewBox="0 0 56 28" fill="none" aria-hidden="true">
+        {/* Before: broken toggle (X) */}
+        <rect x="1" y="9" width="16" height="10" rx="5" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <circle cx="6.5" cy="14" r="3.5" fill="currentColor" opacity="0.25" />
+        <line x1="4.5"  y1="12" x2="8.5" y2="16" stroke="currentColor" strokeWidth="1.2" opacity="0.5" />
+        <line x1="8.5"  y1="12" x2="4.5" y2="16" stroke="currentColor" strokeWidth="1.2" opacity="0.5" />
+        {/* Arrow */}
+        <path d="M20 14h6M23 11l3 3-3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+        {/* After: clean toggle (check) */}
+        <rect x="32" y="9" width="16" height="10" rx="5" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <circle cx="42.5" cy="14" r="3.5" fill="var(--text-brand)" opacity="0.7" />
+        <path d="M40.5 14l1.5 1.5 2.5-2.5" stroke="var(--text-brand)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    question: "Are you three platforms in and none of them look like the same product?",
+    icon: (
+      <svg width="56" height="28" viewBox="0 0 56 28" fill="none" aria-hidden="true">
+        {/* Before: three mismatched screens */}
+        <rect x="1"  y="5"  width="5" height="8"  rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <rect x="8"  y="2"  width="5" height="13" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <rect x="15" y="8"  width="5" height="5"  rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        {/* Arrow */}
+        <path d="M24 14h5M26 11l3 3-3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+        {/* After: three aligned screens */}
+        <rect x="33" y="5"  width="5" height="18" rx="1" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <rect x="40" y="5"  width="5" height="18" rx="1" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <rect x="47" y="5"  width="5" height="18" rx="1" stroke="var(--text-brand)" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
 ];
 
 const HOW_I_WORK = [
@@ -177,6 +242,55 @@ export function DesignSystemsLandingPage() {
       {/* ── 2. PROOF BAR ────────────────────────────────────────── */}
       <section style={{ background: C.pageBg, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "56px 24px" }}>
+          {/* Hero stat: -32% promoted above row */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.5 }}
+            style={{
+              marginBottom: "40px",
+              paddingBottom: "36px",
+              borderBottom: `1px solid ${C.border}`,
+            }}
+          >
+            <p
+              style={{
+                fontFamily:   SERIF,
+                fontWeight:   700,
+                fontSize:     "clamp(48px, 7vw, 72px)",
+                lineHeight:   1,
+                letterSpacing: "-0.03em",
+                color:        C.text,
+                marginBottom: "8px",
+              }}
+            >
+              -32%
+            </p>
+            <p
+              style={{
+                fontSize:     "var(--typo-ol-body-size)",
+                fontWeight:   600,
+                color:        C.text,
+                marginBottom: "6px",
+              }}
+            >
+              Triage time at CYGNVS
+            </p>
+            <p
+              style={{
+                fontSize:   "var(--typo-p-sm-size)",
+                fontWeight: "var(--typo-p-sm-weight)",
+                lineHeight: "var(--typo-p-sm-line-height)",
+                color:      C.textMuted,
+                maxWidth:   "480px",
+              }}
+            >
+              Analysts stopped relearning the interface every time they switched surfaces.
+            </p>
+          </motion.div>
+
+          {/* Supporting 4-stat row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {PROOF_STATS.map(({ value, label }, i) => (
               <motion.div
@@ -188,12 +302,12 @@ export function DesignSystemsLandingPage() {
               >
                 <p
                   style={{
-                    fontFamily:    SERIF,
-                    fontWeight:    700,
-                    fontSize:      "28px",
-                    lineHeight:    1.1,
-                    color:         C.text,
-                    marginBottom:  "6px",
+                    fontFamily:   SERIF,
+                    fontWeight:   700,
+                    fontSize:     "24px",
+                    lineHeight:   1.1,
+                    color:        C.text,
+                    marginBottom: "4px",
                   }}
                 >
                   {value}
@@ -214,58 +328,38 @@ export function DesignSystemsLandingPage() {
         </div>
       </section>
 
-      {/* ── 3. WHAT BREAKS ──────────────────────────────────────── */}
+      {/* ── 3. ICP HOOK QUESTIONS ───────────────────────────────── */}
       <section style={{ background: C.pageBg, padding: "80px 0" }}>
         <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.5 }}
-          >
-            <p style={{ ...overline, marginBottom: "12px" }}>Without a system</p>
-            <h2
-              style={{
-                fontFamily:    SERIF,
-                fontWeight:    600,
-                fontSize:      "clamp(24px, 3vw, 34px)",
-                lineHeight:    1.2,
-                letterSpacing: "-0.02em",
-                color:         C.text,
-                marginBottom:  "40px",
-                maxWidth:      "560px",
-              }}
-            >
-              The same problems keep coming back.
-            </h2>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {PAIN_POINTS.map((point, i) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {ICP_QUESTIONS.map(({ question, icon }, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, delay: i * 0.08 }}
+                transition={{ duration: 0.5, delay: i * 0.07 }}
                 style={{
                   background:   C.surface,
                   border:       `1px solid ${C.border}`,
-                  borderTop:    `3px solid ${C.border}`,
                   borderRadius: "16px",
                   boxShadow:    CARD_SHADOW,
                   padding:      "28px",
+                  display:      "flex",
+                  flexDirection: "column",
+                  gap:          "16px",
                 }}
               >
+                <div style={{ color: C.textMuted }}>{icon}</div>
                 <p
                   style={{
                     fontSize:   "var(--typo-ol-body-size)",
-                    fontWeight: "var(--typo-ol-body-weight)",
-                    lineHeight: 1.6,
+                    fontWeight: 600,
+                    lineHeight: 1.5,
                     color:      C.text,
                   }}
                 >
-                  {point}
+                  {question}
                 </p>
               </motion.div>
             ))}
