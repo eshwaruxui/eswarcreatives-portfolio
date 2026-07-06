@@ -306,21 +306,13 @@ export function InvoicesAdmin() {
                       <button type="button" style={styles.linkBtn} onClick={() => setOpenInvoice(inv)}>
                         Open
                       </button>
-                      {inv.status === 'partially_paid' ? (
+                      {!['paid', 'draft', 'cancelled'].includes(inv.status) ? (
                         <button
                           type="button"
                           style={styles.recordBtn}
                           onClick={() => { setConfirmTarget(inv); setConfirmMode('record_payment') }}
                         >
                           Record payment
-                        </button>
-                      ) : inv.status !== 'paid' && inv.status !== 'cancelled' ? (
-                        <button
-                          type="button"
-                          style={styles.paidBtn}
-                          onClick={() => { setConfirmTarget(inv); setConfirmMode('mark_paid') }}
-                        >
-                          Mark paid
                         </button>
                       ) : null}
                       {/* Nudge button: only for invoices with an outstanding balance. */}
