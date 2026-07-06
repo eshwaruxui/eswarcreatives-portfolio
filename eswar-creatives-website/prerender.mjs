@@ -6,13 +6,18 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const routes = ['/', '/about', '/design-system', '/contact', '/services', '/branding', '/design-systems', '/branding/brand-identity-discovery', '/work/cygnvs-ttx', '/work/securevault', '/work/ds-audit-roadmap', '/work/securonix-prototype'];
+const routes = ['/', '/about', '/design-system', '/contact', '/services', '/branding', '/design-systems', '/design-systems/case-study', '/branding/brand-identity-discovery', '/work/cygnvs-ttx', '/work/securevault', '/work/ds-audit-roadmap', '/work/securonix-prototype'];
 
 const routeMeta = {
   '/branding': {
     title: 'Brand Identity Design · Eswar Creatives',
     description: 'Visual identities for businesses that want to look as good as they perform. Logo, colour, typography, and collateral. Three packages from ₹25,000.',
     url: 'https://eswarcreatives.in/branding',
+  },
+  '/design-systems/case-study': {
+    title: 'CYGNVS Design System Case Study · Eswar Creatives',
+    description: 'One design system. Three platforms. 32% faster triage. How I built the token architecture and component library for a $3.25M ARR cybersecurity SaaS platform in 14 weeks.',
+    url: 'https://eswarcreatives.in/design-systems/case-study',
   },
   '/design-systems': {
     title: 'Design Systems for B2B SaaS · Eswar Creatives',

@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { ArrowRight, Check, Search, Package, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { PortfolioButton } from "./ui/portfolio-button";
+import { BeforeAfterVisual } from "./ui/BeforeAfterVisual";
 
 const C = {
   pageBg:      "#FAF8F4",
@@ -32,25 +33,83 @@ const overline = {
   color:         C.textMuted,
 };
 
-const TOKEN_SWATCHES = [
-  { name: "--primary",  hex: "#007872" },
-  { name: "--accent",   hex: "#D5B067" },
-  { name: "--surface",  hex: "#FFFFFF" },
-  { name: "--text-hi",  hex: "#F1F5F9" },
-  { name: "--text-mid", hex: "#94A3B8" },
-];
 
 const PROOF_STATS = [
-  { value: "60+",    label: "Components" },
-  { value: "180+",   label: "Semantic tokens" },
-  { value: "3",      label: "Platforms: Web, iOS, Android" },
-  { value: "-32%",   label: "Triage time at CYGNVS" },
+  { value: "60+",   label: "Components" },
+  { value: "180+",  label: "Semantic tokens" },
+  { value: "3",     label: "Platforms" },
+  { value: "+18%",  label: "Analyst satisfaction" },
 ];
 
-const PAIN_POINTS = [
-  "Designers and engineers use different values for the same colour.",
-  "Every new feature starts from scratch instead of a shared library.",
-  "Dark mode, accessibility, and mobile parity become last-minute patches.",
+const ICP_QUESTIONS: { question: string; icon: ReactNode }[] = [
+  {
+    question: "Are your designers and engineers using different values for the same color?",
+    icon: (
+      <svg width="56" height="28" viewBox="0 0 56 28" fill="none" aria-hidden="true">
+        {/* Before: two mismatched swatches */}
+        <circle cx="8"  cy="10" r="6" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <circle cx="8"  cy="22" r="4" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        {/* Arrow */}
+        <path d="M20 14h6M23 11l3 3-3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+        {/* After: two matched swatches */}
+        <circle cx="38" cy="10" r="5" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <circle cx="38" cy="22" r="5" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <line x1="34" y1="16" x2="42" y2="16" stroke="var(--text-brand)" strokeWidth="1" opacity="0.4" />
+      </svg>
+    ),
+  },
+  {
+    question: "Does every new feature start from scratch because there is no shared component library?",
+    icon: (
+      <svg width="56" height="28" viewBox="0 0 56 28" fill="none" aria-hidden="true">
+        {/* Before: three scattered rects */}
+        <rect x="2"  y="2"  width="9" height="7"  rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <rect x="4"  y="12" width="7" height="6"  rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <rect x="1"  y="21" width="11" height="5" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        {/* Arrow */}
+        <path d="M20 14h6M23 11l3 3-3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+        {/* After: aligned stack */}
+        <rect x="32" y="4"  width="10" height="6" rx="1.5" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <rect x="32" y="12" width="10" height="6" rx="1.5" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <rect x="32" y="20" width="10" height="6" rx="1.5" stroke="var(--text-brand)" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
+    question: "Did dark mode or a rebrand just become a six-week fire drill?",
+    icon: (
+      <svg width="56" height="28" viewBox="0 0 56 28" fill="none" aria-hidden="true">
+        {/* Before: broken toggle (X) */}
+        <rect x="1" y="9" width="16" height="10" rx="5" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <circle cx="6.5" cy="14" r="3.5" fill="currentColor" opacity="0.25" />
+        <line x1="4.5"  y1="12" x2="8.5" y2="16" stroke="currentColor" strokeWidth="1.2" opacity="0.5" />
+        <line x1="8.5"  y1="12" x2="4.5" y2="16" stroke="currentColor" strokeWidth="1.2" opacity="0.5" />
+        {/* Arrow */}
+        <path d="M20 14h6M23 11l3 3-3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+        {/* After: clean toggle (check) */}
+        <rect x="32" y="9" width="16" height="10" rx="5" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <circle cx="42.5" cy="14" r="3.5" fill="var(--text-brand)" opacity="0.7" />
+        <path d="M40.5 14l1.5 1.5 2.5-2.5" stroke="var(--text-brand)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    question: "Are you three platforms in and none of them look like the same product?",
+    icon: (
+      <svg width="56" height="28" viewBox="0 0 56 28" fill="none" aria-hidden="true">
+        {/* Before: three mismatched screens */}
+        <rect x="1"  y="5"  width="5" height="8"  rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <rect x="8"  y="2"  width="5" height="13" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        <rect x="15" y="8"  width="5" height="5"  rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+        {/* Arrow */}
+        <path d="M24 14h5M26 11l3 3-3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+        {/* After: three aligned screens */}
+        <rect x="33" y="5"  width="5" height="18" rx="1" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <rect x="40" y="5"  width="5" height="18" rx="1" stroke="var(--text-brand)" strokeWidth="1.5" />
+        <rect x="47" y="5"  width="5" height="18" rx="1" stroke="var(--text-brand)" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
 ];
 
 const HOW_I_WORK = [
@@ -58,19 +117,19 @@ const HOW_I_WORK = [
     step: "01",
     Icon: Search,
     title: "Audit",
-    desc:  "Map the existing codebase, surface hardcoded values, and document the gaps between design and engineering.",
+    desc:  "Most teams have 400 hardcoded values when they need 40. We find the 20% causing 80% of the drift before touching a single component.",
   },
   {
     step: "02",
     Icon: Package,
     title: "Build",
-    desc:  "Design the token architecture, build the component library, and write the documentation your team will actually use.",
+    desc:  "Token architecture ships before components. Every component after that is just assembly, consistent by construction, not by convention.",
   },
   {
     step: "03",
     Icon: Users,
     title: "Embed",
-    desc:  "Establish the governance model, versioning strategy, and team enablement so the system outlives the engagement.",
+    desc:  "We write documentation for the engineer searching at 11pm before a deadline, not the one reading it cover to cover. The system outlives the engagement.",
   },
 ];
 
@@ -136,52 +195,28 @@ export function DesignSystemsLandingPage() {
                 lineHeight:   1.65,
                 color:        C.textInvTert,
                 maxWidth:     "580px",
-                marginBottom: "36px",
+                marginBottom: "12px",
               }}
             >
-              I build token-based design systems for B2B SaaS teams that need to ship consistently across web, iOS, and Android. No full design systems team required.
+              Token-based design systems for B2B SaaS teams scaling past the point where fixing it later stops being an option. No full design systems team required.
             </p>
 
-            {/* Token swatch strip */}
-            <div
-              className="flex flex-wrap gap-2"
-              style={{ marginBottom: "40px" }}
+            <p
+              style={{
+                fontSize:     "var(--typo-p-sm-size)",
+                fontWeight:   "var(--typo-p-sm-weight)",
+                lineHeight:   1.6,
+                color:        "rgba(255,255,255,0.38)",
+                maxWidth:     "520px",
+                marginBottom: "40px",
+              }}
             >
-              {TOKEN_SWATCHES.map(t => (
-                <div
-                  key={t.name}
-                  className="inline-flex items-center gap-2"
-                  style={{
-                    background:   "rgba(255,255,255,0.07)",
-                    border:       "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: "9999px",
-                    padding:      "4px 10px 4px 6px",
-                  }}
-                >
-                  <span
-                    style={{
-                      width:        "12px",
-                      height:       "12px",
-                      borderRadius: "50%",
-                      background:   t.hex,
-                      border:       "1px solid rgba(255,255,255,0.15)",
-                      flexShrink:   0,
-                      display:      "inline-block",
-                    }}
-                  />
-                  <code
-                    style={{
-                      fontSize:      "var(--typo-ol-overline-bold-size)",
-                      fontWeight:    "var(--typo-ol-overline-bold-weight)",
-                      letterSpacing: "0.03em",
-                      color:         "rgba(255,255,255,0.55)",
-                      fontFamily:    "var(--font-family-primary)",
-                    }}
-                  >
-                    {t.name}
-                  </code>
-                </div>
-              ))}
+              Built for Series A to C product teams, 30 to 200 employees, shipping across web, iOS, and Android.
+            </p>
+
+            {/* Before/After visual — replaces token swatch strip */}
+            <div style={{ marginBottom: "40px" }}>
+              <BeforeAfterVisual />
             </div>
 
             <PortfolioButton
@@ -207,6 +242,55 @@ export function DesignSystemsLandingPage() {
       {/* ── 2. PROOF BAR ────────────────────────────────────────── */}
       <section style={{ background: C.pageBg, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "56px 24px" }}>
+          {/* Hero stat: -32% promoted above row */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.5 }}
+            style={{
+              marginBottom: "40px",
+              paddingBottom: "36px",
+              borderBottom: `1px solid ${C.border}`,
+            }}
+          >
+            <p
+              style={{
+                fontFamily:   SERIF,
+                fontWeight:   700,
+                fontSize:     "clamp(48px, 7vw, 72px)",
+                lineHeight:   1,
+                letterSpacing: "-0.03em",
+                color:        C.text,
+                marginBottom: "8px",
+              }}
+            >
+              -32%
+            </p>
+            <p
+              style={{
+                fontSize:     "var(--typo-ol-body-size)",
+                fontWeight:   600,
+                color:        C.text,
+                marginBottom: "6px",
+              }}
+            >
+              Triage time at CYGNVS
+            </p>
+            <p
+              style={{
+                fontSize:   "var(--typo-p-sm-size)",
+                fontWeight: "var(--typo-p-sm-weight)",
+                lineHeight: "var(--typo-p-sm-line-height)",
+                color:      C.textMuted,
+                maxWidth:   "480px",
+              }}
+            >
+              Analysts stopped relearning the interface every time they switched surfaces.
+            </p>
+          </motion.div>
+
+          {/* Supporting 4-stat row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {PROOF_STATS.map(({ value, label }, i) => (
               <motion.div
@@ -218,12 +302,12 @@ export function DesignSystemsLandingPage() {
               >
                 <p
                   style={{
-                    fontFamily:    SERIF,
-                    fontWeight:    700,
-                    fontSize:      "28px",
-                    lineHeight:    1.1,
-                    color:         C.text,
-                    marginBottom:  "6px",
+                    fontFamily:   SERIF,
+                    fontWeight:   700,
+                    fontSize:     "24px",
+                    lineHeight:   1.1,
+                    color:        C.text,
+                    marginBottom: "4px",
                   }}
                 >
                   {value}
@@ -244,58 +328,38 @@ export function DesignSystemsLandingPage() {
         </div>
       </section>
 
-      {/* ── 3. WHAT BREAKS ──────────────────────────────────────── */}
+      {/* ── 3. ICP HOOK QUESTIONS ───────────────────────────────── */}
       <section style={{ background: C.pageBg, padding: "80px 0" }}>
         <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.5 }}
-          >
-            <p style={{ ...overline, marginBottom: "12px" }}>Without a system</p>
-            <h2
-              style={{
-                fontFamily:    SERIF,
-                fontWeight:    600,
-                fontSize:      "clamp(24px, 3vw, 34px)",
-                lineHeight:    1.2,
-                letterSpacing: "-0.02em",
-                color:         C.text,
-                marginBottom:  "40px",
-                maxWidth:      "560px",
-              }}
-            >
-              The same problems keep coming back.
-            </h2>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {PAIN_POINTS.map((point, i) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {ICP_QUESTIONS.map(({ question, icon }, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, delay: i * 0.08 }}
+                transition={{ duration: 0.5, delay: i * 0.07 }}
                 style={{
                   background:   C.surface,
                   border:       `1px solid ${C.border}`,
-                  borderTop:    `3px solid ${C.border}`,
                   borderRadius: "16px",
                   boxShadow:    CARD_SHADOW,
                   padding:      "28px",
+                  display:      "flex",
+                  flexDirection: "column",
+                  gap:          "16px",
                 }}
               >
+                <div style={{ color: C.textMuted }}>{icon}</div>
                 <p
                   style={{
                     fontSize:   "var(--typo-ol-body-size)",
-                    fontWeight: "var(--typo-ol-body-weight)",
-                    lineHeight: 1.6,
+                    fontWeight: 600,
+                    lineHeight: 1.5,
                     color:      C.text,
                   }}
                 >
-                  {point}
+                  {question}
                 </p>
               </motion.div>
             ))}
@@ -305,6 +369,7 @@ export function DesignSystemsLandingPage() {
 
       {/* ── 4. HOW I WORK ───────────────────────────────────────── */}
       <section
+        id="how-it-works"
         style={{
           background: C.surface,
           borderTop:  `1px solid ${C.border}`,
@@ -415,11 +480,42 @@ export function DesignSystemsLandingPage() {
                 maxWidth:     "800px",
               }}
             >
+              {/* TODO: replace placeholder with actual HEX Portal palette screenshot (200x120px) */}
+              <div
+                style={{
+                  width:        "200px",
+                  height:       "120px",
+                  borderRadius: "8px",
+                  border:       `1px solid ${C.border}`,
+                  marginBottom: "20px",
+                  overflow:     "hidden",
+                  display:      "grid",
+                  gridTemplateColumns: "repeat(5, 1fr)",
+                  gridTemplateRows:    "repeat(3, 1fr)",
+                  gap:          "2px",
+                  padding:      "8px",
+                  background:   C.pageBg,
+                }}
+                aria-hidden="true"
+              >
+                {[C.tealHex, C.gold, "#FFFFFF", C.border, C.textMuted,
+                  C.tealHex, C.gold, C.pageBg, C.textMuted, "#FFFFFF",
+                  C.border, C.tealHex, C.gold, C.border, C.textMuted].map((col, i) => (
+                  <span
+                    key={i}
+                    style={{ borderRadius: "50%", background: col, display: "block" }}
+                  />
+                ))}
+              </div>
+
               <p
                 style={{
-                  ...overline,
-                  color:        C.teal,
-                  marginBottom: "16px",
+                  fontSize:      "14px",
+                  fontWeight:    700,
+                  letterSpacing: "var(--typo-ol-overline-bold-letter-spacing)",
+                  textTransform: "uppercase" as const,
+                  color:         C.gold,
+                  marginBottom:  "16px",
                 }}
               >
                 CYGNVS
@@ -501,23 +597,46 @@ export function DesignSystemsLandingPage() {
                 lineHeight:    1.65,
                 letterSpacing: "var(--typo-ol-body-letter-spacing)",
                 color:         C.textSec,
-                marginBottom:  "32px",
+                marginBottom:  "28px",
               }}
             >
-              A 5-day teardown of one core flow. Prioritised findings, before/after direction,
-              and a conversion-focused action plan. Fixed fee: $750. Credited in full toward
-              any follow-on design systems engagement.
+              A full design systems engagement starts at $2,500. The audit gives you the same diagnostic clarity for $750, and every dollar credits toward the full engagement if you proceed. Most teams find the report alone is worth the fee.
             </p>
+
+            {/* Price anchor display */}
+            <div style={{ marginBottom: "28px" }}>
+              <p
+                style={{
+                  fontFamily:      "var(--font-mono, 'SF Mono', monospace)",
+                  fontSize:        "13px",
+                  color:           C.textMuted,
+                  textDecoration:  "line-through",
+                  marginBottom:    "4px",
+                }}
+              >
+                $2,500 value
+              </p>
+              <p
+                style={{
+                  fontFamily: "var(--font-mono, 'SF Mono', monospace)",
+                  fontSize:   "20px",
+                  fontWeight: 700,
+                  color:      C.text,
+                }}
+              >
+                Fixed fee: $750
+              </p>
+            </div>
 
             <div
               style={{
-                background:    C.surface,
-                border:        `1px solid ${C.border}`,
-                borderRadius:  "16px",
-                boxShadow:     CARD_SHADOW,
-                padding:       "32px",
-                marginBottom:  "28px",
-                textAlign:     "left",
+                background:   C.surface,
+                border:       `1px solid ${C.border}`,
+                borderRadius: "16px",
+                boxShadow:    CARD_SHADOW,
+                padding:      "32px",
+                marginBottom: "28px",
+                textAlign:    "left",
               }}
             >
               {[
@@ -528,24 +647,24 @@ export function DesignSystemsLandingPage() {
                 <div
                   key={i}
                   style={{
-                    display:       "flex",
-                    alignItems:    "flex-start",
-                    gap:           "12px",
-                    marginBottom:  i < arr.length - 1 ? "16px" : "0",
+                    display:      "flex",
+                    alignItems:   "flex-start",
+                    gap:          "12px",
+                    marginBottom: i < arr.length - 1 ? "16px" : "0",
                   }}
                 >
                   <span
                     style={{
-                      width:           "20px",
-                      height:          "20px",
-                      borderRadius:    "50%",
-                      background:      C.pageBg,
-                      border:          `1px solid ${C.border}`,
-                      display:         "flex",
-                      alignItems:      "center",
-                      justifyContent:  "center",
-                      flexShrink:      0,
-                      marginTop:       "1px",
+                      width:          "20px",
+                      height:         "20px",
+                      borderRadius:   "50%",
+                      background:     C.pageBg,
+                      border:         `1px solid ${C.border}`,
+                      display:        "flex",
+                      alignItems:     "center",
+                      justifyContent: "center",
+                      flexShrink:     0,
+                      marginTop:      "1px",
                     }}
                   >
                     <Check style={{ width: "11px", height: "11px", color: C.teal }} strokeWidth={3} />
@@ -565,7 +684,7 @@ export function DesignSystemsLandingPage() {
             </div>
 
             <a
-              href="mailto:eswar@eswarcreatives.in?subject=UX Audit Enquiry"
+              href="/services/design-systems/enquiry?type=ux-audit"
               style={{
                 display:        "inline-flex",
                 alignItems:     "center",
@@ -580,14 +699,66 @@ export function DesignSystemsLandingPage() {
                 textDecoration: "none",
               }}
             >
-              Book a UX Audit →
+              Start with the audit →
             </a>
           </motion.div>
         </div>
       </section>
 
-      {/* ── 7. CTA STRIP (teal) ─────────────────────────────────── */}
-      <section style={{ background: C.tealHex, padding: "80px 0" }}>
+      {/* ── 7. SOCIAL STRIP ─────────────────────────────────────── */}
+      <section
+        style={{
+          background:   C.surface,
+          borderTop:    `1px solid ${C.border}`,
+          borderBottom: `1px solid ${C.border}`,
+          padding:      "20px 0",
+        }}
+      >
+        <div
+          style={{
+            maxWidth:       "1152px",
+            margin:         "0 auto",
+            padding:        "0 24px",
+            display:        "flex",
+            flexWrap:       "wrap",
+            alignItems:     "center",
+            gap:            "20px",
+          }}
+        >
+          <a
+            href="https://www.linkedin.com/in/eswar-maheswaran"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display:        "inline-flex",
+              alignItems:     "center",
+              gap:            "7px",
+              fontSize:       "var(--typo-p-sm-size)",
+              color:          C.textMuted,
+              textDecoration: "none",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+            </svg>
+            Find me on LinkedIn
+          </a>
+          <span style={{ color: C.border, userSelect: "none" }}>·</span>
+          <a
+            href="mailto:eswar@eswarcreatives.in"
+            style={{
+              fontSize:       "var(--typo-p-sm-size)",
+              color:          C.textMuted,
+              textDecoration: "none",
+            }}
+          >
+            eswar@eswarcreatives.in
+          </a>
+        </div>
+      </section>
+
+      {/* ── 8. FINAL CTA BAND ───────────────────────────────────── */}
+      <section style={{ background: C.tealHex, padding: "100px 0" }}>
         <div
           style={{
             maxWidth:  "1152px",
@@ -602,46 +773,57 @@ export function DesignSystemsLandingPage() {
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.5 }}
           >
+            <p
+              style={{
+                ...overline,
+                color:        "rgba(255,255,255,0.5)",
+                marginBottom: "16px",
+              }}
+            >
+              Still figuring out where to start?
+            </p>
             <h2
               style={{
                 fontFamily:    SERIF,
                 fontWeight:    600,
                 fontStyle:     "italic",
-                fontSize:      "clamp(28px, 3.5vw, 34px)",
-                lineHeight:    1.2,
+                fontSize:      "clamp(28px, 3.5vw, 40px)",
+                lineHeight:    1.15,
                 letterSpacing: "-0.02em",
                 color:         C.textInv,
-                marginBottom:  "12px",
+                marginBottom:  "16px",
+                maxWidth:      "600px",
+                margin:        "0 auto 16px",
               }}
             >
-              Let's scope your system.
+              Tell us what you are working with.
             </h2>
             <p
               style={{
                 fontSize:     "var(--typo-ol-body-size)",
                 lineHeight:   1.65,
-                color:        "rgba(255,255,255,0.7)",
-                marginBottom: "36px",
-                maxWidth:     "480px",
-                margin:       "0 auto 36px",
+                color:        "rgba(255,255,255,0.65)",
+                maxWidth:     "520px",
+                margin:       "0 auto 40px",
               }}
             >
-              Three engagement tiers. Fixed scope. Delivered in weeks, not quarters.
+              Describe your platform mix, team size, and biggest current pain. We will come back with a scoped recommendation in 48 hours. No pitch deck. No retainer conversation.
             </p>
             <PortfolioButton
-              href="/services/design-systems"
+              href="/services/design-systems/enquiry?ref=landing-cta"
               variant="primary"
               size="lg"
               style={{
-                background:   C.textInv,
-                color:        C.tealHex,
-                borderColor:  C.textInv,
-                borderRadius: "8px",
-                fontSize:     "var(--typo-p-sm-size)",
+                background:   C.gold,
+                color:        C.text,
+                borderColor:  C.gold,
+                borderRadius: "12px",
+                fontFamily:   SERIF,
+                fontSize:     "var(--typo-ol-body-semi-size)",
                 fontWeight:   "var(--typo-ol-body-semi-weight)",
               }}
             >
-              See pricing and start a project
+              Send a note
               <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
           </motion.div>

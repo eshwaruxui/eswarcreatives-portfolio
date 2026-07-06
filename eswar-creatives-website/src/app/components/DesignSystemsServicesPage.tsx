@@ -4,19 +4,13 @@ import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { PortfolioButton } from "./ui/portfolio-button";
 import { useService, formatStartingPrice, type ServiceTier } from "../../lib/catalog";
+import { BeforeAfterVisual } from "./ui/BeforeAfterVisual";
 
 const PAGE_BG = "#FAF8F4";
 const GOLD    = "#D5B067";
 const BORDER  = "#E5E5E4";
 const SERIF   = "'Fraunces', Georgia, 'Times New Roman', serif";
-
-const TOKEN_SWATCHES = [
-  { name: "--color-brand",   hex: "#007872" },
-  { name: "--color-gold",    hex: "#D5B067" },
-  { name: "--color-surface", hex: "#FFFFFF" },
-  { name: "--text-primary",  hex: "#181A19" },
-  { name: "--text-muted",    hex: "#6F7371" },
-];
+const MONO    = "'SF Mono', 'Fira Code', ui-monospace, monospace";
 
 export function DesignSystemsServicesPage() {
   const state = useService("saas_design");
@@ -98,34 +92,9 @@ export function DesignSystemsServicesPage() {
                 : "Design systems for SaaS teams that need to scale — tokens, components, governance, and the documentation to keep it all from drifting."}
             </p>
 
-            {/* Token swatch strip */}
-            <div className="flex flex-wrap items-center gap-2 mb-9">
-              {TOKEN_SWATCHES.map(t => (
-                <div
-                  key={t.name}
-                  className="inline-flex items-center gap-2 px-2 py-1 rounded-full"
-                  style={{
-                    background: "var(--card)",
-                    border: `1px solid ${BORDER}`,
-                  }}
-                >
-                  <span
-                    className="inline-block w-3 h-3 rounded-full"
-                    style={{ background: t.hex, border: `1px solid ${BORDER}`, flexShrink: 0 }}
-                  />
-                  <code
-                    style={{
-                      fontSize: "var(--typo-ol-overline-bold-size)",
-                      fontWeight: "var(--typo-ol-overline-bold-weight)",
-                      letterSpacing: "0.03em",
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-family-primary)",
-                    }}
-                  >
-                    {t.name}
-                  </code>
-                </div>
-              ))}
+            {/* Before/after visual — replaces token swatch strip */}
+            <div className="mb-9">
+              <BeforeAfterVisual />
             </div>
 
             <div className="flex flex-wrap gap-3">
@@ -210,10 +179,55 @@ export function DesignSystemsServicesPage() {
         </div>
       </section>
 
-      {/* ── FOOTER CTA ── */}
+      {/* ── SOCIAL STRIP ── */}
       <div
-        className="py-16 md:py-24"
-        style={{ background: "var(--surface-inverse)" }}
+        style={{
+          borderTop:  `1px solid ${BORDER}`,
+          borderBottom: `1px solid ${BORDER}`,
+          padding:    "20px 0",
+          background: "var(--card)",
+        }}
+      >
+        <div
+          className="max-w-6xl mx-auto px-6"
+          style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "20px" }}
+        >
+          <a
+            href="https://www.linkedin.com/in/eswar-maheswaran"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display:        "inline-flex",
+              alignItems:     "center",
+              gap:            "7px",
+              fontSize:       "var(--typo-p-sm-size)",
+              color:          "var(--text-tertiary)",
+              textDecoration: "none",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+            </svg>
+            Find me on LinkedIn
+          </a>
+          <span style={{ color: BORDER, userSelect: "none" }}>·</span>
+          <a
+            href="mailto:eswar@eswarcreatives.in"
+            style={{
+              fontSize:       "var(--typo-p-sm-size)",
+              color:          "var(--text-tertiary)",
+              textDecoration: "none",
+            }}
+          >
+            eswar@eswarcreatives.in
+          </a>
+        </div>
+      </div>
+
+      {/* ── FOOTER CTA — B3 ── */}
+      <div
+        className="py-24 md:py-32"
+        style={{ background: "#007872" }}
       >
         <div className="max-w-3xl mx-auto px-6 text-center">
           <motion.div
@@ -223,56 +237,57 @@ export function DesignSystemsServicesPage() {
             transition={{ duration: 0.5 }}
           >
             <p
-              className="mb-3"
-              style={{
-                fontSize: "var(--typo-ol-overline-bold-size)",
-                fontWeight: "var(--typo-ol-overline-bold-weight)",
-                letterSpacing: "var(--typo-ol-overline-bold-letter-spacing)",
-                textTransform: "uppercase",
-                color: "var(--text-inverse-tertiary)",
-              }}
-            >
-              Get started
-            </p>
-            <h3
               className="mb-4"
               style={{
-                fontFamily: SERIF,
-                fontWeight: 600,
-                fontSize: "clamp(24px, 3vw, 36px)",
-                lineHeight: 1.2,
-                letterSpacing: "-0.02em",
-                color: "var(--text-inverse)",
+                fontSize:      "var(--typo-ol-overline-bold-size)",
+                fontWeight:    "var(--typo-ol-overline-bold-weight)",
+                letterSpacing: "var(--typo-ol-overline-bold-letter-spacing)",
+                textTransform: "uppercase",
+                color:         "rgba(255,255,255,0.5)",
               }}
             >
-              Not sure which engagement fits?
+              Start a project
+            </p>
+            <h3
+              className="mb-5"
+              style={{
+                fontFamily:    SERIF,
+                fontWeight:    600,
+                fontStyle:     "italic",
+                fontSize:      "clamp(28px, 3.5vw, 40px)",
+                lineHeight:    1.15,
+                letterSpacing: "-0.02em",
+                color:         "var(--text-inverse)",
+              }}
+            >
+              Not sure where to start?
             </h3>
             <p
-              className="mb-8 mx-auto"
+              className="mb-10 mx-auto"
               style={{
-                fontSize: "var(--typo-ol-body-size)",
+                fontSize:  "var(--typo-ol-body-size)",
                 lineHeight: 1.65,
-                color: "var(--text-inverse-secondary)",
-                maxWidth: "560px",
+                color:     "rgba(255,255,255,0.65)",
+                maxWidth:  "520px",
               }}
             >
-              Send a note describing your current system, team size, and platform mix.
-              We'll come back with a scoped recommendation in 48 hours.
+              Tell us your platform mix, team size, and the problem you are trying to solve. We will scope a recommendation in 48 hours.
             </p>
             <PortfolioButton
               href="/services/design-systems/enquiry"
               variant="primary"
               size="lg"
               style={{
-                background: GOLD,
-                color: "var(--text-primary)",
-                borderColor: GOLD,
+                background:   GOLD,
+                color:        "var(--text-primary)",
+                borderColor:  GOLD,
                 borderRadius: "12px",
-                fontSize: "var(--typo-ol-body-semi-size)",
-                fontWeight: "var(--typo-ol-body-semi-weight)",
+                fontFamily:   SERIF,
+                fontSize:     "var(--typo-ol-body-semi-size)",
+                fontWeight:   "var(--typo-ol-body-semi-weight)",
               }}
             >
-              Send an enquiry
+              Send a note
               <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
           </motion.div>
@@ -282,6 +297,12 @@ export function DesignSystemsServicesPage() {
   );
 }
 
+const AGENCY_ANCHORS: Record<string, string> = {
+  sprint:     "Typically $4,500 via agency",
+  scale:      "Typically $9,000 via agency",
+  enterprise: "Typically $18,000+ via agency",
+};
+
 // ── Tier card ─────────────────────────────────────────────────────
 function DesignSystemsTierCard({ tier, delay }: { tier: ServiceTier; delay: number }) {
   const recommended = tier.is_recommended;
@@ -289,6 +310,7 @@ function DesignSystemsTierCard({ tier, delay }: { tier: ServiceTier; delay: numb
     tier.starting_price_cents != null && tier.currency
       ? formatStartingPrice(tier.starting_price_cents, tier.currency)
       : null;
+  const anchor = AGENCY_ANCHORS[tier.tier_name?.toLowerCase() ?? ""];
 
   return (
     <motion.article
@@ -336,28 +358,54 @@ function DesignSystemsTierCard({ tier, delay }: { tier: ServiceTier; delay: numb
 
         <div className="mb-4">
           {price && (
-            <div className="flex items-baseline gap-1.5">
-              <span
-                style={{
-                  fontSize: "var(--typo-p-sm-size)",
-                  color: "var(--text-tertiary)",
-                }}
-              >
-                From
-              </span>
-              <span
-                style={{
-                  fontFamily: SERIF,
-                  fontWeight: 600,
-                  fontSize: "36px",
-                  lineHeight: 1.1,
-                  letterSpacing: "-0.02em",
-                  color: "var(--text-primary)",
-                }}
-              >
-                {price}
-              </span>
-            </div>
+            <>
+              {anchor && (
+                <div style={{ marginBottom: "4px" }}>
+                  <span
+                    style={{
+                      fontFamily:      MONO,
+                      fontSize:        "13px",
+                      color:           "var(--text-tertiary)",
+                      textDecoration:  "line-through",
+                    }}
+                  >
+                    {anchor}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily:    MONO,
+                      fontSize:      "11px",
+                      color:         "var(--text-tertiary)",
+                      marginLeft:    "6px",
+                    }}
+                  >
+                    average agency rate
+                  </span>
+                </div>
+              )}
+              <div className="flex items-baseline gap-1.5">
+                <span
+                  style={{
+                    fontSize: "var(--typo-p-sm-size)",
+                    color: "var(--text-tertiary)",
+                  }}
+                >
+                  From
+                </span>
+                <span
+                  style={{
+                    fontFamily: SERIF,
+                    fontWeight: 600,
+                    fontSize: "36px",
+                    lineHeight: 1.1,
+                    letterSpacing: "-0.02em",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {price}
+                </span>
+              </div>
+            </>
           )}
         </div>
 

@@ -19,6 +19,9 @@ export function Navbar() {
   const [contactOpen, setContactOpen] = useState(false);
   const location = useLocation();
   const isHome = location.pathname === "/";
+  const isDesignSystems =
+    location.pathname.startsWith("/design-systems") ||
+    location.pathname.startsWith("/services/design-systems");
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -36,6 +39,17 @@ export function Navbar() {
         { label: "Work", href: "#work" },
         { label: "About", href: "/about", isRoute: true },
         { label: "Contact", href: "#contact", isModal: true },
+      ]
+    : isDesignSystems
+    ? [
+        { label: "How it works", href: "/design-systems#how-it-works" },
+        {
+          label:   "Case study",
+          href:    "/design-systems/case-study",
+          isRoute: true,
+          active:  location.pathname === "/design-systems/case-study",
+        },
+        { label: "Pricing", href: "/services/design-systems", isRoute: true },
       ]
     : [
         { label: "Work", href: "/#work", isRoute: true },

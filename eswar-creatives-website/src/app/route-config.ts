@@ -13,6 +13,7 @@ import { BrandingServicesPage } from "./components/BrandingServicesPage";
 import { DesignSystemsLandingPage } from "./components/DesignSystemsLandingPage";
 import { DesignSystemsServicesPage } from "./components/DesignSystemsServicesPage";
 import { DesignSystemsEnquiryPage } from "./components/DesignSystemsEnquiryPage";
+import { DesignSystemsCaseStudy } from "./components/DesignSystemsCaseStudy";
 import { NotFound } from "./components/NotFound";
 import { LoginPage } from "../portal/LoginPage";
 import { VerifyPage } from "../portal/VerifyPage";
@@ -98,6 +99,7 @@ export const routeConfig = [
       { path: "/design-systems",                    Component: DesignSystemsLandingPage },
       { path: "/services/branding",                 Component: BrandingServicesPage },
       { path: "/services/design-systems",           Component: DesignSystemsServicesPage },
+      { path: "/design-systems/case-study",          Component: DesignSystemsCaseStudy },
       { path: "/services/design-systems/enquiry",   Component: DesignSystemsEnquiryPage },
       { path: "*",                                  Component: NotFound },
     ],
