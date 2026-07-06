@@ -1,6 +1,6 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 4 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 6 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
@@ -38,6 +38,14 @@ _Invoice nudge system (PR #4 — `feature/invoice-nudge-system`):_
 - `NudgeModal`: WhatsApp (wa.me) + email channel; token rotates on every send (7-day TTL)
 - `send-invoice-nudge` edge function: admin-JWT-verified, sends via Resend
 - Nudge history section in the admin invoice open drawer
+
+_Invoice UX polish (direct commits to main — 6 July 2026):_
+- Record payment available on `pending`, `sent`, and `overdue` invoices (not just `partially_paid`); `ConfirmPaymentModal` in `record_payment` mode auto-derives status via `syncInvoiceStatus`
+- Both "Record payment" and "Mark paid" actions available for `pending`/`sent`/`overdue`; only "Record payment" for `partially_paid`
+- Admin invoice list action column refactored to a 3-dot overflow menu (`MoreVertical`): Nudge bell stays always-visible for nudgeable statuses; menu contains Open, Record payment, Mark paid, Delete in that order
+- Overflow menu dropdown rendered with `position: fixed` + `getBoundingClientRect()` to escape `Card overflow: hidden` and table row stacking context; `z-index: 1000`
+- Balance due column: shows actual computed balance in `tokens.ruby` for `partially_paid`, `0` in `t.text.muted` for `paid`, full amount in `t.text.primary` for all other statuses
+- PDF download via `window.print()`: `ec-invoice-document` class on `InvoiceDocument` wrapper; `@media print` in `index.css` hides all chrome (A4, 16mm margins, visibility technique); "Download PDF" outlined button in admin `InvoicePreview` drawer and client `InvoicePanel` (both mobile overlay and desktop panel)
 
 **Merged branches (reference only):**
 - `feature/client-portal-phase5` — Phase 5 screens
@@ -136,7 +144,8 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 | `useBreakpoint` | `src/portal/hooks/useBreakpoint.ts` | Sole breakpoint authority; matchMedia-backed, no polling |
 | `NudgeModal` | `src/portal/admin/NudgeModal.tsx` | WhatsApp + email nudge; rotates `public_token` on every send (7-day TTL); inserts `nudge_log` row |
 | `PublicInvoicePage` | `src/portal/PublicInvoicePage.tsx` | `/invoice/:token` — no auth; fetches via `get_invoice_by_token` RPC; shows expired-link error (Nielsen H9) |
-| `ConfirmPaymentModal` | `src/portal/admin/ConfirmPaymentModal.tsx` | Mark paid + record partial payment modes; proof upload |
+| `ConfirmPaymentModal` | `src/portal/admin/ConfirmPaymentModal.tsx` | Mark paid + record partial payment modes; proof upload. Available for pending/sent/overdue/partially_paid statuses. |
+| `InvoicesAdmin` overflow menu | `src/portal/admin/InvoicesAdmin.tsx` | 3-dot `MoreVertical` button per row. Dropdown uses `position: fixed` + `getBoundingClientRect()` to escape `Card overflow:hidden`. Nudge bell always visible outside the menu. `z-index: 1000`. |
 | `ProgressiveImage` | `src/portal/components/shared/ProgressiveImage.tsx` | All remote image rendering; shimmer placeholder; never use raw `<img>` for remote URLs |
 
 ---
