@@ -3,7 +3,7 @@
 // 768px it becomes a bottom sheet. The document body is the shared
 // InvoiceDocument, so admin and client show the exact same invoice template.
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { Download, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import { InvoiceDocument, type InvoiceLine, type InvoicePaymentRow } from '../components/shared/InvoiceDocument'
@@ -200,6 +200,13 @@ export function InvoicePreview({
           payments={payments.length > 0 ? payments : undefined}
         />
 
+        <div style={downloadWrap}>
+          <button type="button" style={downloadBtn} onClick={() => window.print()}>
+            <Download size={15} />
+            Download PDF
+          </button>
+        </div>
+
         {/* Nudge history: shows reminders sent for this invoice (0069). */}
         {nudgeLogs.length > 0 && (
           <div style={nudgeStyles.section}>
@@ -222,6 +229,28 @@ export function InvoicePreview({
       </aside>
     </>
   )
+}
+
+const downloadWrap: CSSProperties = {
+  margin: '0 32px 24px',
+}
+
+const downloadBtn: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  width: '100%',
+  minHeight: 44,
+  padding: '10px 18px',
+  background: 'transparent',
+  border: `1px solid ${tokens.border}`,
+  borderRadius: 8,
+  color: t.text.secondary,
+  fontFamily: fonts.body,
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: 'pointer',
 }
 
 const nudgeStyles: Record<string, CSSProperties> = {

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
-import { Bell, Plus, Search, Trash2 } from 'lucide-react'
+import { Bell, MoreVertical, Plus, Search } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import {
@@ -102,8 +102,29 @@ export function InvoicesAdmin() {
   const [confirmMode, setConfirmMode] = useState<PaymentModalMode>('mark_paid')
   // NudgeModal target.
   const [nudgeTarget, setNudgeTarget] = useState<Invoice | null>(null)
+  // Overflow menu: which invoice row's menu is open.
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
   // Success toast.
   const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!menuOpenId) return
+    function onDoc(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenId(null)
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpenId(null)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpenId])
 
   useEffect(() => {
     if (!toast) return
@@ -284,13 +305,15 @@ export function InvoicesAdmin() {
                   </td>
                   <td style={{ ...styles.td, textAlign: 'right', fontFamily: mono }}>
                     {inv.status === 'partially_paid' ? (
-                      <span style={{ color: tokens.ruby }}>partial</span>
+                      <span style={{ color: tokens.ruby }}>
+                        {formatMoney(Number(inv.amount) - (inv._amountPaid ?? 0), inv.currency)}
+                      </span>
                     ) : inv.status === 'paid' ? (
-                      <span style={{ color: tokens.green }}>
+                      <span style={{ color: t.text.muted }}>
                         {formatMoney(0, inv.currency)}
                       </span>
                     ) : (
-                      <span style={{ color: t.text.secondary }}>
+                      <span style={{ color: t.text.primary }}>
                         {formatMoney(Number(inv.amount), inv.currency)}
                       </span>
                     )}
@@ -303,28 +326,7 @@ export function InvoicesAdmin() {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span style={styles.actionCell}>
-                      <button type="button" style={styles.linkBtn} onClick={() => setOpenInvoice(inv)}>
-                        Open
-                      </button>
-                      {['pending', 'sent', 'overdue'].includes(inv.status) && (
-                        <button
-                          type="button"
-                          style={styles.paidBtn}
-                          onClick={() => { setConfirmTarget(inv); setConfirmMode('mark_paid') }}
-                        >
-                          Mark paid
-                        </button>
-                      )}
-                      {!['paid', 'draft', 'cancelled'].includes(inv.status) && (
-                        <button
-                          type="button"
-                          style={styles.recordBtn}
-                          onClick={() => { setConfirmTarget(inv); setConfirmMode('record_payment') }}
-                        >
-                          Record payment
-                        </button>
-                      )}
-                      {/* Nudge button: only for invoices with an outstanding balance. */}
+                      {/* Nudge bell: always visible for nudgeable statuses. */}
                       {NUDGEABLE.has(inv.status) && (
                         <button
                           type="button"
@@ -337,31 +339,70 @@ export function InvoicesAdmin() {
                           Nudge
                         </button>
                       )}
-                      {/* Owner/admin only. Invoices raised from a proposal are
-                          removed by deleting the proposal, so their button is
-                          disabled with a tooltip pointing there. */}
-                      {canDelete &&
-                        (inv.proposal_id ? (
-                          <button
-                            type="button"
-                            style={styles.deleteIconDisabled}
-                            disabled
-                            title="Delete via the proposal"
-                            aria-label="Delete via the proposal"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            style={styles.deleteIcon}
-                            onClick={() => setDeleteTarget(inv)}
-                            title="Delete invoice"
-                            aria-label="Delete invoice"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        ))}
+                      {/* 3-dot overflow menu. */}
+                      <div
+                        style={{ position: 'relative' }}
+                        ref={(el) => { if (menuOpenId === inv.id) menuRef.current = el }}
+                      >
+                        <button
+                          type="button"
+                          style={styles.dotMenuBtn}
+                          onClick={() => setMenuOpenId(menuOpenId === inv.id ? null : inv.id)}
+                          aria-label="More actions"
+                          title="More actions"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
+                        {menuOpenId === inv.id && (
+                          <div style={styles.dropMenu}>
+                            <button
+                              type="button"
+                              style={styles.dropItem}
+                              onClick={() => { setOpenInvoice(inv); setMenuOpenId(null) }}
+                            >
+                              Open
+                            </button>
+                            {!['paid', 'draft', 'cancelled'].includes(inv.status) && (
+                              <button
+                                type="button"
+                                style={styles.dropItem}
+                                onClick={() => { setConfirmTarget(inv); setConfirmMode('record_payment'); setMenuOpenId(null) }}
+                              >
+                                Record payment
+                              </button>
+                            )}
+                            {['pending', 'sent', 'overdue'].includes(inv.status) && (
+                              <button
+                                type="button"
+                                style={styles.dropItem}
+                                onClick={() => { setConfirmTarget(inv); setConfirmMode('mark_paid'); setMenuOpenId(null) }}
+                              >
+                                Mark paid
+                              </button>
+                            )}
+                            {canDelete && (
+                              inv.proposal_id ? (
+                                <button
+                                  type="button"
+                                  style={{ ...styles.dropItem, ...styles.dropItemDisabled }}
+                                  disabled
+                                  title="Delete via the proposal"
+                                >
+                                  Delete
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  style={{ ...styles.dropItem, ...styles.dropItemDanger }}
+                                  onClick={() => { setDeleteTarget(inv); setMenuOpenId(null) }}
+                                >
+                                  Delete
+                                </button>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </span>
                   </td>
                 </tr>
@@ -1095,6 +1136,53 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.disabled,
     cursor: 'not-allowed',
     padding: 3,
+  },
+  dotMenuBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    background: 'transparent',
+    border: 'none',
+    color: t.text.muted,
+    cursor: 'pointer',
+    borderRadius: '50%',
+    padding: 0,
+  },
+  dropMenu: {
+    position: 'absolute' as const,
+    right: 0,
+    top: 'calc(100% + 4px)',
+    zIndex: 100,
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 10,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+    minWidth: 164,
+    padding: '4px 0',
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  dropItem: {
+    background: 'transparent',
+    border: 'none',
+    padding: '9px 14px',
+    textAlign: 'left' as const,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: t.text.primary,
+    cursor: 'pointer',
+    minHeight: 44,
+    display: 'flex',
+    alignItems: 'center',
+  },
+  dropItemDanger: {
+    color: tokens.ruby,
+  },
+  dropItemDisabled: {
+    color: t.text.disabled,
+    cursor: 'not-allowed' as const,
   },
   toast: {
     position: 'fixed' as const,

@@ -4,7 +4,7 @@
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
-import { X } from 'lucide-react'
+import { Download, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { type PortalProfile } from '../PortalGuard'
@@ -404,7 +404,15 @@ function InvoicePanel({
               <X size={20} />
             </button>
           </div>
-          <div style={styles.fullscreenBody}>{content}</div>
+          <div style={styles.fullscreenBody}>
+            {content}
+            <div style={styles.downloadWrap}>
+              <button type="button" style={styles.downloadBtn} onClick={() => window.print()}>
+                <Download size={15} />
+                Download PDF
+              </button>
+            </div>
+          </div>
         </div>
       </>
     )
@@ -423,6 +431,12 @@ function InvoicePanel({
           <X size={18} />
         </button>
         {content}
+        <div style={styles.downloadWrap}>
+          <button type="button" style={styles.downloadBtn} onClick={() => window.print()}>
+            <Download size={15} />
+            Download PDF
+          </button>
+        </div>
       </aside>
     </>
   )
@@ -608,5 +622,25 @@ const styles: Record<string, CSSProperties> = {
   fullscreenBody: {
     flex: 1,
     overflowY: 'auto',
+  },
+  downloadWrap: {
+    padding: '0 32px 28px',
+  },
+  downloadBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+    minHeight: 44,
+    padding: '10px 18px',
+    background: 'transparent',
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 8,
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
   },
 }

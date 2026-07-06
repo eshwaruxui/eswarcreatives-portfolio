@@ -58,3 +58,19 @@
   65%  { transform: translateX(0px);  opacity: 1; }
   100% { transform: translateX(0px);  opacity: 1; }
 }
+
+/* ── Invoice print-to-PDF ─────────────────────────────────── */
+/* window.print() called by "Download PDF" button. Hides all page
+   chrome and shows only the InvoiceDocument. */
+@media print {
+  @page { size: A4; margin: 16mm; }
+  body * { visibility: hidden; }
+  .ec-invoice-document,
+  .ec-invoice-document * { visibility: visible; }
+  .ec-invoice-document {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}

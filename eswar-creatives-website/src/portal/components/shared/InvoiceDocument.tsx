@@ -103,7 +103,7 @@ export function InvoiceDocument({
   const balanceDue = Math.max(0, total - amountPaid)
 
   return (
-    <div style={styles.body}>
+    <div className="ec-invoice-document" style={styles.body}>
       <header style={styles.topRow}>
         <div style={styles.brand}>
           <img src={eswarLogo} alt="EswarCreatives" width={32} height={32} style={styles.logo} />
