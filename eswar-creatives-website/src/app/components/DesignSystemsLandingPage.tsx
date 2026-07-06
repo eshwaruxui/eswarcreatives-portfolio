@@ -369,6 +369,7 @@ export function DesignSystemsLandingPage() {
 
       {/* ── 4. HOW I WORK ───────────────────────────────────────── */}
       <section
+        id="how-it-works"
         style={{
           background: C.surface,
           borderTop:  `1px solid ${C.border}`,
