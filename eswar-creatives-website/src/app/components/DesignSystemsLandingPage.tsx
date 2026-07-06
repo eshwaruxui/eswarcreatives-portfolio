@@ -704,7 +704,59 @@ export function DesignSystemsLandingPage() {
         </div>
       </section>
 
-      {/* ── 7. FINAL CTA BAND ───────────────────────────────────── */}
+      {/* ── 7. SOCIAL STRIP ─────────────────────────────────────── */}
+      <section
+        style={{
+          background:   C.surface,
+          borderTop:    `1px solid ${C.border}`,
+          borderBottom: `1px solid ${C.border}`,
+          padding:      "20px 0",
+        }}
+      >
+        <div
+          style={{
+            maxWidth:       "1152px",
+            margin:         "0 auto",
+            padding:        "0 24px",
+            display:        "flex",
+            flexWrap:       "wrap",
+            alignItems:     "center",
+            gap:            "20px",
+          }}
+        >
+          <a
+            href="https://www.linkedin.com/in/eswar-maheswaran"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display:        "inline-flex",
+              alignItems:     "center",
+              gap:            "7px",
+              fontSize:       "var(--typo-p-sm-size)",
+              color:          C.textMuted,
+              textDecoration: "none",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+            </svg>
+            Find me on LinkedIn
+          </a>
+          <span style={{ color: C.border, userSelect: "none" }}>·</span>
+          <a
+            href="mailto:eswar@eswarcreatives.in"
+            style={{
+              fontSize:       "var(--typo-p-sm-size)",
+              color:          C.textMuted,
+              textDecoration: "none",
+            }}
+          >
+            eswar@eswarcreatives.in
+          </a>
+        </div>
+      </section>
+
+      {/* ── 8. FINAL CTA BAND ───────────────────────────────────── */}
       <section style={{ background: C.tealHex, padding: "100px 0" }}>
         <div
           style={{
