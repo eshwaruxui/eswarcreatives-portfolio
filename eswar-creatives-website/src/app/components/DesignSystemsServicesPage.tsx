@@ -179,10 +179,10 @@ export function DesignSystemsServicesPage() {
         </div>
       </section>
 
-      {/* ── FOOTER CTA ── */}
+      {/* ── FOOTER CTA — B3 ── */}
       <div
-        className="py-16 md:py-24"
-        style={{ background: "var(--surface-inverse)" }}
+        className="py-24 md:py-32"
+        style={{ background: "#007872" }}
       >
         <div className="max-w-3xl mx-auto px-6 text-center">
           <motion.div
@@ -192,56 +192,57 @@ export function DesignSystemsServicesPage() {
             transition={{ duration: 0.5 }}
           >
             <p
-              className="mb-3"
-              style={{
-                fontSize: "var(--typo-ol-overline-bold-size)",
-                fontWeight: "var(--typo-ol-overline-bold-weight)",
-                letterSpacing: "var(--typo-ol-overline-bold-letter-spacing)",
-                textTransform: "uppercase",
-                color: "var(--text-inverse-tertiary)",
-              }}
-            >
-              Get started
-            </p>
-            <h3
               className="mb-4"
               style={{
-                fontFamily: SERIF,
-                fontWeight: 600,
-                fontSize: "clamp(24px, 3vw, 36px)",
-                lineHeight: 1.2,
-                letterSpacing: "-0.02em",
-                color: "var(--text-inverse)",
+                fontSize:      "var(--typo-ol-overline-bold-size)",
+                fontWeight:    "var(--typo-ol-overline-bold-weight)",
+                letterSpacing: "var(--typo-ol-overline-bold-letter-spacing)",
+                textTransform: "uppercase",
+                color:         "rgba(255,255,255,0.5)",
               }}
             >
-              Not sure which engagement fits?
+              Not sure where to start?
+            </p>
+            <h3
+              className="mb-5"
+              style={{
+                fontFamily:    SERIF,
+                fontWeight:    600,
+                fontStyle:     "italic",
+                fontSize:      "clamp(28px, 3.5vw, 40px)",
+                lineHeight:    1.15,
+                letterSpacing: "-0.02em",
+                color:         "var(--text-inverse)",
+              }}
+            >
+              Not sure where to start?
             </h3>
             <p
-              className="mb-8 mx-auto"
+              className="mb-10 mx-auto"
               style={{
-                fontSize: "var(--typo-ol-body-size)",
+                fontSize:  "var(--typo-ol-body-size)",
                 lineHeight: 1.65,
-                color: "var(--text-inverse-secondary)",
-                maxWidth: "560px",
+                color:     "rgba(255,255,255,0.65)",
+                maxWidth:  "520px",
               }}
             >
-              Send a note describing your current system, team size, and platform mix.
-              We'll come back with a scoped recommendation in 48 hours.
+              Tell us your platform mix, team size, and the problem you are trying to solve. We will scope a recommendation in 48 hours.
             </p>
             <PortfolioButton
               href="/services/design-systems/enquiry"
               variant="primary"
               size="lg"
               style={{
-                background: GOLD,
-                color: "var(--text-primary)",
-                borderColor: GOLD,
+                background:   GOLD,
+                color:        "var(--text-primary)",
+                borderColor:  GOLD,
                 borderRadius: "12px",
-                fontSize: "var(--typo-ol-body-semi-size)",
-                fontWeight: "var(--typo-ol-body-semi-weight)",
+                fontFamily:   SERIF,
+                fontSize:     "var(--typo-ol-body-semi-size)",
+                fontWeight:   "var(--typo-ol-body-semi-weight)",
               }}
             >
-              Send an enquiry
+              Send a note
               <ArrowRight className="w-4 h-4" />
             </PortfolioButton>
           </motion.div>
@@ -251,6 +252,12 @@ export function DesignSystemsServicesPage() {
   );
 }
 
+const AGENCY_ANCHORS: Record<string, string> = {
+  sprint:     "Typically $4,500 via agency",
+  scale:      "Typically $9,000 via agency",
+  enterprise: "Typically $18,000+ via agency",
+};
+
 // ── Tier card ─────────────────────────────────────────────────────
 function DesignSystemsTierCard({ tier, delay }: { tier: ServiceTier; delay: number }) {
   const recommended = tier.is_recommended;
@@ -258,6 +265,7 @@ function DesignSystemsTierCard({ tier, delay }: { tier: ServiceTier; delay: numb
     tier.starting_price_cents != null && tier.currency
       ? formatStartingPrice(tier.starting_price_cents, tier.currency)
       : null;
+  const anchor = AGENCY_ANCHORS[tier.tier_name?.toLowerCase() ?? ""];
 
   return (
     <motion.article
@@ -305,28 +313,54 @@ function DesignSystemsTierCard({ tier, delay }: { tier: ServiceTier; delay: numb
 
         <div className="mb-4">
           {price && (
-            <div className="flex items-baseline gap-1.5">
-              <span
-                style={{
-                  fontSize: "var(--typo-p-sm-size)",
-                  color: "var(--text-tertiary)",
-                }}
-              >
-                From
-              </span>
-              <span
-                style={{
-                  fontFamily: SERIF,
-                  fontWeight: 600,
-                  fontSize: "36px",
-                  lineHeight: 1.1,
-                  letterSpacing: "-0.02em",
-                  color: "var(--text-primary)",
-                }}
-              >
-                {price}
-              </span>
-            </div>
+            <>
+              {anchor && (
+                <div style={{ marginBottom: "4px" }}>
+                  <span
+                    style={{
+                      fontFamily:      MONO,
+                      fontSize:        "13px",
+                      color:           "var(--text-tertiary)",
+                      textDecoration:  "line-through",
+                    }}
+                  >
+                    {anchor}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily:    MONO,
+                      fontSize:      "11px",
+                      color:         "var(--text-tertiary)",
+                      marginLeft:    "6px",
+                    }}
+                  >
+                    average agency rate
+                  </span>
+                </div>
+              )}
+              <div className="flex items-baseline gap-1.5">
+                <span
+                  style={{
+                    fontSize: "var(--typo-p-sm-size)",
+                    color: "var(--text-tertiary)",
+                  }}
+                >
+                  From
+                </span>
+                <span
+                  style={{
+                    fontFamily: SERIF,
+                    fontWeight: 600,
+                    fontSize: "36px",
+                    lineHeight: 1.1,
+                    letterSpacing: "-0.02em",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {price}
+                </span>
+              </div>
+            </>
           )}
         </div>
 
