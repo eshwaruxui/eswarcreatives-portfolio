@@ -2,8 +2,8 @@
 // right while the invoice list stays visible and scrollable on the left; below
 // 768px it becomes a bottom sheet. The document body is the shared
 // InvoiceDocument, so admin and client show the exact same invoice template.
-import { useEffect, useState } from 'react'
-import { Download, X } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { Download, X, Copy, ExternalLink } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import { InvoiceDocument, type InvoiceLine, type InvoicePaymentRow } from '../components/shared/InvoiceDocument'
@@ -62,6 +62,9 @@ export function InvoicePreview({
   const [lines, setLines] = useState<InvoiceLine[]>([])
   const [payments, setPayments] = useState<InvoicePaymentRow[]>([])
   const [nudgeLogs, setNudgeLogs] = useState<NudgeLogRow[]>([])
+  const [publicToken, setPublicToken] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Trigger the slide-in transition once mounted.
   useEffect(() => {
@@ -125,6 +128,24 @@ export function InvoicePreview({
         .order('sent_at', { ascending: false })
       if (cancelled || !data) return
       setNudgeLogs(data as NudgeLogRow[])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [invoice.id])
+
+  // Public token for building the payment link sent to the client.
+  useEffect(() => {
+    let cancelled = false
+    setPublicToken(null)
+    ;(async () => {
+      const { data } = await supabase
+        .from('invoices')
+        .select('public_token')
+        .eq('id', invoice.id)
+        .maybeSingle()
+      if (cancelled || !data) return
+      setPublicToken((data as { public_token: string }).public_token ?? null)
     })()
     return () => {
       cancelled = true
@@ -207,6 +228,45 @@ export function InvoicePreview({
           </button>
         </div>
 
+        {/* Payment link: copy the public invoice URL or open it to test. */}
+        {publicToken && (
+          <div style={linkStyles.section}>
+            <div style={linkStyles.heading}>Payment link</div>
+            <div style={linkStyles.urlRow}>
+              <span style={linkStyles.url}>
+                {window.location.origin}/invoice/{publicToken}
+              </span>
+            </div>
+            <div style={linkStyles.actions}>
+              <button
+                type="button"
+                style={linkStyles.btn}
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(`${window.location.origin}/invoice/${publicToken}`)
+                    .then(() => {
+                      setCopied(true)
+                      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+                      copyTimerRef.current = setTimeout(() => setCopied(false), 2000)
+                    })
+                }}
+              >
+                <Copy size={13} />
+                {copied ? 'Copied!' : 'Copy link'}
+              </button>
+              <a
+                href={`/invoice/${publicToken}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={linkStyles.testLink}
+              >
+                <ExternalLink size={13} />
+                Test payment flow
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Nudge history: shows reminders sent for this invoice (0069). */}
         {nudgeLogs.length > 0 && (
           <div style={nudgeStyles.section}>
@@ -251,6 +311,70 @@ const downloadBtn: CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   cursor: 'pointer',
+}
+
+const linkStyles: Record<string, CSSProperties> = {
+  section: {
+    margin: '0 32px 0',
+    borderTop: `1px solid ${t.border.subtle}`,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  heading: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: t.text.tertiary,
+    marginBottom: 10,
+  },
+  urlRow: {
+    background: tokens.bg,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 6,
+    padding: '8px 12px',
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  url: {
+    fontFamily: "'SF Mono', 'JetBrains Mono', 'Fira Code', monospace",
+    fontSize: 11,
+    color: t.text.secondary,
+    wordBreak: 'break-all',
+    display: 'block',
+  },
+  actions: {
+    display: 'flex',
+    gap: 8,
+  },
+  btn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '7px 12px',
+    background: 'transparent',
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 6,
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  testLink: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '7px 12px',
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 6,
+    color: t.text.primaryBrand,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 500,
+    textDecoration: 'none',
+  },
 }
 
 const nudgeStyles: Record<string, CSSProperties> = {
