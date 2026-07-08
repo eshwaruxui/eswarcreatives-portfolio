@@ -8,21 +8,33 @@ import {
   Images,
   Compass,
   Megaphone,
+  Send,
 } from 'lucide-react'
 import type { CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 import { PortalGuard } from '../PortalGuard'
 import { PortalProvider } from '../PortalContext'
 import { tokens, t, fonts } from '../theme'
 import { TopBar } from './TopBar'
 import { ToastHost } from './toast'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { supabase } from '../../lib/supabase'
+import { mono } from './ui'
+
+type NavItem = {
+  to: string
+  label: string
+  Icon: React.ComponentType<{ size?: number }>
+  end?: boolean
+  badge?: number
+}
 
 // Persistent admin layout: a global TopBar (brand + client selector + settings)
 // above a fixed cream sidebar and scrollable content where each child route
 // renders via <Outlet />. Gated to the 'admin' role, mirroring the
 // AdminSketchUpload guard pattern. Clients are managed from the TopBar settings
 // panel, so they no longer appear in the sidebar nav.
-const NAV = [
+const NAV_BASE: NavItem[] = [
   { to: '/portal/admin', label: 'Dashboard', Icon: LayoutDashboard, end: true },
   { to: '/portal/admin/proposals', label: 'Proposals', Icon: FileText },
   { to: '/portal/admin/invoices', label: 'Invoices', Icon: Receipt },
@@ -30,6 +42,7 @@ const NAV = [
   { to: '/portal/admin/mockups', label: 'Mockups', Icon: Images },
   { to: '/portal/admin/discovery', label: 'Discovery', Icon: Compass },
   { to: '/portal/admin/campaigns', label: 'Campaigns', Icon: Megaphone },
+  { to: '/portal/admin/outreach', label: 'Outreach', Icon: Send },
 ]
 
 export function AdminShell() {
@@ -54,6 +67,23 @@ function Shell({ profile }: { profile: PortalProfile }) {
   // Light pass for iPad (768px): narrow sidebar prevents horizontal scroll.
   // Desktop (1024px+): full-width sidebar with labels.
   const { isTablet } = useBreakpoint()
+  const [outreachDue, setOutreachDue] = useState(0)
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    supabase
+      .from('outreach_touches')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'scheduled')
+      .lte('scheduled_for', today)
+      .then(({ count }) => setOutreachDue(count ?? 0))
+  }, [])
+
+  const NAV: NavItem[] = NAV_BASE.map((item) =>
+    item.to === '/portal/admin/outreach'
+      ? { ...item, badge: outreachDue }
+      : item
+  )
 
   return (
     <div style={{ ...styles.layout, overflowX: 'hidden' }}>
@@ -62,7 +92,7 @@ function Shell({ profile }: { profile: PortalProfile }) {
       <div style={styles.body}>
         <aside style={{ ...styles.sidebar, width: isTablet ? 180 : 240 }}>
           <nav style={styles.nav}>
-            {NAV.map(({ to, label, Icon, end }) => (
+            {NAV.map(({ to, label, Icon, end, badge }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -75,7 +105,12 @@ function Shell({ profile }: { profile: PortalProfile }) {
               >
                 <Icon size={18} />
                 {/* Hide label text on tablet to reclaim horizontal space. */}
-                {!isTablet && <span>{label}</span>}
+                {!isTablet && <span style={{ flex: 1 }}>{label}</span>}
+                {!isTablet && badge != null && badge > 0 && (
+                  <span style={styles.navBadge}>
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
               </NavLink>
             ))}
           </nav>
@@ -144,6 +179,21 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.tealLight,
     color: tokens.primary,
     fontWeight: 600,
+  },
+  navBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: tokens.ruby,
+    color: t.text.onPrimary,
+    fontFamily: mono,
+    fontSize: 10,
+    fontWeight: 700,
+    borderRadius: 999,
+    minWidth: 18,
+    height: 18,
+    padding: '0 5px',
+    lineHeight: 1,
   },
   content: {
     flex: 1,
