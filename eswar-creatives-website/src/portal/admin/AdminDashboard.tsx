@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { FileText, Receipt } from 'lucide-react'
+import { FileText, Receipt, Send } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import {
@@ -53,6 +53,12 @@ type Activity = {
 const UNPAID = new Set(['pending', 'sent', 'overdue', 'draft'])
 const ACTIVE_PROPOSAL = new Set(['sent', 'viewed'])
 
+type OutreachStats = {
+  dueToday: number
+  overdue: number
+  repliesThisWeek: number
+}
+
 function displayName(r: { client_name: string | null; company_name: string | null }) {
   return r.client_name || r.company_name || 'Unknown client'
 }
@@ -65,12 +71,15 @@ export function AdminDashboard() {
   const [activeCampaigns, setActiveCampaigns] = useState(0)
   const [totalClients, setTotalClients] = useState(0)
   const [activity, setActivity] = useState<Activity[]>([])
+  const [outreach, setOutreach] = useState<OutreachStats>({ dueToday: 0, overdue: 0, repliesThisWeek: 0 })
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const [proposalsRes, invoicesRes, campaignsRes, clientsRes] = await Promise.all([
+        const today = new Date().toISOString().slice(0, 10)
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        const [proposalsRes, invoicesRes, campaignsRes, clientsRes, dueTodayRes, overdueRes, repliesRes] = await Promise.all([
           supabase
             .from('proposals')
             .select(
@@ -88,12 +97,21 @@ export function AdminDashboard() {
             .select('id', { count: 'exact', head: true })
             .eq('status', 'active'),
           supabase.from('clients').select('id', { count: 'exact', head: true }),
+          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').eq('scheduled_for', today),
+          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').lt('scheduled_for', today),
+          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').eq('skipped_reason', 'lead_replied').gte('created_at', sevenDaysAgo),
         ])
         if (proposalsRes.error) throw proposalsRes.error
         if (invoicesRes.error) throw invoicesRes.error
         if (campaignsRes.error) throw campaignsRes.error
         if (clientsRes.error) throw clientsRes.error
         if (cancelled) return
+
+        setOutreach({
+          dueToday: dueTodayRes.count ?? 0,
+          overdue: overdueRes.count ?? 0,
+          repliesThisWeek: repliesRes.count ?? 0,
+        })
 
         const proposals = (proposalsRes.data ?? []) as ProposalRow[]
         const invoices = (invoicesRes.data ?? []) as InvoiceRow[]
@@ -171,6 +189,22 @@ export function AdminDashboard() {
         <Stat label="Total clients" value={loading ? '—' : String(totalClients)} />
       </div>
 
+      {/* Outreach card */}
+      <Card style={{ marginTop: 20 }}>
+        <div style={styles.outreachHead}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Send size={16} color={tokens.primary} />
+            <h2 style={{ ...styles.sectionTitle, margin: 0 }}>Outreach</h2>
+          </div>
+          <Link to="/portal/admin/outreach" style={styles.viewQueueLink}>View queue</Link>
+        </div>
+        <div style={styles.outreachStats}>
+          <OutreachStat label="Due today" value={outreach.dueToday} />
+          <OutreachStat label="Overdue" value={outreach.overdue} danger />
+          <OutreachStat label="Replies this week" value={outreach.repliesThisWeek} />
+        </div>
+      </Card>
+
       <Card style={{ marginTop: 20 }}>
         <h2 style={styles.sectionTitle}>Recent activity</h2>
         {loading ? (
@@ -205,6 +239,22 @@ export function AdminDashboard() {
         )}
       </Card>
     </>
+  )
+}
+
+function OutreachStat({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
+  return (
+    <div style={styles.outreachStatCard}>
+      <span style={styles.statLabel}>{label}</span>
+      <span style={{
+        fontFamily: mono,
+        fontSize: 22,
+        fontWeight: 700,
+        color: danger && value > 0 ? tokens.ruby : t.text.primary,
+      }}>
+        {value}
+      </span>
+    </div>
   )
 }
 
@@ -310,5 +360,31 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
     minWidth: 60,
     textAlign: 'right',
+  },
+  outreachHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  viewQueueLink: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.primaryBrand,
+    textDecoration: 'underline',
+  },
+  outreachStats: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: 12,
+  },
+  outreachStatCard: {
+    background: tokens.bg,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 8,
+    padding: '14px 16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
   },
 }
