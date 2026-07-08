@@ -1,10 +1,10 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 6 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 8 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
-> **Razorpay integration shipped** (`feature/razorpay-integration`) — see Section 15 for details.
+> **Proposal nudge system in progress** (`feature/proposal-nudge`) — see Section 16 for details.
 
 ---
 
@@ -15,6 +15,7 @@ Last updated: 6 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md
 
 **In progress (not yet merged):**
 - `feature/razorpay-integration` — Razorpay checkout on public invoice page (Section 15)
+- `feature/proposal-nudge` — Proposal nudge system: public token, ProposalNudgeModal, public page, nudge history (Section 16)
 
 **Shipped and merged to main:**
 
@@ -45,6 +46,16 @@ _Invoice nudge system (PR #4 — `feature/invoice-nudge-system`):_
 - `NudgeModal`: WhatsApp (wa.me) + email channel; token rotates on every send (7-day TTL)
 - `send-invoice-nudge` edge function: admin-JWT-verified, sends via Resend
 - Nudge history section in the admin invoice open drawer
+
+_Proposal nudge system (in progress — `feature/proposal-nudge`):_
+- `public_token` + expiry + nudge tracking on proposals (migration 0071); `get_proposal_by_token` RPC callable by anon
+- `proposal_nudge_log` table (migration 0071): per-proposal reminder history; RLS admin-only via `is_admin()`
+- `/proposal/:token` public proposal page — no auth required, token + expiry enforced server-side; responsive via `useBreakpoint`
+- `ProposalNudgeModal`: WhatsApp (wa.me) + email channel; token always regenerated server-side (7-day TTL); rate-limit warning at 1-hour threshold
+- `send-proposal-nudge` edge function: admin-JWT-verified, service-role writes, sends via Resend; guards: status must be 'sent', regenerates token on every call
+- Nudge bell button on 'sent' proposals in `ProposalsAdmin` card view and `ProposalDetail` action bar
+- Nudge history section in `ProposalDetail` (bottom of page)
+- Status banners on public page for accepted/declined proposals (read-only, no CTA)
 
 _Invoice UX polish (direct commits to main — 6 July 2026):_
 - Record payment available on `pending`, `sent`, and `overdue` invoices (not just `partially_paid`); `ConfirmPaymentModal` in `record_payment` mode auto-derives status via `syncInvoiceStatus`
@@ -96,13 +107,15 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 - `invoice_payments`: id, invoice_id, amount, paid_on, method, reference_note, proof_url, created_at, created_by
 - `invoice_line_items`: id, invoice_id, label, amount, sort_order, proposal_item_id
 
-**Nudge log table (migration 0069):**
-- `nudge_log`: id, invoice_id, sent_at, channel (whatsapp|email), message_preview, sent_by
+**Nudge log tables:**
+- `nudge_log` (migration 0069): id, invoice_id, sent_at, channel (whatsapp|email), message_preview, sent_by
+- `proposal_nudge_log` (migration 0071): id, proposal_id, sent_at, channel (whatsapp|email), message_preview, sent_by; RLS admin-only
 
 **Key columns added:**
 - `proposal_phases`: solution_title, timeline, key_note
 - `proposal_line_items`: solution_title, solution_overview
 - `proposals`: revision_rounds, key_note, accepted_at, declined_at, decline_reason
+- `proposals` (migration 0071): public_token (uuid, unique, default gen_random_uuid()), public_token_expires_at (timestamptz), last_nudge_sent_at (timestamptz), nudge_count (integer, default 0)
 - `clients`: founder_name, whatsapp_number
 - `projects`: timeline
 - `invoices`: full schema (id, project_id, proposal_id, client_id, invoice_number, label, amount, currency, status, due_date, issued_at, paid_date, payment_method, pct_of_total, notes, client_name, company_name, created_by, created_at)
@@ -110,6 +123,7 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 
 **RPCs:**
 - `get_invoice_by_token(p_token uuid) → jsonb` — SECURITY DEFINER, callable by `anon`. Returns invoice + line_items + payments for a valid non-expired token only. Returns null otherwise. No other rows exposed.
+- `get_proposal_by_token(token uuid) → jsonb` — SECURITY DEFINER, callable by `anon`. Returns proposal + proposal_phases + proposal_line_items + proposal_payment_schedule for a valid non-expired token only. Returns null otherwise. No other rows exposed.
 
 **Invoice number sequence:** Starts at EC-I-2026-105 (via invoice_number_seq)
 
@@ -126,6 +140,7 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 | Reviewer portal | `/portal/review/:campaignId` | role = reviewer |
 | Public vote | `/portal/vote/:token` | No auth |
 | Public invoice | `/invoice/:token` | No auth — token + expiry enforced server-side via RPC |
+| Public proposal | `/proposal/:token` | No auth — token + expiry enforced server-side via RPC (0071) |
 
 **Login redirects:**
 - `admin` / `owner` → `/portal/admin` (not /portal/admin/sketches)
@@ -169,6 +184,7 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 | respond-to-timeline-extension | v1 | true | Client approves/denies timeline change |
 | update-own-full-name | v1 | true | SECURITY DEFINER, client updates their profile name |
 | send-invoice-nudge | v1 | true | Sends payment reminder email via Resend; verifies admin JWT; never surfaces raw errors |
+| send-proposal-nudge | v1 | true | Sends proposal reminder (email via Resend or WhatsApp token+URL); regenerates public_token every send; guards status='sent' |
 | create-razorpay-order | v1 | false | Creates a Razorpay order for a public invoice; verifies token server-side; returns order_id + key_id; never exposes key_secret |
 | verify-razorpay-payment | v1 | false | Verifies Razorpay HMAC-SHA256 signature; cross-checks stored razorpay_order_id; inserts invoice_payments row; syncs invoice status |
 
@@ -364,3 +380,72 @@ Key patterns shipped:
 - ClientConceptSetPanel: swipe-down-to-close (80px threshold) on mobile
 - ClientLightbox: touch swipe left/right; close/fullscreen/thumbnail buttons bumped to 44px
 - Admin: sidebar 180px icon-only at tablet (768px), overflowX: hidden on layout root
+
+---
+
+## 16. Proposal nudge system
+
+**Branch:** `feature/proposal-nudge`
+**Status:** In progress; pending edge function deploy + Cloudflare preview test before merge.
+
+### Migration
+
+**0071** (`supabase/migrations/0071_proposal_public_token_nudge.sql`): adds `public_token`, `public_token_expires_at`, `last_nudge_sent_at`, `nudge_count` to `proposals`; creates `proposal_nudge_log` table + RLS; creates `get_proposal_by_token(token uuid)` SECURITY DEFINER RPC callable by `anon`. Apply manually in Supabase SQL Editor.
+
+### Edge function
+
+`send-proposal-nudge` — jwt_verify: true. Accepts `{ proposal_id, channel }`. Guards:
+- Caller must be admin (JWT verified)
+- Proposal status must be `sent` (rejects accepted/declined/draft with typed error codes)
+- Always regenerates `public_token` + resets `public_token_expires_at` to now + 7 days
+- Increments `nudge_count`, sets `last_nudge_sent_at`
+- Inserts row into `proposal_nudge_log`
+- Email: sends via Resend (`RESEND_API_KEY`)
+- WhatsApp: returns `{ token, public_url, whatsapp_text }` — client opens `wa.me` with encoded text
+- Never surfaces raw errors
+
+Error codes returned in `{ error: code }` body:
+| Code | Meaning |
+|---|---|
+| `already_accepted` | Proposal status is accepted |
+| `already_declined` | Proposal status is declined |
+| `not_sent` | Proposal is not in 'sent' status |
+| `no_email` | Client has no email on file |
+| `no_whatsapp` | Client has no WhatsApp number on file |
+
+### Public proposal page
+
+Route: `/proposal/:token` — no auth required. Fetches via `get_proposal_by_token` RPC.
+
+Sections (in order):
+1. Header: logo + "EswarCreatives" + "Branding Solution"
+2. Status banner: teal (accepted) or neutral (declined) — shown only when proposal is actioned
+3. Proposal title + client name
+4. Summary strip: total value, phase count, timeline hint
+5. Phase breakdown: horizontal snap-scroll carousel on mobile, grid on desktop
+6. Payment schedule: stacks vertically; shows label, pct, computed amount
+7. CTA section: "Accept proposal" button (redirects to `/portal/login?redirect=/portal/proposals`) — hidden when accepted/declined
+8. Footer: eswarcreatives.in + hello@eswarcreatives.in
+
+Token expired or not found: friendly error card with mailto link.
+No phases: "Proposal details coming soon." empty state (Nielsen H9).
+
+### Admin nudge UI
+
+**ProposalsAdmin** (card grid): Bell button in `cardTopRight` for `status === 'sent'` proposals only.
+**ProposalDetail** (action bar): "Nudge" button with Bell icon for `status === 'sent'` only; nudge history section at bottom of page.
+**ProposalNudgeModal** (`src/portal/admin/ProposalNudgeModal.tsx`): same pattern as `NudgeModal`.
+- Rate limit warning when `last_nudge_sent_at < 1 hour ago` — shows "Send anyway" + "Cancel"
+- Missing WhatsApp/email: shows inline warning, disables send button for that channel
+- All errors handled with friendly plain-language copy (Nielsen H9)
+
+### Deploy checklist (before merge)
+
+- [ ] Run migration 0071 in Supabase SQL Editor
+- [ ] Deploy `send-proposal-nudge` edge function via Supabase dashboard or CLI
+- [ ] Confirm `PORTAL_URL`, `RESEND_API_KEY` secrets are set (already set from invoice nudge)
+- [ ] Test `/proposal/:token` in incognito — valid token, expired token, accepted/declined states
+- [ ] Test nudge bell in admin proposals list (sent proposal)
+- [ ] Test nudge bell in admin proposal detail (sent proposal)
+- [ ] Test WhatsApp + email channels, rate limit warning
+- [ ] Mobile responsive test for `/proposal/:token`
