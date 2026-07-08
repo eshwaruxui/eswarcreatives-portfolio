@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
-import { Modal, mono, formatDate } from './ui'
+import { Modal, mono } from './ui'
 import type { CSSProperties } from 'react'
 
 export type NudgeProposal = {
@@ -486,5 +486,3 @@ const styles: Record<string, CSSProperties> = {
   },
 }
 
-// Inlined to avoid a circular dep with ui.ts; matches the formatDate util signature.
-export { formatDate }
