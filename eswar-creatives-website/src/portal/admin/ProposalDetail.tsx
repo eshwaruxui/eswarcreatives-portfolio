@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router'
-import { ArrowLeft, Eye, Trash2 } from 'lucide-react'
+import { ArrowLeft, Bell, Eye, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import {
@@ -13,12 +13,14 @@ import {
 } from './ui'
 import { ProposalForm, emptySolution, defaultSchedule } from './ProposalForm'
 import { DeleteProposalModal } from './DeleteProposalModal'
+import { ProposalNudgeModal, type NudgeProposal } from './ProposalNudgeModal'
 import { SidePanel } from './SidePanel'
 import {
   ProposalAccordion,
   type AccordionProposal,
   type ProposalStatus,
 } from '../components/shared/ProposalAccordion'
+import { toast } from 'sonner'
 import type { PortalProfile } from '../PortalGuard'
 import type {
   ProposalFull,
@@ -28,6 +30,13 @@ import type {
   PaymentInstalment,
 } from './ProposalForm'
 import type { CSSProperties } from 'react'
+
+type NudgeLogRow = {
+  id: string
+  sent_at: string
+  channel: 'whatsapp' | 'email'
+  message_preview: string | null
+}
 
 // Group a phase's line items (ordered) into solution groups by their shared
 // solution_title/overview. Consecutive items with the same pair form one group.
@@ -93,6 +102,10 @@ export function ProposalDetail() {
   const [keyNote, setKeyNote] = useState('')
 
   const locked = existing?.status === 'accepted'
+
+  // Nudge modal (status='sent' proposals only).
+  const [showNudge, setShowNudge] = useState(false)
+  const [nudgeLogs, setNudgeLogs] = useState<NudgeLogRow[]>([])
 
   // 5g: post-approval reorder (admin only — this whole route is admin-gated).
   // Native HTML5 drag, matching the existing AdminSketchUpload pattern.
@@ -281,6 +294,23 @@ export function ProposalDetail() {
     }
   }, [id, isNew])
 
+  // Load nudge history when proposal id is known. Falls back silently if the
+  // table does not yet exist (before migration 0071 is applied).
+  useEffect(() => {
+    if (!id || id === 'new') return
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('proposal_nudge_log')
+        .select('id, sent_at, channel, message_preview')
+        .eq('proposal_id', id)
+        .order('sent_at', { ascending: false })
+        .limit(20)
+      if (!cancelled && data) setNudgeLogs(data as NudgeLogRow[])
+    })()
+    return () => { cancelled = true }
+  }, [id])
+
   // Normalise the loaded proposal + form state into the shape the shared
   // ProposalAccordion renders, so the admin detail and client portal read the
   // proposal through one component.
@@ -421,6 +451,16 @@ export function ProposalDetail() {
             Edit
           </button>
         )}
+        {/* Nudge: only for sent proposals awaiting client response. */}
+        {existing.status === 'sent' && (
+          <button
+            type="button"
+            style={styles.nudgeBtn}
+            onClick={() => setShowNudge(true)}
+          >
+            <Bell size={15} /> Nudge
+          </button>
+        )}
         {/* See the proposal exactly as the client does, in a read-only drawer. */}
         <button
           type="button"
@@ -518,6 +558,55 @@ export function ProposalDetail() {
         )
       )}
 
+      {/* Nudge history: reminders sent for this proposal (migration 0071). */}
+      {nudgeLogs.length > 0 && (
+        <div style={nudgeHistoryStyles.section}>
+          <div style={nudgeHistoryStyles.heading}>Reminders sent</div>
+          {nudgeLogs.map((log) => (
+            <div key={log.id} style={nudgeHistoryStyles.row}>
+              <div style={nudgeHistoryStyles.rowTop}>
+                <span style={nudgeHistoryStyles.channel}>
+                  {log.channel === 'whatsapp' ? 'WhatsApp' : 'Email'}
+                </span>
+                <span style={nudgeHistoryStyles.date}>{formatDate(log.sent_at)}</span>
+              </div>
+              {log.message_preview && (
+                <p style={nudgeHistoryStyles.preview}>{log.message_preview}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Nudge modal */}
+      {showNudge && existing && (
+        <ProposalNudgeModal
+          proposal={{
+            id: existing.id,
+            title: existing.title,
+            client_id: existing.client_id,
+            client_name: existing.client_name,
+            company_name: existing.company_name,
+            total_amount: Number(existing.total_amount),
+            currency: existing.currency,
+            status: existing.status,
+          } as NudgeProposal}
+          onClose={() => setShowNudge(false)}
+          onSuccess={(msg) => {
+            setShowNudge(false)
+            toast.success(msg)
+            // Reload nudge log to show the new entry.
+            void supabase
+              .from('proposal_nudge_log')
+              .select('id, sent_at, channel, message_preview')
+              .eq('proposal_id', existing.id)
+              .order('sent_at', { ascending: false })
+              .limit(20)
+              .then(({ data }) => { if (data) setNudgeLogs(data as NudgeLogRow[]) })
+          }}
+        />
+      )}
+
       {/* Client preview: the same proposal, rendered through the client view in
           a read-only drawer. CTAs are present but disabled with a banner so the
           admin can confirm the experience without firing any real action. */}
@@ -600,6 +689,20 @@ const styles: Record<string, CSSProperties> = {
     gap: 10,
     flexWrap: 'wrap',
     marginBottom: 16,
+  },
+  nudgeBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: tokens.tealLight,
+    color: tokens.primary,
+    border: `1px solid ${tokens.accent}`,
+    borderRadius: 8,
+    padding: '8px 14px',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
   },
   previewBtn: {
     display: 'inline-flex',
@@ -727,5 +830,54 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     color: t.text.primary,
     whiteSpace: 'nowrap',
+  },
+}
+
+const nudgeHistoryStyles: Record<string, CSSProperties> = {
+  section: {
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 12,
+    padding: '20px 24px',
+    marginTop: 8,
+  },
+  heading: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: t.text.tertiary,
+    marginBottom: 12,
+  },
+  row: {
+    padding: '10px 0',
+    borderBottom: `1px solid ${t.border.subtle}`,
+  },
+  rowTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 4,
+  },
+  channel: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    color: t.text.primary,
+  },
+  date: {
+    fontFamily: mono,
+    fontSize: 12,
+    color: t.text.muted,
+  },
+  preview: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.tertiary,
+    margin: 0,
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap',
   },
 }
