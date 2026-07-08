@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router'
-import { Plus, Eye, Pencil, Trash2 } from 'lucide-react'
+import { Bell, Plus, Eye, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import {
@@ -14,8 +14,10 @@ import {
 } from './ui'
 import { ProposalForm } from './ProposalForm'
 import { DeleteProposalModal } from './DeleteProposalModal'
+import { ProposalNudgeModal, type NudgeProposal } from './ProposalNudgeModal'
 import { usePortal } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
+import { toast } from 'sonner'
 import type { PortalProfile } from '../PortalGuard'
 import type { CSSProperties } from 'react'
 
@@ -23,12 +25,15 @@ type Proposal = {
   id: string
   proposal_number: string | null
   title: string
+  client_id: string | null
   client_name: string | null
   company_name: string | null
   total_amount: number
   currency: string
   status: string
   valid_until: string | null
+  nudge_count?: number
+  last_nudge_sent_at?: string | null
 }
 
 export function ProposalsAdmin() {
@@ -52,6 +57,9 @@ export function ProposalsAdmin() {
   // Newly saved proposal id, briefly highlighted in the list then cleared.
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Nudge modal target (status='sent' proposals only).
+  const [nudgeTarget, setNudgeTarget] = useState<Proposal | null>(null)
 
   // A proposal being deleted: the confirmation modal target, and the id of the
   // card to fade out once the delete succeeds.
@@ -82,7 +90,7 @@ export function ProposalsAdmin() {
       let query = supabase
         .from('proposals')
         .select(
-          'id, proposal_number, title, client_name, company_name, total_amount, currency, status, valid_until'
+          'id, proposal_number, title, client_id, client_name, company_name, total_amount, currency, status, valid_until, nudge_count, last_nudge_sent_at'
         )
         .order('created_at', { ascending: false })
       if (selectedClientId) query = query.eq('client_id', selectedClientId)
@@ -145,6 +153,21 @@ export function ProposalsAdmin() {
                 <span style={styles.number}>{p.proposal_number || 'No number'}</span>
                 <div style={styles.cardTopRight}>
                   <StatusBadge status={p.status} />
+                  {/* Nudge bell: only for sent proposals awaiting client response. */}
+                  {p.status === 'sent' && (
+                    <button
+                      type="button"
+                      style={styles.nudgeBtn}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setNudgeTarget(p)
+                      }}
+                      aria-label="Send proposal reminder"
+                      title="Send proposal reminder"
+                    >
+                      <Bell size={14} />
+                    </button>
+                  )}
                   {/* Owner/admin only. Opens the confirmation modal, which
                       surfaces any linked invoices before the irreversible delete. */}
                   {canDelete && (
@@ -219,6 +242,18 @@ export function ProposalsAdmin() {
         </Modal>
       )}
 
+      {nudgeTarget && (
+        <ProposalNudgeModal
+          proposal={nudgeTarget as NudgeProposal}
+          onClose={() => setNudgeTarget(null)}
+          onSuccess={(msg) => {
+            setNudgeTarget(null)
+            toast.success(msg)
+            void load()
+          }}
+        />
+      )}
+
       {deleteTarget && (
         <DeleteProposalModal
           proposalId={deleteTarget.id}
@@ -287,6 +322,17 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
+  },
+  nudgeBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: tokens.tealLight,
+    border: `1px solid ${tokens.accent}`,
+    borderRadius: 6,
+    color: tokens.primary,
+    cursor: 'pointer',
+    padding: '3px 6px',
   },
   deleteBtn: {
     display: 'inline-flex',

@@ -22,6 +22,7 @@ import { AdminSketchUpload } from "../portal/AdminSketchUpload";
 import { AccountPage } from "../portal/AccountPage";
 import { PublicVotePage } from "../portal/PublicVotePage";
 import { PublicInvoicePage } from "../portal/PublicInvoicePage";
+import { PublicProposalPage } from "../portal/PublicProposalPage";
 import { AdminShell } from "../portal/admin/AdminShell";
 import { AdminDashboard } from "../portal/admin/AdminDashboard";
 import { ClientsList } from "../portal/admin/ClientsList";
@@ -65,6 +66,8 @@ export const routeConfig = [
   { path: "/portal/vote/:token",    Component: PublicVotePage },
   // Public invoice view — no auth required; token enforced server-side (0068).
   { path: "/invoice/:token",        Component: PublicInvoicePage },
+  // Public proposal view — no auth required; token enforced server-side (0071).
+  { path: "/proposal/:token",       Component: PublicProposalPage },
   // Phase 3 admin portal — persistent shell (sidebar + Outlet), admin-gated.
   {
     Component: AdminShell,
