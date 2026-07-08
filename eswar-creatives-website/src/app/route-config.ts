@@ -23,6 +23,7 @@ import { AccountPage } from "../portal/AccountPage";
 import { PublicVotePage } from "../portal/PublicVotePage";
 import { PublicInvoicePage } from "../portal/PublicInvoicePage";
 import { PublicProposalPage } from "../portal/PublicProposalPage";
+import { UnsubscribePage } from "../portal/UnsubscribePage";
 import { AdminShell } from "../portal/admin/AdminShell";
 import { AdminDashboard } from "../portal/admin/AdminDashboard";
 import { ClientsList } from "../portal/admin/ClientsList";
@@ -69,6 +70,8 @@ export const routeConfig = [
   { path: "/invoice/:token",        Component: PublicInvoicePage },
   // Public proposal view — no auth required; token enforced server-side (0071).
   { path: "/proposal/:token",       Component: PublicProposalPage },
+  // Public unsubscribe page — no auth required; calls unsubscribe_by_token RPC.
+  { path: "/unsubscribe/:token",    Component: UnsubscribePage },
   // Phase 3 admin portal — persistent shell (sidebar + Outlet), admin-gated.
   {
     Component: AdminShell,
