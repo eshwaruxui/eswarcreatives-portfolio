@@ -124,13 +124,55 @@ export function OutreachSendModal({
     ? renderTemplate(touch.step.body_template, lead)
     : touch.body_snapshot ?? ''
 
-  const [subject, setSubject] = useState(initialSubject)
-  const [body, setBody] = useState(initialBody)
+  const draftKey = `draft_touch_${touch.id}`
+
+  const [subject, setSubject] = useState(() => {
+    try {
+      const saved = localStorage.getItem(draftKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.subject) return parsed.subject as string
+      }
+    } catch { /* ignore */ }
+    return initialSubject
+  })
+  const [body, setBody] = useState(() => {
+    try {
+      const saved = localStorage.getItem(draftKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.body) return parsed.body as string
+      }
+    } catch { /* ignore */ }
+    return initialBody
+  })
+  const [draftRestored, setDraftRestored] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`draft_touch_${touch.id}`)
+      return !!saved
+    } catch { return false }
+  })
+  const [draftSaveLabel, setDraftSaveLabel] = useState<'Save draft' | 'Saved'>('Save draft')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [emailError, setEmailError] = useState<EmailErrorCode | null>(null)
   const [obsValue, setObsValue] = useState(lead.specific_observation ?? '')
   const [savingObs, setSavingObs] = useState(false)
+
+  // Auto-save draft on subject/body change (debounced 1s)
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!isEmail) return
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => {
+      try {
+        localStorage.setItem(draftKey, JSON.stringify({ subject, body }))
+      } catch { /* ignore */ }
+    }, 1000)
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    }
+  }, [subject, body, isEmail, draftKey])
 
   // LinkedIn state
   const renderedLinkedIn = touch.step?.body_template
@@ -183,6 +225,14 @@ export function OutreachSendModal({
     setSavingObs(false)
   }
 
+  function handleSaveDraft() {
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ subject, body }))
+    } catch { /* ignore */ }
+    setDraftSaveLabel('Saved')
+    setTimeout(() => setDraftSaveLabel('Save draft'), 1500)
+  }
+
   async function handleSendEmail() {
     setSending(true)
     setEmailError(null)
@@ -200,6 +250,8 @@ export function OutreachSendModal({
         setSending(false)
         return
       }
+      // Clear draft on successful send
+      try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
       setSent(true)
     } catch {
       setEmailError('network_error')
@@ -284,13 +336,17 @@ export function OutreachSendModal({
                 </div>
               ) : (
                 <>
+                  {/* Draft restored badge */}
+                  {draftRestored && (
+                    <div style={styles.draftRestoredBadge}>Draft restored</div>
+                  )}
                   {/* Subject */}
                   <div style={styles.field}>
                     <label style={styles.fieldLabel}>Subject</label>
                     <input
                       type="text"
                       value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
+                      onChange={(e) => { setSubject(e.target.value); setDraftRestored(false) }}
                       style={styles.input}
                     />
                   </div>
@@ -300,8 +356,8 @@ export function OutreachSendModal({
                     <textarea
                       ref={bodyRef}
                       value={body}
-                      onChange={(e) => setBody(e.target.value)}
-                      style={styles.textarea}
+                      onChange={(e) => { setBody(e.target.value); setDraftRestored(false) }}
+                      style={{ ...styles.textarea, whiteSpace: 'pre-wrap' }}
                       rows={10}
                     />
                     <span style={styles.charCount}>{body.length} characters</span>
@@ -338,15 +394,24 @@ export function OutreachSendModal({
                       {emailErrorMessage(emailError)}
                     </div>
                   )}
-                  {/* Send button */}
-                  <button
-                    type="button"
-                    style={{ ...styles.primaryBtn, opacity: canSendEmail ? 1 : 0.5 }}
-                    onClick={handleSendEmail}
-                    disabled={!canSendEmail}
-                  >
-                    {sending ? 'Sending...' : 'Send email'}
-                  </button>
+                  {/* Actions row: Save draft + Send */}
+                  <div style={styles.sendRow}>
+                    <button
+                      type="button"
+                      style={styles.draftBtn}
+                      onClick={handleSaveDraft}
+                    >
+                      {draftSaveLabel}
+                    </button>
+                    <button
+                      type="button"
+                      style={{ ...styles.primaryBtn, flex: 1, opacity: canSendEmail ? 1 : 0.5 }}
+                      onClick={handleSendEmail}
+                      disabled={!canSendEmail}
+                    >
+                      {sending ? 'Sending...' : 'Send email'}
+                    </button>
+                  </div>
                 </>
               )}
             </>
@@ -721,5 +786,34 @@ const styles: Record<string, CSSProperties> = {
     padding: '4px 0',
     textDecoration: 'underline',
     alignSelf: 'flex-start',
+  },
+  sendRow: {
+    display: 'flex',
+    gap: 8,
+    alignItems: 'stretch',
+  },
+  draftBtn: {
+    background: tokens.surface,
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 500,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: '11px 16px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
+  },
+  draftRestoredBadge: {
+    display: 'inline-block',
+    alignSelf: 'flex-start',
+    background: t.background.tint1,
+    color: t.text.primaryBrand,
+    border: `1px solid ${t.border.brand}`,
+    borderRadius: 6,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 500,
+    padding: '4px 10px',
   },
 }
