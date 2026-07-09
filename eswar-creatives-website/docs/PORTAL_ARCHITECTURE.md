@@ -1,11 +1,10 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 8 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 9 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 > **Proposal nudge system in progress** (`feature/proposal-nudge`) — see Section 16 for details.
-> **Sales Cadence module in progress** (`feature/sales-cadence`) — see Section 17 for details.
 
 ---
 
@@ -17,7 +16,6 @@ Last updated: 8 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md
 **In progress (not yet merged):**
 - `feature/razorpay-integration` — Razorpay checkout on public invoice page (Section 15)
 - `feature/proposal-nudge` — Proposal nudge system: public token, ProposalNudgeModal, public page, nudge history (Section 16)
-- `feature/sales-cadence` — Sales Cadence outbound CRM: leads, sequences, Today queue, public unsubscribe page (Section 17)
 
 **Shipped and merged to main:**
 
@@ -59,6 +57,8 @@ _Proposal nudge system (in progress — `feature/proposal-nudge`):_
 - Nudge history section in `ProposalDetail` (bottom of page)
 - Status banners on public page for accepted/declined proposals (read-only, no CTA)
 
+_Sales Cadence CRM module (PR #8 — `feature/sales-cadence`):_ leads, sequences, enrollments, touches, suppression list, `send-outreach-email`, `resend-outreach-webhook`, `extract-lead-from-image` edge functions, public unsubscribe page, daily motion tracker, screenshot-to-lead, LinkedIn visitor fast-track, reply rate diagnostics. Migrations 0072, 0072b, 0072c applied.
+
 _Invoice UX polish (direct commits to main — 6 July 2026):_
 - Record payment available on `pending`, `sent`, and `overdue` invoices (not just `partially_paid`); `ConfirmPaymentModal` in `record_payment` mode auto-derives status via `syncInvoiceStatus`
 - Both "Record payment" and "Mark paid" actions available for `pending`/`sent`/`overdue`; only "Record payment" for `partially_paid`
@@ -72,6 +72,7 @@ _Invoice UX polish (direct commits to main — 6 July 2026):_
 - `feature/invoice-payments` — Invoice payments
 - `feature/phase6-mobile-responsive` — Phase 6 mobile
 - `feature/invoice-nudge-system` — Nudge system + public invoice view
+- `feature/sales-cadence` (PR #8) — Sales Cadence CRM module
 
 ---
 
