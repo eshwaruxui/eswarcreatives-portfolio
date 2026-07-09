@@ -33,8 +33,10 @@ const CHANNEL_LABELS: Record<string, string> = {
 
 export function TodayTab({
   onOpenLeadDrawer,
+  onRefreshCount,
 }: {
   onOpenLeadDrawer: (leadId: string) => void
+  onRefreshCount?: () => void
 }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -76,6 +78,7 @@ export function TodayTab({
       setError('Could not load the queue. Refresh to try again.')
     } finally {
       setLoading(false)
+      onRefreshCount?.()
     }
   }
 

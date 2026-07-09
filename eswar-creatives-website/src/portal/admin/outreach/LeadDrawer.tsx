@@ -130,10 +130,28 @@ export function LeadDrawer({
   const [enrolling, setEnrolling] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedSeq, setSelectedSeq] = useState('')
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0])
   const [enrollError, setEnrollError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<string | null>(null)
   const [convertOpen, setConvertOpen] = useState(false)
+  // Bug 1 + 2: controlled obs state — explicitly maps to specific_observation (not notes)
+  const [obsValue, setObsValue] = useState('')
+  const [obsSavedValue, setObsSavedValue] = useState('')
+  const [obsSaveState, setObsSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+
+  // Bug 3: reset start date to today whenever a new lead is opened
+  useEffect(() => {
+    setStartDate(new Date().toISOString().split('T')[0])
+  }, [leadId])
+
+  // Bug 1 + 2: sync controlled obs state from loaded lead (specific_observation, not notes)
+  useEffect(() => {
+    if (lead) {
+      const obs = lead.specific_observation ?? ''
+      setObsValue(obs)
+      setObsSavedValue(obs)
+    }
+  }, [lead?.id])
 
   async function load() {
     setLoading(true)
@@ -165,6 +183,18 @@ export function LeadDrawer({
     await supabase.from('leads').update(updates).eq('id', lead.id)
     setLead((prev) => prev ? { ...prev, ...updates } : prev)
     setSaving(false)
+  }
+
+  // Bug 1: explicit save for specific_observation; enroll validation reads lead state after this
+  async function saveObservation() {
+    if (!lead) return
+    setObsSaveState('saving')
+    const trimmed = obsValue.trim() || null
+    await supabase.from('leads').update({ specific_observation: trimmed }).eq('id', lead.id)
+    setLead((prev) => prev ? { ...prev, specific_observation: trimmed } : prev)
+    setObsSavedValue(obsValue)
+    setObsSaveState('saved')
+    setTimeout(() => setObsSaveState('idle'), 1500)
   }
 
   async function handleEnroll() {
@@ -260,23 +290,33 @@ export function LeadDrawer({
           </FieldRow>
         </Section>
 
-        {/* Personalized observation */}
+        {/* Personalized observation — Bug 1: explicit save button; Bug 2: bound to specific_observation */}
         <div style={styles.obsCard}>
           <span style={styles.obsLabel}>Personalized observation</span>
           <span style={styles.obsHelper}>Written fresh for this lead. All email sends are blocked without it.</span>
           <textarea
-            key={lead.id + 'obs'}
-            defaultValue={lead.specific_observation ?? ''}
+            value={obsValue}
+            onChange={(e) => setObsValue(e.target.value)}
             style={{ ...styles.textarea, marginTop: 8 }}
             rows={3}
             placeholder="e.g. the onboarding flow drops users after the second step..."
-            onBlur={(e) => {
-              const val = e.target.value.trim()
-              if (val !== (lead.specific_observation ?? '').trim()) {
-                saveLead({ specific_observation: val || null })
-              }
-            }}
           />
+          {(obsValue !== obsSavedValue || obsSaveState === 'saved') && (
+            <button
+              type="button"
+              style={{
+                ...styles.primaryBtn,
+                alignSelf: 'flex-start' as const,
+                marginTop: 6,
+                opacity: obsSaveState === 'saving' ? 0.6 : 1,
+                transition: `opacity ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
+              }}
+              onClick={saveObservation}
+              disabled={obsSaveState === 'saving'}
+            >
+              {obsSaveState === 'saved' ? 'Saved' : 'Save'}
+            </button>
+          )}
         </div>
 
         {/* LinkedIn status */}
@@ -670,7 +710,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     padding: '14px 16px',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'column' as const,
     gap: 4,
   },
   obsLabel: {

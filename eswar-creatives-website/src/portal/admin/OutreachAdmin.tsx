@@ -30,8 +30,7 @@ export function OutreachAdmin() {
     setParams({ tab })
   }
 
-  // Load badge count (scheduled touches due today or overdue)
-  useEffect(() => {
+  function loadDueCount() {
     const today = new Date().toISOString().slice(0, 10)
     supabase
       .from('outreach_touches')
@@ -39,7 +38,10 @@ export function OutreachAdmin() {
       .eq('status', 'scheduled')
       .lte('scheduled_for', today)
       .then(({ count }) => setDueCount(count ?? 0))
-  }, [])
+  }
+
+  // Load badge count on mount; re-fetched via loadDueCount after any queue action
+  useEffect(() => { loadDueCount() }, [])
 
   return (
     <>
@@ -77,6 +79,7 @@ export function OutreachAdmin() {
               setOpenLeadId(id)
               setTab('leads')
             }}
+            onRefreshCount={loadDueCount}
           />
         )}
         {activeTab === 'leads' && (

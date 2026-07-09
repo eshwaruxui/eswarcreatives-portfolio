@@ -187,7 +187,12 @@ Deno.serve(async (req: Request) => {
   const rawSubject = step?.subject_template ?? touch.subject_snapshot ?? "";
   const rawBody = step?.body_template ?? touch.body_snapshot ?? "";
   const renderedSubject = substitute(rawSubject, vars);
-  const renderedBody = substitute(rawBody, vars);
+  let renderedBody = substitute(rawBody, vars);
+
+  // Bug 5: possessive fix — "Acme SaaS's" -> "Acme SaaS'" when company ends in 's'
+  if (lead.company.slice(-1).toLowerCase() === 's') {
+    renderedBody = renderedBody.replaceAll(`${lead.company}'s`, `${lead.company}'`);
+  }
 
   // Guard: unresolved variables
   if (renderedBody.includes("{{")) return fail("unresolved_variables");
