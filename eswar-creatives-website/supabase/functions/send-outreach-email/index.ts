@@ -51,7 +51,10 @@ function escapeHtml(s: string): string {
 }
 
 function htmlBody(body: string): string {
-  const escaped = escapeHtml(body).replace(/\n/g, "<br/>");
+  // Preserve paragraph breaks: \n\n → <br><br>, then remaining \n → <br>
+  const escaped = escapeHtml(body)
+    .replace(/\n\n/g, "<br><br>")
+    .replace(/\n/g, "<br>");
   return `<!doctype html>
 <html>
   <body style="margin:0;background:#FAF8F4;font-family:Inter,Arial,sans-serif;color:#0A1A1B;">
