@@ -5,6 +5,7 @@ Last updated: 8 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md
 ---
 
 > **Proposal nudge system in progress** (`feature/proposal-nudge`) — see Section 16 for details.
+> **Sales Cadence module in progress** (`feature/sales-cadence`) — see Section 17 for details.
 
 ---
 
@@ -16,6 +17,7 @@ Last updated: 8 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md
 **In progress (not yet merged):**
 - `feature/razorpay-integration` — Razorpay checkout on public invoice page (Section 15)
 - `feature/proposal-nudge` — Proposal nudge system: public token, ProposalNudgeModal, public page, nudge history (Section 16)
+- `feature/sales-cadence` — Sales Cadence outbound CRM: leads, sequences, Today queue, public unsubscribe page (Section 17)
 
 **Shipped and merged to main:**
 
@@ -449,3 +451,152 @@ No phases: "Proposal details coming soon." empty state (Nielsen H9).
 - [ ] Test nudge bell in admin proposal detail (sent proposal)
 - [ ] Test WhatsApp + email channels, rate limit warning
 - [ ] Mobile responsive test for `/proposal/:token`
+
+---
+
+## 17. Sales Cadence module
+
+**Branch:** `feature/sales-cadence`
+**Status:** In progress; pending migration apply + Cloudflare preview + incognito test before merge.
+
+### Architectural rule: Leads are not clients
+
+Leads follow the same separation rule as reviewers/clients. A lead record never gets a `profiles` row, auth user, project, or invoice until the admin explicitly runs "Convert to client." Conversion calls the existing `admin-create-client` edge function and stores `converted_client_id` on the lead. All five Sales Cadence tables are admin-only via `is_admin() SECURITY DEFINER` — no client-facing surface.
+
+### Tables (migration 0072)
+
+| Table | Purpose |
+|---|---|
+| `leads` | Outbound prospects. Never creates auth/profile rows. Partial unique index on `lower(email)` where `email is not null`. `unsubscribe_token` is a per-lead UUID used for opt-out. |
+| `sequences` | Named outreach cadences. Optional segment association. |
+| `sequence_steps` | Steps within a sequence: channel (`email`, `linkedin_connect`, `linkedin_dm`), `day_offset`, templates with `{{variable}}` syntax. |
+| `lead_enrollments` | Links a lead to a sequence. Partial unique index enforces one active enrollment per lead+sequence pair. |
+| `outreach_touches` | One row per step per enrollment. Stores scheduling, delivery status, snapshots, Resend message ID, open/bounce timestamps. |
+| `suppression_list` | Email-level suppression (unsubscribed + hard bounce). Checked by `send-outreach-email` before every send. |
+
+**FK delete order:** `outreach_touches` -> `lead_enrollments` -> `leads` (cascade). `suppression_list` is independent.
+
+### Seed data (migration 0072b)
+
+Three sequences seeded from the acquisition handbook:
+- **Email A: Security / AI** (`security_ai`) — 3 email steps at day offsets 0, 3, 6
+- **Email B: SaaS Product** (`saas_product`) — 3 email steps at day offsets 0, 3, 7
+- **LinkedIn Outreach** (segment null, applies to both) — 4 steps: `linkedin_connect` (D+0), then 3x `linkedin_dm` at D+3, D+6, D+11
+
+All templates use `{{first_name}}`, `{{company}}`, `{{specific_observation}}`, `{{flow}}`, `{{topic}}`, `{{unsubscribe_url}}` variables. No em dashes in any template copy.
+
+### RPCs (all SECURITY DEFINER, set search_path = public)
+
+| RPC | Description |
+|---|---|
+| `enroll_lead(p_lead_id, p_sequence_id, p_start_date)` | Creates enrollment + one touch per step. Validates `specific_observation` for email sequences. Weekend rollover on scheduling. Returns enrollment id. |
+| `mark_lead_replied(p_lead_id)` | Sets lead status to `replied`. Stops active enrollments. Cancels scheduled touches where `stop_on_reply = true`. |
+| `pause_enrollment(p_enrollment_id)` | Pauses an active enrollment, records `paused_at`. |
+| `resume_enrollment(p_enrollment_id)` | Shifts remaining touches forward by days-paused with weekend rollover. |
+| `unsubscribe_by_token(p_token)` | Callable by `anon`. Idempotent. Sets lead status, inserts to suppression list, cancels scheduled email touches. Never reveals token validity. |
+| `next_business_day(d date)` | Helper: rolls Saturday -> Monday, Sunday -> Monday. |
+
+### Migration patches
+
+**0072c** (`supabase/migrations/0072c_fix_seed_and_visitor_source.sql`):
+- Fixes Email B SaaS Product Step 1 body capitalisation (lowercase `i design` -> `I design`) — no-op if already correct.
+- Adds `linkedin_visitor` to `leads.source` check constraint (drops and recreates `leads_source_check`).
+
+### Leads source enum
+
+Valid `source` values: `manual`, `csv`, `apollo`, `linkedin`, `referral`, `linkedin_visitor`.
+
+`linkedin_visitor` = warm lead who visited the LinkedIn profile. AddLeadModal shows a warm-lead chip and LeadDrawer pre-selects LinkedIn Outreach sequence (no auto-enroll; Eswar clicks Enroll manually).
+
+### Edge functions
+
+**`send-outreach-email`** (`jwt_verify: true`)
+
+Input: `{ touch_id: string }`
+
+Error codes (all returned as `{ error: code }` with status 400):
+
+| Code | Meaning |
+|---|---|
+| `invalid_touch` | Touch not found, not email channel, or status not in (scheduled, failed) |
+| `no_email` | Lead has no email address |
+| `suppressed` | Lead email in suppression_list OR lead.status is unsubscribed/bounced |
+| `missing_observation` | lead.specific_observation is null or empty |
+| `unresolved_variables` | Rendered body still contains `{{` after substitution |
+| `daily_cap_reached` | 25 email sends already completed today |
+| `send_failed` | Resend API returned an error (never exposes Resend's raw error) |
+
+Template variables substituted: `{{first_name}}`, `{{company}}`, `{{specific_observation}}`, `{{flow}}` (falls back to "product"), `{{unsubscribe_url}}` (PORTAL_URL + /unsubscribe/ + token). `{{topic}}` is intentionally left for manual substitution in the LinkedIn DM step 4.
+
+On success: updates touch `status='sent'`, `sent_at`, `subject_snapshot`, `body_snapshot`, `resend_message_id`.
+On Resend error: sets touch `status='failed'`, returns `{ error: 'send_failed' }`.
+
+**`resend-outreach-webhook`** (`jwt_verify: false`)
+
+- Verifies Resend webhook HMAC-SHA256 signature via `RESEND_WEBHOOK_SECRET`
+- `email.bounced`: marks touch `bounced_at`, sets lead `status='bounced'`, inserts to suppression list, cancels remaining scheduled email touches
+- `email.opened`: sets touch `opened_at` on first open only (idempotent by `opened_at is null` guard)
+- All other event types: 200 + ignore
+- Idempotent by `resend_message_id`
+
+Register in Resend dashboard: `POST /functions/v1/resend-outreach-webhook` for events `email.bounced` and `email.opened`.
+
+**`extract-lead-from-image`** (`jwt_verify: true`)
+
+Input: `{ image_base64: string, media_type: 'image/jpeg' | 'image/png' | 'image/webp' }`.
+Calls Anthropic Messages API using `claude-sonnet-4-6` to extract `first_name`, `last_name`, `email`, `linkedin_url`, `company`, `role_title`, `country` from a screenshot.
+Returns `{ data: {...} }` on success, `{ error: 'extraction_failed' }` on soft failure (never surfaces raw Anthropic errors).
+Guard codes: `invalid_image`, `invalid_media_type`, `image_too_large` (5MB server-side / 4MB client-side).
+Used by AddLeadModal screenshot-to-lead upload zone.
+
+### Secrets required
+
+| Secret | Where | Notes |
+|---|---|---|
+| `RESEND_API_KEY` | Supabase edge function secrets | Already set |
+| `PORTAL_URL` | Supabase edge function secrets | Already set |
+| `RESEND_WEBHOOK_SECRET` | Supabase edge function secrets | Add before deploying `resend-outreach-webhook` |
+| `ANTHROPIC_API_KEY` | Supabase edge function secrets | Add manually in Supabase Edge Function secrets. Never commit. |
+
+### Frontend: /portal/admin/outreach
+
+**Sidebar:** "Outreach" nav item with Send icon. Badge shows count of scheduled touches due + overdue. Badge hidden when count is 0. Uses `tokens.ruby` background, `t.text.onPrimary` text, SF Mono.
+
+**Four tabs:**
+
+**Today** — Daily Motion Tracker stats strip (emails sent today / LI touches today / replies this week / calls booked this week, each with X/Y target display in SF Mono; green when met). Below the strip: Overdue (scheduled_for < today) and Due Today sections. Row action buttons: "Review and Send" (email), "Send Connect" (linkedin_connect), "Send Message" (linkedin_dm). Secondary overflow actions: Skip (with reason picker), Snooze +1 or +3 days (weekend rollover applied). Stats re-fetch after every send/skip/snooze. Edge cases: leads with no email show amber "No email address" warning + "Add email" inline link; awaiting-connection DMs show "Waiting on connection" with "Mark connected" and "Skip" buttons.
+
+**OutreachSendModal** — Email: editable subject + body, rendered template, character count, send button. Error states: `missing_observation` shows inline obs editor; `unresolved_variables` highlights token names; `daily_cap_reached` shows close-only message; `suppressed` auto-cancels touch. LinkedIn: read-only rendered message, Copy button (label changes to "Copied" for 2s), Open LinkedIn Profile button (disabled with hint if no URL), Mark sent button (disables if unresolved `{{topic}}`), Skip link.
+
+**Leads** — Sortable table (desktop), card stack (mobile via `useBreakpoint`). Filters: status, segment, missing-observation toggle. Add Lead modal: screenshot-to-lead upload zone (jpg/png/webp, 4MB limit, calls `extract-lead-from-image`, pre-fills fields on success); `linkedin_visitor` source option with warm-lead chip; inline dup-email warning with link chip. CSV Import modal (parse -> preview table with row-level status -> import valid rows only). Lead drawer (SidePanel): all editable fields, specific_observation highlighted card with explicit Save button (dirty-check; shows "Saved" for 1.5s); `linkedin_visitor` leads auto-pre-select LinkedIn Outreach sequence (Enroll is still manual); enroll section with sequence picker and today-defaulted start date, timeline feed, status action buttons (contextual), LinkedIn status toggle, Convert to client flow.
+
+**Sequences** — Sequence cards, expand to step rail (day_offset badges, channel icons, template previews), inline step editor with variable legend chips. One-time warning on first edit: "Editing templates affects future renders only. Sent snapshots are preserved." Reply rate diagnostic: warning banner (below 4% after 10+ sends, dismissible, component state only) and positive chip (above 10% after 10+ sends). Reply rate calculated client-side: replied leads / distinct leads with sent touch.
+
+**Activity** — Last 200 non-scheduled touches, channel + status filters. Eye icon for opens, bounced label. Click row opens lead drawer.
+
+**Admin dashboard card** — Outreach stats: touches due today, overdue (ruby if > 0), replies this week. "View queue" teal link to /portal/admin/outreach.
+
+### Public route: /unsubscribe/:token
+
+No auth. Calls `unsubscribe_by_token` RPC on mount. Always shows confirmation ("You have been unsubscribed. You will not receive any further emails from Eswar Creatives."). Invalid or already-used token shows the same message. No error state exposed. EC logo + studio name in header.
+
+### Edge cases handled
+
+- Lead with LinkedIn URL but no email: email touch rows show amber "No email address" warning + "Add email" button. Not auto-cancelled.
+- Lead with email but no LinkedIn URL: LinkedIn touches auto-skip on their scheduled date with `skipped_reason='no_linkedin_url'`.
+- Hard delete blocked if lead has any sent touches: "This lead has sent touches and cannot be deleted. Archive instead."
+- Unsubscribed lead re-added via CSV: duplicate check on email catches it. If inserted, suppression_list blocks sends at edge function level.
+- All steps complete with no reply: enrollment auto-sets `status='completed'` when last touch is sent/skipped (handled via enrollment status).
+- Sequence with no email steps: `enroll_lead` skips specific_observation validation.
+- `{{topic}}` in LinkedIn DM step 4: shown un-substituted with ruby highlight, Mark sent disabled until placeholder is removed.
+- Weekend scheduling: `enroll_lead` and snooze both roll Saturday -> Monday, Sunday -> Monday.
+
+### Phase 2 TODO list
+
+- Gmail API inbox sync for automatic reply detection
+- Automated scheduled sending via cron / pg_cron (v1 is human-in-the-loop by design)
+- LinkedIn API integration of any kind
+- Open rate and click analytics dashboard
+- WhatsApp Business API for outreach (distinct from existing invoice/proposal nudge wa.me links)
+- Apollo.io or ZoomInfo MCP lead import (connector available)
+- Content scheduling for LinkedIn posts Mon/Wed/Fri from 30-day handbook (planned, not in current sprint)

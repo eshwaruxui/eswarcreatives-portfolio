@@ -23,6 +23,7 @@ import { AccountPage } from "../portal/AccountPage";
 import { PublicVotePage } from "../portal/PublicVotePage";
 import { PublicInvoicePage } from "../portal/PublicInvoicePage";
 import { PublicProposalPage } from "../portal/PublicProposalPage";
+import { UnsubscribePage } from "../portal/UnsubscribePage";
 import { AdminShell } from "../portal/admin/AdminShell";
 import { AdminDashboard } from "../portal/admin/AdminDashboard";
 import { ClientsList } from "../portal/admin/ClientsList";
@@ -34,6 +35,7 @@ import { ProjectsList } from "../portal/admin/ProjectsList";
 import { MockupsAdmin } from "../portal/admin/MockupsAdmin";
 import { DiscoveryPlaceholder } from "../portal/admin/DiscoveryPlaceholder";
 import { CampaignsAdmin } from "../portal/admin/CampaignsAdmin";
+import { OutreachAdmin } from "../portal/admin/OutreachAdmin";
 import { MockupsPage } from "../portal/client/MockupsPage";
 import { ClientShell } from "../portal/client/ClientShell";
 import { ClientDashboardPage } from "../portal/ClientDashboard";
@@ -68,6 +70,8 @@ export const routeConfig = [
   { path: "/invoice/:token",        Component: PublicInvoicePage },
   // Public proposal view — no auth required; token enforced server-side (0071).
   { path: "/proposal/:token",       Component: PublicProposalPage },
+  // Public unsubscribe page — no auth required; calls unsubscribe_by_token RPC.
+  { path: "/unsubscribe/:token",    Component: UnsubscribePage },
   // Phase 3 admin portal — persistent shell (sidebar + Outlet), admin-gated.
   {
     Component: AdminShell,
@@ -83,6 +87,7 @@ export const routeConfig = [
       { path: "/portal/admin/discovery",   Component: DiscoveryPlaceholder },
       // Phase 5 (Task 6): review_campaigns management with visibility + status.
       { path: "/portal/admin/campaigns",   Component: CampaignsAdmin },
+      { path: "/portal/admin/outreach",    Component: OutreachAdmin },
       { path: "/portal/admin/sketches",    Component: AdminSketchUpload },
     ],
   },
