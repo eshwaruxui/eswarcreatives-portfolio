@@ -144,6 +144,14 @@ export function LeadDrawer({
     setStartDate(new Date().toISOString().split('T')[0])
   }, [leadId])
 
+  // Feature 3: pre-select LinkedIn Outreach sequence for linkedin_visitor leads
+  useEffect(() => {
+    if (lead?.source === 'linkedin_visitor' && sequences.length > 0 && !selectedSeq) {
+      const liSeq = sequences.find((s) => s.name === 'LinkedIn Outreach')
+      if (liSeq) setSelectedSeq(liSeq.id)
+    }
+  }, [lead?.source, sequences])
+
   // Bug 1 + 2: sync controlled obs state from loaded lead (specific_observation, not notes)
   useEffect(() => {
     if (lead) {

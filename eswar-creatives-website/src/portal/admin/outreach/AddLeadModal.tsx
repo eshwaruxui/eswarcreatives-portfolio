@@ -1,13 +1,16 @@
 // Add Lead modal. Checks for duplicate email on blur. All fields follow portal
 // field patterns. On success calls onSaved with the new lead id.
-import { useState } from 'react'
+// Feature 1: screenshot-to-lead upload zone at the top.
+// Feature 3: linkedin_visitor source option with warm-lead chip.
+import { useRef, useState } from 'react'
+import { X, Upload } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts } from '../../theme'
 import { Modal, mono } from '../ui'
 
 type Segment = 'security_ai' | 'saas_product'
-type Source = 'manual' | 'csv' | 'apollo' | 'linkedin' | 'referral'
+type Source = 'manual' | 'csv' | 'apollo' | 'linkedin' | 'referral' | 'linkedin_visitor'
 
 type FormState = {
   first_name: string
@@ -37,6 +40,8 @@ const EMPTY: FormState = {
   notes: '',
 }
 
+const MAX_CLIENT_BYTES = 4 * 1024 * 1024 // 4MB client-side guard
+
 export function AddLeadModal({
   onClose,
   onSaved,
@@ -48,6 +53,13 @@ export function AddLeadModal({
   const [dupWarning, setDupWarning] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Feature 1: screenshot upload state
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [screenshot, setScreenshot] = useState<{ preview: string; base64: string; mediaType: string } | null>(null)
+  const [extracting, setExtracting] = useState(false)
+  const [extractBanner, setExtractBanner] = useState<'success' | 'error' | 'size_error' | null>(null)
+  const [screenshotError, setScreenshotError] = useState<string | null>(null)
 
   function set(field: keyof FormState, value: string) {
     setForm((f) => ({ ...f, [field]: value }))
@@ -65,6 +77,69 @@ export function AddLeadModal({
       setDupWarning(data.id)
     } else {
       setDupWarning(null)
+    }
+  }
+
+  function handleFileSelect(file: File) {
+    setScreenshotError(null)
+    setExtractBanner(null)
+    if (file.size > MAX_CLIENT_BYTES) {
+      setScreenshotError('Image too large. Please use a screenshot under 4MB.')
+      return
+    }
+    const allowed = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowed.includes(file.type)) {
+      setScreenshotError('Unsupported format. Please use jpg, png, or webp.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string
+      const base64 = dataUrl.split(',')[1]
+      setScreenshot({ preview: dataUrl, base64, mediaType: file.type })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function handleExtract() {
+    if (!screenshot) return
+    setExtracting(true)
+    setExtractBanner(null)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token ?? ''
+      const { data, error: fnErr } = await supabase.functions.invoke('extract-lead-from-image', {
+        body: { image_base64: screenshot.base64, media_type: screenshot.mediaType },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
+      if (fnErr || !data || data.error) {
+        setExtractBanner('error')
+      } else {
+        const d = data.data as {
+          first_name?: string | null
+          last_name?: string | null
+          email?: string | null
+          linkedin_url?: string | null
+          company?: string | null
+          role_title?: string | null
+          country?: string | null
+        }
+        setForm((f) => ({
+          ...f,
+          first_name: d.first_name ?? f.first_name,
+          last_name: d.last_name ?? f.last_name,
+          email: d.email ?? f.email,
+          linkedin_url: d.linkedin_url ?? f.linkedin_url,
+          company: d.company ?? f.company,
+          role_title: d.role_title ?? f.role_title,
+          country: d.country ?? f.country,
+        }))
+        setExtractBanner('success')
+      }
+    } catch {
+      setExtractBanner('error')
+    } finally {
+      setExtracting(false)
     }
   }
 
@@ -99,15 +174,93 @@ export function AddLeadModal({
     onSaved(data.id)
   }
 
+  const fieldsDisabled = extracting
+
   return (
     <Modal title="Add lead" onClose={onClose} size="lg">
       <div style={styles.body}>
-        <div style={styles.grid}>
+        {/* Feature 1: Screenshot upload zone */}
+        <div style={styles.screenshotZone}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) handleFileSelect(file)
+            }}
+          />
+          {!screenshot ? (
+            <button
+              type="button"
+              style={styles.uploadBtn}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload size={16} color={t.text.muted} />
+              <span style={styles.uploadLabel}>Upload screenshot to extract details</span>
+              <span style={styles.uploadHint}>jpg, png, webp, max 4MB</span>
+            </button>
+          ) : (
+            <div style={styles.screenshotPreview}>
+              <img
+                src={screenshot.preview}
+                alt="Screenshot preview"
+                style={styles.previewImg}
+              />
+              <div style={styles.screenshotActions}>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.extractBtn,
+                    opacity: extracting ? 0.7 : 1,
+                    cursor: extracting ? 'default' : 'pointer',
+                  }}
+                  onClick={handleExtract}
+                  disabled={extracting}
+                >
+                  {extracting ? 'Extracting...' : 'Extract details'}
+                </button>
+                <button
+                  type="button"
+                  style={styles.clearBtn}
+                  onClick={() => {
+                    setScreenshot(null)
+                    setExtractBanner(null)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {screenshotError && (
+            <p style={styles.screenshotErr}>{screenshotError}</p>
+          )}
+
+          {extractBanner === 'success' && (
+            <div style={styles.extractSuccess}>
+              <span style={{ flex: 1 }}>Details extracted. Please review before saving.</span>
+              <button type="button" style={styles.bannerClose} onClick={() => setExtractBanner(null)}>
+                <X size={13} />
+              </button>
+            </div>
+          )}
+          {extractBanner === 'error' && (
+            <p style={styles.extractError}>
+              Could not read this image. Please fill in the details manually.
+            </p>
+          )}
+        </div>
+
+        <div style={{ ...styles.grid, opacity: fieldsDisabled ? 0.5 : 1, pointerEvents: fieldsDisabled ? 'none' : undefined }}>
           <Field label="First name *">
-            <input style={styles.input} value={form.first_name} onChange={(e) => set('first_name', e.target.value)} placeholder="Jane" />
+            <input style={styles.input} value={form.first_name} onChange={(e) => set('first_name', e.target.value)} placeholder="Jane" disabled={fieldsDisabled} />
           </Field>
           <Field label="Last name">
-            <input style={styles.input} value={form.last_name} onChange={(e) => set('last_name', e.target.value)} placeholder="Smith" />
+            <input style={styles.input} value={form.last_name} onChange={(e) => set('last_name', e.target.value)} placeholder="Smith" disabled={fieldsDisabled} />
           </Field>
           <Field label="Email">
             <input
@@ -117,6 +270,7 @@ export function AddLeadModal({
               onChange={(e) => { set('email', e.target.value); setDupWarning(null) }}
               onBlur={checkDuplicate}
               placeholder="jane@example.com"
+              disabled={fieldsDisabled}
             />
             {dupWarning && (
               <span style={styles.dupWarn}>
@@ -128,16 +282,16 @@ export function AddLeadModal({
             )}
           </Field>
           <Field label="LinkedIn URL">
-            <input style={styles.input} value={form.linkedin_url} onChange={(e) => set('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/..." />
+            <input style={styles.input} value={form.linkedin_url} onChange={(e) => set('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/..." disabled={fieldsDisabled} />
           </Field>
           <Field label="Company *" fullWidth>
-            <input style={styles.input} value={form.company} onChange={(e) => set('company', e.target.value)} placeholder="Acme Corp" />
+            <input style={styles.input} value={form.company} onChange={(e) => set('company', e.target.value)} placeholder="Acme Corp" disabled={fieldsDisabled} />
           </Field>
           <Field label="Role title">
-            <input style={styles.input} value={form.role_title} onChange={(e) => set('role_title', e.target.value)} placeholder="Head of Product" />
+            <input style={styles.input} value={form.role_title} onChange={(e) => set('role_title', e.target.value)} placeholder="Head of Product" disabled={fieldsDisabled} />
           </Field>
           <Field label="Website">
-            <input style={styles.input} value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="https://..." />
+            <input style={styles.input} value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="https://..." disabled={fieldsDisabled} />
           </Field>
           <Field label="Segment *" fullWidth>
             <div style={styles.radioGroup}>
@@ -149,6 +303,7 @@ export function AddLeadModal({
                     value={seg}
                     checked={form.segment === seg}
                     onChange={() => set('segment', seg)}
+                    disabled={fieldsDisabled}
                   />
                   {seg === 'security_ai' ? 'Security / AI' : 'SaaS Product'}
                 </label>
@@ -156,19 +311,26 @@ export function AddLeadModal({
             </div>
           </Field>
           <Field label="Source">
-            <select style={styles.select} value={form.source} onChange={(e) => set('source', e.target.value as Source)}>
+            <select style={styles.select} value={form.source} onChange={(e) => set('source', e.target.value as Source)} disabled={fieldsDisabled}>
               <option value="manual">Manual</option>
               <option value="csv">CSV import</option>
               <option value="apollo">Apollo</option>
               <option value="linkedin">LinkedIn</option>
               <option value="referral">Referral</option>
+              <option value="linkedin_visitor">LinkedIn Visitor</option>
             </select>
+            {/* Feature 3: warm lead chip for linkedin_visitor */}
+            {form.source === 'linkedin_visitor' && (
+              <span style={styles.warmChip}>
+                Warm lead. Visited your LinkedIn page.
+              </span>
+            )}
           </Field>
           <Field label="Country">
-            <input style={styles.input} value={form.country} onChange={(e) => set('country', e.target.value)} placeholder="United States" />
+            <input style={styles.input} value={form.country} onChange={(e) => set('country', e.target.value)} placeholder="United States" disabled={fieldsDisabled} />
           </Field>
           <Field label="Notes" fullWidth>
-            <textarea style={styles.textarea} value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} placeholder="Any context..." />
+            <textarea style={styles.textarea} value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} placeholder="Any context..." disabled={fieldsDisabled} />
           </Field>
         </div>
 
@@ -176,7 +338,7 @@ export function AddLeadModal({
 
         <div style={styles.footer}>
           <button type="button" style={styles.cancelBtn} onClick={onClose}>Cancel</button>
-          <button type="button" style={{ ...styles.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleSave} disabled={saving}>
+          <button type="button" style={{ ...styles.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleSave} disabled={saving || fieldsDisabled}>
             {saving ? 'Saving...' : 'Add lead'}
           </button>
         </div>
@@ -196,6 +358,111 @@ function Field({ label, children, fullWidth }: { label: string; children: React.
 
 const styles: Record<string, CSSProperties> = {
   body: { display: 'flex', flexDirection: 'column', gap: 20 },
+  screenshotZone: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  uploadBtn: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6,
+    width: '100%',
+    padding: '20px 16px',
+    background: t.background.subtle,
+    border: `1px dashed ${t.border.default}`,
+    borderRadius: 10,
+    cursor: 'pointer',
+  },
+  uploadLabel: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 500,
+    color: t.text.secondary,
+  },
+  uploadHint: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+  },
+  screenshotPreview: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  previewImg: {
+    maxHeight: 120,
+    maxWidth: 220,
+    objectFit: 'cover' as const,
+    borderRadius: 8,
+    border: `1px solid ${t.border.subtle}`,
+    flexShrink: 0,
+  },
+  screenshotActions: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  extractBtn: {
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 14px',
+  },
+  clearBtn: {
+    background: 'none',
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 6,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+    color: t.text.muted,
+  },
+  screenshotErr: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.ruby,
+    margin: 0,
+  },
+  extractSuccess: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: t.background.tint1,
+    border: `1px solid ${t.border.brand}`,
+    borderRadius: 8,
+    padding: '10px 12px',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.primaryBrand,
+  },
+  bannerClose: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 2,
+    color: t.text.muted,
+    display: 'flex',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  extractError: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.secondary,
+    background: t.background.subtle,
+    borderRadius: 8,
+    padding: '10px 12px',
+    margin: 0,
+  },
   grid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
@@ -246,6 +513,18 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     padding: '9px 12px',
     outline: 'none',
+  },
+  warmChip: {
+    display: 'inline-block',
+    marginTop: 6,
+    background: t.background.tint1,
+    border: `1px solid ${t.border.brand}`,
+    borderRadius: 6,
+    padding: '4px 10px',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.primaryBrand,
+    fontWeight: 500,
   },
   radioGroup: { display: 'flex', gap: 16 },
   radioLabel: {

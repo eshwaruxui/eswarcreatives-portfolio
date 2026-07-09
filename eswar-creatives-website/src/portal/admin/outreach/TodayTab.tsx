@@ -31,6 +31,13 @@ const CHANNEL_LABELS: Record<string, string> = {
   linkedin_dm: 'Send Message',
 }
 
+type MotionStats = {
+  emailsToday: number
+  liTodayCount: number
+  repliesWeek: number
+  callsWeek: number
+}
+
 export function TodayTab({
   onOpenLeadDrawer,
   onRefreshCount,
@@ -43,37 +50,74 @@ export function TodayTab({
   const [overdue, setOverdue] = useState<TouchRow[]>([])
   const [dueToday, setDueToday] = useState<TouchRow[]>([])
   const [activeTouch, setActiveTouch] = useState<TouchRow | null>(null)
+  const [motionStats, setMotionStats] = useState<MotionStats>({ emailsToday: 0, liTodayCount: 0, repliesWeek: 0, callsWeek: 0 })
   const today = todayStr()
 
   async function load() {
     setLoading(true)
     setError(null)
     try {
-      const { data, error: err } = await supabase
-        .from('outreach_touches')
-        .select(`
-          id, channel, status, scheduled_for,
-          subject_snapshot, body_snapshot, step_id,
-          lead:leads!lead_id (
-            id, first_name, last_name, company, email, linkedin_url,
-            specific_observation, unsubscribe_token, status, linkedin_status
-          ),
-          step:sequence_steps!step_id (
-            step_number, channel, subject_template, body_template, requires_connected
-          ),
-          enrollment:lead_enrollments!enrollment_id (
-            id, sequence:sequences!sequence_id (name)
-          )
-        `)
-        .eq('status', 'scheduled')
-        .lte('scheduled_for', today)
-        .order('scheduled_for', { ascending: true })
-        .order('created_at', { ascending: true })
+      const weekStart = new Date()
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay() + (weekStart.getDay() === 0 ? -6 : 1))
+      const weekStartStr = weekStart.toISOString().slice(0, 10)
 
-      if (err) throw err
-      const rows = (data ?? []) as TouchRow[]
+      const [queueRes, emailTodayRes, liTodayRes, repliesRes, callsRes] = await Promise.all([
+        supabase
+          .from('outreach_touches')
+          .select(`
+            id, channel, status, scheduled_for,
+            subject_snapshot, body_snapshot, step_id,
+            lead:leads!lead_id (
+              id, first_name, last_name, company, email, linkedin_url,
+              specific_observation, unsubscribe_token, status, linkedin_status
+            ),
+            step:sequence_steps!step_id (
+              step_number, channel, subject_template, body_template, requires_connected
+            ),
+            enrollment:lead_enrollments!enrollment_id (
+              id, sequence:sequences!sequence_id (name)
+            )
+          `)
+          .eq('status', 'scheduled')
+          .lte('scheduled_for', today)
+          .order('scheduled_for', { ascending: true })
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('outreach_touches')
+          .select('id', { count: 'exact', head: true })
+          .eq('channel', 'email')
+          .eq('status', 'sent')
+          .gte('sent_at', `${today}T00:00:00Z`)
+          .lte('sent_at', `${today}T23:59:59Z`),
+        supabase
+          .from('outreach_touches')
+          .select('id', { count: 'exact', head: true })
+          .in('channel', ['linkedin_connect', 'linkedin_dm'])
+          .eq('status', 'sent')
+          .gte('sent_at', `${today}T00:00:00Z`)
+          .lte('sent_at', `${today}T23:59:59Z`),
+        supabase
+          .from('leads')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'replied')
+          .gte('updated_at', `${weekStartStr}T00:00:00Z`),
+        supabase
+          .from('leads')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'meeting_booked')
+          .gte('updated_at', `${weekStartStr}T00:00:00Z`),
+      ])
+
+      if (queueRes.error) throw queueRes.error
+      const rows = (queueRes.data ?? []) as TouchRow[]
       setOverdue(rows.filter((r) => r.scheduled_for < today))
       setDueToday(rows.filter((r) => r.scheduled_for === today))
+      setMotionStats({
+        emailsToday: emailTodayRes.count ?? 0,
+        liTodayCount: liTodayRes.count ?? 0,
+        repliesWeek: repliesRes.count ?? 0,
+        callsWeek: callsRes.count ?? 0,
+      })
     } catch {
       setError('Could not load the queue. Refresh to try again.')
     } finally {
@@ -115,6 +159,8 @@ export function TodayTab({
 
       {error && <div style={styles.errorBanner}>{error}</div>}
 
+      {!loading && <MotionTracker stats={motionStats} />}
+
       {loading ? (
         <div style={styles.loadingText}>Loading queue...</div>
       ) : isEmpty ? (
@@ -146,6 +192,32 @@ export function TodayTab({
         </div>
       )}
     </>
+  )
+}
+
+const MOTION_STATS_CONFIG = [
+  { key: 'emailsToday' as const, label: 'Emails sent today', target: 5 },
+  { key: 'liTodayCount' as const, label: 'LI touches today', target: 5 },
+  { key: 'repliesWeek' as const, label: 'Replies this week', target: 3 },
+  { key: 'callsWeek' as const, label: 'Calls booked this week', target: 1 },
+]
+
+function MotionTracker({ stats }: { stats: MotionStats }) {
+  return (
+    <div style={styles.motionStrip}>
+      {MOTION_STATS_CONFIG.map(({ key, label, target }) => {
+        const value = stats[key]
+        const met = value >= target
+        return (
+          <div key={key} style={styles.motionStat}>
+            <span style={styles.motionLabel}>{label}</span>
+            <span style={{ ...styles.motionValue, color: met ? tokens.green : t.text.primary }}>
+              {value} / {target}
+            </span>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -402,6 +474,30 @@ function EmptyQueue() {
 }
 
 const styles: Record<string, CSSProperties> = {
+  motionStrip: {
+    display: 'flex',
+    gap: 24,
+    flexWrap: 'wrap',
+    background: t.background.subtle,
+    borderRadius: 8,
+    padding: '12px 16px',
+    marginBottom: 24,
+  },
+  motionStat: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+  },
+  motionLabel: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.muted,
+  },
+  motionValue: {
+    fontFamily: mono,
+    fontSize: 14,
+    fontWeight: 700,
+  },
   sections: { display: 'flex', flexDirection: 'column', gap: 32 },
   section: { display: 'flex', flexDirection: 'column', gap: 0 },
   sectionHeader: {

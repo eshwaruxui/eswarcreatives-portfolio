@@ -29,6 +29,7 @@ type Sequence = {
     active: number
     replied: number
     reply_rate: number
+    sent_count: number
   }
 }
 
@@ -42,6 +43,8 @@ export function SequencesTab() {
   const [stepDraft, setStepDraft] = useState<{ subject: string; body: string } | null>(null)
   const [savingStep, setSavingStep] = useState(false)
   const [saveWarningShown, setSaveWarningShown] = useState(false)
+  // Feature 4: dismissed diagnostic banners per sequence (component state only, resets on reload)
+  const [dismissedWarnings, setDismissedWarnings] = useState<Set<string>>(new Set())
 
   async function load() {
     setLoading(true)
@@ -54,33 +57,43 @@ export function SequencesTab() {
 
     const seqIds = seqs.map((s) => s.id)
 
-    const [stepsRes, enrollRes, touchRes] = await Promise.all([
-      supabase
-        .from('sequence_steps')
-        .select('*')
-        .in('sequence_id', seqIds)
-        .order('step_number'),
-      supabase
-        .from('lead_enrollments')
-        .select('id, sequence_id, status')
-        .in('sequence_id', seqIds),
-      supabase
+    // First get enrollments to know which enrollment IDs to query touches for
+    const enrollRes = await supabase
+      .from('lead_enrollments')
+      .select('id, sequence_id, status, lead_id')
+      .in('sequence_id', seqIds)
+
+    const allEnroll = (enrollRes.data ?? []) as { id: string; sequence_id: string; status: string; lead_id: string }[]
+    const allEnrollIds = allEnroll.map((e) => e.id)
+
+    const stepsRes = await supabase
+      .from('sequence_steps')
+      .select('*')
+      .in('sequence_id', seqIds)
+      .order('step_number')
+
+    let sentTouches: { id: string; lead_id: string; enrollment_id: string }[] = []
+    if (allEnrollIds.length > 0) {
+      const tRes = await supabase
         .from('outreach_touches')
         .select('id, lead_id, enrollment_id, status')
-        .in('enrollment_id', (await supabase
-          .from('lead_enrollments')
-          .select('id')
-          .in('sequence_id', seqIds)
-        ).data?.map((e) => e.id) ?? [])
-        .eq('status', 'sent'),
-    ])
+        .in('enrollment_id', allEnrollIds)
+        .eq('status', 'sent')
+      sentTouches = (tRes.data ?? []) as { id: string; lead_id: string; enrollment_id: string }[]
+    }
+
+    const uniqueLeadIds = [...new Set(allEnroll.map((e) => e.lead_id))]
+    let leadStatusMap = new Map<string, string>()
+    if (uniqueLeadIds.length > 0) {
+      const lRes = await supabase
+        .from('leads')
+        .select('id, status')
+        .in('id', uniqueLeadIds)
+      const lData = (lRes.data ?? []) as { id: string; status: string }[]
+      leadStatusMap = new Map(lData.map((l) => [l.id, l.status]))
+    }
 
     const allSteps = (stepsRes.data ?? []) as (Step & { sequence_id: string })[]
-    const allEnroll = (enrollRes.data ?? []) as { id: string; sequence_id: string; status: string }[]
-    const sentTouches = (touchRes.data ?? []) as { id: string; lead_id: string; enrollment_id: string }[]
-
-    // Build enrollment -> sequence_id map
-    const enrollSeqMap = new Map(allEnroll.map((e) => [e.id, e.sequence_id]))
 
     const enriched: Sequence[] = seqs.map((seq) => {
       const steps = allSteps.filter((s) => s.sequence_id === seq.id)
@@ -89,12 +102,12 @@ export function SequencesTab() {
       const active = seqEnroll.filter((e) => e.status === 'active').length
 
       const enrollIds = new Set(seqEnroll.map((e) => e.id))
-      const sentLeads = new Set(sentTouches.filter((t) => enrollIds.has(t.enrollment_id)).map((t) => t.lead_id))
+      const sentLeadIds = new Set(sentTouches.filter((touch) => enrollIds.has(touch.enrollment_id)).map((touch) => touch.lead_id))
+      const sentCount = sentLeadIds.size
 
-      // Reply rate approximation: leads replied / leads with sent touch
-      const repliedLeads = 0 // Would need lead.status join; keep 0 for now as approximation
-
-      const reply_rate = sentLeads.size > 0 ? Math.round((repliedLeads / sentLeads.size) * 100) : 0
+      // Feature 4: reply rate = leads enrolled in this sequence with status='replied' / leads with sent touch
+      const repliedCount = [...sentLeadIds].filter((id) => leadStatusMap.get(id) === 'replied').length
+      const reply_rate = sentCount > 0 ? repliedCount / sentCount : 0
 
       return {
         ...seq,
@@ -102,8 +115,9 @@ export function SequencesTab() {
         stats: {
           enrolled,
           active,
-          replied: repliedLeads,
+          replied: repliedCount,
           reply_rate,
+          sent_count: sentCount,
         },
       }
     })
@@ -154,6 +168,7 @@ export function SequencesTab() {
             stepDraft={stepDraft}
             savingStep={savingStep}
             saveWarningShown={saveWarningShown}
+            warningDismissed={dismissedWarnings.has(seq.id)}
             onToggleExpand={() => setExpanded((p) => p === seq.id ? null : seq.id)}
             onToggleActive={() => toggleActive(seq.id, seq.is_active)}
             onEditStep={handleEditStep}
@@ -161,6 +176,7 @@ export function SequencesTab() {
             onCancelEdit={() => { setEditingStep(null); setStepDraft(null) }}
             onStepDraftChange={(field, val) => setStepDraft((d) => d ? { ...d, [field]: val } : d)}
             onShowWarning={() => setSaveWarningShown(true)}
+            onDismissWarning={() => setDismissedWarnings((s) => new Set([...s, seq.id]))}
           />
         ))
       )}
@@ -175,6 +191,7 @@ function SequenceCard({
   stepDraft,
   savingStep,
   saveWarningShown,
+  warningDismissed,
   onToggleExpand,
   onToggleActive,
   onEditStep,
@@ -182,6 +199,7 @@ function SequenceCard({
   onCancelEdit,
   onStepDraftChange,
   onShowWarning,
+  onDismissWarning,
 }: {
   seq: Sequence
   isExpanded: boolean
@@ -189,6 +207,7 @@ function SequenceCard({
   stepDraft: { subject: string; body: string } | null
   savingStep: boolean
   saveWarningShown: boolean
+  warningDismissed: boolean
   onToggleExpand: () => void
   onToggleActive: () => void
   onEditStep: (s: Step) => void
@@ -196,7 +215,13 @@ function SequenceCard({
   onCancelEdit: () => void
   onStepDraftChange: (field: 'subject' | 'body', val: string) => void
   onShowWarning: () => void
+  onDismissWarning: () => void
 }) {
+  const { sent_count, reply_rate } = seq.stats
+  const ratePercent = Math.round(reply_rate * 100)
+  const showLowReplyWarning = sent_count >= 10 && reply_rate < 0.04 && !warningDismissed
+  const showStrongReply = sent_count >= 10 && reply_rate > 0.10
+
   return (
     <div style={styles.seqCard}>
       {/* Header */}
@@ -211,7 +236,16 @@ function SequenceCard({
           }}
         />
         <div style={styles.seqHeadInfo}>
-          <span style={styles.seqName}>{seq.name}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={styles.seqName}>{seq.name}</span>
+            {/* Feature 4: strong reply rate chip */}
+            {showStrongReply && (
+              <span style={styles.strongReplyChip}>
+                Strong reply rate. Consider scaling volume.{' '}
+                <span style={styles.strongReplyPct}>{ratePercent}%</span>
+              </span>
+            )}
+          </div>
           {seq.segment && (
             <span style={styles.seqSeg}>
               {seq.segment === 'security_ai' ? 'Security / AI' : 'SaaS Product'}
@@ -223,7 +257,7 @@ function SequenceCard({
           <Stat label="Enrolled" value={seq.stats.enrolled} />
           <Stat label="Active" value={seq.stats.active} />
           <Stat label="Replied" value={seq.stats.replied} />
-          <Stat label="Rate" value={`${seq.stats.reply_rate}%`} />
+          <Stat label="Rate" value={`${ratePercent}%`} />
         </div>
         {/* Active toggle */}
         <button
@@ -238,6 +272,22 @@ function SequenceCard({
           {seq.is_active ? 'Active' : 'Inactive'}
         </button>
       </div>
+
+      {/* Feature 4: low reply rate warning banner */}
+      {showLowReplyWarning && (
+        <div style={styles.lowReplyBanner}>
+          <span style={{ flex: 1 }}>
+            Reply rate below 4% after 10 or more sends. Consider rewriting the opening line before sending more.
+          </span>
+          <button
+            type="button"
+            style={styles.bannerDismiss}
+            onClick={(e) => { e.stopPropagation(); onDismissWarning() }}
+          >
+            X
+          </button>
+        </div>
+      )}
 
       {/* Step rail */}
       {isExpanded && (
@@ -512,5 +562,47 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     padding: '7px 12px',
     cursor: 'pointer',
+  },
+  // Feature 4: reply rate diagnostic styles
+  lowReplyBanner: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 10,
+    background: tokens.goldLight,
+    border: `1px solid ${tokens.gold}`,
+    borderLeft: `3px solid ${tokens.gold}`,
+    borderRadius: 8,
+    padding: '12px 14px',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.primary,
+    margin: '0 16px 12px',
+  },
+  bannerDismiss: {
+    background: 'none',
+    border: 'none',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.muted,
+    cursor: 'pointer',
+    flexShrink: 0,
+    padding: '0 4px',
+  },
+  strongReplyChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: tokens.greenLight,
+    color: tokens.green,
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 600,
+    borderRadius: 6,
+    padding: '3px 8px',
+  },
+  strongReplyPct: {
+    fontFamily: mono,
+    fontSize: 11,
+    fontWeight: 700,
   },
 }
