@@ -2,7 +2,7 @@
 // field patterns. On success calls onSaved with the new lead id.
 // Feature 1: screenshot-to-lead upload zone at the top.
 // Feature 3: linkedin_visitor source option with warm-lead chip.
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, Upload } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
@@ -60,6 +60,7 @@ export function AddLeadModal({
   const [extracting, setExtracting] = useState(false)
   const [extractBanner, setExtractBanner] = useState<'success' | 'error' | 'size_error' | null>(null)
   const [screenshotError, setScreenshotError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
 
   function set(field: keyof FormState, value: string) {
     setForm((f) => ({ ...f, [field]: value }))
@@ -143,6 +144,25 @@ export function AddLeadModal({
     }
   }
 
+  // Fix 3: paste from clipboard — keep ref fresh to avoid stale closure
+  const handleFileSelectRef = useRef(handleFileSelect)
+  handleFileSelectRef.current = handleFileSelect
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) handleFileSelectRef.current(file)
+          break
+        }
+      }
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [])
+
   async function handleSave() {
     if (!form.first_name.trim()) { setError('First name is required.'); return }
     if (!form.company.trim()) { setError('Company is required.'); return }
@@ -180,7 +200,20 @@ export function AddLeadModal({
     <Modal title="Add lead" onClose={onClose} size="lg">
       <div style={styles.body}>
         {/* Feature 1: Screenshot upload zone */}
-        <div style={styles.screenshotZone}>
+        <div
+          style={styles.screenshotZone}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragEnter={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false)
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragging(false)
+            const file = e.dataTransfer.files?.[0]
+            if (file) handleFileSelect(file)
+          }}
+        >
           <input
             ref={fileInputRef}
             type="file"
@@ -194,11 +227,19 @@ export function AddLeadModal({
           {!screenshot ? (
             <button
               type="button"
-              style={styles.uploadBtn}
+              style={{
+                ...styles.uploadBtn,
+                ...(dragging ? {
+                  borderColor: t.border.brand,
+                  background: t.background.tint1,
+                } : {}),
+              }}
               onClick={() => fileInputRef.current?.click()}
             >
-              <Upload size={16} color={t.text.muted} />
-              <span style={styles.uploadLabel}>Upload screenshot to extract details</span>
+              <Upload size={16} color={dragging ? t.border.brand : t.text.muted} />
+              <span style={styles.uploadLabel}>
+                {dragging ? 'Drop to upload' : 'Drop a screenshot here, paste with ⌘V, or click to upload'}
+              </span>
               <span style={styles.uploadHint}>jpg, png, webp, max 4MB</span>
             </button>
           ) : (

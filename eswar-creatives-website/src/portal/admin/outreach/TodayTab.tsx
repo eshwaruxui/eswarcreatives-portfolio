@@ -208,12 +208,23 @@ function MotionTracker({ stats }: { stats: MotionStats }) {
       {MOTION_STATS_CONFIG.map(({ key, label, target }) => {
         const value = stats[key]
         const met = value >= target
+        const fillPct = Math.min((value / target) * 100, 100)
         return (
           <div key={key} style={styles.motionStat}>
             <span style={styles.motionLabel}>{label}</span>
-            <span style={{ ...styles.motionValue, color: met ? tokens.green : t.text.primary }}>
-              {value} / {target}
-            </span>
+            <div style={styles.motionValueRow}>
+              <span style={{ ...styles.motionX, color: met ? tokens.green : t.text.primary }}>
+                {value}
+              </span>
+              <span style={styles.motionSlashY}> / {target}</span>
+            </div>
+            <div style={styles.motionProgressTrack}>
+              <div style={{
+                ...styles.motionProgressFill,
+                width: `${fillPct}%`,
+                background: met ? tokens.greenLight : t.background.tint2,
+              }} />
+            </div>
           </div>
         )
       })}
@@ -479,24 +490,53 @@ const styles: Record<string, CSSProperties> = {
     gap: 24,
     flexWrap: 'wrap',
     background: t.background.subtle,
+    border: `1px solid ${t.border.subtle}`,
     borderRadius: 8,
     padding: '12px 16px',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   motionStat: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 2,
+    gap: 4,
+    minWidth: 80,
   },
   motionLabel: {
     fontFamily: fonts.body,
-    fontSize: 12,
-    color: t.text.muted,
+    fontSize: 11,
+    color: t.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
   },
-  motionValue: {
+  motionValueRow: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: 0,
+  },
+  motionX: {
     fontFamily: mono,
-    fontSize: 14,
-    fontWeight: 700,
+    fontSize: 20,
+    fontWeight: 600,
+    lineHeight: 1,
+  },
+  motionSlashY: {
+    fontFamily: mono,
+    fontSize: 16,
+    fontWeight: 400,
+    color: t.text.muted,
+    lineHeight: 1,
+  },
+  motionProgressTrack: {
+    height: 4,
+    borderRadius: 2,
+    background: t.border.subtle,
+    overflow: 'hidden',
+    marginTop: 2,
+  },
+  motionProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+    transition: 'width 0.3s ease',
   },
   sections: { display: 'flex', flexDirection: 'column', gap: 32 },
   section: { display: 'flex', flexDirection: 'column', gap: 0 },
