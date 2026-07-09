@@ -111,6 +111,7 @@ export function LeadsTab({
   const [showAdd, setShowAdd] = useState(false)
   const [showCsv, setShowCsv] = useState(false)
   const [openLeadId, setOpenLeadId] = useState<string | null>(initialOpenLeadId)
+  const [toast, setToast] = useState<string | null>(null)
   const initialHandled = useRef(false)
 
   useEffect(() => {
@@ -207,7 +208,17 @@ export function LeadsTab({
         <LeadDrawer
           leadId={openLeadId}
           onClose={handleDrawerClose}
+          onDeleted={() => {
+            setLeads((prev) => prev.filter((l) => l.id !== openLeadId))
+            setOpenLeadId(null)
+            onDrawerClosed()
+            setToast('Lead deleted')
+            setTimeout(() => setToast(null), 2500)
+          }}
         />
+      )}
+      {toast && (
+        <div style={styles.toast}>{toast}</div>
       )}
 
       {/* Toolbar */}
@@ -525,5 +536,21 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: mono,
     fontSize: 11,
     color: t.text.muted,
+  },
+  toast: {
+    position: 'fixed',
+    bottom: 24,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    background: tokens.primary,
+    color: '#fff',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 500,
+    borderRadius: 8,
+    padding: '10px 20px',
+    zIndex: 9999,
+    pointerEvents: 'none' as const,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
   },
 }

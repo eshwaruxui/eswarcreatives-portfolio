@@ -1,7 +1,7 @@
 // Lead drawer: full lead detail, editable fields, enrollment, timeline, convert to client.
 // SidePanel on desktop, full-screen bottom sheet on mobile (handled by SidePanel itself).
-import { useEffect, useState } from 'react'
-import { ExternalLink, Clock, Mail, Linkedin } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ExternalLink, Clock, Mail, Linkedin, X, Reply } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
@@ -18,6 +18,8 @@ export type LeadDetail = {
   first_name: string
   last_name: string | null
   email: string | null
+  phone_business: string | null
+  phone_personal: string | null
   linkedin_url: string | null
   company: string
   role_title: string | null
@@ -51,9 +53,19 @@ type TouchTimelineRow = {
   bounced_at: string | null
   skipped_reason: string | null
   subject_snapshot: string | null
-  step: { step_number: number } | null
+  step: { step_number: number; day_offset: number | null } | null
   enrollment: { sequence: { name: string } | null } | null
 }
+
+type ReplyMessageRow = {
+  id: string
+  body: string
+  logged_at: string
+}
+
+type TimelineItem =
+  | { kind: 'touch'; data: TouchTimelineRow }
+  | { kind: 'reply'; data: ReplyMessageRow }
 
 type SequenceRow = {
   id: string
@@ -112,18 +124,28 @@ function SegmentChip({ segment }: { segment: string }) {
   )
 }
 
+function intentLabel(dayOffset: number | null): string {
+  if (dayOffset === null) return 'Touch'
+  if (dayOffset === 0) return 'First touch'
+  if (dayOffset >= 5) return 'Value drop'
+  return 'Follow-up'
+}
+
 export function LeadDrawer({
   leadId,
   onClose,
   onConverted,
+  onDeleted,
 }: {
   leadId: string
   onClose: () => void
   onConverted?: (clientId: string) => void
+  onDeleted?: () => void
 }) {
   const [lead, setLead] = useState<LeadDetail | null>(null)
   const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([])
   const [timeline, setTimeline] = useState<TouchTimelineRow[]>([])
+  const [replies, setReplies] = useState<ReplyMessageRow[]>([])
   const [sequences, setSequences] = useState<SequenceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -134,17 +156,29 @@ export function LeadDrawer({
   const [enrollError, setEnrollError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<string | null>(null)
   const [convertOpen, setConvertOpen] = useState(false)
-  // Bug 1 + 2: controlled obs state — explicitly maps to specific_observation (not notes)
   const [obsValue, setObsValue] = useState('')
   const [obsSavedValue, setObsSavedValue] = useState('')
   const [obsSaveState, setObsSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
 
-  // Bug 3: reset start date to today whenever a new lead is opened
+  // Delete lead state
+  const [deleteDialog, setDeleteDialog] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  // Cancel enrollment state
+  const [cancelEnrollId, setCancelEnrollId] = useState<string | null>(null)
+  const [cancelEnrollName, setCancelEnrollName] = useState('')
+  const [cancelling, setCancelling] = useState(false)
+
+  // Reply state
+  const [replyOpen, setReplyOpen] = useState(false)
+  const [replyBody, setReplyBody] = useState('')
+  const [replySaving, setReplySaving] = useState(false)
+
   useEffect(() => {
     setStartDate(new Date().toISOString().split('T')[0])
   }, [leadId])
 
-  // Feature 3: pre-select LinkedIn Outreach sequence for linkedin_visitor leads
   useEffect(() => {
     if (lead?.source === 'linkedin_visitor' && sequences.length > 0 && !selectedSeq) {
       const liSeq = sequences.find((s) => s.name === 'LinkedIn Outreach')
@@ -152,7 +186,6 @@ export function LeadDrawer({
     }
   }, [lead?.source, sequences])
 
-  // Bug 1 + 2: sync controlled obs state from loaded lead (specific_observation, not notes)
   useEffect(() => {
     if (lead) {
       const obs = lead.specific_observation ?? ''
@@ -163,7 +196,7 @@ export function LeadDrawer({
 
   async function load() {
     setLoading(true)
-    const [leadRes, enrollRes, touchRes, seqRes] = await Promise.all([
+    const [leadRes, enrollRes, touchRes, seqRes, replyRes] = await Promise.all([
       supabase.from('leads').select('*').eq('id', leadId).single(),
       supabase.from('lead_enrollments').select(`
         id, sequence_id, status, started_at,
@@ -171,15 +204,17 @@ export function LeadDrawer({
       `).eq('lead_id', leadId).order('started_at', { ascending: false }),
       supabase.from('outreach_touches').select(`
         id, channel, status, scheduled_for, sent_at, opened_at, bounced_at, skipped_reason, subject_snapshot,
-        step:sequence_steps!step_id (step_number),
+        step:sequence_steps!step_id (step_number, day_offset),
         enrollment:lead_enrollments!enrollment_id (sequence:sequences!sequence_id (name))
       `).eq('lead_id', leadId).order('scheduled_for', { ascending: false }).limit(50),
       supabase.from('sequences').select('id, name, segment, is_active').eq('is_active', true).order('name'),
+      supabase.from('reply_messages').select('id, body, logged_at').eq('lead_id', leadId).order('logged_at', { ascending: false }),
     ])
     setLead(leadRes.data as LeadDetail)
     setEnrollments((enrollRes.data ?? []) as EnrollmentRow[])
     setTimeline((touchRes.data ?? []) as TouchTimelineRow[])
     setSequences((seqRes.data ?? []) as SequenceRow[])
+    setReplies((replyRes.data ?? []) as ReplyMessageRow[])
     setLoading(false)
   }
 
@@ -193,7 +228,6 @@ export function LeadDrawer({
     setSaving(false)
   }
 
-  // Bug 1: explicit save for specific_observation; enroll validation reads lead state after this
   async function saveObservation() {
     if (!lead) return
     setObsSaveState('saving')
@@ -237,7 +271,75 @@ export function LeadDrawer({
     setConfirmDialog(null)
   }
 
+  async function handleDeleteLead() {
+    if (!lead) return
+    setDeleting(true)
+    setDeleteError(null)
+    // Guard: block delete if any touch was sent
+    const { count } = await supabase
+      .from('outreach_touches')
+      .select('id', { count: 'exact', head: true })
+      .eq('lead_id', lead.id)
+      .eq('status', 'sent')
+    if ((count ?? 0) > 0) {
+      setDeleteError('This lead has sent emails and cannot be deleted. Archive instead.')
+      setDeleting(false)
+      return
+    }
+    await supabase.from('leads').delete().eq('id', lead.id)
+    setDeleting(false)
+    setDeleteDialog(false)
+    onDeleted?.()
+  }
+
+  async function handleCancelEnrollment(enrollmentId: string) {
+    setCancelling(true)
+    // Cancel scheduled touches for this enrollment
+    await supabase
+      .from('outreach_touches')
+      .update({ status: 'cancelled', skipped_reason: 'enrollment_cancelled' })
+      .eq('enrollment_id', enrollmentId)
+      .eq('status', 'scheduled')
+    // Set enrollment status to cancelled
+    await supabase
+      .from('lead_enrollments')
+      .update({ status: 'cancelled', completed_at: new Date().toISOString() } as Record<string, unknown>)
+      .eq('id', enrollmentId)
+    setCancelling(false)
+    setCancelEnrollId(null)
+    await load()
+  }
+
+  async function handleLogReply() {
+    if (!lead || !replyBody.trim()) return
+    setReplySaving(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    await supabase.from('reply_messages').insert({
+      lead_id: lead.id,
+      body: replyBody.trim(),
+      logged_by: session?.user?.id ?? null,
+    })
+    // Auto-set lead status to 'replied' after first reply
+    if (lead.status !== 'replied') {
+      await supabase.rpc('mark_lead_replied', { p_lead_id: lead.id })
+    }
+    setReplyBody('')
+    setReplyOpen(false)
+    setReplySaving(false)
+    await load()
+  }
+
   const activeEnrollments = enrollments.filter((e) => e.status === 'active')
+
+  // Build combined timeline (touches + replies) sorted by date DESC
+  const combinedTimeline: TimelineItem[] = [
+    ...timeline.map((t): TimelineItem => ({ kind: 'touch', data: t })),
+    ...replies.map((r): TimelineItem => ({ kind: 'reply', data: r })),
+  ].sort((a, b) => {
+    const dateA = a.kind === 'touch' ? a.data.scheduled_for : a.data.logged_at
+    const dateB = b.kind === 'touch' ? b.data.scheduled_for : b.data.logged_at
+    return dateB.localeCompare(dateA)
+  })
 
   if (loading || !lead) {
     return (
@@ -246,6 +348,11 @@ export function LeadDrawer({
       </SidePanel>
     )
   }
+
+  // Double enrollment guard: active enrollment in a DIFFERENT sequence
+  const activeInOther = selectedSeq
+    ? activeEnrollments.find((e) => e.sequence_id !== selectedSeq)
+    : null
 
   return (
     <SidePanel
@@ -274,6 +381,12 @@ export function LeadDrawer({
           <FieldRow label="Email">
             <EditableInput value={lead.email ?? ''} onSave={(v) => saveLead({ email: v || null })} type="email" />
           </FieldRow>
+          <FieldRow label="Business phone">
+            <EditableInput value={lead.phone_business ?? ''} onSave={(v) => saveLead({ phone_business: v || null })} />
+          </FieldRow>
+          <FieldRow label="Personal phone">
+            <EditableInput value={lead.phone_personal ?? ''} onSave={(v) => saveLead({ phone_personal: v || null })} />
+          </FieldRow>
           <FieldRow label="LinkedIn URL">
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <EditableInput value={lead.linkedin_url ?? ''} onSave={(v) => saveLead({ linkedin_url: v || null })} />
@@ -298,7 +411,7 @@ export function LeadDrawer({
           </FieldRow>
         </Section>
 
-        {/* Personalized observation — Bug 1: explicit save button; Bug 2: bound to specific_observation */}
+        {/* Personalized observation */}
         <div style={styles.obsCard}>
           <span style={styles.obsLabel}>Personalized observation</span>
           <span style={styles.obsHelper}>Written fresh for this lead. All email sends are blocked without it.</span>
@@ -360,6 +473,50 @@ export function LeadDrawer({
 
         {/* Enroll section */}
         <Section title="Enroll in sequence">
+          {/* Active enrollments with cancel button */}
+          {activeEnrollments.length > 0 && (
+            <div style={styles.activeEnrollList}>
+              {activeEnrollments.map((enr) => (
+                <div key={enr.id} style={styles.activeEnrollRow}>
+                  <span style={styles.activeEnrollName}>{enr.sequence?.name ?? 'Sequence'}</span>
+                  <button
+                    type="button"
+                    style={styles.cancelEnrollBtn}
+                    title="Cancel enrollment"
+                    onClick={() => {
+                      setCancelEnrollId(enr.id)
+                      setCancelEnrollName(enr.sequence?.name ?? 'this sequence')
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Cancel enrollment confirmation */}
+          {cancelEnrollId && (
+            <div style={styles.confirmCard}>
+              <p style={styles.confirmText}>
+                Cancel <strong>{cancelEnrollName}</strong> enrollment? Remaining scheduled touches will be cancelled.
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  style={{ ...styles.primaryBtn, opacity: cancelling ? 0.6 : 1 }}
+                  onClick={() => handleCancelEnrollment(cancelEnrollId)}
+                  disabled={cancelling}
+                >
+                  {cancelling ? 'Cancelling...' : 'Yes, cancel'}
+                </button>
+                <button type="button" style={styles.outlineBtn} onClick={() => setCancelEnrollId(null)}>
+                  Keep
+                </button>
+              </div>
+            </div>
+          )}
+
           <div style={styles.enrollRow}>
             <select
               style={{ ...styles.select, flex: 1 }}
@@ -386,6 +543,14 @@ export function LeadDrawer({
             const alreadyActive = activeEnrollments.some((e) => e.sequence_id === selectedSeq)
             if (alreadyActive) {
               return <p style={styles.enrollNote}>Already enrolled. See timeline below.</p>
+            }
+            // Double enrollment guard: active enrollment in a different sequence
+            if (activeInOther) {
+              return (
+                <p style={styles.warnNote}>
+                  Already enrolled in <strong>{activeInOther.sequence?.name ?? 'another sequence'}</strong>. Cancel it first or choose the same sequence.
+                </p>
+              )
             }
             const mismatch = seq?.segment && seq.segment !== lead.segment
             return (
@@ -446,11 +611,6 @@ export function LeadDrawer({
                 Archive
               </button>
             )}
-            {lead.status === 'archived' && (
-              <p style={{ fontFamily: fonts.body, fontSize: 12, color: t.text.muted, margin: 0 }}>
-                Archived. Data preserved. Cannot be deleted if touches were sent.
-              </p>
-            )}
           </div>
           {confirmDialog === 'replied' && (
             <div style={styles.confirmCard}>
@@ -465,20 +625,92 @@ export function LeadDrawer({
               </div>
             </div>
           )}
+
+          {/* Delete lead */}
+          <button
+            type="button"
+            style={styles.destructiveGhostBtn}
+            onClick={() => { setDeleteDialog(true); setDeleteError(null) }}
+          >
+            Delete lead
+          </button>
+          {deleteDialog && (
+            <div style={styles.deleteCard}>
+              <p style={styles.deleteText}>
+                Delete <strong>{lead.first_name}</strong>? This cannot be undone.
+              </p>
+              {deleteError && <p style={styles.deleteErrorText}>{deleteError}</p>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  style={{ ...styles.rubyBtn, opacity: deleting ? 0.6 : 1 }}
+                  onClick={handleDeleteLead}
+                  disabled={deleting}
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </button>
+                <button type="button" style={styles.outlineBtn} onClick={() => { setDeleteDialog(false); setDeleteError(null) }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </Section>
 
         {/* Timeline */}
         <Section title="Timeline">
-          {timeline.length === 0 ? (
+          {combinedTimeline.length === 0 ? (
             <p style={styles.mutedText}>No activity yet. Enroll in a sequence to get started.</p>
           ) : (
             <div style={styles.timeline}>
-              {timeline.map((touch) => (
-                <TimelineEntry key={touch.id} touch={touch} />
-              ))}
+              {combinedTimeline.map((item) =>
+                item.kind === 'touch' ? (
+                  <TimelineEntry key={item.data.id} touch={item.data} />
+                ) : (
+                  <ReplyEntry key={item.data.id} reply={item.data} />
+                )
+              )}
             </div>
           )}
         </Section>
+
+        {/* Log reply */}
+        {lead.status !== 'replied' && (
+          <Section title="Log a reply">
+            {!replyOpen ? (
+              <button
+                type="button"
+                style={styles.ghostBtn}
+                onClick={() => setReplyOpen(true)}
+              >
+                + Log a reply from this lead
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <textarea
+                  style={styles.textarea}
+                  rows={3}
+                  placeholder="Paste or summarize the reply..."
+                  value={replyBody}
+                  onChange={(e) => setReplyBody(e.target.value)}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    style={{ ...styles.primaryBtn, opacity: (replySaving || !replyBody.trim()) ? 0.5 : 1 }}
+                    onClick={handleLogReply}
+                    disabled={replySaving || !replyBody.trim()}
+                  >
+                    {replySaving ? 'Saving...' : 'Save reply'}
+                  </button>
+                  <button type="button" style={styles.outlineBtn} onClick={() => { setReplyOpen(false); setReplyBody('') }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </Section>
+        )}
 
         {/* Convert to client modal */}
         {convertOpen && (
@@ -490,7 +722,6 @@ export function LeadDrawer({
                 .from('leads')
                 .update({ converted_client_id: clientId, status: 'converted' })
                 .eq('id', lead.id)
-              // Cancel remaining scheduled touches
               await supabase
                 .from('outreach_touches')
                 .update({ status: 'cancelled', skipped_reason: 'lead_converted' })
@@ -548,34 +779,70 @@ function EditableInput({
 
 function TimelineEntry({ touch }: { touch: TouchTimelineRow }) {
   const seqName = touch.enrollment?.sequence?.name ?? 'Sequence'
-  const stepNum = touch.step?.step_number ?? '?'
   const isEmail = touch.channel === 'email'
+  const isCancelled = touch.status === 'cancelled'
+  const label = intentLabel(touch.step?.day_offset ?? null)
+
+  const badgeBg =
+    touch.status === 'sent' ? tokens.greenLight :
+    touch.status === 'failed' ? tokens.rubyLight :
+    isCancelled ? t.background.muted :
+    t.background.muted
+
+  const badgeFg =
+    touch.status === 'sent' ? tokens.green :
+    touch.status === 'failed' ? tokens.ruby :
+    isCancelled ? t.text.disabled :
+    t.text.muted
 
   return (
-    <div style={styles.timelineEntry}>
+    <div style={{
+      ...styles.timelineEntry,
+      opacity: isCancelled ? 0.6 : 1,
+    }}>
       <div style={styles.timelineIcon}>
-        {isEmail ? <Mail size={13} color={t.text.muted} /> : <Linkedin size={13} color={t.text.muted} />}
+        {isEmail ? <Mail size={13} color={isCancelled ? t.text.disabled : t.text.muted} /> : <Linkedin size={13} color={isCancelled ? t.text.disabled : t.text.muted} />}
       </div>
       <div style={styles.timelineContent}>
-        <span style={styles.timelineLabel}>
-          {seqName} Step {stepNum} — {touch.channel.replace('_', ' ')}
+        <span style={{
+          ...styles.timelineLabel,
+          textDecoration: isCancelled ? 'line-through' : 'none',
+          color: isCancelled ? t.text.muted : t.text.primary,
+        }}>
+          {label}
         </span>
+        <span style={styles.timelineSeq}>{seqName}</span>
         <span style={styles.timelineMeta}>
           {touch.status === 'sent' && touch.sent_at ? `Sent ${formatDate(touch.sent_at)}` : null}
           {touch.status === 'skipped' ? `Skipped: ${touch.skipped_reason ?? 'manually'}` : null}
           {touch.status === 'scheduled' ? `Due ${formatDate(touch.scheduled_for)}` : null}
-          {touch.status === 'cancelled' ? `Cancelled${touch.skipped_reason ? ': ' + touch.skipped_reason : ''}` : null}
+          {isCancelled ? `Cancelled${touch.skipped_reason ? ': ' + touch.skipped_reason.replace(/_/g, ' ') : ''}` : null}
           {touch.status === 'failed' ? 'Failed to send' : null}
           {touch.opened_at ? ' · Opened' : null}
           {touch.bounced_at ? ' · Bounced' : null}
         </span>
       </div>
-      <span style={{
-        ...styles.timelineBadge,
-        background: touch.status === 'sent' ? tokens.greenLight : touch.status === 'failed' ? tokens.rubyLight : t.background.muted,
-        color: touch.status === 'sent' ? tokens.green : touch.status === 'failed' ? tokens.ruby : t.text.muted,
-      }}>
+      <span style={{ ...styles.timelineBadge, background: badgeBg, color: badgeFg }}>
         {touch.status}
+      </span>
+    </div>
+  )
+}
+
+function ReplyEntry({ reply }: { reply: ReplyMessageRow }) {
+  const preview = reply.body.length > 100 ? reply.body.slice(0, 100) + '…' : reply.body
+  return (
+    <div style={styles.timelineEntry}>
+      <div style={styles.timelineIcon}>
+        <Reply size={13} color={tokens.green} />
+      </div>
+      <div style={styles.timelineContent}>
+        <span style={{ ...styles.timelineLabel, color: tokens.green }}>Reply logged</span>
+        <span style={styles.timelineMeta}>{preview}</span>
+        <span style={{ ...styles.timelineMeta, marginTop: 2 }}>{formatDate(reply.logged_at)}</span>
+      </div>
+      <span style={{ ...styles.timelineBadge, background: tokens.greenLight, color: tokens.green }}>
+        reply
       </span>
     </div>
   )
@@ -672,7 +939,7 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 12,
     color: t.text.muted,
-    width: 100,
+    width: 110,
     flexShrink: 0,
   },
   inlineInput: {
@@ -732,6 +999,38 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     color: t.text.tertiary,
   },
+  activeEnrollList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 6,
+    marginBottom: 4,
+  },
+  activeEnrollRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: tokens.tealLight,
+    borderRadius: 8,
+    padding: '7px 10px',
+  },
+  activeEnrollName: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: tokens.primary,
+    fontWeight: 500,
+  },
+  cancelEnrollBtn: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 4,
+    color: t.text.muted,
+    display: 'flex',
+    alignItems: 'center',
+    borderRadius: 4,
+    flexShrink: 0,
+  },
   enrollRow: { display: 'flex', gap: 8 },
   dateInput: {
     fontFamily: mono,
@@ -778,6 +1077,28 @@ const styles: Record<string, CSSProperties> = {
     textDecoration: 'underline',
     padding: '4px 0',
   },
+  destructiveGhostBtn: {
+    background: 'none',
+    border: 'none',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: tokens.ruby,
+    cursor: 'pointer',
+    textDecoration: 'underline',
+    padding: '4px 0',
+    marginTop: 4,
+  },
+  rubyBtn: {
+    background: tokens.ruby,
+    color: '#fff',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+  },
   confirmCard: {
     background: tokens.rubyLight,
     border: `1px solid ${t.border.danger}`,
@@ -788,6 +1109,17 @@ const styles: Record<string, CSSProperties> = {
     gap: 10,
   },
   confirmText: { fontFamily: fonts.body, fontSize: 13, color: tokens.ruby, margin: 0 },
+  deleteCard: {
+    background: tokens.rubyLight,
+    border: `1px solid ${t.border.danger}`,
+    borderRadius: 8,
+    padding: '12px 14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+  },
+  deleteText: { fontFamily: fonts.body, fontSize: 13, color: tokens.ruby, margin: 0 },
+  deleteErrorText: { fontFamily: fonts.body, fontSize: 12, color: tokens.ruby, margin: 0, fontWeight: 500 },
   timeline: { display: 'flex', flexDirection: 'column', gap: 0 },
   timelineEntry: {
     display: 'flex',
@@ -799,6 +1131,7 @@ const styles: Record<string, CSSProperties> = {
   timelineIcon: { flexShrink: 0, marginTop: 2 },
   timelineContent: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   timelineLabel: { fontFamily: fonts.body, fontSize: 13, color: t.text.primary },
+  timelineSeq: { fontFamily: fonts.body, fontSize: 11, color: t.text.muted },
   timelineMeta: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted },
   timelineBadge: {
     display: 'inline-block',

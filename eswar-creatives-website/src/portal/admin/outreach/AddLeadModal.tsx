@@ -16,6 +16,8 @@ type FormState = {
   first_name: string
   last_name: string
   email: string
+  phone_business: string
+  phone_personal: string
   linkedin_url: string
   company: string
   role_title: string
@@ -30,6 +32,8 @@ const EMPTY: FormState = {
   first_name: '',
   last_name: '',
   email: '',
+  phone_business: '',
+  phone_personal: '',
   linkedin_url: '',
   company: '',
   role_title: '',
@@ -120,6 +124,7 @@ export function AddLeadModal({
           first_name?: string | null
           last_name?: string | null
           email?: string | null
+          phone?: string | null
           linkedin_url?: string | null
           company?: string | null
           role_title?: string | null
@@ -130,6 +135,7 @@ export function AddLeadModal({
           first_name: d.first_name ?? f.first_name,
           last_name: d.last_name ?? f.last_name,
           email: d.email ?? f.email,
+          phone_business: d.phone ?? f.phone_business,
           linkedin_url: d.linkedin_url ?? f.linkedin_url,
           company: d.company ?? f.company,
           role_title: d.role_title ?? f.role_title,
@@ -175,6 +181,8 @@ export function AddLeadModal({
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim() || null,
         email: form.email.trim() || null,
+        phone_business: form.phone_business.trim() || null,
+        phone_personal: form.phone_personal.trim() || null,
         linkedin_url: form.linkedin_url.trim() || null,
         company: form.company.trim(),
         role_title: form.role_title.trim() || null,
@@ -321,6 +329,12 @@ export function AddLeadModal({
                 </button>
               </span>
             )}
+          </Field>
+          <Field label="Business phone">
+            <input style={styles.input} value={form.phone_business} onChange={(e) => set('phone_business', e.target.value)} placeholder="+1 (555) 000-0000" disabled={fieldsDisabled} />
+          </Field>
+          <Field label="Personal phone">
+            <input style={styles.input} value={form.phone_personal} onChange={(e) => set('phone_personal', e.target.value)} placeholder="+1 (555) 000-0000" disabled={fieldsDisabled} />
           </Field>
           <Field label="LinkedIn URL">
             <input style={styles.input} value={form.linkedin_url} onChange={(e) => set('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/..." disabled={fieldsDisabled} />
