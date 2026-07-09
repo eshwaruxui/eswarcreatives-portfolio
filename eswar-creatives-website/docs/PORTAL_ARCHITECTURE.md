@@ -496,6 +496,18 @@ All templates use `{{first_name}}`, `{{company}}`, `{{specific_observation}}`, `
 | `unsubscribe_by_token(p_token)` | Callable by `anon`. Idempotent. Sets lead status, inserts to suppression list, cancels scheduled email touches. Never reveals token validity. |
 | `next_business_day(d date)` | Helper: rolls Saturday -> Monday, Sunday -> Monday. |
 
+### Migration patches
+
+**0072c** (`supabase/migrations/0072c_fix_seed_and_visitor_source.sql`):
+- Fixes Email B SaaS Product Step 1 body capitalisation (lowercase `i design` -> `I design`) — no-op if already correct.
+- Adds `linkedin_visitor` to `leads.source` check constraint (drops and recreates `leads_source_check`).
+
+### Leads source enum
+
+Valid `source` values: `manual`, `csv`, `apollo`, `linkedin`, `referral`, `linkedin_visitor`.
+
+`linkedin_visitor` = warm lead who visited the LinkedIn profile. AddLeadModal shows a warm-lead chip and LeadDrawer pre-selects LinkedIn Outreach sequence (no auto-enroll; Eswar clicks Enroll manually).
+
 ### Edge functions
 
 **`send-outreach-email`** (`jwt_verify: true`)
@@ -529,9 +541,22 @@ On Resend error: sets touch `status='failed'`, returns `{ error: 'send_failed' }
 
 Register in Resend dashboard: `POST /functions/v1/resend-outreach-webhook` for events `email.bounced` and `email.opened`.
 
-### New secret required
+**`extract-lead-from-image`** (`jwt_verify: true`)
 
-`RESEND_WEBHOOK_SECRET` — Add to Supabase edge function secrets before deploying `resend-outreach-webhook`.
+Input: `{ image_base64: string, media_type: 'image/jpeg' | 'image/png' | 'image/webp' }`.
+Calls Anthropic Messages API using `claude-sonnet-4-6` to extract `first_name`, `last_name`, `email`, `linkedin_url`, `company`, `role_title`, `country` from a screenshot.
+Returns `{ data: {...} }` on success, `{ error: 'extraction_failed' }` on soft failure (never surfaces raw Anthropic errors).
+Guard codes: `invalid_image`, `invalid_media_type`, `image_too_large` (5MB server-side / 4MB client-side).
+Used by AddLeadModal screenshot-to-lead upload zone.
+
+### Secrets required
+
+| Secret | Where | Notes |
+|---|---|---|
+| `RESEND_API_KEY` | Supabase edge function secrets | Already set |
+| `PORTAL_URL` | Supabase edge function secrets | Already set |
+| `RESEND_WEBHOOK_SECRET` | Supabase edge function secrets | Add before deploying `resend-outreach-webhook` |
+| `ANTHROPIC_API_KEY` | Supabase edge function secrets | Add manually in Supabase Edge Function secrets. Never commit. |
 
 ### Frontend: /portal/admin/outreach
 
@@ -539,13 +564,13 @@ Register in Resend dashboard: `POST /functions/v1/resend-outreach-webhook` for e
 
 **Four tabs:**
 
-**Today** — Two sections: Overdue (scheduled_for < today) and Due Today. Row action buttons: "Review and Send" (email), "Send Connect" (linkedin_connect), "Send Message" (linkedin_dm). Secondary overflow actions: Skip (with reason picker), Snooze +1 or +3 days (weekend rollover applied). Edge cases: leads with no email show amber "No email address" warning + "Add email" inline link; awaiting-connection DMs show "Waiting on connection" with "Mark connected" and "Skip" buttons.
+**Today** — Daily Motion Tracker stats strip (emails sent today / LI touches today / replies this week / calls booked this week, each with X/Y target display in SF Mono; green when met). Below the strip: Overdue (scheduled_for < today) and Due Today sections. Row action buttons: "Review and Send" (email), "Send Connect" (linkedin_connect), "Send Message" (linkedin_dm). Secondary overflow actions: Skip (with reason picker), Snooze +1 or +3 days (weekend rollover applied). Stats re-fetch after every send/skip/snooze. Edge cases: leads with no email show amber "No email address" warning + "Add email" inline link; awaiting-connection DMs show "Waiting on connection" with "Mark connected" and "Skip" buttons.
 
 **OutreachSendModal** — Email: editable subject + body, rendered template, character count, send button. Error states: `missing_observation` shows inline obs editor; `unresolved_variables` highlights token names; `daily_cap_reached` shows close-only message; `suppressed` auto-cancels touch. LinkedIn: read-only rendered message, Copy button (label changes to "Copied" for 2s), Open LinkedIn Profile button (disabled with hint if no URL), Mark sent button (disables if unresolved `{{topic}}`), Skip link.
 
-**Leads** — Sortable table (desktop), card stack (mobile via `useBreakpoint`). Filters: status, segment, missing-observation toggle. Add Lead modal (inline dup-email warning with link chip). CSV Import modal (parse -> preview table with row-level status -> import valid rows only). Lead drawer (SidePanel): all editable fields, specific_observation highlighted card, enroll section with sequence picker and start date, timeline feed, status action buttons (contextual), LinkedIn status toggle, Convert to client flow.
+**Leads** — Sortable table (desktop), card stack (mobile via `useBreakpoint`). Filters: status, segment, missing-observation toggle. Add Lead modal: screenshot-to-lead upload zone (jpg/png/webp, 4MB limit, calls `extract-lead-from-image`, pre-fills fields on success); `linkedin_visitor` source option with warm-lead chip; inline dup-email warning with link chip. CSV Import modal (parse -> preview table with row-level status -> import valid rows only). Lead drawer (SidePanel): all editable fields, specific_observation highlighted card with explicit Save button (dirty-check; shows "Saved" for 1.5s); `linkedin_visitor` leads auto-pre-select LinkedIn Outreach sequence (Enroll is still manual); enroll section with sequence picker and today-defaulted start date, timeline feed, status action buttons (contextual), LinkedIn status toggle, Convert to client flow.
 
-**Sequences** — Sequence cards, expand to step rail (day_offset badges, channel icons, template previews), inline step editor with variable legend chips. One-time warning on first edit: "Editing templates affects future renders only. Sent snapshots are preserved."
+**Sequences** — Sequence cards, expand to step rail (day_offset badges, channel icons, template previews), inline step editor with variable legend chips. One-time warning on first edit: "Editing templates affects future renders only. Sent snapshots are preserved." Reply rate diagnostic: warning banner (below 4% after 10+ sends, dismissible, component state only) and positive chip (above 10% after 10+ sends). Reply rate calculated client-side: replied leads / distinct leads with sent touch.
 
 **Activity** — Last 200 non-scheduled touches, channel + status filters. Eye icon for opens, bounced label. Click row opens lead drawer.
 
@@ -574,3 +599,4 @@ No auth. Calls `unsubscribe_by_token` RPC on mount. Always shows confirmation ("
 - Open rate and click analytics dashboard
 - WhatsApp Business API for outreach (distinct from existing invoice/proposal nudge wa.me links)
 - Apollo.io or ZoomInfo MCP lead import (connector available)
+- Content scheduling for LinkedIn posts Mon/Wed/Fri from 30-day handbook (planned, not in current sprint)
