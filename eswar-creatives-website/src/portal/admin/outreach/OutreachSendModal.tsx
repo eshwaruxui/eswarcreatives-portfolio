@@ -49,20 +49,23 @@ type EmailErrorCode =
   | 'missing_observation'
   | 'unresolved_variables'
   | 'daily_cap_reached'
-  | 'suppressed_auto_cancelled'
   | 'send_failed'
   | 'network_error'
 
-const EMAIL_ERROR_MESSAGES: Record<EmailErrorCode, string> = {
-  invalid_touch: 'This touch is no longer valid. Refresh the page to continue.',
-  no_email: 'This lead has no email address. Add one in the lead drawer before sending.',
-  suppressed: 'This contact has unsubscribed or bounced. Touch cancelled.',
-  missing_observation: 'A personalized observation is required before sending.',
-  unresolved_variables: 'Fill in the highlighted placeholder before sending.',
-  daily_cap_reached: 'Daily limit of 25 reached. Come back tomorrow.',
-  suppressed_auto_cancelled: 'This contact has unsubscribed or bounced. Touch cancelled.',
-  send_failed: 'Could not deliver the email. Check your connection and try again.',
-  network_error: 'Network error. Check your connection and try again.',
+const EMAIL_ERROR_MESSAGES: Record<string, string> = {
+  daily_cap_reached: 'Daily sending limit of 25 reached. Try again tomorrow.',
+  missing_observation: 'Add a specific observation for this lead before sending.',
+  unresolved_variables: 'Message contains unfilled placeholders. Review and complete them.',
+  suppressed: 'This lead has unsubscribed or bounced. Email cancelled.',
+  no_email: 'This lead has no email address. Add one first.',
+  send_failed: 'Email delivery failed. Check Resend dashboard and try again.',
+  invalid_touch: 'This touch is no longer valid. Refresh and try again.',
+  network_error: 'Something went wrong. Please try again.',
+}
+
+function emailErrorMessage(code: string | null): string {
+  if (!code) return ''
+  return EMAIL_ERROR_MESSAGES[code] ?? 'Something went wrong. Please try again.'
 }
 
 function substitute(template: string, vars: Record<string, string>): string {
@@ -187,17 +190,13 @@ export function OutreachSendModal({
       const { data, error } = await supabase.functions.invoke('send-outreach-email', {
         body: { touch_id: touch.id },
       })
-      if (error) {
-        setEmailError('network_error')
+      if (data?.error) {
+        setEmailError(data.error as EmailErrorCode)
         setSending(false)
         return
       }
-      if (data?.error) {
-        const code = data.error as EmailErrorCode
-        setEmailError(code)
-        if (code === 'suppressed') {
-          // Touch was auto-cancelled server-side
-        }
+      if (error) {
+        setEmailError('network_error')
         setSending(false)
         return
       }
@@ -280,7 +279,7 @@ export function OutreachSendModal({
                 </div>
               ) : emailError === 'daily_cap_reached' ? (
                 <div style={styles.cappedState}>
-                  <p style={styles.cappedText}>Daily limit of 25 reached. Come back tomorrow.</p>
+                  <p style={styles.cappedText}>{emailErrorMessage('daily_cap_reached')}</p>
                   <button type="button" style={styles.closeOnlyBtn} onClick={onClose}>Close</button>
                 </div>
               ) : (
@@ -336,7 +335,7 @@ export function OutreachSendModal({
                     emailError !== 'missing_observation' &&
                     emailError !== 'unresolved_variables' && (
                     <div style={styles.errorBanner}>
-                      {EMAIL_ERROR_MESSAGES[emailError]}
+                      {emailErrorMessage(emailError)}
                     </div>
                   )}
                   {/* Send button */}
