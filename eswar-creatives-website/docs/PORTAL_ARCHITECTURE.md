@@ -1,21 +1,15 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 9 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
-
----
-
-> **Proposal nudge system in progress** (`feature/proposal-nudge`) — see Section 16 for details.
+Last updated: 10 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
 **Active branch:** `main`
-**Status:** Stable. All recent PRs merged.
+**Status:** Stable. All recent work committed directly to main.
 
-**In progress (not yet merged):**
-- `feature/razorpay-integration` — Razorpay checkout on public invoice page (Section 15)
-- `feature/proposal-nudge` — Proposal nudge system: public token, ProposalNudgeModal, public page, nudge history (Section 16)
+**In progress (not yet merged):** _(none)_
 
 **Shipped and merged to main:**
 
@@ -59,6 +53,10 @@ _Proposal nudge system (in progress — `feature/proposal-nudge`):_
 
 _Sales Cadence CRM module (PR #8 — `feature/sales-cadence`):_ leads, sequences, enrollments, touches, suppression list, `send-outreach-email`, `resend-outreach-webhook`, `extract-lead-from-image` edge functions, public unsubscribe page, daily motion tracker, screenshot-to-lead, LinkedIn visitor fast-track, reply rate diagnostics. Migrations 0072, 0072b, 0072c applied.
 
+_Razorpay live mode (direct commits — 10 July 2026):_ KYC completed and approved (Video KYC). Live mode active; `rzp_live_*` keys set in Supabase secrets and Cloudflare Production env vars. Payment checkout confirmed working on eswarcreatives.in. Migration 0070 was applied; edge functions `create-razorpay-order` + `verify-razorpay-payment` deployed.
+
+_Sales Cadence phase 2 improvements (direct commits — 10 July 2026):_ phone fields (business + personal) on leads; cancel enrollment UI; double-enrollment guard; timeline DESC sort + intent-based labels; OutreachSendModal draft save + auto-save + typed error messages; paragraph line breaks preserved in email sends; UnsubscribePage confirmation step; log reply feature with `reply_messages` table + timeline entry + auto status change. Migration 0073 applied.
+
 _Invoice UX polish (direct commits to main — 6 July 2026):_
 - Record payment available on `pending`, `sent`, and `overdue` invoices (not just `partially_paid`); `ConfirmPaymentModal` in `record_payment` mode auto-derives status via `syncInvoiceStatus`
 - Both "Record payment" and "Mark paid" actions available for `pending`/`sent`/`overdue`; only "Record payment" for `partially_paid`
@@ -72,6 +70,8 @@ _Invoice UX polish (direct commits to main — 6 July 2026):_
 - `feature/invoice-payments` — Invoice payments
 - `feature/phase6-mobile-responsive` — Phase 6 mobile
 - `feature/invoice-nudge-system` — Nudge system + public invoice view
+- `feature/proposal-nudge` — Proposal nudge system + public proposal page
+- `feature/razorpay-integration` — Razorpay checkout on public invoice page
 - `feature/sales-cadence` (PR #8) — Sales Cadence CRM module
 
 ---
@@ -113,6 +113,11 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 **Nudge log tables:**
 - `nudge_log` (migration 0069): id, invoice_id, sent_at, channel (whatsapp|email), message_preview, sent_by
 - `proposal_nudge_log` (migration 0071): id, proposal_id, sent_at, channel (whatsapp|email), message_preview, sent_by; RLS admin-only
+
+**Sales Cadence additions (migration 0073):**
+- `leads`: `phone_business` (text, nullable), `phone_personal` (text, nullable) columns added
+- `lead_enrollments`: `cancelled` added to `lead_enrollments_status_check` constraint — valid statuses: `active`, `paused`, `completed`, `cancelled`
+- `reply_messages`: id, lead_id, sent_by (uuid), body (text), sent_at (timestamptz); RLS admin-only via `is_admin()`
 
 **Key columns added:**
 - `proposal_phases`: solution_title, timeline, key_note
@@ -191,7 +196,8 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 | create-razorpay-order | v1 | false | Creates a Razorpay order for a public invoice; verifies token server-side; returns order_id + key_id; never exposes key_secret |
 | verify-razorpay-payment | v1 | false | Verifies Razorpay HMAC-SHA256 signature; cross-checks stored razorpay_order_id; inserts invoice_payments row; syncs invoice status |
 
-**Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`
+**Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `ANTHROPIC_API_KEY`
+**Secrets pending:** `RESEND_WEBHOOK_SECRET` (required for `resend-outreach-webhook`)
 
 ---
 
@@ -262,6 +268,8 @@ Two exports:
 | Item | Priority |
 |---|---|
 | Moorthy 123 Adsprint re-add via Add Client modal | High |
+| `RESEND_WEBHOOK_SECRET` secret — set in Supabase before bounce/open tracking goes live | High |
+| Sales Cadence smoke test checklist (see Section 17) | High |
 | design-system-v1 Task 4 (About, Services, case study pages) | Medium |
 | design-system-v1 Cloudflare preview review | Medium, blocked on Task 4 |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
@@ -270,7 +278,6 @@ Two exports:
 | AccountPage.tsx full polish | Low |
 | Public campaign responses pagination + filters (deferred) | Low |
 | Invoice nudge automation (scheduled reminders at due date, +3d, +7d) | Future phase |
-| Razorpay/Stripe payment integration | Shipped (feature/razorpay-integration) |
 | Admin portal mobile responsive | Future consideration |
 | WhatsApp Business API (replace wa.me deep-link with full API) | Phase 10 |
 
@@ -325,12 +332,12 @@ Three roles, three portals, reviews never need a project, accounts always go thr
 
 ## 15. Razorpay payment integration
 
-**Branch:** `feature/razorpay-integration`
-**Status:** In progress; pending migration apply + Cloudflare preview test before merge.
+**Branch:** `feature/razorpay-integration` (merged to main)
+**Status:** Live. KYC completed and approved (Video KYC, 10 Jul 2026). `rzp_live_*` keys set in Supabase secrets and Cloudflare Production env vars. Payment checkout confirmed working on eswarcreatives.in.
 
 ### Migration
 
-**0070** (`supabase/migrations/0070_razorpay_order_id_on_invoices.sql`): adds `razorpay_order_id text` (nullable) to `invoices`. Apply manually in Supabase SQL Editor.
+**0070** (`supabase/migrations/0070_razorpay_order_id_on_invoices.sql`): adds `razorpay_order_id text` (nullable) to `invoices`. Applied.
 
 ### Edge functions (no JWT auth)
 
@@ -341,15 +348,15 @@ Both functions are called from the unauthenticated public invoice page (`/invoic
 | `create-razorpay-order` | Verifies public token, creates Razorpay order via Basic-auth REST, stores `razorpay_order_id`, returns `{ order_id, amount, currency, key_id }` |
 | `verify-razorpay-payment` | Re-verifies token, cross-checks stored order ID, validates HMAC-SHA256 signature, inserts `invoice_payments` row, syncs invoice status |
 
-### Environment variables to set
+### Environment variables
 
 | Where | Variable | Notes |
 |---|---|---|
-| Cloudflare Pages | `VITE_RAZORPAY_KEY_ID` | Public key ID; embedded at build time (safe for browser) |
-| Supabase function secrets | `RAZORPAY_KEY_ID` | Same key ID; used by create-razorpay-order to return in response |
-| Supabase function secrets | `RAZORPAY_KEY_SECRET` | Private; used for HMAC verification only; never exposed to client |
+| Cloudflare Pages (Production) | `VITE_RAZORPAY_KEY_ID` | Live key ID; embedded at build time (safe for browser) |
+| Supabase function secrets | `RAZORPAY_KEY_ID` | Live key ID; used by create-razorpay-order to return in response |
+| Supabase function secrets | `RAZORPAY_KEY_SECRET` | Live secret; used for HMAC verification only; never exposed to client |
 
-Use `rzp_test_*` keys in development. Switch to `rzp_live_*` in production Cloudflare env vars.
+Use `rzp_test_*` keys in development (Cloudflare Preview env). Production uses `rzp_live_*`.
 Test card: 4111 1111 1111 1111, any future date, CVV 123.
 
 ### Frontend changes
@@ -388,8 +395,8 @@ Key patterns shipped:
 
 ## 16. Proposal nudge system
 
-**Branch:** `feature/proposal-nudge`
-**Status:** In progress; pending edge function deploy + Cloudflare preview test before merge.
+**Branch:** `feature/proposal-nudge` (merged to main)
+**Status:** Shipped. Edge function deployed. Migration 0071 applied.
 
 ### Migration
 
@@ -442,23 +449,18 @@ No phases: "Proposal details coming soon." empty state (Nielsen H9).
 - Missing WhatsApp/email: shows inline warning, disables send button for that channel
 - All errors handled with friendly plain-language copy (Nielsen H9)
 
-### Deploy checklist (before merge)
+### Deploy checklist
 
-- [ ] Run migration 0071 in Supabase SQL Editor
-- [ ] Deploy `send-proposal-nudge` edge function via Supabase dashboard or CLI
-- [ ] Confirm `PORTAL_URL`, `RESEND_API_KEY` secrets are set (already set from invoice nudge)
-- [ ] Test `/proposal/:token` in incognito — valid token, expired token, accepted/declined states
-- [ ] Test nudge bell in admin proposals list (sent proposal)
-- [ ] Test nudge bell in admin proposal detail (sent proposal)
-- [ ] Test WhatsApp + email channels, rate limit warning
-- [ ] Mobile responsive test for `/proposal/:token`
+- [x] Run migration 0071 in Supabase SQL Editor
+- [x] Deploy `send-proposal-nudge` edge function
+- [x] `PORTAL_URL`, `RESEND_API_KEY` secrets confirmed set
 
 ---
 
 ## 17. Sales Cadence module
 
-**Branch:** `feature/sales-cadence`
-**Status:** In progress; pending migration apply + Cloudflare preview + incognito test before merge.
+**Branch:** `feature/sales-cadence` (merged to main)
+**Status:** Shipped. Migrations 0072, 0072b, 0072c, 0073 applied. All edge functions deployed.
 
 ### Architectural rule: Leads are not clients
 
@@ -468,14 +470,15 @@ Leads follow the same separation rule as reviewers/clients. A lead record never 
 
 | Table | Purpose |
 |---|---|
-| `leads` | Outbound prospects. Never creates auth/profile rows. Partial unique index on `lower(email)` where `email is not null`. `unsubscribe_token` is a per-lead UUID used for opt-out. |
+| `leads` | Outbound prospects. Never creates auth/profile rows. Partial unique index on `lower(email)` where `email is not null`. `unsubscribe_token` is a per-lead UUID used for opt-out. Columns include `phone_business` and `phone_personal` (text, nullable — migration 0073). |
 | `sequences` | Named outreach cadences. Optional segment association. |
 | `sequence_steps` | Steps within a sequence: channel (`email`, `linkedin_connect`, `linkedin_dm`), `day_offset`, templates with `{{variable}}` syntax. |
-| `lead_enrollments` | Links a lead to a sequence. Partial unique index enforces one active enrollment per lead+sequence pair. |
+| `lead_enrollments` | Links a lead to a sequence. Partial unique index enforces one active enrollment per lead+sequence pair. Status enum: `active`, `paused`, `completed`, `cancelled` (migration 0073 added `cancelled`). |
 | `outreach_touches` | One row per step per enrollment. Stores scheduling, delivery status, snapshots, Resend message ID, open/bounce timestamps. |
 | `suppression_list` | Email-level suppression (unsubscribed + hard bounce). Checked by `send-outreach-email` before every send. |
+| `reply_messages` | One row per logged reply from a lead. Columns: id, lead_id, sent_by (uuid), body (text), sent_at (timestamptz). RLS admin-only via `is_admin()`. Inserting a row also triggers `mark_lead_replied` to set lead status. Migration 0073. |
 
-**FK delete order:** `outreach_touches` -> `lead_enrollments` -> `leads` (cascade). `suppression_list` is independent.
+**FK delete order:** `reply_messages` -> `outreach_touches` -> `lead_enrollments` -> `leads` (cascade). `suppression_list` is independent.
 
 ### Seed data (migration 0072b)
 
@@ -532,6 +535,8 @@ Template variables substituted: `{{first_name}}`, `{{company}}`, `{{specific_obs
 On success: updates touch `status='sent'`, `sent_at`, `subject_snapshot`, `body_snapshot`, `resend_message_id`.
 On Resend error: sets touch `status='failed'`, returns `{ error: 'send_failed' }`.
 
+**Paragraph line breaks:** Both plain-text and HTML email sends preserve paragraph breaks. Plain text uses `\n\n` between paragraphs; HTML wraps each paragraph in `<p>` tags.
+
 **`resend-outreach-webhook`** (`jwt_verify: false`)
 
 - Verifies Resend webhook HMAC-SHA256 signature via `RESEND_WEBHOOK_SECRET`
@@ -567,9 +572,9 @@ Used by AddLeadModal screenshot-to-lead upload zone.
 
 **Today** — Daily Motion Tracker stats strip (emails sent today / LI touches today / replies this week / calls booked this week, each with X/Y target display in SF Mono; green when met). Below the strip: Overdue (scheduled_for < today) and Due Today sections. Row action buttons: "Review and Send" (email), "Send Connect" (linkedin_connect), "Send Message" (linkedin_dm). Secondary overflow actions: Skip (with reason picker), Snooze +1 or +3 days (weekend rollover applied). Stats re-fetch after every send/skip/snooze. Edge cases: leads with no email show amber "No email address" warning + "Add email" inline link; awaiting-connection DMs show "Waiting on connection" with "Mark connected" and "Skip" buttons.
 
-**OutreachSendModal** — Email: editable subject + body, rendered template, character count, send button. Error states: `missing_observation` shows inline obs editor; `unresolved_variables` highlights token names; `daily_cap_reached` shows close-only message; `suppressed` auto-cancels touch. LinkedIn: read-only rendered message, Copy button (label changes to "Copied" for 2s), Open LinkedIn Profile button (disabled with hint if no URL), Mark sent button (disables if unresolved `{{topic}}`), Skip link.
+**OutreachSendModal** — Email: editable subject + body, rendered template, character count, send button. Draft auto-saved to `localStorage` on every keystroke (key: `outreach_draft_{touch_id}`); restored on re-open; cleared on successful send. Pre-wrap message preview matches final email formatting. Error states: typed plain-language messages (no generic "network error") — `missing_observation` shows inline obs editor; `unresolved_variables` highlights token names; `daily_cap_reached` shows close-only message; `suppressed` auto-cancels touch. LinkedIn: read-only rendered message, Copy button (label changes to "Copied" for 2s), Open LinkedIn Profile button (disabled with hint if no URL), Mark sent button (disables if unresolved `{{topic}}`), Skip link.
 
-**Leads** — Sortable table (desktop), card stack (mobile via `useBreakpoint`). Filters: status, segment, missing-observation toggle. Add Lead modal: screenshot-to-lead upload zone (jpg/png/webp, 4MB limit, calls `extract-lead-from-image`, pre-fills fields on success); `linkedin_visitor` source option with warm-lead chip; inline dup-email warning with link chip. CSV Import modal (parse -> preview table with row-level status -> import valid rows only). Lead drawer (SidePanel): all editable fields, specific_observation highlighted card with explicit Save button (dirty-check; shows "Saved" for 1.5s); `linkedin_visitor` leads auto-pre-select LinkedIn Outreach sequence (Enroll is still manual); enroll section with sequence picker and today-defaulted start date, timeline feed, status action buttons (contextual), LinkedIn status toggle, Convert to client flow.
+**Leads** — Sortable table (desktop), card stack (mobile via `useBreakpoint`). Filters: status, segment, missing-observation toggle. Add Lead modal: `phone_business` + `phone_personal` fields; screenshot-to-lead upload zone (jpg/png/webp, 4MB limit, calls `extract-lead-from-image`, pre-fills fields on success — phone fields mapped if extracted); `linkedin_visitor` source option with warm-lead chip; inline dup-email warning with link chip. CSV Import modal (parse -> preview table with row-level status -> import valid rows only). Lead drawer (SidePanel): `phone_business` + `phone_personal` editable fields; all other fields editable; specific_observation highlighted card with explicit Save button (dirty-check; shows "Saved" for 1.5s); `linkedin_visitor` leads auto-pre-select LinkedIn Outreach sequence (Enroll is still manual); enroll section with sequence picker, today-defaulted start date, double-enrollment guard (blocks re-enrolling into same sequence if already active); cancel enrollment UI (sets status to `cancelled`, cancels scheduled touches); timeline feed sorted DESC (most recent top) with intent-based step labels (First touch, Follow-up, Value drop) and a ReplyEntry entry type for logged replies; cancelled touches show strikethrough subject + grey status chip; status action buttons (contextual); LinkedIn status toggle; log reply panel (text area + save, inserts into `reply_messages`, auto-sets lead status to `replied`); Convert to client flow.
 
 **Sequences** — Sequence cards, expand to step rail (day_offset badges, channel icons, template previews), inline step editor with variable legend chips. One-time warning on first edit: "Editing templates affects future renders only. Sent snapshots are preserved." Reply rate diagnostic: warning banner (below 4% after 10+ sends, dismissible, component state only) and positive chip (above 10% after 10+ sends). Reply rate calculated client-side: replied leads / distinct leads with sent touch.
 
@@ -579,7 +584,7 @@ Used by AddLeadModal screenshot-to-lead upload zone.
 
 ### Public route: /unsubscribe/:token
 
-No auth. Calls `unsubscribe_by_token` RPC on mount. Always shows confirmation ("You have been unsubscribed. You will not receive any further emails from Eswar Creatives."). Invalid or already-used token shows the same message. No error state exposed. EC logo + studio name in header.
+No auth. Shows a confirmation screen with a "Confirm unsubscribe" button — does NOT call `unsubscribe_by_token` on mount. RPC is called only after the user clicks confirm (prevents accidental unsubscribes from email pre-fetchers). Always shows success message after confirm. Invalid or already-used token shows the same message. No error state exposed. EC logo + studio name in header.
 
 ### Edge cases handled
 
@@ -591,6 +596,22 @@ No auth. Calls `unsubscribe_by_token` RPC on mount. Always shows confirmation ("
 - Sequence with no email steps: `enroll_lead` skips specific_observation validation.
 - `{{topic}}` in LinkedIn DM step 4: shown un-substituted with ruby highlight, Mark sent disabled until placeholder is removed.
 - Weekend scheduling: `enroll_lead` and snooze both roll Saturday -> Monday, Sunday -> Monday.
+
+### Bug fixes shipped (10 July 2026)
+
+- `Trash2` icon missing from `lucide-react` import in `InvoicesAdmin.tsx` — caused "Add line" crash on invoice page. Fixed.
+- `OutreachSendModal` showed generic "Network error" on edge function failure — replaced with typed plain-language messages per error code.
+- Email template URL updated to `eswarcreatives.in/design-systems` in `sequence_steps` seed.
+
+### Smoke test checklist (pending — 10 July 2026)
+
+- [ ] Add Lead Modal: phone_business + phone_personal fields save correctly; AI screenshot extraction maps phone fields
+- [ ] Lead Drawer: phone fields editable + save; delete lead blocked if sent touches; cancel enrollment sets status + cancels touches; double-enrollment guard fires on re-enroll attempt
+- [ ] Timeline: DESC sort confirmed; intent-based step labels (First touch, Follow-up, Value drop); cancelled touch shows strikethrough + grey chip; reply entry appears after log reply
+- [ ] OutreachSendModal: draft restored on re-open; auto-save fires on keystroke; pre-wrap preview matches email; send error messages are plain-language (no "network error")
+- [ ] Unsubscribe page: confirmation button visible before action; RPC only fires after click; success message shows
+- [ ] Log reply: body saves to reply_messages; timeline ReplyEntry appears; lead status changes to replied
+- [ ] Email send (Kenny Wyatt): confirm P1 resolved; typed errors visible in modal on failure
 
 ### Phase 2 TODO list
 
