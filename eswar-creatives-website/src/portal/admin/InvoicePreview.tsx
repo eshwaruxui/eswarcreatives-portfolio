@@ -64,6 +64,7 @@ export function InvoicePreview({
   const [nudgeLogs, setNudgeLogs] = useState<NudgeLogRow[]>([])
   const [publicToken, setPublicToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Trigger the slide-in transition once mounted.
@@ -228,41 +229,69 @@ export function InvoicePreview({
           </button>
         </div>
 
-        {/* Payment link: copy the public invoice URL or open it to test. */}
+        {/* Payment link: copy the public invoice URL or open it to test.
+            Both buttons first rotate the token (30-day TTL) so the link is
+            always fresh and never expired when handed to the client. */}
         {publicToken && (
           <div style={linkStyles.section}>
             <div style={linkStyles.heading}>Payment link</div>
             <div style={linkStyles.urlRow}>
               <span style={linkStyles.url}>
-                {window.location.origin}/invoice/{publicToken}
+                https://www.eswarcreatives.in/invoice/{publicToken}
               </span>
             </div>
             <div style={linkStyles.actions}>
               <button
                 type="button"
                 style={linkStyles.btn}
-                onClick={() => {
-                  void navigator.clipboard
-                    .writeText(`${window.location.origin}/invoice/${publicToken}`)
-                    .then(() => {
-                      setCopied(true)
-                      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-                      copyTimerRef.current = setTimeout(() => setCopied(false), 2000)
+                disabled={regenerating}
+                onClick={async () => {
+                  setRegenerating(true)
+                  try {
+                    const { data: newToken } = await supabase.rpc('regenerate_invoice_token', {
+                      p_invoice_id: invoice.id,
                     })
+                    if (!newToken) return
+                    setPublicToken(newToken as string)
+                    await navigator.clipboard.writeText(
+                      `https://www.eswarcreatives.in/invoice/${newToken}`
+                    )
+                    setCopied(true)
+                    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+                    copyTimerRef.current = setTimeout(() => setCopied(false), 2000)
+                  } finally {
+                    setRegenerating(false)
+                  }
                 }}
               >
                 <Copy size={13} />
-                {copied ? 'Copied!' : 'Copy link'}
+                {copied ? 'Copied!' : regenerating ? '...' : 'Copy link'}
               </button>
-              <a
-                href={`/invoice/${publicToken}`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
                 style={linkStyles.testLink}
+                disabled={regenerating}
+                onClick={async () => {
+                  setRegenerating(true)
+                  try {
+                    const { data: newToken } = await supabase.rpc('regenerate_invoice_token', {
+                      p_invoice_id: invoice.id,
+                    })
+                    if (!newToken) return
+                    setPublicToken(newToken as string)
+                    window.open(
+                      `https://www.eswarcreatives.in/invoice/${newToken}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    )
+                  } finally {
+                    setRegenerating(false)
+                  }
+                }}
               >
                 <ExternalLink size={13} />
                 Test payment flow
-              </a>
+              </button>
             </div>
           </div>
         )}
@@ -367,12 +396,14 @@ const linkStyles: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: 6,
     padding: '7px 12px',
+    background: 'transparent',
     border: `1px solid ${tokens.border}`,
     borderRadius: 6,
     color: t.text.primaryBrand,
     fontFamily: fonts.body,
     fontSize: 13,
     fontWeight: 500,
+    cursor: 'pointer',
     textDecoration: 'none',
   },
 }

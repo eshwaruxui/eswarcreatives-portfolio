@@ -775,6 +775,7 @@ function NewInvoiceModal({
           due_date: dueDate || null,
           notes: notes.trim() || null,
           created_by: userId,
+          public_token_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         })
         .select('id')
         .single()
