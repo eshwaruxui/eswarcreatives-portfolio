@@ -190,9 +190,18 @@ export function InvoiceDocument({
             </div>
           </>
         ) : (
-          <div style={styles.totalBand}>
-            <span style={styles.totalLabel}>Total due</span>
-            <span style={styles.totalNum}>{formatAmount(total, invoice.currency)}</span>
+          <div style={{
+            ...styles.totalBand,
+            ...(_readOnly ? { background: t.background.muted } : {}),
+          }}>
+            <span style={{
+              ...styles.totalLabel,
+              ...(_readOnly ? { color: t.text.secondary } : {}),
+            }}>Total due</span>
+            <span style={{
+              ...styles.totalNum,
+              ...(_readOnly ? { color: t.text.primary } : {}),
+            }}>{formatAmount(total, invoice.currency)}</span>
           </div>
         )}
       </div>
@@ -320,6 +329,7 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 4,
+    overflow: 'hidden',
   },
   paymentsSectionLabel: {
     fontFamily: fonts.body,
@@ -347,7 +357,16 @@ const styles: Record<string, CSSProperties> = {
     padding: '1px 6px',
     whiteSpace: 'nowrap' as const,
   },
-  paymentRef: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, flex: 1 },
+  paymentRef: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.muted,
+    flex: 1,
+    minWidth: 0,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
   paymentAmt: { fontFamily: mono, fontSize: 13, color: t.text.primary, marginLeft: 'auto', whiteSpace: 'nowrap' as const },
   notes: { marginTop: 20, background: tokens.bg, borderRadius: 8, padding: 14 },
   notesLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 700, color: t.text.primary, marginBottom: 4 },

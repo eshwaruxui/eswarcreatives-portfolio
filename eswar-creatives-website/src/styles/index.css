@@ -68,7 +68,7 @@
   .ec-invoice-document,
   .ec-invoice-document * { visibility: visible; }
   .ec-invoice-document {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;

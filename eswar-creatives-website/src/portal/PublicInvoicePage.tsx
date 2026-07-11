@@ -6,6 +6,7 @@
 // only a direct hex string; no em dashes.
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router'
+import { Shield, CreditCard, Building2, Smartphone } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import {
   InvoiceDocument,
@@ -382,9 +383,26 @@ export function PublicInvoicePage() {
                     </>
                   ) : (
                     <>
-                      <p style={styles.ctaText}>
-                        Secure payment via Razorpay. UPI, cards, and net banking accepted.
-                      </p>
+                      <div style={styles.trustBadge}>
+                        <div style={styles.trustSecured}>
+                          <Shield size={14} color={tokens.primary} strokeWidth={2.5} />
+                          <span style={styles.trustText}>Secured by Razorpay</span>
+                        </div>
+                        <div style={styles.trustMethods}>
+                          <span style={styles.trustPill}>
+                            <Smartphone size={11} color={t.text.muted} />
+                            <span>UPI</span>
+                          </span>
+                          <span style={styles.trustPill}>
+                            <CreditCard size={11} color={t.text.muted} />
+                            <span>Cards</span>
+                          </span>
+                          <span style={styles.trustPill}>
+                            <Building2 size={11} color={t.text.muted} />
+                            <span>Net Banking</span>
+                          </span>
+                        </div>
+                      </div>
                       <button
                         type="button"
                         style={{
@@ -629,6 +647,48 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.ruby,
     margin: '0 0 16px',
     lineHeight: 1.6,
+  },
+  // Trust badge row (Razorpay + payment methods).
+  trustBadge: {
+    background: tokens.bg,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    padding: '10px 14px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap' as const,
+    marginBottom: 12,
+  },
+  trustSecured: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trustText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    color: t.text.secondary,
+  },
+  trustMethods: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trustPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+    background: tokens.surface,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 999,
+    padding: '3px 8px',
+    whiteSpace: 'nowrap' as const,
   },
   // Paid badge.
   paidBadge: {
