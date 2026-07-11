@@ -287,6 +287,25 @@ function InvoiceTable({ invoices, openId, onOpen }: { invoices: Invoice[]; openI
   )
 }
 
+// Clones the invoice element to the body root so it escapes the
+// position:fixed panel ancestor that causes per-page repetition in print.
+function handleDownloadPDF() {
+  const el = document.querySelector<HTMLElement>('.ec-invoice-document')
+  if (!el) { window.print(); return }
+  document.getElementById('ec-print-root')?.remove()
+  const printRoot = document.createElement('div')
+  printRoot.id = 'ec-print-root'
+  printRoot.appendChild(el.cloneNode(true))
+  document.body.appendChild(printRoot)
+  document.body.setAttribute('data-ec-printing', 'true')
+  const cleanup = () => {
+    document.body.removeAttribute('data-ec-printing')
+    document.getElementById('ec-print-root')?.remove()
+  }
+  window.addEventListener('afterprint', cleanup, { once: true })
+  window.print()
+}
+
 const PANEL_MS = parseInt(motionTokens.durationBase, 10)
 
 function InvoicePanel({
@@ -407,7 +426,7 @@ function InvoicePanel({
           <div style={styles.fullscreenBody}>
             {content}
             <div style={styles.downloadWrap}>
-              <button type="button" style={styles.downloadBtn} onClick={() => window.print()}>
+              <button type="button" style={styles.downloadBtn} onClick={handleDownloadPDF}>
                 <Download size={15} />
                 Download PDF
               </button>
@@ -432,7 +451,7 @@ function InvoicePanel({
         </button>
         {content}
         <div style={styles.downloadWrap}>
-          <button type="button" style={styles.downloadBtn} onClick={() => window.print()}>
+          <button type="button" style={styles.downloadBtn} onClick={handleDownloadPDF}>
             <Download size={15} />
             Download PDF
           </button>

@@ -223,7 +223,7 @@ export function InvoicePreview({
         />
 
         <div style={downloadWrap}>
-          <button type="button" style={downloadBtn} onClick={() => window.print()}>
+          <button type="button" style={downloadBtn} onClick={handleDownloadPDF}>
             <Download size={15} />
             Download PDF
           </button>
@@ -318,6 +318,25 @@ export function InvoicePreview({
       </aside>
     </>
   )
+}
+
+// Clones the invoice element to the body root so it escapes the
+// position:fixed drawer ancestor that causes per-page repetition in print.
+function handleDownloadPDF() {
+  const el = document.querySelector<HTMLElement>('.ec-invoice-document')
+  if (!el) { window.print(); return }
+  document.getElementById('ec-print-root')?.remove()
+  const printRoot = document.createElement('div')
+  printRoot.id = 'ec-print-root'
+  printRoot.appendChild(el.cloneNode(true))
+  document.body.appendChild(printRoot)
+  document.body.setAttribute('data-ec-printing', 'true')
+  const cleanup = () => {
+    document.body.removeAttribute('data-ec-printing')
+    document.getElementById('ec-print-root')?.remove()
+  }
+  window.addEventListener('afterprint', cleanup, { once: true })
+  window.print()
 }
 
 const downloadWrap: CSSProperties = {

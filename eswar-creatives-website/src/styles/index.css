@@ -60,14 +60,22 @@
 }
 
 /* ── Invoice print-to-PDF ─────────────────────────────────── */
-/* window.print() called by "Download PDF" button. Hides all page
-   chrome and shows only the InvoiceDocument. */
+/* "Download PDF" buttons call handleDownloadPDF() which clones
+   .ec-invoice-document to a #ec-print-root div at the body root,
+   sets data-ec-printing on body, then calls window.print().
+   This avoids the position:fixed drawer ancestor which would cause
+   the invoice to repeat on every printed page. */
 @media print {
   @page { size: A4; margin: 16mm; }
-  body * { visibility: hidden; }
-  .ec-invoice-document,
-  .ec-invoice-document * { visibility: visible; }
-  .ec-invoice-document {
+
+  /* Admin/client drawer path: JS clone at body root; hide the React app */
+  body[data-ec-printing] #root { display: none !important; }
+
+  /* Public page / fallback path: visibility technique */
+  body:not([data-ec-printing]) * { visibility: hidden; }
+  body:not([data-ec-printing]) .ec-invoice-document,
+  body:not([data-ec-printing]) .ec-invoice-document * { visibility: visible; }
+  body:not([data-ec-printing]) .ec-invoice-document {
     position: absolute;
     top: 0;
     left: 0;
