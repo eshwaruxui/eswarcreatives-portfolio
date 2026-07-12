@@ -1,84 +1,38 @@
 // Cloudflare Pages Function middleware — intercepts all /branding/* requests.
-// For crawlers: replaces existing OG meta tags in the static HTML shell and
-// injects any missing ones, so FB/WhatsApp previews show the correct values.
-// For real users: passes through via next() with zero overhead.
+// Strips every existing og:/twitter: meta tag from the HTML shell, then
+// injects the branding-specific block before </head>.
+// Applied to all requests — OG tags live in <head> and don't affect rendering.
 
-const CRAWLER_PATTERNS = [
-  'whatsapp',
-  'facebookexternalhit',
-  'facebot',
-  'twitterbot',
-  'telegrambot',
-  'slackbot',
-  'linkedinbot',
-  'googlebot',
-  'bingbot',
-  'applebot',
-  'discordbot',
-  'embedly',
-  'iframely',
-]
-
-function isCrawler(ua) {
-  if (!ua) return false
-  const lower = ua.toLowerCase()
-  return CRAWLER_PATTERNS.some((p) => lower.includes(p))
-}
-
-// Replaces OG tag content attributes that already exist in the HTML, then
-// injects any tags that were absent before </head>.
-function patchOg(html, title, desc, image, url) {
-  let out = html
-  out = out.replace(/<meta\s+property="og:title"\s+content="[^"]*"/, `<meta property="og:title" content="${title}"`)
-  out = out.replace(/<meta\s+property="og:description"\s+content="[^"]*"/, `<meta property="og:description" content="${desc}"`)
-  out = out.replace(/<meta\s+property="og:image"\s+content="[^"]*"/, `<meta property="og:image" content="${image}"`)
-  out = out.replace(/<meta\s+property="og:url"\s+content="[^"]*"/, `<meta property="og:url" content="${url}"`)
-  out = out.replace(/<meta\s+name="twitter:title"\s+content="[^"]*"/, `<meta name="twitter:title" content="${title}"`)
-  out = out.replace(/<meta\s+name="twitter:description"\s+content="[^"]*"/, `<meta name="twitter:description" content="${desc}"`)
-  out = out.replace(/<meta\s+name="twitter:image"\s+content="[^"]*"/, `<meta name="twitter:image" content="${image}"`)
-
-  // Inject tags that were absent from the static shell (regex above was a no-op).
-  const missing = [
-    !out.includes('property="og:image"')     && `<meta property="og:image" content="${image}" />`,
-    !out.includes('property="og:url"')       && `<meta property="og:url" content="${url}" />`,
-    !out.includes('property="og:type"')      && `<meta property="og:type" content="website" />`,
-    !out.includes('property="og:site_name"') && `<meta property="og:site_name" content="Eswar Creatives" />`,
-    !out.includes('name="twitter:card"')     && `<meta name="twitter:card" content="summary_large_image" />`,
-    !out.includes('name="twitter:image"')    && `<meta name="twitter:image" content="${image}" />`,
-  ].filter(Boolean).join('\n    ')
-
-  if (missing) {
-    out = out.includes('</head>') ? out.replace('</head>', `    ${missing}\n  </head>`) : out
-  }
-
-  return out
-}
-
-const TITLE = 'Brand Identity Design — Eswar Creatives'
+const TITLE = 'Brand Identity Design · Eswar Creatives'
 const DESC  = 'Logos, visual systems, and brand language for growing businesses.'
 const IMAGE = 'https://www.eswarcreatives.in/og-branding.png'
 const URL   = 'https://www.eswarcreatives.in/branding/'
 
-export async function onRequest({ request, env, next }) {
-  const ua = request.headers.get('User-Agent') ?? ''
-  if (!isCrawler(ua)) return next()
+const OG_BLOCK = `    <meta property="og:title" content="${TITLE}" />
+    <meta property="og:description" content="${DESC}" />
+    <meta property="og:image" content="${IMAGE}" />
+    <meta property="og:url" content="${URL}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Eswar Creatives" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${TITLE}" />
+    <meta name="twitter:description" content="${DESC}" />
+    <meta name="twitter:image" content="${IMAGE}" />`
 
-  const origin = new URL(request.url).origin
+export async function onRequest({ request, env }) {
   let html
   try {
-    const res = await env.ASSETS.fetch(
-      new Request(`${origin}/index.html`, { headers: { Accept: 'text/html' } })
-    )
+    const res = await env.ASSETS.fetch(new Request(new URL('/', request.url).toString()))
     html = await res.text()
   } catch {
-    return next()
+    return env.ASSETS.fetch(request)
   }
 
-  return new Response(patchOg(html, TITLE, DESC, IMAGE, URL), {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-    },
-  })
+  // Remove every og: and twitter: meta tag so there are no duplicates.
+  html = html.replace(/<meta\s+(?:property|name)="(?:og:|twitter:)[^"]*"[^>]*\/?>/gi, '')
+
+  // Inject the route-specific block immediately before </head>.
+  html = html.replace('</head>', `${OG_BLOCK}\n  </head>`)
+
+  return new Response(html, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
 }
