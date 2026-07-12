@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Helmet } from "react-helmet-async";
 import { ArrowRight, PenLine, BookOpen, Layers } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
@@ -61,10 +62,24 @@ export function BrandingLandingPage() {
   }, []);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: C.pageBg,
+    <>
+      <Helmet>
+        <title>Brand Identity Design — Eswar Creatives</title>
+        <meta property="og:title" content="Brand Identity Design — Eswar Creatives" />
+        <meta property="og:description" content="Logos, visual systems, and brand language for growing businesses." />
+        <meta property="og:image" content="https://www.eswarcreatives.in/og-branding.png" />
+        <meta property="og:url" content="https://www.eswarcreatives.in/branding/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Eswar Creatives" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Brand Identity Design — Eswar Creatives" />
+        <meta name="twitter:description" content="Logos, visual systems, and brand language for growing businesses." />
+        <meta name="twitter:image" content="https://www.eswarcreatives.in/og-branding.png" />
+      </Helmet>
+      <div
+        style={{
+          minHeight: "100vh",
+          background: C.pageBg,
         fontFamily: "var(--font-family-primary)",
         color: C.text,
       }}
@@ -420,5 +435,6 @@ export function BrandingLandingPage() {
         </div>
       </section>
     </div>
+    </>
   );
 }

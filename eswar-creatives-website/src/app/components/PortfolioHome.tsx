@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { Link } from "react-router";
 import { Palette } from "lucide-react";
 import { Navbar } from "./Navbar"; // refreshed
@@ -71,10 +72,24 @@ export function PortfolioHome() {
   }, []);
 
   return (
-    <div
-      className="min-h-screen w-full bg-bg-page"
-      style={{
-        fontFamily: "var(--font-body)",
+    <>
+      <Helmet>
+        <title>Eswar Maheswaran — Enterprise SaaS Design Systems Architect</title>
+        <meta property="og:title" content="Eswar Maheswaran — Enterprise SaaS Design Systems Architect" />
+        <meta property="og:description" content="Enterprise SaaS Design Systems Architect. HFI-CUA Certified. Web, iOS, Android." />
+        <meta property="og:image" content="https://www.eswarcreatives.in/og-portfolio.png" />
+        <meta property="og:url" content="https://www.eswarcreatives.in/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Eswar Creatives" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Eswar Maheswaran — Enterprise SaaS Design Systems Architect" />
+        <meta name="twitter:description" content="Enterprise SaaS Design Systems Architect. HFI-CUA Certified. Web, iOS, Android." />
+        <meta name="twitter:image" content="https://www.eswarcreatives.in/og-portfolio.png" />
+      </Helmet>
+      <div
+        className="min-h-screen w-full bg-bg-page"
+        style={{
+          fontFamily: "var(--font-body)",
       }}
     >
       <Navbar />
@@ -86,5 +101,6 @@ export function PortfolioHome() {
       <FooterSection />
       <DevFloatingButton />
     </div>
+    </>
   );
 }

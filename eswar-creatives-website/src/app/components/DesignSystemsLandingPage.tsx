@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { Helmet } from "react-helmet-async";
 import { ArrowRight, Check, Search, Package, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
@@ -145,11 +146,25 @@ export function DesignSystemsLandingPage() {
   }, []);
 
   return (
-    <div
-      style={{
-        minHeight:  "100vh",
-        fontFamily: "var(--font-family-primary)",
-        color:      C.text,
+    <>
+      <Helmet>
+        <title>B2B SaaS Design Systems — Eswar Creatives</title>
+        <meta property="og:title" content="B2B SaaS Design Systems — Eswar Creatives" />
+        <meta property="og:description" content="Token architecture, components, and cross-platform consistency." />
+        <meta property="og:image" content="https://www.eswarcreatives.in/og-design-systems.png" />
+        <meta property="og:url" content="https://www.eswarcreatives.in/design-systems/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Eswar Creatives" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="B2B SaaS Design Systems — Eswar Creatives" />
+        <meta name="twitter:description" content="Token architecture, components, and cross-platform consistency." />
+        <meta name="twitter:image" content="https://www.eswarcreatives.in/og-design-systems.png" />
+      </Helmet>
+      <div
+        style={{
+          minHeight:  "100vh",
+          fontFamily: "var(--font-family-primary)",
+          color:      C.text,
       }}
     >
       <Navbar />
@@ -830,5 +845,6 @@ export function DesignSystemsLandingPage() {
         </div>
       </section>
     </div>
+    </>
   );
 }

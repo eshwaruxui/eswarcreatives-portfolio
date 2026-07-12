@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { useNavigate } from 'react-router'
 import { supabase } from '../lib/supabase'
 import { tokens, fonts } from './theme'
@@ -84,8 +85,22 @@ export function LoginPage() {
   }
 
   return (
-    <div style={styles.page}>
-      <PortalNav />
+    <>
+      <Helmet>
+        <title>Client Portal — Eswar Creatives</title>
+        <meta property="og:title" content="Client Portal — Eswar Creatives" />
+        <meta property="og:description" content="Track projects, approve proposals, and pay invoices all in one place." />
+        <meta property="og:image" content="https://www.eswarcreatives.in/og-portal.png" />
+        <meta property="og:url" content="https://www.eswarcreatives.in/portal/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Eswar Creatives" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Client Portal — Eswar Creatives" />
+        <meta name="twitter:description" content="Track projects, approve proposals, and pay invoices all in one place." />
+        <meta name="twitter:image" content="https://www.eswarcreatives.in/og-portal.png" />
+      </Helmet>
+      <div style={styles.page}>
+        <PortalNav />
       <div style={styles.center}>
         <div style={styles.shell}>
         <div style={styles.card}>
@@ -139,7 +154,8 @@ export function LoginPage() {
         </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 
