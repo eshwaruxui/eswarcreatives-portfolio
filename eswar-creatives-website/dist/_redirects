@@ -1,1 +1,5 @@
+/portal/login /portal/login/index.html 200
+/portal/ /portal/index.html 200
+/branding/ /branding/index.html 200
+/design-systems/ /design-systems/index.html 200
 /* /index.html 200
