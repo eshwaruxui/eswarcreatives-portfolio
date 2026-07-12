@@ -80,7 +80,7 @@ async function fetchInvoice(supabaseUrl, anonKey, token) {
   }
   const data = await res.json()
   // RPC returns { invoice, line_items, payments } or null for expired/invalid token.
-  return data?.invoice ?? null
+  return data ?? null
 }
 
 // Serve the SPA index.html explicitly (safer than relying on _redirects inside
@@ -109,17 +109,19 @@ export async function onRequest({ request, env, params }) {
   }
 
   // Fetch invoice data — fail silently if token is expired, invalid, or RPC errors.
-  let invoice = null
+  let invoiceData = null
   try {
-    invoice = await fetchInvoice(SUPABASE_URL, SUPABASE_ANON_KEY, params.token)
+    invoiceData = await fetchInvoice(SUPABASE_URL, SUPABASE_ANON_KEY, params.token)
   } catch (err) {
     console.error('[og-worker] fetchInvoice threw:', err?.message ?? err)
     return serveShell(env, request)
   }
-  if (!invoice) {
+  if (!invoiceData?.invoice) {
     console.error(`[og-worker] No invoice found for token ${params.token}`)
     return serveShell(env, request)
   }
+  const invoice = invoiceData.invoice
+  const payments = invoiceData.payments ?? []
 
   // Fetch the SPA index.html shell from the Pages static-asset service.
   const origin = url.origin
@@ -132,16 +134,22 @@ export async function onRequest({ request, env, params }) {
   // Invoice numbers are stored as EC-I-YYYY-NNN; display format is EC-YYYY-NNN.
   const displayNumber = String(invoice.invoice_number).replace(/^EC-I-/, 'EC-')
   const company = invoice.company_name || invoice.client_name || 'Client'
-  const amount = fmtAmount(invoice.amount, invoice.currency)
   const due = fmtDate(invoice.due_date)
   const pageUrl = `https://www.eswarcreatives.in/invoice/${params.token}`
   const ogImage = 'https://www.eswarcreatives.in/og-invoice.png'
 
+  // Balance due = invoice total minus any recorded payments.
+  const paymentsTotal = payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)
+  const balanceDue = Math.max(0, Number(invoice.amount) - paymentsTotal)
+  const isPaid = balanceDue === 0
+
   const ogTitle = esc(`Invoice ${displayNumber} · ${company}`)
   const ogDesc = esc(
-    due
-      ? `${amount} due ${due} · Eswar Creatives`
-      : `${amount} · Eswar Creatives`
+    isPaid
+      ? 'Paid in full · Eswar Creatives'
+      : due
+        ? `${fmtAmount(balanceDue, invoice.currency)} due ${due} · Eswar Creatives`
+        : `${fmtAmount(balanceDue, invoice.currency)} · Eswar Creatives`
   )
 
   const ogTags = [
