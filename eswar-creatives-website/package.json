@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build && node prerender.mjs",
+    "postbuild": "node scripts/generate-og-pages.mjs",
     "dev": "vite",
     "optimise-images": "node scripts/optimise-images.mjs",
     "seed:phase1": "node --env-file=.env scripts/seed-phase1.mjs"
