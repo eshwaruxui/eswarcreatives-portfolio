@@ -7,6 +7,9 @@
 // Required Cloudflare Pages env vars (plain, not secrets):
 //   SUPABASE_URL      — https://urrinqwcrpivmvenupiu.supabase.co
 //   SUPABASE_ANON_KEY — the public anon key (safe for browser/edge use)
+//
+// Debug: append ?og_debug=1 to any invoice URL to force OG injection
+// regardless of User-Agent, so you can inspect the output in a browser.
 
 const CRAWLER_PATTERNS = [
   'whatsapp',
@@ -45,7 +48,7 @@ function fmtAmount(amount, currency) {
   if (currency === 'INR') {
     return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 })
   }
-  return currency + ' ' + n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+  return currency + ' ' + n.toLocaleString('en-US', { maximumFractionDigits: 0 })
 }
 
 function fmtDate(iso) {
@@ -71,38 +74,55 @@ async function fetchInvoice(supabaseUrl, anonKey, token) {
     },
     body: JSON.stringify({ p_token: token }),
   })
-  if (!res.ok) return null
+  if (!res.ok) {
+    console.error(`[og-worker] Supabase RPC returned ${res.status} for token ${token}`)
+    return null
+  }
   const data = await res.json()
   // RPC returns { invoice, line_items, payments } or null for expired/invalid token.
   return data?.invoice ?? null
 }
 
+// Serve the SPA index.html explicitly (safer than relying on _redirects inside
+// env.ASSETS for paths with no corresponding static file).
+function serveShell(env, request) {
+  const origin = new URL(request.url).origin
+  return env.ASSETS.fetch(
+    new Request(`${origin}/index.html`, { headers: { Accept: 'text/html' } })
+  )
+}
+
 export async function onRequest({ request, env, params }) {
+  const url = new URL(request.url)
+  const isDebug = url.searchParams.get('og_debug') === '1'
   const userAgent = request.headers.get('User-Agent') ?? ''
 
-  // Non-crawlers get the raw SPA asset without any server-side processing.
-  if (!isCrawler(userAgent)) {
+  // Non-crawlers (and non-debug) get the SPA without any server-side processing.
+  if (!isCrawler(userAgent) && !isDebug) {
     return env.ASSETS.fetch(request)
   }
 
   const { SUPABASE_URL, SUPABASE_ANON_KEY } = env
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    return env.ASSETS.fetch(request)
+    console.error('[og-worker] Missing SUPABASE_URL or SUPABASE_ANON_KEY env vars — set them in Cloudflare Pages → Settings → Environment variables')
+    return serveShell(env, request)
   }
 
   // Fetch invoice data — fail silently if token is expired, invalid, or RPC errors.
   let invoice = null
   try {
     invoice = await fetchInvoice(SUPABASE_URL, SUPABASE_ANON_KEY, params.token)
-  } catch {
-    return env.ASSETS.fetch(request)
+  } catch (err) {
+    console.error('[og-worker] fetchInvoice threw:', err?.message ?? err)
+    return serveShell(env, request)
   }
   if (!invoice) {
-    return env.ASSETS.fetch(request)
+    console.error(`[og-worker] No invoice found for token ${params.token}`)
+    return serveShell(env, request)
   }
 
   // Fetch the SPA index.html shell from the Pages static-asset service.
-  const origin = new URL(request.url).origin
+  const origin = url.origin
   const assetRes = await env.ASSETS.fetch(
     new Request(`${origin}/index.html`, { headers: { Accept: 'text/html' } })
   )
@@ -136,11 +156,23 @@ export async function onRequest({ request, env, params }) {
     `<meta name="twitter:image" content="${ogImage}" />`,
   ].join('\n    ')
 
+  if (!html.includes('</head>')) {
+    console.error('[og-worker] </head> not found in index.html — injecting into <html> tag instead')
+  }
+
   const modified = html.includes('</head>')
     ? html.replace('</head>', `    ${ogTags}\n  </head>`)
     : html
 
-  return new Response(modified, {
+  // For debug requests, add a visible banner so you can confirm the function ran.
+  const withDebugBanner = isDebug
+    ? modified.replace(
+        '<body',
+        `<body data-og-debug="1" style="position:relative">\n<div style="position:fixed;top:0;left:0;right:0;background:#024C4F;color:#fff;font:600 12px/32px system-ui;padding:0 16px;z-index:99999">og-worker injected: ${esc(ogTitle)}</div`
+      )
+    : modified
+
+  return new Response(withDebugBanner, {
     status: 200,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
