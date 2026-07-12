@@ -1,5 +1,6 @@
 // Cloudflare Pages Function middleware — intercepts all /branding/* requests.
-// For crawlers: injects branding-specific OG meta tags.
+// For crawlers: replaces existing OG meta tags in the static HTML shell and
+// injects any missing ones, so FB/WhatsApp previews show the correct values.
 // For real users: passes through via next() with zero overhead.
 
 const CRAWLER_PATTERNS = [
@@ -24,18 +25,39 @@ function isCrawler(ua) {
   return CRAWLER_PATTERNS.some((p) => lower.includes(p))
 }
 
-const OG_TAGS = [
-  '<meta property="og:title" content="Brand Identity Design — Eswar Creatives" />',
-  '<meta property="og:description" content="Logos, visual systems, and brand language for growing businesses." />',
-  '<meta property="og:image" content="https://www.eswarcreatives.in/og-branding.png" />',
-  '<meta property="og:url" content="https://www.eswarcreatives.in/branding/" />',
-  '<meta property="og:type" content="website" />',
-  '<meta property="og:site_name" content="Eswar Creatives" />',
-  '<meta name="twitter:card" content="summary_large_image" />',
-  '<meta name="twitter:title" content="Brand Identity Design — Eswar Creatives" />',
-  '<meta name="twitter:description" content="Logos, visual systems, and brand language for growing businesses." />',
-  '<meta name="twitter:image" content="https://www.eswarcreatives.in/og-branding.png" />',
-].join('\n    ')
+// Replaces OG tag content attributes that already exist in the HTML, then
+// injects any tags that were absent before </head>.
+function patchOg(html, title, desc, image, url) {
+  let out = html
+  out = out.replace(/<meta\s+property="og:title"\s+content="[^"]*"/, `<meta property="og:title" content="${title}"`)
+  out = out.replace(/<meta\s+property="og:description"\s+content="[^"]*"/, `<meta property="og:description" content="${desc}"`)
+  out = out.replace(/<meta\s+property="og:image"\s+content="[^"]*"/, `<meta property="og:image" content="${image}"`)
+  out = out.replace(/<meta\s+property="og:url"\s+content="[^"]*"/, `<meta property="og:url" content="${url}"`)
+  out = out.replace(/<meta\s+name="twitter:title"\s+content="[^"]*"/, `<meta name="twitter:title" content="${title}"`)
+  out = out.replace(/<meta\s+name="twitter:description"\s+content="[^"]*"/, `<meta name="twitter:description" content="${desc}"`)
+  out = out.replace(/<meta\s+name="twitter:image"\s+content="[^"]*"/, `<meta name="twitter:image" content="${image}"`)
+
+  // Inject tags that were absent from the static shell (regex above was a no-op).
+  const missing = [
+    !out.includes('property="og:image"')     && `<meta property="og:image" content="${image}" />`,
+    !out.includes('property="og:url"')       && `<meta property="og:url" content="${url}" />`,
+    !out.includes('property="og:type"')      && `<meta property="og:type" content="website" />`,
+    !out.includes('property="og:site_name"') && `<meta property="og:site_name" content="Eswar Creatives" />`,
+    !out.includes('name="twitter:card"')     && `<meta name="twitter:card" content="summary_large_image" />`,
+    !out.includes('name="twitter:image"')    && `<meta name="twitter:image" content="${image}" />`,
+  ].filter(Boolean).join('\n    ')
+
+  if (missing) {
+    out = out.includes('</head>') ? out.replace('</head>', `    ${missing}\n  </head>`) : out
+  }
+
+  return out
+}
+
+const TITLE = 'Brand Identity Design — Eswar Creatives'
+const DESC  = 'Logos, visual systems, and brand language for growing businesses.'
+const IMAGE = 'https://www.eswarcreatives.in/og-branding.png'
+const URL   = 'https://www.eswarcreatives.in/branding/'
 
 export async function onRequest({ request, env, next }) {
   const ua = request.headers.get('User-Agent') ?? ''
@@ -52,12 +74,7 @@ export async function onRequest({ request, env, next }) {
     return next()
   }
 
-  // Inject immediately after <head> — first occurrence wins for FB/WhatsApp parsers.
-  const modified = html.includes('<head>')
-    ? html.replace('<head>', `<head>\n    ${OG_TAGS}`)
-    : html
-
-  return new Response(modified, {
+  return new Response(patchOg(html, TITLE, DESC, IMAGE, URL), {
     status: 200,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
