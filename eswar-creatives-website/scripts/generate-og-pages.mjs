@@ -35,6 +35,13 @@ const ROUTES = [
     image: 'https://www.eswarcreatives.in/og-portal.png',
     url: 'https://www.eswarcreatives.in/portal/',
   },
+  {
+    path: 'portal/login',
+    title: 'Client Portal · Eswar Creatives',
+    description: 'Track projects, approve proposals, and pay invoices — all in one place.',
+    image: 'https://www.eswarcreatives.in/og-portal.png',
+    url: 'https://www.eswarcreatives.in/portal/login',
+  },
 ]
 
 function generateOgHtml(baseHtml, { title, description, image, url }) {
