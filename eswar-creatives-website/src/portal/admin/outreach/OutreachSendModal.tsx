@@ -714,6 +714,9 @@ export function OutreachSendModal({
                       onChange={(e) => { setSubject(e.target.value); setDraftRestored(false) }}
                       style={styles.input}
                     />
+                    <span style={styles.subjectHint}>
+                      Review subject before sending — edit to match the specific flow you observed.
+                    </span>
                   </div>
                   {/* Body */}
                   <div style={styles.field}>
@@ -986,6 +989,12 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 11,
     color: t.text.muted,
     alignSelf: 'flex-end',
+  },
+  subjectHint: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+    marginTop: 2,
   },
   charCountLi: {
     fontFamily: mono,

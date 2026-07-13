@@ -420,8 +420,26 @@ export function LeadDrawer({
             onChange={(e) => setObsValue(e.target.value)}
             style={{ ...styles.textarea, marginTop: 8 }}
             rows={3}
-            placeholder="e.g. the onboarding flow drops users after the second step..."
+            placeholder="e.g. the dashboard shows all metrics at equal weight with no visual hierarchy to guide the user toward the most actionable signal first."
           />
+          <div style={styles.obsFooter}>
+            <span style={{
+              ...styles.obsCharCount,
+              color: obsValue.trim().length > 0 && obsValue.trim().length < 60
+                ? tokens.goldDark
+                : t.text.muted,
+            }}>
+              {obsValue.trim().length} chars (target 100-200)
+            </span>
+          </div>
+          {obsValue.trim().length > 0 && obsValue.trim().length < 60 && (
+            <p style={styles.obsShortWarn}>
+              This observation may be too short to feel specific to this lead.
+            </p>
+          )}
+          <span style={styles.obsQualityHint}>
+            Start with the product area, describe what is missing or broken, explain the business impact. Only write what you saw on their actual site.
+          </span>
           {(obsValue !== obsSavedValue || obsSaveState === 'saved') && (
             <button
               type="button"
@@ -998,6 +1016,31 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 12,
     color: t.text.tertiary,
+  },
+  obsFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  obsCharCount: {
+    fontFamily: mono,
+    fontSize: 11,
+  },
+  obsShortWarn: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.goldDark,
+    background: tokens.goldLight,
+    border: `1px solid ${tokens.gold}`,
+    borderRadius: 6,
+    padding: '5px 9px',
+    margin: 0,
+  },
+  obsQualityHint: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+    lineHeight: 1.45,
   },
   activeEnrollList: {
     display: 'flex',
