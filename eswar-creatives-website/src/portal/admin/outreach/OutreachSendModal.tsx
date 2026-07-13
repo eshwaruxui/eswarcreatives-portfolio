@@ -76,12 +76,16 @@ function substitute(template: string, vars: Record<string, string>): string {
   return out
 }
 
+function collapseDoublePeriods(text: string): string {
+  return text.replace(/\.\s*\./g, '.')
+}
+
 function renderTemplate(
   template: string,
   lead: TouchRow['lead'],
   portalUrl = 'https://www.eswarcreatives.in'
 ): string {
-  return substitute(template, {
+  const raw = substitute(template, {
     first_name: lead.first_name,
     company: lead.company,
     specific_observation: lead.specific_observation ?? '',
@@ -89,6 +93,7 @@ function renderTemplate(
     unsubscribe_url: `${portalUrl}/unsubscribe/${lead.unsubscribe_token}`,
     topic: '{{topic}}',
   })
+  return collapseDoublePeriods(raw)
 }
 
 function findUnresolvedTokens(text: string): string[] {
