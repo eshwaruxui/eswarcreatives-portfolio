@@ -79,7 +79,7 @@ export function Navbar() {
               fontVariationSettings: '"SOFT" 0, "WONK" 1',
             }}
           >
-            eswar
+            EswarCreatives
           </span>
         </Link>
 

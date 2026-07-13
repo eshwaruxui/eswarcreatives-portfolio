@@ -18,7 +18,7 @@ export function PortalNav({ showSignOut = false }: { showSignOut?: boolean }) {
           height={32}
           style={styles.logo}
         />
-        <span style={styles.brandName}>Eswar Creatives</span>
+        <span style={styles.brandName}>EswarCreatives</span>
       </div>
       {showSignOut && (
         <div style={styles.signOutWrap}>

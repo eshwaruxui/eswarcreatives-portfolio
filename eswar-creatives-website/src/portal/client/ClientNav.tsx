@@ -108,7 +108,7 @@ export function ClientNav({ profile }: { profile: PortalProfile }) {
         <div style={{ ...styles.inner, ...(isMobile ? styles.innerMobile : null) }}>
           <div style={styles.brand}>
             <img src={eswarLogo} alt="Eswar Creatives logo" width={28} height={28} style={styles.logo} />
-            <span style={styles.brandName}>Client portal</span>
+            <span style={styles.brandName}>EswarCreatives</span>
           </div>
 
           {/* Desktop nav links -- hidden on mobile (bottom tab bar takes over) */}

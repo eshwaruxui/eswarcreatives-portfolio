@@ -52,7 +52,7 @@ export function TopBar() {
           <span style={styles.logoCircle}>
             <span style={styles.logoLetter}>e</span>
           </span>
-          <span style={styles.brandName}>Eswar Creatives</span>
+          <span style={styles.brandName}>EswarCreatives</span>
         </div>
 
         {/* Client selector */}
