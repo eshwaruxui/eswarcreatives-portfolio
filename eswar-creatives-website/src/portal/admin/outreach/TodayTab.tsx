@@ -9,6 +9,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
+import { LeadDrawer } from './LeadDrawer'
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
@@ -50,6 +51,7 @@ export function TodayTab({
   const [overdue, setOverdue] = useState<TouchRow[]>([])
   const [dueToday, setDueToday] = useState<TouchRow[]>([])
   const [activeTouch, setActiveTouch] = useState<TouchRow | null>(null)
+  const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
   const [motionStats, setMotionStats] = useState<MotionStats>({ emailsToday: 0, liTodayCount: 0, repliesWeek: 0, callsWeek: 0 })
   const today = todayStr()
 
@@ -156,6 +158,12 @@ export function TodayTab({
           onUpdateObservation={handleUpdateObservation}
         />
       )}
+      {activeLeadId && (
+        <LeadDrawer
+          leadId={activeLeadId}
+          onClose={() => setActiveLeadId(null)}
+        />
+      )}
 
       {error && <div style={styles.errorBanner}>{error}</div>}
 
@@ -174,7 +182,7 @@ export function TodayTab({
               isOverdue
               touches={overdue}
               onOpen={setActiveTouch}
-              onOpenLeadDrawer={onOpenLeadDrawer}
+              onOpenLeadDrawer={setActiveLeadId}
               onRefresh={load}
             />
           )}
@@ -185,7 +193,7 @@ export function TodayTab({
               isOverdue={false}
               touches={dueToday}
               onOpen={setActiveTouch}
-              onOpenLeadDrawer={onOpenLeadDrawer}
+              onOpenLeadDrawer={setActiveLeadId}
               onRefresh={load}
             />
           )}
@@ -299,6 +307,11 @@ function TouchRowCard({
   const awaitingConnection = isDm && lead.linkedin_status !== 'connected'
   const noEmail = isEmail && !lead.email
 
+  function handleLeadAreaClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    onOpenLeadDrawer(lead.id)
+  }
+
   async function handleSnooze(days: number) {
     setSnoozing(true)
     const current = new Date(touch.scheduled_for)
@@ -333,8 +346,15 @@ function TouchRowCard({
 
   return (
     <div style={styles.touchCard}>
-      {/* Avatar + info */}
-      <div style={styles.touchMain}>
+      {/* Avatar + info — clickable to open lead drawer */}
+      <div
+        role="button"
+        tabIndex={0}
+        style={{ ...styles.touchMain, cursor: 'pointer' }}
+        onClick={handleLeadAreaClick}
+        onKeyDown={(e) => e.key === 'Enter' && onOpenLeadDrawer(lead.id)}
+        aria-label={`Open ${lead.first_name} ${lead.last_name ?? ''} detail`}
+      >
         <div style={styles.avatar}>
           {initials(lead.first_name, lead.last_name)}
         </div>

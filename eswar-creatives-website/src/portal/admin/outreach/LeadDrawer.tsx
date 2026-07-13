@@ -175,6 +175,13 @@ export function LeadDrawer({
   const [replyBody, setReplyBody] = useState('')
   const [replySaving, setReplySaving] = useState(false)
 
+  // LinkedIn status auto-prompt: shown once when lead loads with status 'none'
+  const [showLinkedInPrompt, setShowLinkedInPrompt] = useState(false)
+
+  // Website warning on enroll
+  const [websiteWarn, setWebsiteWarn] = useState(false)
+  const websiteInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     setStartDate(new Date().toISOString().split('T')[0])
   }, [leadId])
@@ -191,6 +198,13 @@ export function LeadDrawer({
       const obs = lead.specific_observation ?? ''
       setObsValue(obs)
       setObsSavedValue(obs)
+    }
+  }, [lead?.id])
+
+  // Show LinkedIn prompt once when lead loads with status 'none'
+  useEffect(() => {
+    if (lead && lead.linkedin_status === 'none') {
+      setShowLinkedInPrompt(true)
     }
   }, [lead?.id])
 
@@ -239,8 +253,13 @@ export function LeadDrawer({
     setTimeout(() => setObsSaveState('idle'), 1500)
   }
 
-  async function handleEnroll() {
+  async function handleEnroll(skipWebsiteCheck = false) {
     if (!selectedSeq || !startDate) return
+    if (!skipWebsiteCheck && !lead?.website) {
+      setWebsiteWarn(true)
+      return
+    }
+    setWebsiteWarn(false)
     setEnrolling(true)
     setEnrollError(null)
     const { error: rpcErr } = await supabase.rpc('enroll_lead', {
@@ -404,7 +423,9 @@ export function LeadDrawer({
             <EditableInput value={lead.company} onSave={(v) => saveLead({ company: v })} />
           </FieldRow>
           <FieldRow label="Website">
-            <EditableInput value={lead.website ?? ''} onSave={(v) => saveLead({ website: v || null })} />
+            <div ref={websiteInputRef as React.RefObject<HTMLDivElement>}>
+              <EditableInput value={lead.website ?? ''} onSave={(v) => saveLead({ website: v || null })} />
+            </div>
           </FieldRow>
           <FieldRow label="Country">
             <EditableInput value={lead.country ?? ''} onSave={(v) => saveLead({ country: v || null })} />
@@ -420,8 +441,26 @@ export function LeadDrawer({
             onChange={(e) => setObsValue(e.target.value)}
             style={{ ...styles.textarea, marginTop: 8 }}
             rows={3}
-            placeholder="e.g. the onboarding flow drops users after the second step..."
+            placeholder="e.g. the dashboard shows all metrics at equal weight with no visual hierarchy to guide the user toward the most actionable signal first."
           />
+          <div style={styles.obsFooter}>
+            <span style={{
+              ...styles.obsCharCount,
+              color: obsValue.trim().length > 0 && obsValue.trim().length < 60
+                ? tokens.goldDark
+                : t.text.muted,
+            }}>
+              {obsValue.trim().length} chars (target 100-200)
+            </span>
+          </div>
+          {obsValue.trim().length > 0 && obsValue.trim().length < 60 && (
+            <p style={styles.obsShortWarn}>
+              This observation may be too short to feel specific to this lead.
+            </p>
+          )}
+          <span style={styles.obsQualityHint}>
+            Start with the product area, describe what is missing or broken, explain the business impact. Only write what you saw on their actual site.
+          </span>
           {(obsValue !== obsSavedValue || obsSaveState === 'saved') && (
             <button
               type="button"
@@ -446,7 +485,10 @@ export function LeadDrawer({
             <select
               style={styles.select}
               value={lead.linkedin_status}
-              onChange={(e) => saveLead({ linkedin_status: e.target.value as LinkedInStatus })}
+              onChange={(e) => {
+                saveLead({ linkedin_status: e.target.value as LinkedInStatus })
+                setShowLinkedInPrompt(false)
+              }}
             >
               <option value="none">None</option>
               <option value="request_sent">Request sent</option>
@@ -454,6 +496,21 @@ export function LeadDrawer({
               <option value="ignored">Ignored</option>
             </select>
           </FieldRow>
+          {showLinkedInPrompt && lead.linkedin_status === 'none' && (
+            <div style={styles.linkedInPrompt}>
+              <span style={styles.linkedInPromptText}>
+                Did you send a connect request? Update status to track follow-ups correctly.
+              </span>
+              <button
+                type="button"
+                style={styles.linkedInPromptDismiss}
+                onClick={() => setShowLinkedInPrompt(false)}
+                aria-label="Dismiss"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
         </Section>
 
         {/* Notes */}
@@ -559,14 +616,45 @@ export function LeadDrawer({
                   <p style={styles.warnNote}>This sequence targets a different segment.</p>
                 )}
                 {enrollError && <p style={styles.errorNote}>{enrollError}</p>}
-                <button
-                  type="button"
-                  style={{ ...styles.primaryBtn, opacity: enrolling ? 0.6 : 1 }}
-                  onClick={handleEnroll}
-                  disabled={enrolling}
-                >
-                  {enrolling ? 'Enrolling...' : 'Enroll'}
-                </button>
+                {websiteWarn && (
+                  <div style={styles.websiteWarn}>
+                    <p style={styles.websiteWarnText}>
+                      No website on file. Writing an observation without reviewing their site reduces reply rate. Add website or proceed anyway?
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        style={styles.outlineBtn}
+                        onClick={() => {
+                          setWebsiteWarn(false)
+                          websiteInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                          const input = websiteInputRef.current?.querySelector('input')
+                          if (input) input.focus()
+                        }}
+                      >
+                        Add website
+                      </button>
+                      <button
+                        type="button"
+                        style={{ ...styles.primaryBtn, opacity: enrolling ? 0.6 : 1 }}
+                        onClick={() => handleEnroll(true)}
+                        disabled={enrolling}
+                      >
+                        Enroll anyway
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {!websiteWarn && (
+                  <button
+                    type="button"
+                    style={{ ...styles.primaryBtn, opacity: enrolling ? 0.6 : 1 }}
+                    onClick={() => handleEnroll(false)}
+                    disabled={enrolling}
+                  >
+                    {enrolling ? 'Enrolling...' : 'Enroll'}
+                  </button>
+                )}
               </>
             )
           })()}
@@ -998,6 +1086,75 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 12,
     color: t.text.tertiary,
+  },
+  obsFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  obsCharCount: {
+    fontFamily: mono,
+    fontSize: 11,
+  },
+  obsShortWarn: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.goldDark,
+    background: tokens.goldLight,
+    border: `1px solid ${tokens.gold}`,
+    borderRadius: 6,
+    padding: '5px 9px',
+    margin: 0,
+  },
+  obsQualityHint: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+    lineHeight: 1.45,
+  },
+  linkedInPrompt: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    background: tokens.goldLight,
+    border: `1px solid ${tokens.gold}`,
+    borderRadius: 8,
+    padding: '9px 12px',
+    marginTop: 8,
+  },
+  linkedInPromptText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.goldDark,
+    flex: 1,
+    margin: 0,
+    lineHeight: 1.45,
+  },
+  linkedInPromptDismiss: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 2,
+    color: tokens.goldDark,
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+  },
+  websiteWarn: {
+    background: tokens.goldLight,
+    border: `1px solid ${tokens.gold}`,
+    borderRadius: 8,
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+  },
+  websiteWarnText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: tokens.goldDark,
+    margin: 0,
+    lineHeight: 1.45,
   },
   activeEnrollList: {
     display: 'flex',

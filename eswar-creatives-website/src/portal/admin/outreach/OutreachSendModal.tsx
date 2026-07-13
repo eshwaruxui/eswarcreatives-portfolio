@@ -3,7 +3,7 @@
 // LinkedIn: read-only rendered message, Copy + Open LinkedIn + Mark sent.
 // All error states follow Nielsen H9: plain language, next step, no raw errors.
 import { useEffect, useRef, useState } from 'react'
-import { Check, Copy, ExternalLink, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
@@ -76,12 +76,28 @@ function substitute(template: string, vars: Record<string, string>): string {
   return out
 }
 
+const EM_DASH_RE = /—/g
+
+function collapseDoublePeriods(text: string): string {
+  return text.replace(/\.\s*\./g, '.')
+}
+
+function stripEmDashes(text: string): { cleaned: string; hadEmDash: boolean } {
+  const hadEmDash = EM_DASH_RE.test(text)
+  EM_DASH_RE.lastIndex = 0
+  return { cleaned: text.replace(EM_DASH_RE, ''), hadEmDash }
+}
+
+function hasSignOffWithoutDesignSystems(text: string): boolean {
+  return /eswarcreatives\.in(?!\/design-systems)/.test(text)
+}
+
 function renderTemplate(
   template: string,
   lead: TouchRow['lead'],
   portalUrl = 'https://www.eswarcreatives.in'
 ): string {
-  return substitute(template, {
+  const raw = substitute(template, {
     first_name: lead.first_name,
     company: lead.company,
     specific_observation: lead.specific_observation ?? '',
@@ -89,11 +105,347 @@ function renderTemplate(
     unsubscribe_url: `${portalUrl}/unsubscribe/${lead.unsubscribe_token}`,
     topic: '{{topic}}',
   })
+  return collapseDoublePeriods(raw)
 }
 
 function findUnresolvedTokens(text: string): string[] {
   const matches = text.match(/\{\{[^}]+\}\}/g)
   return matches ?? []
+}
+
+type PriorTouch = {
+  id: string
+  step_number: number
+  sent_at: string
+  subject_snapshot: string | null
+  body_snapshot: string | null
+  opened_at: string | null
+}
+
+function PreviousMessages({ enrollmentId, currentTouchId }: { enrollmentId: string; currentTouchId: string }) {
+  const [open, setOpen] = useState(false)
+  const [priors, setPriors] = useState<PriorTouch[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('outreach_touches')
+      .select(`
+        id, sent_at, subject_snapshot, body_snapshot, opened_at,
+        step:sequence_steps!step_id (step_number)
+      `)
+      .eq('enrollment_id', enrollmentId)
+      .neq('id', currentTouchId)
+      .eq('status', 'sent')
+      .eq('channel', 'email')
+      .order('sent_at', { ascending: true })
+      .then(({ data }) => {
+        const rows = (data ?? []).map((r: Record<string, unknown>) => ({
+          id: r.id as string,
+          step_number: (r.step as { step_number: number } | null)?.step_number ?? 0,
+          sent_at: r.sent_at as string,
+          subject_snapshot: r.subject_snapshot as string | null,
+          body_snapshot: r.body_snapshot as string | null,
+          opened_at: r.opened_at as string | null,
+        }))
+        setPriors(rows)
+        setLoaded(true)
+      })
+  }, [enrollmentId, currentTouchId])
+
+  if (loaded && priors.length === 0) return null
+
+  const firstPrior = priors[0]
+  const collapseLabel = firstPrior
+    ? `Step ${firstPrior.step_number} sent ${new Date(firstPrior.sent_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — tap to review`
+    : 'Previous messages — tap to review'
+
+  return (
+    <div style={prevStyles.container}>
+      <button
+        type="button"
+        style={prevStyles.toggle}
+        onClick={() => setOpen((p) => !p)}
+      >
+        <span style={prevStyles.toggleLabel}>{collapseLabel}</span>
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+      {open && (
+        <div style={prevStyles.list}>
+          {priors.map((p) => {
+            const bodyLines = (p.body_snapshot ?? '').split('\n').filter(Boolean).slice(0, 3)
+            return (
+              <div key={p.id} style={prevStyles.entry}>
+                <div style={prevStyles.entryHeader}>
+                  <span style={prevStyles.stepLabel}>Step {p.step_number}</span>
+                  <span style={prevStyles.sentDate}>
+                    {new Date(p.sent_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                  {p.opened_at && (
+                    <span style={prevStyles.openedChip}>
+                      <span style={prevStyles.greenDot} />
+                      Opened
+                    </span>
+                  )}
+                </div>
+                {p.subject_snapshot && (
+                  <p style={prevStyles.subject}>{p.subject_snapshot}</p>
+                )}
+                <p style={prevStyles.bodyPreview}>{bodyLines.join('\n')}</p>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const prevStyles: Record<string, CSSProperties> = {
+  container: {
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  toggle: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    background: t.background.subtle,
+    border: 'none',
+    padding: '9px 12px',
+    cursor: 'pointer',
+    gap: 8,
+  },
+  toggleLabel: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.secondary,
+    textAlign: 'left' as const,
+    flex: 1,
+  },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0,
+    background: t.background.subtle,
+    borderTop: `1px solid ${t.border.subtle}`,
+  },
+  entry: {
+    padding: '10px 12px',
+    borderBottom: `1px solid ${t.border.subtle}`,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  entryHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepLabel: {
+    fontFamily: mono,
+    fontSize: 11,
+    fontWeight: 700,
+    color: t.text.tertiary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  },
+  sentDate: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+    flex: 1,
+  },
+  openedChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: tokens.green,
+    fontWeight: 500,
+  },
+  greenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: tokens.green,
+    display: 'inline-block',
+    flexShrink: 0,
+  },
+  subject: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    color: t.text.primary,
+    margin: 0,
+  },
+  bodyPreview: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.muted,
+    margin: 0,
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap' as const,
+  },
+}
+
+type CheckLevel = 'green' | 'amber' | 'red'
+
+type QualityCheck = {
+  label: string
+  level: CheckLevel
+  pass: boolean
+}
+
+function QualityChecklist({
+  subject,
+  body,
+  observation,
+  seqName,
+}: {
+  subject: string
+  body: string
+  observation: string | null
+  seqName: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  const paragraphs = body.split(/\n\n+/).filter((p) => p.trim().length > 0)
+  const isOnboardingSeq = /(onboarding)/i.test(seqName)
+
+  const checks: QualityCheck[] = [
+    {
+      label: 'Subject does not contain "onboarding" for non-onboarding sequences',
+      level: 'amber',
+      pass: isOnboardingSeq || !/onboarding/i.test(subject),
+    },
+    {
+      label: 'Body has 4 distinct paragraphs (double line breaks present)',
+      level: 'amber',
+      pass: paragraphs.length >= 4,
+    },
+    {
+      label: 'No em dashes detected',
+      level: 'red',
+      pass: !EM_DASH_RE.test(body + subject),
+    },
+    {
+      label: 'Sign-off uses /design-systems URL',
+      level: 'amber',
+      pass: !hasSignOffWithoutDesignSystems(body + subject),
+    },
+    {
+      label: 'No unresolved {{variables}} remaining',
+      level: 'red',
+      pass: findUnresolvedTokens(body).length === 0,
+    },
+    {
+      label: 'Specific observation is not empty',
+      level: 'red',
+      pass: !!(observation && observation.trim().length > 0),
+    },
+  ]
+
+  // Reset lastIndex for EM_DASH_RE after test
+  EM_DASH_RE.lastIndex = 0
+
+  const passed = checks.filter((c) => c.pass).length
+  const total = checks.length
+  const allPass = passed === total
+
+  const DOT_COLORS: Record<CheckLevel, string> = {
+    green: tokens.green,
+    amber: tokens.gold,
+    red: tokens.ruby,
+  }
+
+  return (
+    <div style={checkStyles.container}>
+      <button
+        type="button"
+        style={checkStyles.header}
+        onClick={() => setExpanded((p) => !p)}
+      >
+        <span style={{
+          ...checkStyles.count,
+          color: allPass ? tokens.green : t.text.secondary,
+        }}>
+          {passed}/{total} checks passed
+        </span>
+        {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+      </button>
+      {expanded && (
+        <div style={checkStyles.list}>
+          {checks.map((c, i) => (
+            <div key={i} style={checkStyles.row}>
+              <span style={{
+                ...checkStyles.dot,
+                background: c.pass ? tokens.green : DOT_COLORS[c.level],
+              }} />
+              <span style={{
+                ...checkStyles.label,
+                color: c.pass ? t.text.secondary : (c.level === 'red' ? tokens.ruby : tokens.goldDark),
+              }}>
+                {c.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const checkStyles: Record<string, CSSProperties> = {
+  container: {
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    background: t.background.subtle,
+    border: 'none',
+    padding: '8px 12px',
+    cursor: 'pointer',
+    gap: 8,
+  },
+  count: {
+    fontFamily: mono,
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0,
+    background: t.background.subtle,
+    borderTop: `1px solid ${t.border.subtle}`,
+    padding: '6px 12px 10px',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '5px 0',
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: '50%',
+    flexShrink: 0,
+    display: 'inline-block',
+  },
+  label: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+  },
 }
 
 export function OutreachSendModal({
@@ -116,13 +468,16 @@ export function OutreachSendModal({
   const stepNum = touch.step?.step_number ?? 1
   const seqName = touch.enrollment?.sequence?.name ?? 'Sequence'
 
-  // Email state
-  const initialSubject = touch.step?.subject_template
+  // Email state — strip em dashes from initial render, track removal for warning
+  const _rawSubject = touch.step?.subject_template
     ? renderTemplate(touch.step.subject_template, lead)
     : touch.subject_snapshot ?? ''
-  const initialBody = touch.step?.body_template
+  const _rawBody = touch.step?.body_template
     ? renderTemplate(touch.step.body_template, lead)
     : touch.body_snapshot ?? ''
+  const { cleaned: initialSubject, hadEmDash: subjectHadEmDash } = stripEmDashes(_rawSubject)
+  const { cleaned: initialBody, hadEmDash: bodyHadEmDash } = stripEmDashes(_rawBody)
+  const initialEmDashRemoved = subjectHadEmDash || bodyHadEmDash
 
   const draftKey = `draft_touch_${touch.id}`
 
@@ -158,6 +513,9 @@ export function OutreachSendModal({
   const [emailError, setEmailError] = useState<EmailErrorCode | null>(null)
   const [obsValue, setObsValue] = useState(lead.specific_observation ?? '')
   const [savingObs, setSavingObs] = useState(false)
+  const [emDashRemoved] = useState(initialEmDashRemoved)
+
+  const signOffWarn = isEmail && hasSignOffWithoutDesignSystems(body + subject)
 
   // Auto-save draft on subject/body change (debounced 1s)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -340,6 +698,13 @@ export function OutreachSendModal({
                   {draftRestored && (
                     <div style={styles.draftRestoredBadge}>Draft restored</div>
                   )}
+                  {/* Step 2+: previous messages context panel */}
+                  {stepNum > 1 && touch.enrollment?.id && (
+                    <PreviousMessages
+                      enrollmentId={touch.enrollment.id}
+                      currentTouchId={touch.id}
+                    />
+                  )}
                   {/* Subject */}
                   <div style={styles.field}>
                     <label style={styles.fieldLabel}>Subject</label>
@@ -349,6 +714,9 @@ export function OutreachSendModal({
                       onChange={(e) => { setSubject(e.target.value); setDraftRestored(false) }}
                       style={styles.input}
                     />
+                    <span style={styles.subjectHint}>
+                      Review subject before sending — edit to match the specific flow you observed.
+                    </span>
                   </div>
                   {/* Body */}
                   <div style={styles.field}>
@@ -362,6 +730,18 @@ export function OutreachSendModal({
                     />
                     <span style={styles.charCount}>{body.length} characters</span>
                   </div>
+                  {/* Em dash removal warning */}
+                  {emDashRemoved && (
+                    <div style={styles.emDashBanner}>
+                      Em dash removed. Review the sentence.
+                    </div>
+                  )}
+                  {/* Sign-off URL warning */}
+                  {signOffWarn && (
+                    <div style={styles.signOffWarnBanner}>
+                      Sign-off link may point to homepage. Check before sending.
+                    </div>
+                  )}
                   {/* Unresolved tokens warning */}
                   {renderBodyWithHighlights()}
                   {/* Missing observation inline editor */}
@@ -394,6 +774,13 @@ export function OutreachSendModal({
                       {emailErrorMessage(emailError)}
                     </div>
                   )}
+                  {/* Pre-send quality checklist */}
+                  <QualityChecklist
+                    subject={subject}
+                    body={body}
+                    observation={lead.specific_observation}
+                    seqName={seqName}
+                  />
                   {/* Actions row: Save draft + Send */}
                   <div style={styles.sendRow}>
                     <button
@@ -603,6 +990,12 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.muted,
     alignSelf: 'flex-end',
   },
+  subjectHint: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+    marginTop: 2,
+  },
   charCountLi: {
     fontFamily: mono,
     fontSize: 12,
@@ -637,6 +1030,26 @@ const styles: Record<string, CSSProperties> = {
     padding: '10px 14px',
     fontFamily: fonts.body,
     fontSize: 13,
+  },
+  emDashBanner: {
+    background: tokens.rubyLight,
+    color: tokens.ruby,
+    border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8,
+    padding: '8px 12px',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 500,
+  },
+  signOffWarnBanner: {
+    background: tokens.goldLight,
+    color: tokens.goldDark,
+    border: `1px solid ${tokens.gold}`,
+    borderRadius: 8,
+    padding: '8px 12px',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 500,
   },
   obsCard: {
     background: t.background.tint1,
