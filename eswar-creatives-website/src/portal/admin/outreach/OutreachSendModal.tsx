@@ -292,6 +292,162 @@ const prevStyles: Record<string, CSSProperties> = {
   },
 }
 
+type CheckLevel = 'green' | 'amber' | 'red'
+
+type QualityCheck = {
+  label: string
+  level: CheckLevel
+  pass: boolean
+}
+
+function QualityChecklist({
+  subject,
+  body,
+  observation,
+  seqName,
+}: {
+  subject: string
+  body: string
+  observation: string | null
+  seqName: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  const paragraphs = body.split(/\n\n+/).filter((p) => p.trim().length > 0)
+  const isOnboardingSeq = /(onboarding)/i.test(seqName)
+
+  const checks: QualityCheck[] = [
+    {
+      label: 'Subject does not contain "onboarding" for non-onboarding sequences',
+      level: 'amber',
+      pass: isOnboardingSeq || !/onboarding/i.test(subject),
+    },
+    {
+      label: 'Body has 4 distinct paragraphs (double line breaks present)',
+      level: 'amber',
+      pass: paragraphs.length >= 4,
+    },
+    {
+      label: 'No em dashes detected',
+      level: 'red',
+      pass: !EM_DASH_RE.test(body + subject),
+    },
+    {
+      label: 'Sign-off uses /design-systems URL',
+      level: 'amber',
+      pass: !hasSignOffWithoutDesignSystems(body + subject),
+    },
+    {
+      label: 'No unresolved {{variables}} remaining',
+      level: 'red',
+      pass: findUnresolvedTokens(body).length === 0,
+    },
+    {
+      label: 'Specific observation is not empty',
+      level: 'red',
+      pass: !!(observation && observation.trim().length > 0),
+    },
+  ]
+
+  // Reset lastIndex for EM_DASH_RE after test
+  EM_DASH_RE.lastIndex = 0
+
+  const passed = checks.filter((c) => c.pass).length
+  const total = checks.length
+  const allPass = passed === total
+
+  const DOT_COLORS: Record<CheckLevel, string> = {
+    green: tokens.green,
+    amber: tokens.gold,
+    red: tokens.ruby,
+  }
+
+  return (
+    <div style={checkStyles.container}>
+      <button
+        type="button"
+        style={checkStyles.header}
+        onClick={() => setExpanded((p) => !p)}
+      >
+        <span style={{
+          ...checkStyles.count,
+          color: allPass ? tokens.green : t.text.secondary,
+        }}>
+          {passed}/{total} checks passed
+        </span>
+        {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+      </button>
+      {expanded && (
+        <div style={checkStyles.list}>
+          {checks.map((c, i) => (
+            <div key={i} style={checkStyles.row}>
+              <span style={{
+                ...checkStyles.dot,
+                background: c.pass ? tokens.green : DOT_COLORS[c.level],
+              }} />
+              <span style={{
+                ...checkStyles.label,
+                color: c.pass ? t.text.secondary : (c.level === 'red' ? tokens.ruby : tokens.goldDark),
+              }}>
+                {c.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const checkStyles: Record<string, CSSProperties> = {
+  container: {
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    background: t.background.subtle,
+    border: 'none',
+    padding: '8px 12px',
+    cursor: 'pointer',
+    gap: 8,
+  },
+  count: {
+    fontFamily: mono,
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0,
+    background: t.background.subtle,
+    borderTop: `1px solid ${t.border.subtle}`,
+    padding: '6px 12px 10px',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '5px 0',
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: '50%',
+    flexShrink: 0,
+    display: 'inline-block',
+  },
+  label: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+  },
+}
+
 export function OutreachSendModal({
   touch,
   onClose,
@@ -615,6 +771,13 @@ export function OutreachSendModal({
                       {emailErrorMessage(emailError)}
                     </div>
                   )}
+                  {/* Pre-send quality checklist */}
+                  <QualityChecklist
+                    subject={subject}
+                    body={body}
+                    observation={lead.specific_observation}
+                    seqName={seqName}
+                  />
                   {/* Actions row: Save draft + Send */}
                   <div style={styles.sendRow}>
                     <button
