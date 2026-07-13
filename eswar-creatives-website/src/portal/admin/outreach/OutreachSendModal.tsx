@@ -76,8 +76,20 @@ function substitute(template: string, vars: Record<string, string>): string {
   return out
 }
 
+const EM_DASH_RE = /—/g
+
 function collapseDoublePeriods(text: string): string {
   return text.replace(/\.\s*\./g, '.')
+}
+
+function stripEmDashes(text: string): { cleaned: string; hadEmDash: boolean } {
+  const hadEmDash = EM_DASH_RE.test(text)
+  EM_DASH_RE.lastIndex = 0
+  return { cleaned: text.replace(EM_DASH_RE, ''), hadEmDash }
+}
+
+function hasSignOffWithoutDesignSystems(text: string): boolean {
+  return /eswarcreatives\.in(?!\/design-systems)/.test(text)
 }
 
 function renderTemplate(
@@ -121,13 +133,16 @@ export function OutreachSendModal({
   const stepNum = touch.step?.step_number ?? 1
   const seqName = touch.enrollment?.sequence?.name ?? 'Sequence'
 
-  // Email state
-  const initialSubject = touch.step?.subject_template
+  // Email state — strip em dashes from initial render, track removal for warning
+  const _rawSubject = touch.step?.subject_template
     ? renderTemplate(touch.step.subject_template, lead)
     : touch.subject_snapshot ?? ''
-  const initialBody = touch.step?.body_template
+  const _rawBody = touch.step?.body_template
     ? renderTemplate(touch.step.body_template, lead)
     : touch.body_snapshot ?? ''
+  const { cleaned: initialSubject, hadEmDash: subjectHadEmDash } = stripEmDashes(_rawSubject)
+  const { cleaned: initialBody, hadEmDash: bodyHadEmDash } = stripEmDashes(_rawBody)
+  const initialEmDashRemoved = subjectHadEmDash || bodyHadEmDash
 
   const draftKey = `draft_touch_${touch.id}`
 
@@ -163,6 +178,9 @@ export function OutreachSendModal({
   const [emailError, setEmailError] = useState<EmailErrorCode | null>(null)
   const [obsValue, setObsValue] = useState(lead.specific_observation ?? '')
   const [savingObs, setSavingObs] = useState(false)
+  const [emDashRemoved] = useState(initialEmDashRemoved)
+
+  const signOffWarn = isEmail && hasSignOffWithoutDesignSystems(body + subject)
 
   // Auto-save draft on subject/body change (debounced 1s)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -367,6 +385,18 @@ export function OutreachSendModal({
                     />
                     <span style={styles.charCount}>{body.length} characters</span>
                   </div>
+                  {/* Em dash removal warning */}
+                  {emDashRemoved && (
+                    <div style={styles.emDashBanner}>
+                      Em dash removed. Review the sentence.
+                    </div>
+                  )}
+                  {/* Sign-off URL warning */}
+                  {signOffWarn && (
+                    <div style={styles.signOffWarnBanner}>
+                      Sign-off link may point to homepage. Check before sending.
+                    </div>
+                  )}
                   {/* Unresolved tokens warning */}
                   {renderBodyWithHighlights()}
                   {/* Missing observation inline editor */}
@@ -642,6 +672,26 @@ const styles: Record<string, CSSProperties> = {
     padding: '10px 14px',
     fontFamily: fonts.body,
     fontSize: 13,
+  },
+  emDashBanner: {
+    background: tokens.rubyLight,
+    color: tokens.ruby,
+    border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8,
+    padding: '8px 12px',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 500,
+  },
+  signOffWarnBanner: {
+    background: tokens.goldLight,
+    color: tokens.goldDark,
+    border: `1px solid ${tokens.gold}`,
+    borderRadius: 8,
+    padding: '8px 12px',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 500,
   },
   obsCard: {
     background: t.background.tint1,
