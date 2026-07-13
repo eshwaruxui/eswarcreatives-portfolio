@@ -3,7 +3,7 @@
 // LinkedIn: read-only rendered message, Copy + Open LinkedIn + Mark sent.
 // All error states follow Nielsen H9: plain language, next step, no raw errors.
 import { useEffect, useRef, useState } from 'react'
-import { Check, Copy, ExternalLink, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
@@ -111,6 +111,185 @@ function renderTemplate(
 function findUnresolvedTokens(text: string): string[] {
   const matches = text.match(/\{\{[^}]+\}\}/g)
   return matches ?? []
+}
+
+type PriorTouch = {
+  id: string
+  step_number: number
+  sent_at: string
+  subject_snapshot: string | null
+  body_snapshot: string | null
+  opened_at: string | null
+}
+
+function PreviousMessages({ enrollmentId, currentTouchId }: { enrollmentId: string; currentTouchId: string }) {
+  const [open, setOpen] = useState(false)
+  const [priors, setPriors] = useState<PriorTouch[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('outreach_touches')
+      .select(`
+        id, sent_at, subject_snapshot, body_snapshot, opened_at,
+        step:sequence_steps!step_id (step_number)
+      `)
+      .eq('enrollment_id', enrollmentId)
+      .neq('id', currentTouchId)
+      .eq('status', 'sent')
+      .eq('channel', 'email')
+      .order('sent_at', { ascending: true })
+      .then(({ data }) => {
+        const rows = (data ?? []).map((r: Record<string, unknown>) => ({
+          id: r.id as string,
+          step_number: (r.step as { step_number: number } | null)?.step_number ?? 0,
+          sent_at: r.sent_at as string,
+          subject_snapshot: r.subject_snapshot as string | null,
+          body_snapshot: r.body_snapshot as string | null,
+          opened_at: r.opened_at as string | null,
+        }))
+        setPriors(rows)
+        setLoaded(true)
+      })
+  }, [enrollmentId, currentTouchId])
+
+  if (loaded && priors.length === 0) return null
+
+  const firstPrior = priors[0]
+  const collapseLabel = firstPrior
+    ? `Step ${firstPrior.step_number} sent ${new Date(firstPrior.sent_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — tap to review`
+    : 'Previous messages — tap to review'
+
+  return (
+    <div style={prevStyles.container}>
+      <button
+        type="button"
+        style={prevStyles.toggle}
+        onClick={() => setOpen((p) => !p)}
+      >
+        <span style={prevStyles.toggleLabel}>{collapseLabel}</span>
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+      {open && (
+        <div style={prevStyles.list}>
+          {priors.map((p) => {
+            const bodyLines = (p.body_snapshot ?? '').split('\n').filter(Boolean).slice(0, 3)
+            return (
+              <div key={p.id} style={prevStyles.entry}>
+                <div style={prevStyles.entryHeader}>
+                  <span style={prevStyles.stepLabel}>Step {p.step_number}</span>
+                  <span style={prevStyles.sentDate}>
+                    {new Date(p.sent_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                  {p.opened_at && (
+                    <span style={prevStyles.openedChip}>
+                      <span style={prevStyles.greenDot} />
+                      Opened
+                    </span>
+                  )}
+                </div>
+                {p.subject_snapshot && (
+                  <p style={prevStyles.subject}>{p.subject_snapshot}</p>
+                )}
+                <p style={prevStyles.bodyPreview}>{bodyLines.join('\n')}</p>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const prevStyles: Record<string, CSSProperties> = {
+  container: {
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  toggle: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    background: t.background.subtle,
+    border: 'none',
+    padding: '9px 12px',
+    cursor: 'pointer',
+    gap: 8,
+  },
+  toggleLabel: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.secondary,
+    textAlign: 'left' as const,
+    flex: 1,
+  },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0,
+    background: t.background.subtle,
+    borderTop: `1px solid ${t.border.subtle}`,
+  },
+  entry: {
+    padding: '10px 12px',
+    borderBottom: `1px solid ${t.border.subtle}`,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  entryHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepLabel: {
+    fontFamily: mono,
+    fontSize: 11,
+    fontWeight: 700,
+    color: t.text.tertiary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  },
+  sentDate: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+    flex: 1,
+  },
+  openedChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: tokens.green,
+    fontWeight: 500,
+  },
+  greenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: tokens.green,
+    display: 'inline-block',
+    flexShrink: 0,
+  },
+  subject: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    color: t.text.primary,
+    margin: 0,
+  },
+  bodyPreview: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.muted,
+    margin: 0,
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap' as const,
+  },
 }
 
 export function OutreachSendModal({
@@ -362,6 +541,13 @@ export function OutreachSendModal({
                   {/* Draft restored badge */}
                   {draftRestored && (
                     <div style={styles.draftRestoredBadge}>Draft restored</div>
+                  )}
+                  {/* Step 2+: previous messages context panel */}
+                  {stepNum > 1 && touch.enrollment?.id && (
+                    <PreviousMessages
+                      enrollmentId={touch.enrollment.id}
+                      currentTouchId={touch.id}
+                    />
                   )}
                   {/* Subject */}
                   <div style={styles.field}>
