@@ -57,6 +57,47 @@ _Razorpay live mode (direct commits — 10 July 2026):_ KYC completed and approv
 
 _Sales Cadence phase 2 improvements (direct commits — 10 July 2026):_ phone fields (business + personal) on leads; cancel enrollment UI; double-enrollment guard; timeline DESC sort + intent-based labels; OutreachSendModal draft save + auto-save + typed error messages; paragraph line breaks preserved in email sends; UnsubscribePage confirmation step; log reply feature with `reply_messages` table + timeline entry + auto status change. Migration 0073 applied.
 
+_Invoice public token fixes (direct commits to main — 11 Jul 2026):_
+- Migration 0074: `regenerate_invoice_token(p_invoice_id uuid)` RPC — admin-only via is_admin() SECURITY DEFINER, rotates public_token + sets 30-day expiry, returns new token as text
+- Invoice creation: `public_token_expires_at` now set to `now() + interval '30 days'` at creation (was NULL, causing all links to show "expired" immediately)
+- InvoicePreview.tsx + ClientInvoices.tsx: "Copy link" and "Test payment flow" buttons now call regenerate_invoice_token RPC on click, build URL from fresh token
+- PORTAL_URL secret corrected to https://www.eswarcreatives.in in Supabase Edge Function secrets (was eswarcreatives-portfolio.pages.dev)
+- PDF double-page fix: handleDownloadPDF() now clones .ec-invoice-document, appends to body as #ec-print-root, calls window.print(), removes on afterprint. Fixes position:fixed ancestor causing duplicate pages.
+- Payments received layout fix: overflow:hidden + minWidth:0 on paymentRef to prevent reference column overflow
+- Total due band: neutral color on public invoice page (readOnly=true), teal retained on admin drawer
+- Trust badge section on public invoice page: Shield icon + "Secured by Razorpay" + UPI/Cards/Net Banking pills using lucide-react icons
+
+_Invoice OG meta tags (direct commits to main — 12 Jul 2026):_
+- Cloudflare Pages Function at functions/invoice/[token].js intercepts GET /invoice/:token for crawler user-agents (13 patterns including WhatsApp, Facebook, Twitter, LinkedIn, Telegram, Slack, Google, Bing, Discord)
+- For crawlers: fetches invoice via get_invoice_by_token RPC using SUPABASE_URL + SUPABASE_ANON_KEY env vars, calculates balance_due (amount minus sum of invoice_payments), injects 9 OG/Twitter meta tags before </head>
+- og:title = "Invoice {number} · {client_company}"
+- og:description = "₹{balance_due} due {due_date} · Eswar Creatives"
+- og:image = https://www.eswarcreatives.in/og-invoice.png (static 1200x630 branded card)
+- Fails silently on expired token, network error, or missing env vars
+- ?og_debug=1 param bypasses UA check and shows teal debug banner for testing
+- Cloudflare Pages env vars required: SUPABASE_URL, SUPABASE_ANON_KEY (Production)
+- Static og-invoice.png placed at public/og-invoice.png
+
+_Static OG pages for marketing routes (direct commits to main — 12-13 Jul 2026):_
+- scripts/generate-og-pages.mjs: postbuild script that strips all og:/twitter: meta tags from dist/index.html and generates static HTML files with correct per-route OG tags at: dist/branding/index.html, dist/design-systems/index.html, dist/portal/index.html, dist/portal/login/index.html
+- Added as "postbuild" script in package.json (runs after vite build)
+- OG images: og-portfolio.png, og-branding.png, og-design-systems.png, og-portal.png — all 1200x630px, placed in public/
+- public/_redirects: explicit rules for /portal/login, /portal/, /branding/, /design-systems/ added ABOVE the SPA catch-all /* /index.html 200
+- Homepage OG tags baked directly into index.html (static, never changes)
+- react-helmet-async installed; HelmetProvider wraps app root in src/main.tsx; Helmet components on all 4 page components for JS-capable crawlers
+
+_Design systems landing page updates (direct commits to main — 13 Jul 2026):_
+- Em dash instances replaced with middot (·) across document.title, <title>, and meta tags on design-systems page
+- TRIAGE_MECHANISM constant: 3-column grid (1-col mobile) below CYGNVS stat row with hairline border separator. Three items: Cross-platform consistency, Predictable button placement, Grouped alert banner
+- Audit section: wrapped in C.surface card with 4px #D5B067 left border + CARD_SHADOW; "LOW-RISK ENTRY POINT" label in SF Mono above heading
+
+_Wordmark consistency (direct commits to main — 13 Jul 2026):_
+- Navbar.tsx (public): "eswar" → "EswarCreatives"
+- TopBar.tsx (admin portal bar): "Eswar Creatives" → "EswarCreatives"
+- ClientNav.tsx (client portal top bar): "Client portal" → "EswarCreatives"
+- PortalNav.tsx (shared portal nav): "Eswar Creatives" → "EswarCreatives"
+- InvoiceDocument.tsx: already "EswarCreatives", unchanged
+
 _Invoice UX polish (direct commits to main — 6 July 2026):_
 - Record payment available on `pending`, `sent`, and `overdue` invoices (not just `partially_paid`); `ConfirmPaymentModal` in `record_payment` mode auto-derives status via `syncInvoiceStatus`
 - Both "Record payment" and "Mark paid" actions available for `pending`/`sent`/`overdue`; only "Record payment" for `partially_paid`
@@ -119,6 +160,11 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 - `lead_enrollments`: `cancelled` added to `lead_enrollments_status_check` constraint — valid statuses: `active`, `paused`, `completed`, `cancelled`
 - `reply_messages`: id, lead_id, sent_by (uuid), body (text), sent_at (timestamptz); RLS admin-only via `is_admin()`
 
+**Invoice token fix (migration 0074):**
+- `regenerate_invoice_token(p_invoice_id uuid) → text` RPC — SECURITY DEFINER, admin-only via `is_admin()`. Rotates `public_token` (new uuid), sets `public_token_expires_at = now() + 30 days`, returns new token as text.
+
+**Next migration number: 0075**
+
 **Key columns added:**
 - `proposal_phases`: solution_title, timeline, key_note
 - `proposal_line_items`: solution_title, solution_overview
@@ -132,6 +178,7 @@ All migrations are live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-s
 **RPCs:**
 - `get_invoice_by_token(p_token uuid) → jsonb` — SECURITY DEFINER, callable by `anon`. Returns invoice + line_items + payments for a valid non-expired token only. Returns null otherwise. No other rows exposed.
 - `get_proposal_by_token(token uuid) → jsonb` — SECURITY DEFINER, callable by `anon`. Returns proposal + proposal_phases + proposal_line_items + proposal_payment_schedule for a valid non-expired token only. Returns null otherwise. No other rows exposed.
+- `regenerate_invoice_token(p_invoice_id uuid) → text` — SECURITY DEFINER, admin-only via `is_admin()`. Rotates public_token, sets 30-day expiry, returns new token. Called from InvoicePreview + ClientInvoices on "Copy link" / "Test payment flow".
 
 **Invoice number sequence:** Starts at EC-I-2026-105 (via invoice_number_seq)
 
