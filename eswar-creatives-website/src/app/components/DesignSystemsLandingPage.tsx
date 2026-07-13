@@ -42,6 +42,21 @@ const PROOF_STATS = [
   { value: "+18%",  label: "Analyst satisfaction" },
 ];
 
+const TRIAGE_MECHANISM = [
+  {
+    label: "Cross-platform consistency",
+    desc:  "Eliminated relearning cost when analysts switched between web, iOS, and Android",
+  },
+  {
+    label: "Predictable button placement",
+    desc:  "Reduced clicks-to-action by anchoring primary actions to consistent positions",
+  },
+  {
+    label: "Grouped alert banner",
+    desc:  "Collapsed 12 individual alerts into 1 incident view, enabling triage at a glance",
+  },
+];
+
 const ICP_QUESTIONS: { question: string; icon: ReactNode }[] = [
   {
     question: "Are your designers and engineers using different values for the same color?",
@@ -136,7 +151,7 @@ const HOW_I_WORK = [
 
 export function DesignSystemsLandingPage() {
   useEffect(() => {
-    document.title = "Design Systems for B2B SaaS — Eswar Creatives";
+    document.title = "Design Systems for B2B SaaS · Eswar Creatives";
     document.documentElement.style.background = C.inverse;
     document.body.style.background = "transparent";
     return () => {
@@ -148,15 +163,15 @@ export function DesignSystemsLandingPage() {
   return (
     <>
       <Helmet>
-        <title>B2B SaaS Design Systems — Eswar Creatives</title>
-        <meta property="og:title" content="B2B SaaS Design Systems — Eswar Creatives" />
+        <title>B2B SaaS Design Systems · Eswar Creatives</title>
+        <meta property="og:title" content="B2B SaaS Design Systems · Eswar Creatives" />
         <meta property="og:description" content="Token architecture, components, and cross-platform consistency." />
         <meta property="og:image" content="https://www.eswarcreatives.in/og-design-systems.png" />
         <meta property="og:url" content="https://www.eswarcreatives.in/design-systems/" />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Eswar Creatives" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="B2B SaaS Design Systems — Eswar Creatives" />
+        <meta name="twitter:title" content="B2B SaaS Design Systems · Eswar Creatives" />
         <meta name="twitter:description" content="Token architecture, components, and cross-platform consistency." />
         <meta name="twitter:image" content="https://www.eswarcreatives.in/og-design-systems.png" />
       </Helmet>
@@ -336,6 +351,44 @@ export function DesignSystemsLandingPage() {
                   }}
                 >
                   {label}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Triage mechanism breakdown */}
+          <div
+            className="grid grid-cols-1 md:grid-cols-3 gap-8"
+            style={{ marginTop: "40px", paddingTop: "36px", borderTop: `1px solid ${C.border}` }}
+          >
+            {TRIAGE_MECHANISM.map(({ label, desc }, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.45, delay: i * 0.07 }}
+              >
+                <p
+                  style={{
+                    fontSize:     "var(--typo-ol-body-size)",
+                    fontWeight:   600,
+                    lineHeight:   1.4,
+                    color:        C.text,
+                    marginBottom: "6px",
+                  }}
+                >
+                  {label}
+                </p>
+                <p
+                  style={{
+                    fontSize:   "var(--typo-p-sm-size)",
+                    fontWeight: "var(--typo-p-sm-weight)",
+                    lineHeight: "var(--typo-p-sm-line-height)",
+                    color:      C.textMuted,
+                  }}
+                >
+                  {desc}
                 </p>
               </motion.div>
             ))}
@@ -589,133 +642,156 @@ export function DesignSystemsLandingPage() {
             transition={{ duration: 0.5 }}
             style={{ maxWidth: "560px", margin: "0 auto", textAlign: "center" }}
           >
-            <p style={{ ...overline, marginBottom: "12px" }}>Start smaller</p>
-
-            <h2
-              style={{
-                fontFamily:    SERIF,
-                fontWeight:    600,
-                fontSize:      "28px",
-                lineHeight:    1.25,
-                letterSpacing: "-0.02em",
-                color:         C.text,
-                marginBottom:  "16px",
-              }}
-            >
-              Start with a UX Audit.
-            </h2>
-
-            <p
-              style={{
-                fontSize:      "var(--typo-ol-body-size)",
-                fontWeight:    "var(--typo-ol-body-weight)",
-                lineHeight:    1.65,
-                letterSpacing: "var(--typo-ol-body-letter-spacing)",
-                color:         C.textSec,
-                marginBottom:  "28px",
-              }}
-            >
-              A full design systems engagement starts at $2,500. The audit gives you the same diagnostic clarity for $750, and every dollar credits toward the full engagement if you proceed. Most teams find the report alone is worth the fee.
-            </p>
-
-            {/* Price anchor display */}
-            <div style={{ marginBottom: "28px" }}>
-              <p
-                style={{
-                  fontFamily:      "var(--font-mono, 'SF Mono', monospace)",
-                  fontSize:        "13px",
-                  color:           C.textMuted,
-                  textDecoration:  "line-through",
-                  marginBottom:    "4px",
-                }}
-              >
-                $2,500 value
-              </p>
-              <p
-                style={{
-                  fontFamily: "var(--font-mono, 'SF Mono', monospace)",
-                  fontSize:   "20px",
-                  fontWeight: 700,
-                  color:      C.text,
-                }}
-              >
-                Fixed fee: $750
-              </p>
-            </div>
+            <p style={{ ...overline, marginBottom: "24px" }}>Start smaller</p>
 
             <div
               style={{
                 background:   C.surface,
-                border:       `1px solid ${C.border}`,
+                borderLeft:   `4px solid ${C.gold}`,
                 borderRadius: "16px",
                 boxShadow:    CARD_SHADOW,
-                padding:      "32px",
-                marginBottom: "28px",
-                textAlign:    "left",
+                padding:      "40px",
               }}
             >
-              {[
-                "5 business days. One flow. Every friction point mapped.",
-                "Before/after direction for the top 3 issues.",
-                "30-min walkthrough call on delivery.",
-              ].map((row, i, arr) => (
-                <div
-                  key={i}
+              <p
+                style={{
+                  fontFamily:    "var(--font-mono, 'SF Mono', monospace)",
+                  fontSize:      "11px",
+                  fontWeight:    500,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase" as const,
+                  color:         "#6B7280",
+                  marginBottom:  "10px",
+                }}
+              >
+                Low-risk entry point
+              </p>
+
+              <h2
+                style={{
+                  fontFamily:    SERIF,
+                  fontWeight:    600,
+                  fontSize:      "28px",
+                  lineHeight:    1.25,
+                  letterSpacing: "-0.02em",
+                  color:         C.text,
+                  marginBottom:  "16px",
+                }}
+              >
+                Start with a UX Audit.
+              </h2>
+
+              <p
+                style={{
+                  fontSize:      "var(--typo-ol-body-size)",
+                  fontWeight:    "var(--typo-ol-body-weight)",
+                  lineHeight:    1.65,
+                  letterSpacing: "var(--typo-ol-body-letter-spacing)",
+                  color:         C.textSec,
+                  marginBottom:  "28px",
+                }}
+              >
+                A full design systems engagement starts at $2,500. The audit gives you the same diagnostic clarity for $750, and every dollar credits toward the full engagement if you proceed. Most teams find the report alone is worth the fee.
+              </p>
+
+              {/* Price anchor display */}
+              <div style={{ marginBottom: "28px" }}>
+                <p
                   style={{
-                    display:      "flex",
-                    alignItems:   "flex-start",
-                    gap:          "12px",
-                    marginBottom: i < arr.length - 1 ? "16px" : "0",
+                    fontFamily:      "var(--font-mono, 'SF Mono', monospace)",
+                    fontSize:        "13px",
+                    color:           C.textMuted,
+                    textDecoration:  "line-through",
+                    marginBottom:    "4px",
                   }}
                 >
-                  <span
-                    style={{
-                      width:          "20px",
-                      height:         "20px",
-                      borderRadius:   "50%",
-                      background:     C.pageBg,
-                      border:         `1px solid ${C.border}`,
-                      display:        "flex",
-                      alignItems:     "center",
-                      justifyContent: "center",
-                      flexShrink:     0,
-                      marginTop:      "1px",
-                    }}
-                  >
-                    <Check style={{ width: "11px", height: "11px", color: C.teal }} strokeWidth={3} />
-                  </span>
-                  <p
-                    style={{
-                      fontSize:   "var(--typo-p-sm-size)",
-                      fontWeight: "var(--typo-p-sm-weight)",
-                      lineHeight: "var(--typo-p-sm-line-height)",
-                      color:      C.text,
-                    }}
-                  >
-                    {row}
-                  </p>
-                </div>
-              ))}
-            </div>
+                  $2,500 value
+                </p>
+                <p
+                  style={{
+                    fontFamily: "var(--font-mono, 'SF Mono', monospace)",
+                    fontSize:   "20px",
+                    fontWeight: 700,
+                    color:      C.text,
+                  }}
+                >
+                  Fixed fee: $750
+                </p>
+              </div>
 
-            <a
-              href="/services/design-systems/enquiry?type=ux-audit"
-              style={{
-                display:        "inline-flex",
-                alignItems:     "center",
-                gap:            "6px",
-                background:     C.inverse,
-                color:          C.textInv,
-                borderRadius:   "8px",
-                padding:        "10px 20px",
-                fontSize:       "var(--typo-p-sm-size)",
-                fontWeight:     "var(--typo-p-sm-weight)",
-                fontFamily:     "var(--font-family-primary)",
-                textDecoration: "none",
-              }}
-            >
-              Start with the audit →
-            </a>
+              <div
+                style={{
+                  background:   C.pageBg,
+                  border:       `1px solid ${C.border}`,
+                  borderRadius: "12px",
+                  padding:      "24px",
+                  marginBottom: "28px",
+                  textAlign:    "left",
+                }}
+              >
+                {[
+                  "5 business days. One flow. Every friction point mapped.",
+                  "Before/after direction for the top 3 issues.",
+                  "30-min walkthrough call on delivery.",
+                ].map((row, i, arr) => (
+                  <div
+                    key={i}
+                    style={{
+                      display:      "flex",
+                      alignItems:   "flex-start",
+                      gap:          "12px",
+                      marginBottom: i < arr.length - 1 ? "16px" : "0",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width:          "20px",
+                        height:         "20px",
+                        borderRadius:   "50%",
+                        background:     C.surface,
+                        border:         `1px solid ${C.border}`,
+                        display:        "flex",
+                        alignItems:     "center",
+                        justifyContent: "center",
+                        flexShrink:     0,
+                        marginTop:      "1px",
+                      }}
+                    >
+                      <Check style={{ width: "11px", height: "11px", color: C.teal }} strokeWidth={3} />
+                    </span>
+                    <p
+                      style={{
+                        fontSize:   "var(--typo-p-sm-size)",
+                        fontWeight: "var(--typo-p-sm-weight)",
+                        lineHeight: "var(--typo-p-sm-line-height)",
+                        color:      C.text,
+                      }}
+                    >
+                      {row}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <a
+                href="/services/design-systems/enquiry?type=ux-audit"
+                style={{
+                  display:        "inline-flex",
+                  alignItems:     "center",
+                  gap:            "6px",
+                  background:     C.inverse,
+                  color:          C.textInv,
+                  borderRadius:   "8px",
+                  padding:        "10px 20px",
+                  fontSize:       "var(--typo-p-sm-size)",
+                  fontWeight:     "var(--typo-p-sm-weight)",
+                  fontFamily:     "var(--font-family-primary)",
+                  textDecoration: "none",
+                }}
+              >
+                Start with the audit →
+              </a>
+            </div>
           </motion.div>
         </div>
       </section>
