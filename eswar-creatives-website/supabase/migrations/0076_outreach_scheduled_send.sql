@@ -53,13 +53,13 @@ $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 -- pg_cron weekly LinkedIn reminder (requires pg_cron + pg_net extensions).
 -- If not enabled: Database > Extensions > enable pg_cron and pg_net first.
 -- The SELECT below is wrapped so the migration succeeds even if pg_cron is absent.
-DO $$
+DO $outer$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
     PERFORM cron.schedule(
       'linkedin-weekly-reminder',
       '30 12 * * 0',
-      $$
+      $cron_body$
       SELECT net.http_post(
         url := current_setting('app.supabase_url') || '/functions/v1/send-linkedin-reminder',
         headers := jsonb_build_object(
@@ -68,8 +68,8 @@ BEGIN
         ),
         body := '{}'::jsonb
       );
-      $$
+      $cron_body$
     );
   END IF;
 END;
-$$;
+$outer$;
