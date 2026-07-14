@@ -1,8 +1,9 @@
-// Sales Cadence admin page. Four tabs: Today, Leads, Sequences, Activity.
+// Sales Cadence admin page. Five tabs: Today, Leads, Sequences, Activity, LinkedIn.
 // Route: /portal/admin/outreach. Admin-only via AdminShell guard.
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import type { CSSProperties } from 'react'
+import { Linkedin } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { mono, PageHeader } from './ui'
@@ -10,14 +11,16 @@ import { TodayTab } from './outreach/TodayTab'
 import { LeadsTab } from './outreach/LeadsTab'
 import { SequencesTab } from './outreach/SequencesTab'
 import { ActivityTab } from './outreach/ActivityTab'
+import { LinkedInTab } from './outreach/LinkedInTab'
 
-type Tab = 'today' | 'leads' | 'sequences' | 'activity'
+type Tab = 'today' | 'leads' | 'sequences' | 'activity' | 'linkedin'
 
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: Tab; label: string; icon?: React.ReactNode }[] = [
   { id: 'today', label: 'Today' },
   { id: 'leads', label: 'Leads' },
   { id: 'sequences', label: 'Sequences' },
   { id: 'activity', label: 'Activity' },
+  { id: 'linkedin', label: 'LinkedIn', icon: <Linkedin size={14} /> },
 ]
 
 export function OutreachAdmin() {
@@ -63,6 +66,7 @@ export function OutreachAdmin() {
               }}
               onClick={() => setTab(tab.id)}
             >
+              {tab.icon}
               {tab.label}
               {tab.id === 'today' && dueCount > 0 && (
                 <span style={styles.badge}>{dueCount > 99 ? '99+' : dueCount}</span>
@@ -90,6 +94,7 @@ export function OutreachAdmin() {
         )}
         {activeTab === 'sequences' && <SequencesTab />}
         {activeTab === 'activity' && <ActivityTab onOpenLeadDrawer={(id) => { setOpenLeadId(id); setTab('leads') }} />}
+        {activeTab === 'linkedin' && <LinkedInTab />}
       </div>
     </>
   )

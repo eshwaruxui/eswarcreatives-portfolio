@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 500,
+        max_tokens: 800,
         messages: [
           {
             role: "user",
@@ -101,7 +101,36 @@ Deno.serve(async (req: Request) => {
               },
               {
                 type: "text",
-                text: "Extract contact details from this image. Return JSON only with these exact keys: first_name, last_name, email, linkedin_url, company, role_title, country. Use null for any field not found. Return nothing except the JSON object, no markdown, no backticks.",
+                text: `You are extracting professional contact information from a screenshot.
+This may be a LinkedIn profile, business card, email signature, or company website.
+
+Extract every field you can find. Return ONLY a JSON object with these exact keys:
+{
+  "first_name": "",
+  "last_name": "",
+  "full_name": "",
+  "role_title": "",
+  "company": "",
+  "email": "",
+  "phone_business": "",
+  "phone_personal": "",
+  "website": "",
+  "linkedin_url": "",
+  "location": "",
+  "country": "",
+  "notes": ""
+}
+
+Rules:
+- phone_business: office or work phone number visible in the screenshot. Include country code if shown (e.g. +1 415 555 0100). Empty string if not found.
+- phone_personal: mobile, personal, or WhatsApp number if distinctly labeled as personal or mobile. If only one phone number is visible and it is not labeled, put it in phone_business.
+- website: extract any company or personal website URL visible. Strip https:// and www. prefix. If no explicit URL is visible but a business email is present (e.g. john@acme.com), infer website as "acme.com". Do not infer from gmail.com, yahoo.com, hotmail.com, outlook.com, or other free email providers.
+- linkedin_url: full LinkedIn profile URL. If only a handle or username is shown, prefix with https://linkedin.com/in/
+- country: infer from phone country code, city/region text, or company HQ if visible. Use ISO 3166-1 alpha-2 (US, IN, GB, DE, etc.). Default "US" if unclear.
+- role_title: job title as shown. Do not abbreviate.
+- notes: any other relevant detail visible (certifications, tagline, mutual connections). Empty string if nothing notable.
+- If a field is not found, return an empty string. Never return null.
+- Return ONLY the JSON object. No explanation, no markdown, no code fences.`,
               },
             ],
           },
@@ -128,23 +157,36 @@ Deno.serve(async (req: Request) => {
 
   try {
     const extracted = JSON.parse(text) as {
-      first_name?: string | null;
-      last_name?: string | null;
-      email?: string | null;
-      linkedin_url?: string | null;
-      company?: string | null;
-      role_title?: string | null;
-      country?: string | null;
+      first_name?: string;
+      last_name?: string;
+      full_name?: string;
+      role_title?: string;
+      company?: string;
+      email?: string;
+      phone_business?: string;
+      phone_personal?: string;
+      website?: string;
+      linkedin_url?: string;
+      location?: string;
+      country?: string;
+      notes?: string;
     };
+    const str = (v: string | undefined) => (v && v.trim() ? v.trim() : null);
     return ok({
       data: {
-        first_name: extracted.first_name ?? null,
-        last_name: extracted.last_name ?? null,
-        email: extracted.email ?? null,
-        linkedin_url: extracted.linkedin_url ?? null,
-        company: extracted.company ?? null,
-        role_title: extracted.role_title ?? null,
-        country: extracted.country ?? null,
+        first_name: str(extracted.first_name),
+        last_name: str(extracted.last_name),
+        full_name: str(extracted.full_name),
+        role_title: str(extracted.role_title),
+        company: str(extracted.company),
+        email: str(extracted.email),
+        phone_business: str(extracted.phone_business),
+        phone_personal: str(extracted.phone_personal),
+        website: str(extracted.website),
+        linkedin_url: str(extracted.linkedin_url),
+        location: str(extracted.location),
+        country: str(extracted.country),
+        notes: str(extracted.notes),
       },
     });
   } catch {

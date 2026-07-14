@@ -124,22 +124,37 @@ export function AddLeadModal({
           first_name?: string | null
           last_name?: string | null
           email?: string | null
-          phone?: string | null
+          phone_business?: string | null
+          phone_personal?: string | null
           linkedin_url?: string | null
           company?: string | null
           role_title?: string | null
+          website?: string | null
           country?: string | null
+          notes?: string | null
+        }
+        // Website inference from email domain
+        let inferredWebsite = d.website ?? null
+        if (!inferredWebsite && d.email) {
+          const domain = d.email.split('@')[1] ?? ''
+          const freeProviders = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com']
+          if (domain && !freeProviders.includes(domain.toLowerCase())) {
+            inferredWebsite = domain
+          }
         }
         setForm((f) => ({
           ...f,
           first_name: d.first_name ?? f.first_name,
           last_name: d.last_name ?? f.last_name,
           email: d.email ?? f.email,
-          phone_business: d.phone ?? f.phone_business,
+          phone_business: d.phone_business ?? f.phone_business,
+          phone_personal: d.phone_personal ?? f.phone_personal,
           linkedin_url: d.linkedin_url ?? f.linkedin_url,
           company: d.company ?? f.company,
           role_title: d.role_title ?? f.role_title,
+          website: inferredWebsite ?? f.website,
           country: d.country ?? f.country,
+          notes: d.notes ?? f.notes,
         }))
         setExtractBanner('success')
       }
