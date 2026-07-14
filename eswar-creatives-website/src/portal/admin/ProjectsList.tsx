@@ -103,7 +103,7 @@ export function ProjectsList() {
               <tr>
                 <th style={styles.th}>Project</th>
                 <th style={styles.th}>Client</th>
-                <th style={styles.th}>Phase</th>
+                <th style={styles.th}>Stage</th>
                 <th style={styles.th}>Status</th>
               </tr>
             </thead>
@@ -215,7 +215,7 @@ function ProjectPanel({
           {panelError && <div style={styles.error}>{panelError}</div>}
 
           <label style={styles.field}>
-            <span style={styles.fieldLabel}>Current phase</span>
+            <span style={styles.fieldLabel}>Current stage</span>
             <select
               value={phaseNumber}
               onChange={(e) => setPhaseNumber(Number(e.target.value))}
