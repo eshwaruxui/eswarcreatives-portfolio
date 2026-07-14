@@ -729,7 +729,7 @@ function ProjectPanel({
               </div>
               <div style={s.field}>
                 <span style={s.fieldLabel}>Status</span>
-                <StatusBadge status={project.status} />
+                <div style={{ display: 'flex' }}><StatusBadge status={project.status} /></div>
               </div>
               {createdAt && (
                 <div style={s.field}>
