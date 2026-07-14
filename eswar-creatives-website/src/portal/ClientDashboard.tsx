@@ -1,7 +1,7 @@
 // Client dashboard at /portal/projects. Shows a single contextual banner (the
 // highest-priority action the client should take), the client's active project
-// as a hi-fi project card (header + progress ring + four-phase stepper with
-// per-phase status pills), the project documents, and quick links to the other
+// as a hi-fi project card (header + progress ring + data-driven stage stepper
+// from project_stages), the project documents, and quick links to the other
 // sections. Layout, spacing and typography follow the EC Design System master
 // (Figma node 4149:31). Theme tokens only; no raw hex; no em dashes; plain
 // errors only.
@@ -16,11 +16,30 @@ import { DocumentChips } from './client/DocumentChips'
 import type { ClientDocument } from './client/DocumentChips'
 import { formatDate } from './admin/ui'
 import { tokens, t, fonts, motionTokens, phaseUI } from './theme'
-import type { PhaseState } from './theme'
 import { useBreakpoint } from './hooks/useBreakpoint'
+import { TaskList } from './components/TaskList'
+import type { ProjectStageTask } from './components/TaskList'
+import { AttachmentSection } from './components/AttachmentSection'
+import type { ProjectStageAttachment, AttachmentCategory } from './components/AttachmentSection'
+import { ProposalLinkPicker } from './components/ProposalLinkPicker'
+import type { ProjectStageProposalLink } from './components/ProposalLinkPicker'
+import { ClientNotes } from './components/ClientNotes'
 
-// The fixed client journey. The project's phase pointer maps onto these.
+// Kept only for the "Phase X of Y" progress ring caption. Never used for stage data.
 const PHASES = ['Discovery', 'Design', 'Review', 'Delivery'] as const
+
+const ATTACHMENT_CATEGORIES: AttachmentCategory[] = [
+  'design_brief',
+  'development',
+  'output_delivery',
+]
+
+// Map stage status to phaseUI status keys for node/pill styling.
+const STAGE_STATUS_TO_PHASE: Record<string, 'done' | 'active' | 'pending'> = {
+  done: 'done',
+  in_progress: 'active',
+  pending: 'pending',
+}
 
 type ProjectRow = {
   id: string
@@ -30,11 +49,13 @@ type ProjectRow = {
   status: string
 }
 
-type PhaseRow = {
+type ProjectStage = {
   id: string
-  phase_name: string
-  phase_status: string
-  sort_order: number | null
+  project_id: string
+  stage_number: number
+  name: string
+  status: 'pending' | 'in_progress' | 'done'
+  sort_order: number
 }
 
 type TimelineExtension = {
@@ -63,14 +84,19 @@ export function ClientDashboardPage() {
 
 function Dashboard({ profile }: { profile: PortalProfile }) {
   const [project, setProject] = useState<ProjectRow | null>(null)
-  const [phases, setPhases] = useState<PhaseRow[]>([])
-  const [documents, setDocuments] = useState<ClientDocument[]>([])
-  const [banner, setBanner] = useState<Banner | null>(null)
+  const [stages, setStages]   = useState<ProjectStage[]>([])
+  const [tasksByStage, setTasksByStage]     = useState<Record<number, ProjectStageTask[]>>({})
+  const [attsByStage, setAttsByStage]       = useState<Record<number, ProjectStageAttachment[]>>({})
+  const [linksByStage, setLinksByStage]     = useState<Record<number, ProjectStageProposalLink | null>>({})
+  const [expandedStageIds, setExpandedStageIds] = useState<Set<string>>(new Set())
+  const [documents, setDocuments]   = useState<ClientDocument[]>([])
+  const [banner, setBanner]         = useState<Banner | null>(null)
   const [extensions, setExtensions] = useState<TimelineExtension[]>([])
   const [respondingId, setRespondingId] = useState<string | null>(null)
   const [milestones, setMilestones] = useState<Milestone[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState<string | null>(null)
+  const [clientId, setClientId]     = useState<string | null>(null)
   const badges = useSyncExternalStore(subscribeBadges, getBadges, getBadges)
   const { isMobile, isTablet } = useBreakpoint()
 
@@ -87,12 +113,10 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         if (cErr) throw cErr
 
         if (!client) {
-          if (!cancelled) {
-            setProject(null)
-            setBanner(null)
-          }
+          if (!cancelled) { setProject(null); setBanner(null) }
           return
         }
+        if (!cancelled) setClientId(client.id)
 
         const { data: proj, error: pErr } = await supabase
           .from('projects')
@@ -104,30 +128,66 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         if (pErr) throw pErr
         if (!cancelled) setProject((proj as ProjectRow | null) ?? null)
 
-        // Phases and documents for the active project. Documents are sourced from
-        // assets, which are project-scoped (no per-phase linkage in the schema yet).
         if (proj?.id) {
-          const [phaseRes, assetRes] = await Promise.all([
+          // Fetch stages, tasks, attachments, links, and documents in parallel.
+          const [stagesRes, tasksRes, attsRes, linksRes, assetRes] = await Promise.all([
             supabase
-              .from('project_phases')
-              .select('id, phase_name, phase_status, sort_order')
+              .from('project_stages')
+              .select('*')
               .eq('project_id', proj.id)
               .order('sort_order', { ascending: true }),
+            supabase
+              .from('project_stage_tasks')
+              .select('id, title, description, status, sort_order, stage_number')
+              .eq('project_id', proj.id)
+              .order('sort_order', { ascending: true }),
+            supabase
+              .from('project_stage_attachments')
+              .select('*')
+              .eq('project_id', proj.id),
+            supabase
+              .from('project_stage_proposal_links')
+              .select('*')
+              .eq('project_id', proj.id),
             supabase
               .from('assets')
               .select('id, file_name, file_url')
               .eq('project_id', proj.id)
               .order('uploaded_at', { ascending: false }),
           ])
+
           if (!cancelled) {
-            setPhases((phaseRes.data ?? []) as PhaseRow[])
+            const stageRows = (stagesRes.data ?? []) as ProjectStage[]
+            setStages(stageRows)
+
+            // Auto-expand in_progress stages on load; done/pending start collapsed.
+            setExpandedStageIds(
+              new Set(stageRows.filter((sg) => sg.status === 'in_progress').map((sg) => sg.id))
+            )
+
+            const taskMap: Record<number, ProjectStageTask[]> = {}
+            for (const tk of (tasksRes.data ?? []) as (ProjectStageTask & { stage_number: number })[]) {
+              ;(taskMap[tk.stage_number] ??= []).push(tk)
+            }
+            setTasksByStage(taskMap)
+
+            const attMap: Record<number, ProjectStageAttachment[]> = {}
+            for (const att of (attsRes.data ?? []) as ProjectStageAttachment[]) {
+              ;(attMap[att.stage_number] ??= []).push(att)
+            }
+            setAttsByStage(attMap)
+
+            const linkMap: Record<number, ProjectStageProposalLink | null> = {}
+            for (const lk of (linksRes.data ?? []) as ProjectStageProposalLink[]) {
+              linkMap[lk.stage_number] = lk
+            }
+            setLinksByStage(linkMap)
+
             setDocuments((assetRes.data ?? []) as ClientDocument[])
           }
         }
 
-        // 6d/6f: completed public polls shown as project milestones. Filter by
-        // portal_client_id (the active-campaign public-read policy would otherwise
-        // surface other clients' polls); totals come from the counts-only RPC.
+        // 6d/6f: completed public polls shown as project milestones.
         const { data: pollRows } = await supabase
           .from('public_campaigns')
           .select('id, campaign_title, created_at')
@@ -149,8 +209,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         )
         if (!cancelled) setMilestones(ms)
 
-        // Pending timeline extensions (5h). RLS scopes these to the client's
-        // own projects, so no extra filter is needed.
+        // Pending timeline extensions (5h). RLS scopes to the client's own projects.
         const { data: extRows } = await supabase
           .from('timeline_extensions')
           .select('id, new_timeline, reason')
@@ -170,13 +229,10 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         if (!cancelled) setLoading(false)
       }
     })()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [profile.id])
 
-  // 5h: approve or deny a proposed timeline extension via the SECURITY DEFINER
-  // RPC (clients cannot update projects directly).
+  // 5h: approve or deny a proposed timeline extension via SECURITY DEFINER RPC.
   async function respondExtension(extId: string, approve: boolean) {
     setRespondingId(extId)
     const { error: rpcErr } = await supabase.rpc('respond_to_timeline_extension', {
@@ -185,13 +241,11 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
     })
     setRespondingId(null)
     if (rpcErr) {
-      // H9: plain-language error, never a raw Supabase string.
       setError('We could not record your response. Please try again.')
       return
     }
     setExtensions((prev) => {
       const remaining = prev.filter((e) => e.id !== extId)
-      // Once none remain, retire the timeline banner (its to is /portal/projects).
       if (remaining.length === 0) {
         setBanner((b) => (b && b.to === '/portal/projects' ? null : b))
       }
@@ -199,7 +253,19 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
     })
   }
 
+  function toggleStage(stageId: string, status: string) {
+    // in_progress is always expanded; pending is always collapsed — only done toggles.
+    if (status !== 'done') return
+    setExpandedStageIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(stageId)) next.delete(stageId)
+      else next.add(stageId)
+      return next
+    })
+  }
+
   // Current step index from the integer pointer, falling back to the text phase.
+  // Used ONLY for the "Phase X of Y" ring caption — not for stage display logic.
   const currentIndex = (() => {
     if (!project) return 0
     if (project.phase_number && project.phase_number >= 1)
@@ -210,27 +276,15 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
     return i >= 0 ? i : 0
   })()
 
-  // Per-phase state for the stepper. Prefer the real project_phases status; fall
-  // back to the phase pointer when a phase row is missing or still pending.
-  const phaseStates: PhaseState[] = PHASES.map((label, i) => {
-    const row = phases.find((p) => p.phase_name.toLowerCase() === label.toLowerCase())
-    if (row) {
-      if (row.phase_status === 'done') return 'done'
-      if (row.phase_status === 'in_progress' || row.phase_status === 'blocked') return 'active'
-    }
-    return i < currentIndex ? 'done' : i === currentIndex ? 'active' : 'pending'
-  })
-
-  // Completed phases count full, the active phase counts half, for a smooth ring.
-  const progressPct = Math.round(
-    (phaseStates.reduce((acc, s) => acc + (s === 'done' ? 1 : s === 'active' ? 0.5 : 0), 0) /
-      PHASES.length) *
-      100
+  // Progress derives from actual stage statuses.
+  const progressPct = stages.length === 0 ? 0 : Math.round(
+    (stages.reduce((acc, sg) => acc + (sg.status === 'done' ? 1 : sg.status === 'in_progress' ? 0.5 : 0), 0) /
+      stages.length) * 100
   )
 
   return (
     <div style={styles.page}>
-      {/* Banner enter + badge entrance keyframes (transform/opacity only). */}
+      {/* Banner and shimmer keyframes */}
       <style>{`
         @keyframes dashBannerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes dashBadgeIn{from{transform:scale(0)}to{transform:scale(1)}}
@@ -240,11 +294,10 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         .ec-shimmer{background:linear-gradient(90deg,${t.background.subtle} 25%,${t.background.muted} 50%,${t.background.subtle} 75%);background-size:200% 100%;animation:ecShimmer 1.5s linear infinite;border-radius:6px}
       `}</style>
       <main style={{ ...styles.container, padding: `${CLIENT_NAV_HEIGHT + 40}px ${isMobile ? 16 : 24}px 80px` }}>
-        {/* H1 (visibility of system status): the single most relevant next action,
-            as a fully clickable card that routes to the right place. */}
+        {/* H1: single highest-priority action as a fully clickable banner. */}
         {!loading && !error && banner && <BannerCard banner={banner} />}
 
-        {/* 5h: actionable timeline extension cards (the banner above links here). */}
+        {/* 5h: actionable timeline extension cards */}
         {!loading && !error && extensions.map((ext) => (
           <section key={ext.id} style={styles.extCard}>
             <h2 style={styles.extHeading}>Timeline update proposed</h2>
@@ -285,7 +338,6 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
         {error && <div style={styles.error}>{error}</div>}
 
         {!loading && !error && !project && (
-          // H1: clear empty state so the client knows nothing is wrong.
           <div style={styles.empty}>
             <p style={styles.emptyText}>
               Your project will appear here once it is confirmed.
@@ -304,45 +356,58 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
                     <span style={styles.metaStrong}>
                       Phase {project.phase_number ?? currentIndex + 1}
                     </span>
-                    <span style={styles.metaDot} aria-hidden="true">
-                      &bull;
-                    </span>
+                    <span style={styles.metaDot} aria-hidden="true">&bull;</span>
                     <span style={styles.metaLabel}>
                       {project.current_phase ?? PHASES[currentIndex]}
                     </span>
                   </div>
                 </div>
+                {/* "Phase X of Y" caption intentionally preserved from original design. */}
                 <ProgressRing
                   percent={progressPct}
                   caption={`Phase ${currentIndex + 1} of ${PHASES.length}`}
                 />
               </div>
 
-              {/* Desktop: four-phase stepper with per-phase status pills and connectors.
-                  Mobile gets a snap-scroll carousel rendered outside the card below. */}
-              {!isMobile && (
-                <div
-                  style={{
-                    ...styles.phaseGrid,
-                    gridTemplateColumns: `repeat(${PHASES.length}, minmax(0, 1fr))`,
-                  }}
-                  aria-label="Project phases"
-                >
-                  {PHASES.map((label, i) => (
-                    <PhaseColumn
-                      key={label}
-                      label={label}
-                      index={i}
-                      state={phaseStates[i]}
-                      isFirst={i === 0}
-                      isLast={i === PHASES.length - 1}
-                      narrow={false}
-                    />
-                  ))}
+              {/* Desktop: data-driven stage stepper with expand/collapse. */}
+              {!isMobile && stages.length > 0 && (
+                <div style={{ marginTop: 24 }}>
+                  <div
+                    style={{
+                      ...styles.stageGrid,
+                      gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))`,
+                    }}
+                    aria-label="Project stages"
+                  >
+                    {stages.map((stage, i) => (
+                      <StageColumn
+                        key={stage.id}
+                        stage={stage}
+                        index={i}
+                        isFirst={i === 0}
+                        isLast={i === stages.length - 1}
+                        expanded={expandedStageIds.has(stage.id)}
+                        onToggle={() => toggleStage(stage.id, stage.status)}
+                      />
+                    ))}
+                  </div>
+                  {/* Expanded stage content: full-width panel below the header row */}
+                  {stages.map((stage) =>
+                    expandedStageIds.has(stage.id) ? (
+                      <div key={stage.id} style={styles.stageDetailPanel}>
+                        <StageContent
+                          stage={stage}
+                          tasks={tasksByStage[stage.stage_number] ?? []}
+                          attachments={attsByStage[stage.stage_number] ?? []}
+                          link={linksByStage[stage.stage_number] ?? null}
+                        />
+                      </div>
+                    ) : null
+                  )}
                 </div>
               )}
 
-              {/* Documents are project-scoped (no per-phase linkage in the schema). */}
+              {/* Documents */}
               {documents.length > 0 && (
                 <div style={styles.docsBlock}>
                   <h3 style={styles.docsHeading}>Documents</h3>
@@ -357,9 +422,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
                   <div style={styles.milestoneList}>
                     {milestones.map((m) => (
                       <div key={m.id} style={styles.milestoneCard}>
-                        <span style={styles.milestoneIcon} aria-hidden="true">
-                          ✓
-                        </span>
+                        <span style={styles.milestoneIcon} aria-hidden="true">&#10003;</span>
                         <div style={styles.milestoneMain}>
                           <div style={styles.milestoneLabel}>{m.title}</div>
                           <div style={styles.milestoneDate}>{formatDate(m.createdAt)}</div>
@@ -375,52 +438,47 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
               )}
             </section>
 
-            {/* Mobile: snap-scroll phase carousel. Lives outside the card so it can
-                bleed to the viewport edge (negative margins cancel the main 16px padding). */}
-            {isMobile && (
-              <PhaseCarousel phaseStates={phaseStates} currentIndex={currentIndex} />
+            {/* Mobile: snap-scroll stage carousel */}
+            {isMobile && stages.length > 0 && (
+              <StageCarousel
+                stages={stages}
+                tasksByStage={tasksByStage}
+                attsByStage={attsByStage}
+                linksByStage={linksByStage}
+                expandedStageIds={expandedStageIds}
+                onToggle={toggleStage}
+              />
             )}
+
+            {/* Client notes section — appears below the project card */}
+            <section style={styles.notesSection}>
+              <h2 style={styles.notesHeading}>Messages</h2>
+              <ClientNotes
+                projectId={project.id}
+                currentUserRole="client"
+                currentUserId={profile.id}
+              />
+            </section>
           </>
         )}
 
         {/* H6: recognition over recall, quick paths to every section. */}
-        {/* 1-col on mobile, 2-col on tablet, auto-fill on desktop. */}
         <div style={{ ...styles.quickGrid, gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(260px, 1fr))' }}>
-          <QuickCard
-            to="/portal/proposals"
-            title="View Proposal"
-            sub="Review and respond to your proposal"
-            badge={badges.proposals}
-          />
-          <QuickCard
-            to="/portal/invoices"
-            title="View Invoices"
-            sub="See amounts due and payment status"
-            badge={badges.invoices}
-          />
-          <QuickCard
-            to="/portal/mockups"
-            title="View Mockups"
-            sub="Review concept designs and share feedback"
-            badge={badges.mockups}
-          />
-          <QuickCard
-            to="/portal/campaigns"
-            title="View Campaigns"
-            sub="See your design review campaigns"
-            badge={false}
-          />
+          <QuickCard to="/portal/proposals" title="View Proposal"   sub="Review and respond to your proposal" badge={badges.proposals} />
+          <QuickCard to="/portal/invoices"  title="View Invoices"   sub="See amounts due and payment status"   badge={badges.invoices} />
+          <QuickCard to="/portal/mockups"   title="View Mockups"    sub="Review concept designs and share feedback" badge={badges.mockups} />
+          <QuickCard to="/portal/campaigns" title="View Campaigns"  sub="See your design review campaigns"    badge={false} />
         </div>
       </main>
     </div>
   )
 }
 
-// Resolve the highest-priority banner. Order matches the spec exactly:
-// 1 proposal awaiting -> 2 invoice overdue -> 3 mockup awaiting -> 4 invoice due soon.
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+// Resolve the highest-priority banner.
 async function computeBanner(clientId: string, profileId: string): Promise<Banner | null> {
-  // 0. Timeline extension awaiting a response (5h) — highest priority of all.
-  // RLS scopes timeline_extensions to the client's own projects.
+  // 0. Timeline extension awaiting a response (5h).
   const { data: pendingExt } = await supabase
     .from('timeline_extensions')
     .select('id')
@@ -450,7 +508,7 @@ async function computeBanner(clientId: string, profileId: string): Promise<Banne
   }
 
   // 2 & 4. Invoice states (one query, split into overdue vs due-soon).
-  const today = new Date().toISOString().slice(0, 10)
+  const today   = new Date().toISOString().slice(0, 10)
   const horizon = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)
   const { data: invoices } = await supabase
     .from('invoices')
@@ -469,7 +527,7 @@ async function computeBanner(clientId: string, profileId: string): Promise<Banne
     }
   }
 
-  // 3. Mockup awaiting feedback (a published set with no concept decision yet).
+  // 3. Mockup awaiting feedback.
   const { data: sets } = await supabase
     .from('mockup_sets')
     .select('id')
@@ -517,15 +575,11 @@ function BannerCard({ banner }: { banner: Banner }) {
   return (
     <Link to={banner.to} style={{ ...styles.banner, ...palette[banner.variant] }}>
       <span style={styles.bannerText}>{banner.text}</span>
-      <span aria-hidden="true" style={styles.bannerArrow}>
-        &rarr;
-      </span>
+      <span aria-hidden="true" style={styles.bannerArrow}>&rarr;</span>
     </Link>
   )
 }
 
-// SVG progress donut. Track is a neutral ring; the arc fills clockwise from the
-// top using the brand-subtle teal. Percent sits centred, caption sits beneath.
 function ProgressRing({ percent, caption }: { percent: number; caption: string }) {
   const size = 64
   const stroke = 6
@@ -539,15 +593,9 @@ function ProgressRing({ percent, caption }: { percent: number; caption: string }
         <svg width={size} height={size} role="img" aria-label={`${clamped} percent complete`}>
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={t.border.default} strokeWidth={stroke} />
           <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke={phaseUI.nodeFill}
-            strokeWidth={stroke}
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
+            cx={size / 2} cy={size / 2} r={r} fill="none"
+            stroke={phaseUI.nodeFill} strokeWidth={stroke} strokeLinecap="round"
+            strokeDasharray={circumference} strokeDashoffset={offset}
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
             style={{ transition: `stroke-dashoffset ${motionTokens.durationSlow} ${motionTokens.easeEnter}` }}
           />
@@ -559,78 +607,223 @@ function ProgressRing({ percent, caption }: { percent: number; caption: string }
   )
 }
 
-function PhaseColumn({
-  label,
-  index,
-  state,
-  isFirst,
-  isLast,
-  narrow,
+// Desktop stage column: compact node + name + pill. Toggleable for done stages.
+function StageColumn({
+  stage, index, isFirst, isLast, expanded, onToggle
 }: {
-  label: string
+  stage: ProjectStage
   index: number
-  state: PhaseState
   isFirst: boolean
   isLast: boolean
-  narrow: boolean
+  expanded: boolean
+  onToggle: () => void
 }) {
-  const done = state === 'done'
-  const active = state === 'active'
-  const filled = done || active
-  const pill = phaseUI.status[state]
-
-  const colStyle: CSSProperties = narrow
-    ? {
-        ...styles.phaseCol,
-        paddingBottom: isLast ? 0 : 16,
-        borderBottom: isLast ? 'none' : `1px solid ${t.border.subtle}`,
-      }
-    : {
-        ...styles.phaseCol,
-        paddingLeft: isFirst ? 0 : 16,
-        paddingRight: isLast ? 0 : 16,
-        borderRight: isLast ? 'none' : `1px solid ${t.border.overlayStrong}`,
-      }
+  const phaseState = STAGE_STATUS_TO_PHASE[stage.status] ?? 'pending'
+  const pill = phaseUI.status[phaseState]
+  const filled = stage.status !== 'pending'
+  const canToggle = stage.status === 'done'
 
   return (
-    <div style={colStyle}>
+    <div style={{
+      ...styles.phaseCol,
+      paddingLeft: isFirst ? 0 : 16,
+      paddingRight: isLast ? 0 : 16,
+      borderRight: isLast ? 'none' : `1px solid ${t.border.overlayStrong}`,
+      cursor: canToggle ? 'pointer' : 'default',
+    }}
+    onClick={canToggle ? onToggle : undefined}
+    >
       <div style={styles.phaseNodeRow}>
         <span style={{ ...styles.phaseNode, ...(filled ? styles.phaseNodeFilled : styles.phaseNodeIdle) }}>
-          {done ? '✓' : index + 1}
+          {stage.status === 'done' ? '✓' : index + 1}
         </span>
-        {/* Connector is brand only once the phase is complete; otherwise neutral.
-            Hidden in the stacked layout, where a long trailing rule reads oddly. */}
-        {!narrow && (
-          <span
-            style={{
-              ...styles.connector,
-              background: done ? phaseUI.nodeFill : t.background.overlayNormal,
-            }}
-          />
-        )}
+        <span style={{
+          ...styles.connector,
+          background: stage.status === 'done' ? phaseUI.nodeFill : t.background.overlayNormal,
+        }} />
       </div>
       <div style={styles.phaseBody}>
         <div style={styles.phaseNameRow}>
-          <span
-            style={{ ...styles.phaseName, color: state === 'pending' ? t.text.muted : t.text.primary }}
-          >
-            {label}
+          <span style={{ ...styles.phaseName, color: stage.status === 'pending' ? t.text.muted : t.text.primary }}>
+            {stage.name}
           </span>
           <span style={{ ...styles.statusPill, background: pill.bg, borderColor: pill.border }}>
             {pill.label}
           </span>
         </div>
-        {/* H8: minimalist link; tasks wiring lands in a later phase. */}
-        <Link to="/portal/projects#tasks" style={styles.tasksLink}>
-          Tasks &rsaquo;
-        </Link>
+        {canToggle && (
+          <span style={styles.toggleHint}>{expanded ? 'Hide details' : 'Show details'}</span>
+        )}
+        {stage.status === 'in_progress' && (
+          <span style={styles.toggleHint}>In progress</span>
+        )}
       </div>
     </div>
   )
 }
 
-// Shimmer skeleton shown while the project data loads. Mirrors the card header
-// and 4-step phase grid so the layout shift on data arrival is minimal.
+// Full expanded stage content (read-only). Used in both desktop panel + mobile card.
+function StageContent({
+  stage, tasks, attachments, link
+}: {
+  stage: ProjectStage
+  tasks: ProjectStageTask[]
+  attachments: ProjectStageAttachment[]
+  link: ProjectStageProposalLink | null
+}) {
+  const hasContent = tasks.length > 0
+    || attachments.length > 0
+    || link != null
+
+  if (!hasContent) {
+    return (
+      <p style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.muted, margin: 0 }}>
+        No details added yet.
+      </p>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {link && (
+        <ProposalLinkPicker
+          projectId={stage.project_id}
+          stageNumber={stage.stage_number}
+          link={link}
+          canEdit={false}
+          onLinkChange={() => {}}
+        />
+      )}
+      {tasks.length > 0 && (
+        <TaskList
+          projectId={stage.project_id}
+          stageNumber={stage.stage_number}
+          tasks={tasks}
+          canEdit={false}
+          onTasksChange={() => {}}
+        />
+      )}
+      {ATTACHMENT_CATEGORIES.map((cat) => (
+        <AttachmentSection
+          key={cat}
+          projectId={stage.project_id}
+          stageNumber={stage.stage_number}
+          category={cat}
+          attachments={attachments.filter((a) => a.category === cat)}
+          canUpload={false}
+          onAttachmentsChange={() => {}}
+        />
+      ))}
+    </div>
+  )
+}
+
+// Mobile snap-scroll stage carousel.
+function StageCarousel({
+  stages, tasksByStage, attsByStage, linksByStage, expandedStageIds, onToggle
+}: {
+  stages: ProjectStage[]
+  tasksByStage: Record<number, ProjectStageTask[]>
+  attsByStage: Record<number, ProjectStageAttachment[]>
+  linksByStage: Record<number, ProjectStageProposalLink | null>
+  expandedStageIds: Set<string>
+  onToggle: (stageId: string, status: string) => void
+}) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const activeIdx = stages.findIndex((sg) => sg.status === 'in_progress')
+  const [activeDot, setActiveDot] = useState(Math.max(0, activeIdx))
+
+  useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    const cardWidth = window.innerWidth * 0.85
+    const idx = Math.max(0, activeIdx)
+    track.scrollLeft = idx * (cardWidth + 12)
+    setActiveDot(idx)
+  }, [activeIdx])
+
+  useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    const onScroll = () => {
+      const cardWidth = window.innerWidth * 0.85
+      const idx = Math.round(track.scrollLeft / (cardWidth + 12))
+      setActiveDot(Math.max(0, Math.min(stages.length - 1, idx)))
+    }
+    track.addEventListener('scroll', onScroll, { passive: true })
+    return () => track.removeEventListener('scroll', onScroll)
+  }, [stages.length])
+
+  return (
+    <div style={styles.carouselOuter}>
+      <div ref={trackRef} className="ec-phase-track" style={styles.carouselTrack} aria-label="Project stages">
+        {stages.map((stage) => {
+          const phaseState = STAGE_STATUS_TO_PHASE[stage.status] ?? 'pending'
+          const pill = phaseUI.status[phaseState]
+          const expanded = expandedStageIds.has(stage.id)
+          const canToggle = stage.status === 'done'
+          const filled = stage.status !== 'pending'
+          return (
+            <div key={stage.id} style={styles.carouselCardWrap}>
+              <div style={{
+                ...styles.phaseCardInner,
+                ...(stage.status === 'in_progress' ? styles.phaseCardActive : {}),
+              }}>
+                <div style={styles.phaseCardNodeRow}>
+                  <span style={{ ...styles.phaseNode, ...(filled ? styles.phaseNodeFilled : styles.phaseNodeIdle) }}>
+                    {stage.status === 'done' ? '✓' : stage.stage_number}
+                  </span>
+                </div>
+                <div style={styles.phaseCardBody}>
+                  <div style={styles.phaseNameRow}>
+                    <span style={{ ...styles.phaseName, color: stage.status === 'pending' ? t.text.muted : t.text.primary }}>
+                      {stage.name}
+                    </span>
+                    <span style={{ ...styles.statusPill, background: pill.bg, borderColor: pill.border }}>
+                      {pill.label}
+                    </span>
+                  </div>
+                  {canToggle && (
+                    <button
+                      type="button"
+                      style={styles.carouselToggleBtn}
+                      onClick={() => onToggle(stage.id, stage.status)}
+                    >
+                      {expanded ? 'Hide details' : 'Show details'}
+                    </button>
+                  )}
+                </div>
+                {/* Expanded content inline in the card */}
+                {expanded && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border.subtle}` }}>
+                    <StageContent
+                      stage={stage}
+                      tasks={tasksByStage[stage.stage_number] ?? []}
+                      attachments={attsByStage[stage.stage_number] ?? []}
+                      link={linksByStage[stage.stage_number] ?? null}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div style={styles.dots} aria-hidden="true">
+        {stages.map((_, i) => (
+          <span
+            key={i}
+            style={i === activeDot
+              ? { ...styles.dot, ...styles.dotActive }
+              : { ...styles.dot, ...styles.dotIdle }
+            }
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ProjectSkeleton() {
   return (
     <div style={{ background: tokens.surface, border: `1px solid ${t.border.overlayStrong}`, borderRadius: 16, padding: 28, marginBottom: 24 }}>
@@ -654,112 +847,7 @@ function ProjectSkeleton() {
   )
 }
 
-// Mobile-only horizontal snap-scroll phase carousel. Bleeds to the viewport
-// edge via -16px margins (cancelling the main container's horizontal padding)
-// so 85vw cards have a meaningful peek affordance on the right.
-function PhaseCarousel({
-  phaseStates,
-  currentIndex,
-}: {
-  phaseStates: PhaseState[]
-  currentIndex: number
-}) {
-  const trackRef = useRef<HTMLDivElement>(null)
-  // activeDot tracks the visually snapped card as the user swipes (not just mount).
-  const [activeDot, setActiveDot] = useState(currentIndex)
-
-  useEffect(() => {
-    const track = trackRef.current
-    if (!track) return
-    const cardWidth = window.innerWidth * 0.85
-    track.scrollLeft = currentIndex * (cardWidth + 12)
-    setActiveDot(currentIndex)
-  }, [currentIndex])
-
-  // Derive active dot from scroll position in real time so swipes update the dots.
-  useEffect(() => {
-    const track = trackRef.current
-    if (!track) return
-    const onScroll = () => {
-      const cardWidth = window.innerWidth * 0.85
-      const idx = Math.round(track.scrollLeft / (cardWidth + 12))
-      setActiveDot(Math.max(0, Math.min(PHASES.length - 1, idx)))
-    }
-    track.addEventListener('scroll', onScroll, { passive: true })
-    return () => track.removeEventListener('scroll', onScroll)
-  }, [])
-
-  return (
-    <div style={styles.carouselOuter}>
-      <div ref={trackRef} className="ec-phase-track" style={styles.carouselTrack} aria-label="Project phases">
-        {PHASES.map((label, i) => (
-          <div key={label} style={styles.carouselCardWrap}>
-            <PhaseCard label={label} index={i} state={phaseStates[i]} />
-          </div>
-        ))}
-      </div>
-      {/* Dot indicators: active dot stretches to a pill in teal; idle dots are neutral. */}
-      <div style={styles.dots} aria-hidden="true">
-        {PHASES.map((_, i) => (
-          <span
-            key={i}
-            style={i === activeDot ? { ...styles.dot, ...styles.dotActive } : { ...styles.dot, ...styles.dotIdle }}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function PhaseCard({
-  label,
-  index,
-  state,
-}: {
-  label: string
-  index: number
-  state: PhaseState
-}) {
-  const done = state === 'done'
-  const active = state === 'active'
-  const filled = done || active
-  const pill = phaseUI.status[state]
-
-  return (
-    <div style={{ ...styles.phaseCardInner, ...(active ? styles.phaseCardActive : null) }}>
-      <div style={styles.phaseCardNodeRow}>
-        <span style={{ ...styles.phaseNode, ...(filled ? styles.phaseNodeFilled : styles.phaseNodeIdle) }}>
-          {done ? '✓' : index + 1}
-        </span>
-      </div>
-      <div style={styles.phaseCardBody}>
-        <div style={styles.phaseNameRow}>
-          <span style={{ ...styles.phaseName, color: state === 'pending' ? t.text.muted : t.text.primary }}>
-            {label}
-          </span>
-          <span style={{ ...styles.statusPill, background: pill.bg, borderColor: pill.border }}>
-            {pill.label}
-          </span>
-        </div>
-        <Link to="/portal/projects#tasks" style={styles.tasksLink}>
-          Tasks &rsaquo;
-        </Link>
-      </div>
-    </div>
-  )
-}
-
-function QuickCard({
-  to,
-  title,
-  sub,
-  badge,
-}: {
-  to: string
-  title: string
-  sub: string
-  badge: boolean
-}) {
+function QuickCard({ to, title, sub, badge }: { to: string; title: string; sub: string; badge: boolean }) {
   return (
     <Link to={to} style={styles.quickCard}>
       <span style={styles.quickTitleRow}>
@@ -771,13 +859,13 @@ function QuickCard({
   )
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+type BannerVariant = 'ruby' | 'gold' | 'teal'
+
 const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
-  container: {
-    maxWidth: 1080,
-    margin: '0 auto',
-    // Padding overridden inline with responsive values (16px mobile / 24px desktop).
-  },
+  container: { maxWidth: 1080, margin: '0 auto' },
   banner: {
     display: 'flex',
     alignItems: 'center',
@@ -801,80 +889,36 @@ const styles: Record<string, CSSProperties> = {
     padding: 24,
     marginBottom: 24,
   },
-  extHeading: {
-    margin: '0 0 16px',
-    fontFamily: fonts.heading,
-    fontSize: 18,
-    fontWeight: 600,
-    color: tokens.text,
-  },
+  extHeading: { margin: '0 0 16px', fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: tokens.text },
   extField: { display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 12 },
-  extLabel: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    color: tokens.textMuted,
-  },
+  extLabel: { fontFamily: fonts.body, fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: tokens.textMuted },
   extValue: { fontFamily: fonts.body, fontSize: 15, color: tokens.text, lineHeight: 1.4 },
   extActions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   denyBtn: {
-    background: tokens.surface,
-    color: tokens.ruby,
-    border: `1px solid ${tokens.ruby}`,
-    borderRadius: 8,
-    padding: '10px 18px',
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
+    background: tokens.surface, color: tokens.ruby, border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8, padding: '10px 18px', fontFamily: fonts.body, fontSize: 14, fontWeight: 600, cursor: 'pointer',
   },
   approveBtn: {
-    background: tokens.primary,
-    color: tokens.surface,
-    border: 'none',
-    borderRadius: 8,
-    padding: '10px 18px',
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
+    background: tokens.primary, color: tokens.surface, border: 'none',
+    borderRadius: 8, padding: '10px 18px', fontFamily: fonts.body, fontSize: 14, fontWeight: 600, cursor: 'pointer',
   },
-  // Figma: Fraunces SemiBold 28 / 42, tracking -0.28px, ink #0a1a1b.
   title: {
     margin: '0 0 24px',
-    fontFamily: fonts.heading,
-    fontSize: 28,
-    fontWeight: 600,
-    lineHeight: '42px',
-    letterSpacing: '-0.28px',
-    color: tokens.text,
+    fontFamily: fonts.heading, fontSize: 28, fontWeight: 600, lineHeight: '42px',
+    letterSpacing: '-0.28px', color: tokens.text,
   },
-  // Figma: white card, neutral overlay-strong hairline, radius 16, padding 28.
   card: {
-    background: tokens.surface,
-    border: `1px solid ${t.border.overlayStrong}`,
-    borderRadius: 16,
-    padding: 28,
-    marginBottom: 24,
+    background: tokens.surface, border: `1px solid ${t.border.overlayStrong}`,
+    borderRadius: 16, padding: 28, marginBottom: 24,
   },
   cardHeader: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 16,
-    width: '100%',
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+    gap: 16, width: '100%',
   },
   cardHeaderText: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 },
-  // Figma: Fraunces SemiBold 20 / 30.
   projectTitle: {
-    margin: 0,
-    fontFamily: fonts.heading,
-    fontSize: 20,
-    fontWeight: 600,
-    lineHeight: '30px',
-    color: tokens.text,
+    margin: 0, fontFamily: fonts.heading, fontSize: 20, fontWeight: 600,
+    lineHeight: '30px', color: tokens.text,
   },
   projectMeta: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, flexWrap: 'wrap' },
   metaStrong: { fontFamily: fonts.body, fontWeight: 600, color: t.text.secondary },
@@ -882,232 +926,134 @@ const styles: Record<string, CSSProperties> = {
   metaLabel: { fontFamily: fonts.body, fontWeight: 400, color: t.text.secondary },
   ring: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 },
   ringSvgWrap: {
-    position: 'relative',
-    width: 64,
-    height: 64,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'relative', width: 64, height: 64, display: 'flex',
+    alignItems: 'center', justifyContent: 'center',
   },
   ringPct: {
-    position: 'absolute',
-    inset: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: 600,
-    color: t.text.primary,
+    position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+    justifyContent: 'center', fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: t.text.primary,
   },
   ringCaption: { fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: t.text.secondary, whiteSpace: 'nowrap' },
-  phaseGrid: { display: 'grid', alignItems: 'stretch', marginTop: 24 },
+
+  // Stage grid (replaces phaseGrid — same CSS grid approach, now dynamic column count)
+  stageGrid: { display: 'grid', alignItems: 'stretch' },
+  stageDetailPanel: {
+    marginTop: 16,
+    padding: '16px 20px',
+    background: t.background.subtle,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 10,
+  },
   phaseCol: { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 },
   phaseNodeRow: { display: 'flex', alignItems: 'center', width: '100%' },
   phaseNode: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    border: '2px solid',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: 600,
-    flexShrink: 0,
+    width: 32, height: 32, borderRadius: 16, border: '2px solid',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontFamily: fonts.body, fontSize: 14, fontWeight: 600, flexShrink: 0,
   },
   phaseNodeFilled: { background: phaseUI.nodeFill, color: tokens.surface, borderColor: t.border.overlayStrong },
   phaseNodeIdle: { background: tokens.surface, color: tokens.textMuted, borderColor: t.background.overlayNormal },
   connector: { flex: 1, height: 2, minWidth: 0 },
   phaseBody: { display: 'flex', flexDirection: 'column', gap: 8 },
   phaseNameRow: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
-  // Figma: Inter SemiBold 15 / 20, tracking 0.27px.
   phaseName: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, lineHeight: '20px', letterSpacing: 0.27 },
   statusPill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: '2px 8px',
-    borderRadius: 999,
-    border: '1px solid',
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: 500,
-    color: t.text.primary,
-    whiteSpace: 'nowrap',
+    display: 'inline-flex', alignItems: 'center', padding: '2px 8px',
+    borderRadius: 999, border: '1px solid', fontFamily: fonts.body, fontSize: 12,
+    fontWeight: 500, color: t.text.primary, whiteSpace: 'nowrap',
   },
-  tasksLink: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: 500,
-    color: t.text.urlLink, // design-system teal link (Figma library default blue intentionally not used)
-    textDecoration: 'none',
-    whiteSpace: 'nowrap',
+  toggleHint: {
+    fontFamily: fonts.body, fontSize: 12, fontWeight: 500,
+    color: t.text.urlLink, textDecoration: 'none', whiteSpace: 'nowrap',
   },
-  // Carousel outer: negative margins cancel the main container's 16px side padding so
-  // the track bleeds to the viewport edge and 85vw cards have a visible right peek.
-  carouselOuter: {
-    marginLeft: -16,
-    marginRight: -16,
-    marginBottom: 24,
-  },
+
+  // Mobile carousel
+  carouselOuter: { marginLeft: -16, marginRight: -16, marginBottom: 24 },
   carouselTrack: {
-    display: 'flex',
-    overflowX: 'auto',
-    scrollSnapType: 'x mandatory',
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingBottom: 4,
-    gap: 12,
+    display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory',
+    paddingLeft: 16, paddingRight: 16, paddingBottom: 4, gap: 12,
   },
-  carouselCardWrap: {
-    scrollSnapAlign: 'start',
-    flexShrink: 0,
-    width: '85vw',
-  },
+  carouselCardWrap: { scrollSnapAlign: 'start', flexShrink: 0, width: '85vw' },
   phaseCardInner: {
-    background: tokens.surface,
-    border: `1px solid ${t.border.overlayStrong}`,
-    borderRadius: 12,
-    padding: 20,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-    height: '100%',
-    boxSizing: 'border-box',
+    background: tokens.surface, border: `1px solid ${t.border.overlayStrong}`,
+    borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column',
+    gap: 12, boxSizing: 'border-box',
   },
-  phaseCardActive: {
-    border: `1px solid ${tokens.primary}`,
-    background: tokens.tealLight,
+  phaseCardActive: { border: `1px solid ${tokens.primary}`, background: tokens.tealLight },
+  phaseCardNodeRow: { display: 'flex', alignItems: 'center' },
+  phaseCardBody: { display: 'flex', flexDirection: 'column', gap: 8 },
+  carouselToggleBtn: {
+    background: 'none', border: 'none', padding: 0,
+    fontFamily: fonts.body, fontSize: 12, fontWeight: 500,
+    color: t.text.urlLink, cursor: 'pointer', textAlign: 'left' as const,
   },
-  phaseCardNodeRow: {
-    display: 'flex',
-    alignItems: 'center',
-  },
-  phaseCardBody: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-  },
-  dots: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-  },
-  dot: {
-    height: 6,
-    borderRadius: 999,
-    flexShrink: 0,
-    transition: `all ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
-  },
-  dotActive: {
-    width: 16,
-    background: tokens.primary,
-  },
-  dotIdle: {
-    width: 6,
-    background: t.border.default,
-  },
+  dots: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 12 },
+  dot: { height: 6, borderRadius: 999, flexShrink: 0, transition: `all ${motionTokens.durationFast} ${motionTokens.easeDefault}` },
+  dotActive: { width: 16, background: tokens.primary },
+  dotIdle: { width: 6, background: t.border.default },
+
+  // Docs + milestones (unchanged)
   docsBlock: { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${t.border.subtle}` },
-  docsHeading: {
-    margin: '0 0 8px',
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: 500,
-    color: t.text.secondary,
-  },
-  // Figma: three-up grid, gap 16; collapses responsively on narrow screens.
-  quickGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 },
-  quickCard: {
-    position: 'relative',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    background: tokens.surface,
-    border: `1px solid ${t.border.overlayStrong}`,
-    borderRadius: 12,
-    padding: 22,
-    textDecoration: 'none',
-    transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
-  },
-  quickTitleRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  // Figma: Fraunces SemiBold 16 / 24, neutral ink.
-  quickTitle: { fontFamily: fonts.heading, fontSize: 16, fontWeight: 600, lineHeight: '24px', color: t.text.primary },
-  quickBadge: {
-    width: 8,
-    height: 8,
-    borderRadius: '50%',
-    background: tokens.ruby,
-    flexShrink: 0,
-    animation: `dashBadgeIn ${motionTokens.durationFast} ${motionTokens.easeEnter}`,
-  },
-  quickSub: { fontSize: 13, lineHeight: '19.5px', color: t.text.tertiary },
-  empty: {
-    background: tokens.surface,
-    border: `1px dashed ${t.border.overlayStrong}`,
-    borderRadius: 12,
-    padding: 40,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  emptyText: { margin: 0, fontSize: 15, color: tokens.textMuted },
-  muted: { color: tokens.textMuted, fontSize: 14 },
-  error: {
-    background: tokens.rubyLight,
-    color: tokens.ruby,
-    padding: '12px 14px',
-    borderRadius: 8,
-    fontSize: 13,
-    border: `1px solid ${tokens.ruby}`,
-    marginBottom: 24,
-  },
+  docsHeading: { margin: '0 0 8px', fontFamily: fonts.body, fontSize: 13, fontWeight: 500, color: t.text.secondary },
   milestonesBlock: { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${t.border.subtle}` },
   milestoneList: { display: 'flex', flexDirection: 'column', gap: 12 },
   milestoneCard: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 14,
-    padding: 16,
-    background: t.background.subtle,
-    border: `1px solid ${t.border.default}`,
-    borderRadius: 12,
+    display: 'flex', alignItems: 'flex-start', gap: 14, padding: 16,
+    background: t.background.subtle, border: `1px solid ${t.border.default}`, borderRadius: 12,
   },
   milestoneIcon: {
-    flexShrink: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    background: tokens.greenLight,
-    color: tokens.green,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 15,
-    fontWeight: 700,
+    flexShrink: 0, width: 32, height: 32, borderRadius: 16, background: tokens.greenLight,
+    color: tokens.green, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 15, fontWeight: 700,
   },
   milestoneMain: { minWidth: 0, flex: 1 },
   milestoneLabel: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, color: t.text.primary },
   milestoneDate: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, marginTop: 2 },
-  milestoneOutcome: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: t.text.secondary,
-    marginTop: 6,
-    lineHeight: 1.4,
-  },
+  milestoneOutcome: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary, marginTop: 6, lineHeight: 1.4 },
   completePill: {
-    flexShrink: 0,
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: '4px 10px',
-    borderRadius: 999,
-    background: tokens.greenLight,
-    color: tokens.green,
-    fontFamily: fonts.body,
-    fontSize: 11,
+    flexShrink: 0, display: 'inline-flex', alignItems: 'center', padding: '4px 10px',
+    borderRadius: 999, background: tokens.greenLight, color: tokens.green,
+    fontFamily: fonts.body, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+  },
+
+  // Client notes section
+  notesSection: {
+    background: tokens.surface,
+    border: `1px solid ${t.border.overlayStrong}`,
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+  },
+  notesHeading: {
+    margin: '0 0 16px',
+    fontFamily: fonts.heading,
+    fontSize: 18,
     fontWeight: 600,
-    whiteSpace: 'nowrap',
+    color: t.text.primary,
+  },
+
+  // Quick grid (unchanged)
+  quickGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 },
+  quickCard: {
+    position: 'relative', display: 'flex', flexDirection: 'column', gap: 6,
+    background: tokens.surface, border: `1px solid ${t.border.overlayStrong}`,
+    borderRadius: 12, padding: 22, textDecoration: 'none',
+    transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  quickTitleRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  quickTitle: { fontFamily: fonts.heading, fontSize: 16, fontWeight: 600, lineHeight: '24px', color: t.text.primary },
+  quickBadge: {
+    width: 8, height: 8, borderRadius: '50%', background: tokens.ruby, flexShrink: 0,
+    animation: `dashBadgeIn ${motionTokens.durationFast} ${motionTokens.easeEnter}`,
+  },
+  quickSub: { fontSize: 13, lineHeight: '19.5px', color: t.text.tertiary },
+  empty: {
+    background: tokens.surface, border: `1px dashed ${t.border.overlayStrong}`,
+    borderRadius: 12, padding: 40, textAlign: 'center', marginBottom: 24,
+  },
+  emptyText: { margin: 0, fontSize: 15, color: tokens.textMuted },
+  error: {
+    background: tokens.rubyLight, color: tokens.ruby, padding: '12px 14px',
+    borderRadius: 8, fontSize: 13, border: `1px solid ${tokens.ruby}`, marginBottom: 24,
   },
 }
