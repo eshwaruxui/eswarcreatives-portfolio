@@ -17,6 +17,8 @@ import type { ClientDocument } from './client/DocumentChips'
 import { formatDate } from './admin/ui'
 import { tokens, t, fonts, motionTokens, phaseUI } from './theme'
 import { useBreakpoint } from './hooks/useBreakpoint'
+import { SidePanel } from './admin/SidePanel'
+import { StageLabel } from './components/StageLabel'
 import { TaskList } from './components/TaskList'
 import type { ProjectStageTask } from './components/TaskList'
 import { AttachmentSection } from './components/AttachmentSection'
@@ -88,7 +90,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
   const [tasksByStage, setTasksByStage]     = useState<Record<number, ProjectStageTask[]>>({})
   const [attsByStage, setAttsByStage]       = useState<Record<number, ProjectStageAttachment[]>>({})
   const [linksByStage, setLinksByStage]     = useState<Record<number, ProjectStageProposalLink | null>>({})
-  const [expandedStageIds, setExpandedStageIds] = useState<Set<string>>(new Set())
+  const [drawerStage, setDrawerStage] = useState<ProjectStage | null>(null)
   const [documents, setDocuments]   = useState<ClientDocument[]>([])
   const [banner, setBanner]         = useState<Banner | null>(null)
   const [extensions, setExtensions] = useState<TimelineExtension[]>([])
@@ -138,7 +140,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
               .order('sort_order', { ascending: true }),
             supabase
               .from('project_stage_tasks')
-              .select('id, title, description, status, sort_order, stage_number')
+              .select('id, title, description, status, sort_order, stage_number, parent_task_id')
               .eq('project_id', proj.id)
               .order('sort_order', { ascending: true }),
             supabase
@@ -159,11 +161,6 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
           if (!cancelled) {
             const stageRows = (stagesRes.data ?? []) as ProjectStage[]
             setStages(stageRows)
-
-            // Auto-expand in_progress stages on load; done/pending start collapsed.
-            setExpandedStageIds(
-              new Set(stageRows.filter((sg) => sg.status === 'in_progress').map((sg) => sg.id))
-            )
 
             const taskMap: Record<number, ProjectStageTask[]> = {}
             for (const tk of (tasksRes.data ?? []) as (ProjectStageTask & { stage_number: number })[]) {
@@ -253,17 +250,6 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
     })
   }
 
-  function toggleStage(stageId: string, status: string) {
-    // in_progress is always expanded; pending is always collapsed — only done toggles.
-    if (status !== 'done') return
-    setExpandedStageIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(stageId)) next.delete(stageId)
-      else next.add(stageId)
-      return next
-    })
-  }
-
   // Current step index from the integer pointer, falling back to the text phase.
   // Used ONLY for the "Phase X of Y" ring caption — not for stage display logic.
   const currentIndex = (() => {
@@ -276,11 +262,22 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
     return i >= 0 ? i : 0
   })()
 
-  // Progress derives from actual stage statuses.
-  const progressPct = stages.length === 0 ? 0 : Math.round(
-    (stages.reduce((acc, sg) => acc + (sg.status === 'done' ? 1 : sg.status === 'in_progress' ? 0.5 : 0), 0) /
-      stages.length) * 100
-  )
+  // Task 5a: task-based ring; falls back to stage-weight if no tasks exist.
+  const allTasks = Object.values(tasksByStage).flat()
+  const progressPct = (() => {
+    if (allTasks.length > 0) {
+      const done = allTasks.filter((tk) => tk.status === 'done').length
+      return Math.round((done / allTasks.length) * 100)
+    }
+    if (stages.length === 0) return 0
+    return Math.round(
+      (stages.reduce((acc, sg) => acc + (sg.status === 'done' ? 1 : sg.status === 'in_progress' ? 0.5 : 0), 0) /
+        stages.length) * 100
+    )
+  })()
+
+  // Task 5b: active stage for subtitle (first in_progress, else first stage).
+  const activeStage = stages.find((sg) => sg.status === 'in_progress') ?? stages[0] ?? null
 
   return (
     <div style={styles.page}>
@@ -354,11 +351,11 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
                   <h2 style={styles.projectTitle}>{project.title}</h2>
                   <div style={styles.projectMeta}>
                     <span style={styles.metaStrong}>
-                      Phase {project.phase_number ?? currentIndex + 1}
+                      Stage {activeStage?.stage_number ?? (currentIndex + 1)}
                     </span>
                     <span style={styles.metaDot} aria-hidden="true">&bull;</span>
                     <span style={styles.metaLabel}>
-                      {project.current_phase ?? PHASES[currentIndex]}
+                      {activeStage?.name ?? (project.current_phase ?? PHASES[currentIndex])}
                     </span>
                   </div>
                 </div>
@@ -369,7 +366,19 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
                 />
               </div>
 
-              {/* Desktop: data-driven stage stepper with expand/collapse. */}
+              {/* Task 5c: project status banners */}
+              {project.status === 'on_hold' && (
+                <div style={styles.statusBannerNeutral}>
+                  This project is currently on hold. We will be in touch soon.
+                </div>
+              )}
+              {project.status === 'delivered' && (
+                <div style={styles.statusBannerGreen}>
+                  This project is complete. Thank you for working with us.
+                </div>
+              )}
+
+              {/* Desktop: data-driven stage stepper. Click any stage to open detail drawer. */}
               {!isMobile && stages.length > 0 && (
                 <div style={{ marginTop: 24 }}>
                   <div
@@ -386,24 +395,10 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
                         index={i}
                         isFirst={i === 0}
                         isLast={i === stages.length - 1}
-                        expanded={expandedStageIds.has(stage.id)}
-                        onToggle={() => toggleStage(stage.id, stage.status)}
+                        onClick={() => setDrawerStage(stage)}
                       />
                     ))}
                   </div>
-                  {/* Expanded stage content: full-width panel below the header row */}
-                  {stages.map((stage) =>
-                    expandedStageIds.has(stage.id) ? (
-                      <div key={stage.id} style={styles.stageDetailPanel}>
-                        <StageContent
-                          stage={stage}
-                          tasks={tasksByStage[stage.stage_number] ?? []}
-                          attachments={attsByStage[stage.stage_number] ?? []}
-                          link={linksByStage[stage.stage_number] ?? null}
-                        />
-                      </div>
-                    ) : null
-                  )}
                 </div>
               )}
 
@@ -442,12 +437,34 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
             {isMobile && stages.length > 0 && (
               <StageCarousel
                 stages={stages}
-                tasksByStage={tasksByStage}
-                attsByStage={attsByStage}
-                linksByStage={linksByStage}
-                expandedStageIds={expandedStageIds}
-                onToggle={toggleStage}
+                onStageClick={(stage) => setDrawerStage(stage)}
               />
+            )}
+
+            {/* Task 5d: stage detail drawer */}
+            {drawerStage && (
+              <SidePanel
+                title={drawerStage.name}
+                subtitle={`Stage ${drawerStage.stage_number}`}
+                onClose={() => setDrawerStage(null)}
+                width={480}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <StageLabel
+                    stageId={drawerStage.id}
+                    stageNumber={drawerStage.stage_number}
+                    name={drawerStage.name}
+                    status={drawerStage.status}
+                    canEditName={false}
+                  />
+                  <StageContent
+                    stage={drawerStage}
+                    tasks={tasksByStage[drawerStage.stage_number] ?? []}
+                    attachments={attsByStage[drawerStage.stage_number] ?? []}
+                    link={linksByStage[drawerStage.stage_number] ?? null}
+                  />
+                </div>
+              </SidePanel>
             )}
 
             {/* Client notes section — appears below the project card */}
@@ -607,31 +624,30 @@ function ProgressRing({ percent, caption }: { percent: number; caption: string }
   )
 }
 
-// Desktop stage column: compact node + name + pill. Toggleable for done stages.
+// Desktop stage column: compact node + name + pill. Click to open detail drawer.
 function StageColumn({
-  stage, index, isFirst, isLast, expanded, onToggle
+  stage, index, isFirst, isLast, onClick
 }: {
   stage: ProjectStage
   index: number
   isFirst: boolean
   isLast: boolean
-  expanded: boolean
-  onToggle: () => void
+  onClick: () => void
 }) {
   const phaseState = STAGE_STATUS_TO_PHASE[stage.status] ?? 'pending'
   const pill = phaseUI.status[phaseState]
   const filled = stage.status !== 'pending'
-  const canToggle = stage.status === 'done'
 
   return (
-    <div style={{
-      ...styles.phaseCol,
-      paddingLeft: isFirst ? 0 : 16,
-      paddingRight: isLast ? 0 : 16,
-      borderRight: isLast ? 'none' : `1px solid ${t.border.overlayStrong}`,
-      cursor: canToggle ? 'pointer' : 'default',
-    }}
-    onClick={canToggle ? onToggle : undefined}
+    <div
+      style={{
+        ...styles.phaseCol,
+        paddingLeft: isFirst ? 0 : 16,
+        paddingRight: isLast ? 0 : 16,
+        borderRight: isLast ? 'none' : `1px solid ${t.border.overlayStrong}`,
+        cursor: 'pointer',
+      }}
+      onClick={onClick}
     >
       <div style={styles.phaseNodeRow}>
         <span style={{ ...styles.phaseNode, ...(filled ? styles.phaseNodeFilled : styles.phaseNodeIdle) }}>
@@ -651,12 +667,7 @@ function StageColumn({
             {pill.label}
           </span>
         </div>
-        {canToggle && (
-          <span style={styles.toggleHint}>{expanded ? 'Hide details' : 'Show details'}</span>
-        )}
-        {stage.status === 'in_progress' && (
-          <span style={styles.toggleHint}>In progress</span>
-        )}
+        <span style={styles.toggleHint}>View details</span>
       </div>
     </div>
   )
@@ -718,16 +729,12 @@ function StageContent({
   )
 }
 
-// Mobile snap-scroll stage carousel.
+// Mobile snap-scroll stage carousel. Tap a card to open the detail drawer.
 function StageCarousel({
-  stages, tasksByStage, attsByStage, linksByStage, expandedStageIds, onToggle
+  stages, onStageClick
 }: {
   stages: ProjectStage[]
-  tasksByStage: Record<number, ProjectStageTask[]>
-  attsByStage: Record<number, ProjectStageAttachment[]>
-  linksByStage: Record<number, ProjectStageProposalLink | null>
-  expandedStageIds: Set<string>
-  onToggle: (stageId: string, status: string) => void
+  onStageClick: (stage: ProjectStage) => void
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const activeIdx = stages.findIndex((sg) => sg.status === 'in_progress')
@@ -760,15 +767,20 @@ function StageCarousel({
         {stages.map((stage) => {
           const phaseState = STAGE_STATUS_TO_PHASE[stage.status] ?? 'pending'
           const pill = phaseUI.status[phaseState]
-          const expanded = expandedStageIds.has(stage.id)
-          const canToggle = stage.status === 'done'
           const filled = stage.status !== 'pending'
           return (
             <div key={stage.id} style={styles.carouselCardWrap}>
-              <div style={{
-                ...styles.phaseCardInner,
-                ...(stage.status === 'in_progress' ? styles.phaseCardActive : {}),
-              }}>
+              <button
+                type="button"
+                style={{
+                  ...styles.phaseCardInner,
+                  ...(stage.status === 'in_progress' ? styles.phaseCardActive : {}),
+                  width: '100%',
+                  textAlign: 'left' as const,
+                  cursor: 'pointer',
+                }}
+                onClick={() => onStageClick(stage)}
+              >
                 <div style={styles.phaseCardNodeRow}>
                   <span style={{ ...styles.phaseNode, ...(filled ? styles.phaseNodeFilled : styles.phaseNodeIdle) }}>
                     {stage.status === 'done' ? '✓' : stage.stage_number}
@@ -783,28 +795,9 @@ function StageCarousel({
                       {pill.label}
                     </span>
                   </div>
-                  {canToggle && (
-                    <button
-                      type="button"
-                      style={styles.carouselToggleBtn}
-                      onClick={() => onToggle(stage.id, stage.status)}
-                    >
-                      {expanded ? 'Hide details' : 'Show details'}
-                    </button>
-                  )}
+                  <span style={styles.carouselToggleBtn}>Tap to view details</span>
                 </div>
-                {/* Expanded content inline in the card */}
-                {expanded && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border.subtle}` }}>
-                    <StageContent
-                      stage={stage}
-                      tasks={tasksByStage[stage.stage_number] ?? []}
-                      attachments={attsByStage[stage.stage_number] ?? []}
-                      link={linksByStage[stage.stage_number] ?? null}
-                    />
-                  </div>
-                )}
-              </div>
+              </button>
             </div>
           )
         })}
@@ -860,8 +853,6 @@ function QuickCard({ to, title, sub, badge }: { to: string; title: string; sub: 
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-
-type BannerVariant = 'ruby' | 'gold' | 'teal'
 
 const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: tokens.bg, color: tokens.text, fontFamily: fonts.body },
@@ -983,9 +974,8 @@ const styles: Record<string, CSSProperties> = {
   phaseCardNodeRow: { display: 'flex', alignItems: 'center' },
   phaseCardBody: { display: 'flex', flexDirection: 'column', gap: 8 },
   carouselToggleBtn: {
-    background: 'none', border: 'none', padding: 0,
     fontFamily: fonts.body, fontSize: 12, fontWeight: 500,
-    color: t.text.urlLink, cursor: 'pointer', textAlign: 'left' as const,
+    color: t.text.urlLink, display: 'block', marginTop: 4,
   },
   dots: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 12 },
   dot: { height: 6, borderRadius: 999, flexShrink: 0, transition: `all ${motionTokens.durationFast} ${motionTokens.easeDefault}` },
@@ -1014,6 +1004,31 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0, display: 'inline-flex', alignItems: 'center', padding: '4px 10px',
     borderRadius: 999, background: tokens.greenLight, color: tokens.green,
     fontFamily: fonts.body, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+  },
+
+  // Status banners (task 5c)
+  statusBannerNeutral: {
+    marginTop: 16,
+    padding: '10px 16px',
+    borderRadius: 8,
+    background: t.background.muted,
+    border: `1px solid ${t.border.default}`,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.secondary,
+    lineHeight: 1.5,
+  },
+  statusBannerGreen: {
+    marginTop: 16,
+    padding: '10px 16px',
+    borderRadius: 8,
+    background: tokens.greenLight,
+    border: `1px solid ${tokens.green}`,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: tokens.green,
+    fontWeight: 500,
+    lineHeight: 1.5,
   },
 
   // Client notes section
