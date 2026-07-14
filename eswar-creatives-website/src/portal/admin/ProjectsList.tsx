@@ -71,7 +71,7 @@ const ATTACHMENT_CATEGORIES: AttachmentCategory[] = [
 ]
 
 const STAGE_STATUS_OPTIONS: { value: StageStatus; label: string }[] = [
-  { value: 'pending',     label: 'Pending'     },
+  { value: 'pending',     label: 'Upcoming'    },
   { value: 'in_progress', label: 'In progress' },
   { value: 'done',        label: 'Done'        },
 ]
@@ -326,6 +326,12 @@ function ProjectPanel({
   const [titleDraft, setTitleDraft] = useState(project.title)
   const [clientName, setClientName] = useState<string | null>(null)
   const [createdAt, setCreatedAt] = useState<string | null>(null)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [linkedProposalId, setLinkedProposalId] = useState<string | null>(null)
+  const [linkedProposalPhaseId, setLinkedProposalPhaseId] = useState<string | null>(null)
+  const [linkedProposalLineItemId, setLinkedProposalLineItemId] = useState<string | null>(null)
+  const [projectAtts, setProjectAtts] = useState<ProjectStageAttachment[]>([])
 
   // ── Stages ──
   const [stages, setStages] = useState<ProjectStage[]>([])
@@ -347,6 +353,11 @@ function ProjectPanel({
   )
   const [saving, setSaving] = useState(false)
 
+  // ── Stage delete impact modal ──
+  const [deleteImpactStage, setDeleteImpactStage] = useState<ProjectStage | null>(null)
+  const [deleteImpactCounts, setDeleteImpactCounts] = useState<{ tasks: number; atts: number; links: number } | null>(null)
+  const [loadingImpact, setLoadingImpact] = useState(false)
+
   // 5h: timeline extension
   const [showExt, setShowExt]       = useState(false)
   const [extTimeline, setExtTimeline] = useState('')
@@ -359,10 +370,10 @@ function ProjectPanel({
     let cancelled = false
     void (async () => {
       try {
-        const [projRes, stagesRes, tasksRes, attsRes, linksRes] = await Promise.all([
+        const [projRes, stagesRes, tasksRes, attsRes, linksRes, projAttsRes] = await Promise.all([
           supabase
             .from('projects')
-            .select('created_at, timeline')
+            .select('created_at, timeline, start_date, end_date, linked_proposal_id, linked_proposal_phase_id, linked_proposal_line_item_id')
             .eq('id', project.id)
             .single(),
           supabase
@@ -372,7 +383,7 @@ function ProjectPanel({
             .order('sort_order', { ascending: true }),
           supabase
             .from('project_stage_tasks')
-            .select('id, title, description, status, sort_order, stage_number')
+            .select('id, title, description, status, sort_order, stage_number, parent_task_id')
             .eq('project_id', project.id)
             .order('sort_order', { ascending: true }),
           supabase
@@ -383,15 +394,32 @@ function ProjectPanel({
             .from('project_stage_proposal_links')
             .select('*')
             .eq('project_id', project.id),
+          supabase
+            .from('project_attachments')
+            .select('*')
+            .eq('project_id', project.id),
         ])
 
         if (cancelled) return
         if (projRes.data) {
-          setCreatedAt((projRes.data as { created_at: string; timeline: string | null }).created_at)
-          setTimelineDraft(
-            (projRes.data as { created_at: string; timeline: string | null }).timeline ?? ''
-          )
+          const pd = projRes.data as {
+            created_at: string
+            timeline: string | null
+            start_date: string | null
+            end_date: string | null
+            linked_proposal_id: string | null
+            linked_proposal_phase_id: string | null
+            linked_proposal_line_item_id: string | null
+          }
+          setCreatedAt(pd.created_at)
+          setTimelineDraft(pd.timeline ?? '')
+          setStartDate(pd.start_date ?? '')
+          setEndDate(pd.end_date ?? '')
+          setLinkedProposalId(pd.linked_proposal_id)
+          setLinkedProposalPhaseId(pd.linked_proposal_phase_id)
+          setLinkedProposalLineItemId(pd.linked_proposal_line_item_id)
         }
+        setProjectAtts((projAttsRes.data ?? []) as ProjectStageAttachment[])
 
         const stageRows = (stagesRes.data ?? []) as ProjectStage[]
         setStages(stageRows)
@@ -500,7 +528,59 @@ function ProjectPanel({
     }
   }
 
-  // ── Overview: title edit ──────────────────────────────────────────────
+  // ── Overview: title + date + project-level link ──────────────────────
+
+  async function saveDates() {
+    await supabase
+      .from('projects')
+      .update({
+        start_date: startDate || null,
+        end_date: endDate || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', project.id)
+  }
+
+  async function saveProjectLink(lk: ProjectStageProposalLink | null) {
+    const payload = {
+      linked_proposal_id: lk?.proposal_id ?? null,
+      linked_proposal_phase_id: lk?.proposal_phase_id ?? null,
+      linked_proposal_line_item_id: lk?.proposal_line_item_id ?? null,
+      updated_at: new Date().toISOString(),
+    }
+    setLinkedProposalId(lk?.proposal_id ?? null)
+    setLinkedProposalPhaseId(lk?.proposal_phase_id ?? null)
+    setLinkedProposalLineItemId(lk?.proposal_line_item_id ?? null)
+    await supabase.from('projects').update(payload).eq('id', project.id)
+  }
+
+  async function requestDeleteWithImpact(stage: ProjectStage) {
+    setLoadingImpact(true)
+    setDeleteImpactStage(stage)
+    const [taskRes, attRes, linkRes] = await Promise.all([
+      supabase
+        .from('project_stage_tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', project.id)
+        .eq('stage_number', stage.stage_number),
+      supabase
+        .from('project_stage_attachments')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', project.id)
+        .eq('stage_number', stage.stage_number),
+      supabase
+        .from('project_stage_proposal_links')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', project.id)
+        .eq('stage_number', stage.stage_number),
+    ])
+    setDeleteImpactCounts({
+      tasks: taskRes.count ?? 0,
+      atts:  attRes.count  ?? 0,
+      links: linkRes.count ?? 0,
+    })
+    setLoadingImpact(false)
+  }
 
   async function commitTitle() {
     const trimmed = titleDraft.trim()
@@ -657,6 +737,82 @@ function ProjectPanel({
                   <span style={s.fieldValue}>{formatDate(createdAt)}</span>
                 </div>
               )}
+
+              {/* Project dates */}
+              <div style={s.field}>
+                <span style={s.fieldLabel}>Project dates</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.muted }}>Start</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      onBlur={() => void saveDates()}
+                      style={s.input}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.muted }}>End</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      onBlur={() => void saveDates()}
+                      style={s.input}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Project-level proposal scope */}
+              <div style={s.field}>
+                <span style={s.fieldLabel}>Proposal scope</span>
+                <ProposalLinkPicker
+                  projectId={project.id}
+                  stageNumber={-1}
+                  link={
+                    linkedProposalId
+                      ? {
+                          id: '',
+                          project_id: project.id,
+                          stage_number: -1,
+                          proposal_id: linkedProposalId,
+                          proposal_phase_id: linkedProposalPhaseId,
+                          proposal_line_item_id: linkedProposalLineItemId,
+                        }
+                      : null
+                  }
+                  canEdit
+                  proposals={proposals}
+                  skipPersist
+                  onLinkChange={(lk) => void saveProjectLink(lk)}
+                />
+              </div>
+
+              {/* Project-level files */}
+              <div style={s.field}>
+                <span style={s.fieldLabel}>Project files</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
+                  {ATTACHMENT_CATEGORIES.map((cat) => (
+                    <AttachmentSection
+                      key={cat}
+                      projectId={project.id}
+                      stageNumber={0}
+                      category={cat}
+                      attachments={projectAtts.filter((a) => a.category === cat)}
+                      canUpload
+                      projectLevel
+                      onAttachmentsChange={(atts) =>
+                        setProjectAtts((prev) => [
+                          ...prev.filter((a) => a.category !== cat),
+                          ...atts,
+                        ])
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -691,7 +847,10 @@ function ProjectPanel({
                       onLinkChange={(sn, lk) =>
                         setLinksByStage((prev) => ({ ...prev, [sn]: lk }))
                       }
-                      onRequestDelete={setConfirmDeleteId}
+                      onRequestDelete={(id) => {
+                        const stage = stages.find((sg) => sg.id === id)
+                        if (stage) void requestDeleteWithImpact(stage)
+                      }}
                       onCancelDelete={() => setConfirmDeleteId(null)}
                       onConfirmDelete={deleteStage}
                       idx={idx}
@@ -781,6 +940,68 @@ function ProjectPanel({
           )}
         </div>
       </aside>
+
+      {/* Stage delete impact modal */}
+      {deleteImpactStage && (
+        <div style={s.modalOverlay} onClick={() => !loadingImpact && setDeleteImpactStage(null)}>
+          <div style={s.modalPanel} onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHead}>
+              <h3 style={s.modalTitle}>Delete &ldquo;{deleteImpactStage.name}&rdquo;?</h3>
+              <button
+                type="button"
+                style={s.close}
+                onClick={() => setDeleteImpactStage(null)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {loadingImpact ? (
+              <p style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.secondary }}>Checking impact...</p>
+            ) : deleteImpactCounts && (
+              <>
+                <p style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.primary, margin: '0 0 12px' }}>
+                  This will permanently delete:
+                </p>
+                <ul style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.secondary, margin: '0 0 20px', paddingLeft: 20, lineHeight: 1.8 }}>
+                  {deleteImpactCounts.tasks > 0 && (
+                    <li>{deleteImpactCounts.tasks} task{deleteImpactCounts.tasks !== 1 ? 's' : ''}</li>
+                  )}
+                  {deleteImpactCounts.atts > 0 && (
+                    <li>{deleteImpactCounts.atts} file{deleteImpactCounts.atts !== 1 ? 's' : ''}</li>
+                  )}
+                  {deleteImpactCounts.links > 0 && (
+                    <li>{deleteImpactCounts.links} proposal link{deleteImpactCounts.links !== 1 ? 's' : ''}</li>
+                  )}
+                  {deleteImpactCounts.tasks === 0 && deleteImpactCounts.atts === 0 && deleteImpactCounts.links === 0 && (
+                    <li>No linked data</li>
+                  )}
+                </ul>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                  <button
+                    type="button"
+                    style={s.secondaryBtn}
+                    onClick={() => setDeleteImpactStage(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    style={s.deleteImpactBtn}
+                    onClick={() => {
+                      void deleteStage(deleteImpactStage)
+                      setDeleteImpactStage(null)
+                      setDeleteImpactCounts(null)
+                    }}
+                  >
+                    Delete stage
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 5h: extension modal — z-index above the panel (>201) */}
       {showExt && (
@@ -988,6 +1209,12 @@ const s: Record<string, CSSProperties> = {
     fontFamily: fonts.body, fontSize: 13, fontWeight: 500, color: tokens.accent,
     background: t.background.tint1, border: `1px solid ${t.border.brand}`,
     borderRadius: 8, padding: '8px 14px', cursor: 'pointer',
+  },
+
+  deleteImpactBtn: {
+    fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: tokens.surface,
+    background: tokens.ruby, border: 'none',
+    borderRadius: 8, padding: '10px 16px', cursor: 'pointer',
   },
 
   // Extension modal
