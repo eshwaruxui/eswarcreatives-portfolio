@@ -11,7 +11,7 @@ import { mono } from '../admin/ui'
 export type StageStatus = 'pending' | 'in_progress' | 'done'
 
 const STATUS_PILL: Record<StageStatus, { bg: string; border: string; color: string; label: string }> = {
-  pending:     { bg: t.background.muted,  border: t.border.subtle,  color: t.text.muted,    label: 'Pending' },
+  pending:     { bg: t.background.muted,  border: t.border.subtle,  color: t.text.muted,    label: 'Upcoming' },
   in_progress: { bg: tokens.goldLight,    border: tokens.gold,      color: tokens.goldDark, label: 'In progress' },
   done:        { bg: tokens.greenLight,   border: tokens.green,     color: tokens.green,    label: 'Done' },
 }

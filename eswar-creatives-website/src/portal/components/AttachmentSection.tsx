@@ -2,7 +2,8 @@
 // Client (canUpload=false): read-only file list with download links.
 // Hidden entirely for clients when the category has no files.
 // Downloads use Supabase signed URLs (1-hour expiry) to keep the bucket private.
-import { useRef, useState } from 'react'
+// projectLevel=true writes to project_attachments table instead of project_stage_attachments.
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Download, File, FileText, Image, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -13,7 +14,7 @@ export type AttachmentCategory = 'design_brief' | 'development' | 'output_delive
 export type ProjectStageAttachment = {
   id: string
   project_id: string
-  stage_number: number
+  stage_number?: number  // undefined for project-level attachments
   category: AttachmentCategory
   file_name: string
   storage_path: string
@@ -28,9 +29,8 @@ const CATEGORY_LABELS: Record<AttachmentCategory, string> = {
   output_delivery: 'Output & Delivery',
 }
 
-// Accepted MIME types for uploads
-const ACCEPT =
-  '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.mp4,.zip'
+const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.mp4,.zip'
+const MAX_BYTES = 10 * 1024 * 1024
 
 function formatBytes(n: number | null): string {
   if (n == null) return ''
@@ -73,6 +73,7 @@ export function AttachmentSection({
   category,
   attachments: initial,
   canUpload,
+  projectLevel = false,
   onAttachmentsChange,
 }: {
   projectId: string
@@ -80,6 +81,7 @@ export function AttachmentSection({
   category: AttachmentCategory
   attachments: ProjectStageAttachment[]
   canUpload: boolean
+  projectLevel?: boolean
   onAttachmentsChange: (attachments: ProjectStageAttachment[]) => void
 }) {
   const [attachments, setAttachments] = useState<ProjectStageAttachment[]>(initial)
@@ -88,7 +90,26 @@ export function AttachmentSection({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const handleFileSelectRef = useRef(handleFileSelect)
+  handleFileSelectRef.current = handleFileSelect
+
+  useEffect(() => {
+    if (!canUpload) return
+    function onPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file') {
+          const file = item.getAsFile()
+          if (file) { void handleFileSelectRef.current(file); break }
+        }
+      }
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [canUpload])
 
   function sync(next: ProjectStageAttachment[]) {
     setAttachments(next)
@@ -99,20 +120,25 @@ export function AttachmentSection({
     const { data, error } = await supabase.storage
       .from('stage-attachments')
       .createSignedUrl(file.storage_path, 3600)
-    if (error || !data?.signedUrl) return // H9: silent failure, button stays
+    if (error || !data?.signedUrl) return
     window.open(data.signedUrl, '_blank', 'noopener')
   }
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function handleFileSelect(file: File) {
+    if (file.size > MAX_BYTES) {
+      setUploadError('File too large (max 10MB).')
+      return
+    }
     setUploadError(null)
     setUploading(true)
     setUploadPct(0)
 
     const { data: sess } = await supabase.auth.getUser()
     const uid = sess.user?.id ?? null
-    const storagePath = `${projectId}/${stageNumber}/${category}/${Date.now()}_${file.name}`
+
+    const storagePath = projectLevel
+      ? `${projectId}/project-level/${category}/${Date.now()}_${file.name}`
+      : `${projectId}/${stageNumber}/${category}/${Date.now()}_${file.name}`
 
     const { error: upErr } = await supabase.storage
       .from('stage-attachments')
@@ -121,24 +147,37 @@ export function AttachmentSection({
     if (upErr) {
       setUploading(false)
       setUploadPct(0)
-      // H9: plain-language message, never raw Supabase error
-      setUploadError('Upload failed. Check file size and try again.')
+      setUploadError('Upload failed. Please try again.')
       return
     }
 
     setUploadPct(100)
+
+    const insertPayload = projectLevel
+      ? {
+          project_id: projectId,
+          category,
+          file_name: file.name,
+          storage_path: storagePath,
+          file_size: file.size,
+          file_type: file.type || null,
+          uploaded_by: uid,
+        }
+      : {
+          project_id: projectId,
+          stage_number: stageNumber,
+          category,
+          file_name: file.name,
+          storage_path: storagePath,
+          file_size: file.size,
+          file_type: file.type || null,
+          uploaded_by: uid,
+        }
+
+    const table = projectLevel ? 'project_attachments' : 'project_stage_attachments'
     const { data: row, error: insErr } = await supabase
-      .from('project_stage_attachments')
-      .insert({
-        project_id: projectId,
-        stage_number: stageNumber,
-        category,
-        file_name: file.name,
-        storage_path: storagePath,
-        file_size: file.size,
-        file_type: file.type || null,
-        uploaded_by: uid,
-      })
+      .from(table)
+      .insert(insertPayload)
       .select('*')
       .single()
 
@@ -155,14 +194,14 @@ export function AttachmentSection({
 
   async function deleteAttachment(att: ProjectStageAttachment) {
     await supabase.storage.from('stage-attachments').remove([att.storage_path])
-    await supabase.from('project_stage_attachments').delete().eq('id', att.id)
+    const table = projectLevel ? 'project_attachments' : 'project_stage_attachments'
+    await supabase.from(table).delete().eq('id', att.id)
     sync(attachments.filter((a) => a.id !== att.id))
     setConfirmDeleteId(null)
   }
 
   const label = CATEGORY_LABELS[category]
 
-  // H6: clients see nothing for empty sections — no clutter for pending work
   if (!canUpload && attachments.length === 0) return null
 
   return (
@@ -227,7 +266,7 @@ export function AttachmentSection({
         </ul>
       )}
 
-      {/* Admin upload zone */}
+      {/* Admin upload zone with drag/drop */}
       {canUpload && (
         <>
           {uploadError && <p style={s.uploadError}>{uploadError}</p>}
@@ -238,14 +277,30 @@ export function AttachmentSection({
           )}
           <button
             type="button"
-            style={s.uploadZone}
+            style={{
+              ...s.uploadZone,
+              ...(dragging ? { borderColor: t.border.brand, background: t.background.tint1 } : {}),
+            }}
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+            onDragEnter={(e) => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false)
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragging(false)
+              const file = e.dataTransfer.files?.[0]
+              if (file) void handleFileSelect(file)
+            }}
           >
             {uploading
               ? 'Uploading...'
+              : dragging
+              ? 'Drop to upload'
               : attachments.length === 0
-              ? 'Drop files here or click to upload'
+              ? 'Drop files here, paste with Cmd+V, or click to upload'
               : '+ Add another file'}
           </button>
           <input
@@ -253,7 +308,10 @@ export function AttachmentSection({
             type="file"
             accept={ACCEPT}
             style={{ display: 'none' }}
-            onChange={(e) => void handleUpload(e)}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void handleFileSelect(file)
+            }}
           />
         </>
       )}
@@ -341,7 +399,7 @@ const s: Record<string, CSSProperties> = {
     color: t.text.tertiary,
     cursor: 'pointer',
     textAlign: 'center' as const,
-    transition: `border-color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+    transition: `border-color ${motionTokens.durationFast} ${motionTokens.easeDefault}, background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
     boxSizing: 'border-box' as const,
   },
   uploadProgress: {

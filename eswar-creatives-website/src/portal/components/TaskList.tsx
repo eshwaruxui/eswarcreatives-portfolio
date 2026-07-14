@@ -1,10 +1,10 @@
 // Shared task list atom. Admin (canEdit=true): draggable rows, inline title
-// edit, status cycle, delete confirm. Client (canEdit=false): read-only rows
-// with progress bar. Both views share the same task data type and callbacks so
-// the parent can maintain a single source of truth.
-import { useRef, useState } from 'react'
+// edit, status cycle, delete confirm, subtask support. Client (canEdit=false):
+// read-only rows with progress bar. Both views share the same task data type
+// so the parent can maintain a single source of truth.
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, DragEvent } from 'react'
-import { CheckCircle2, Circle, Clock, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { CheckCircle2, Circle, Clock, CornerDownRight, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
 
@@ -14,6 +14,7 @@ export type ProjectStageTask = {
   description?: string
   status: 'pending' | 'in_progress' | 'done'
   sort_order: number
+  parent_task_id?: string | null
 }
 
 const STATUS_NEXT: Record<string, ProjectStageTask['status']> = {
@@ -83,6 +84,12 @@ export function TaskList({
   const [newTitle, setNewTitle] = useState('')
   const [adding, setAdding] = useState(false)
   const dragSrcIdx = useRef<number>(-1)
+  const dragSrcParentId = useRef<string | null | undefined>(undefined)
+
+  // Keep local tasks in sync with prop changes from parent re-fetches.
+  useEffect(() => {
+    setTasks([...initialTasks].sort((a, b) => a.sort_order - b.sort_order))
+  }, [initialTasks])
 
   function sync(next: ProjectStageTask[]) {
     setTasks(next)
@@ -91,13 +98,11 @@ export function TaskList({
 
   async function cycleStatus(task: ProjectStageTask) {
     const next = STATUS_NEXT[task.status]
-    // H1: optimistic update gives instant visual feedback
     sync(tasks.map((tk) => (tk.id === task.id ? { ...tk, status: next } : tk)))
     await supabase
       .from('project_stage_tasks')
       .update({ status: next, updated_at: new Date().toISOString() })
       .eq('id', task.id)
-    // H9: silent on failure; parent can reload to correct any mismatch
   }
 
   async function commitEdit(task: ProjectStageTask) {
@@ -121,7 +126,8 @@ export function TaskList({
     const trimmed = newTitle.trim()
     if (!trimmed || adding) return
     setAdding(true)
-    const maxOrder = tasks.reduce((m, tk) => Math.max(m, tk.sort_order), -1)
+    const topLevel = tasks.filter((t) => !t.parent_task_id)
+    const maxOrder = topLevel.reduce((m, tk) => Math.max(m, tk.sort_order), -1)
     const { data: sess } = await supabase.auth.getUser()
     const uid = sess.user?.id ?? null
     const { data, error } = await supabase
@@ -132,31 +138,73 @@ export function TaskList({
         title: trimmed,
         status: 'pending',
         sort_order: maxOrder + 1,
+        parent_task_id: null,
         created_by: uid,
       })
-      .select('id, title, description, status, sort_order')
+      .select('id, title, description, status, sort_order, parent_task_id')
       .single()
     setAdding(false)
-    if (error || !data) return // H9: input stays; user can retry
+    if (error || !data) return
     sync([...tasks, data as ProjectStageTask])
     setNewTitle('')
   }
 
-  function onDragStart(e: DragEvent, idx: number) {
+  async function addSubtask(parentId: string) {
+    if (adding) return
+    setAdding(true)
+    const siblings = tasks.filter((t) => t.parent_task_id === parentId)
+    const maxOrder = siblings.reduce((m, tk) => Math.max(m, tk.sort_order), -1)
+    const { data: sess } = await supabase.auth.getUser()
+    const uid = sess.user?.id ?? null
+    const { data, error } = await supabase
+      .from('project_stage_tasks')
+      .insert({
+        project_id: projectId,
+        stage_number: stageNumber,
+        title: 'New subtask',
+        status: 'pending',
+        sort_order: maxOrder + 1,
+        parent_task_id: parentId,
+        created_by: uid,
+      })
+      .select('id, title, description, status, sort_order, parent_task_id')
+      .single()
+    setAdding(false)
+    if (error || !data) return
+    const newTask = data as ProjectStageTask
+    sync([...tasks, newTask])
+    setEditingId(newTask.id)
+    setEditDraft('New subtask')
+  }
+
+  function onDragStart(e: DragEvent, idx: number, parentId: string | null | undefined) {
     dragSrcIdx.current = idx
+    dragSrcParentId.current = parentId ?? null
     e.dataTransfer.effectAllowed = 'move'
   }
 
-  async function onDrop(e: DragEvent, targetIdx: number) {
+  async function onDrop(e: DragEvent, targetIdx: number, targetParentId: string | null | undefined) {
     e.preventDefault()
+    const normalizedParent = targetParentId ?? null
+    if (dragSrcParentId.current !== normalizedParent) return
     const src = dragSrcIdx.current
     if (src < 0 || src === targetIdx) return
-    const reordered = [...tasks]
+
+    const scopeTasks = tasks
+      .filter((tk) => (tk.parent_task_id ?? null) === normalizedParent)
+      .sort((a, b) => a.sort_order - b.sort_order)
+
+    const reordered = [...scopeTasks]
     const [moved] = reordered.splice(src, 1)
     reordered.splice(targetIdx, 0, moved)
-    const withOrders = reordered.map((tk, i) => ({ ...tk, sort_order: i }))
-    sync(withOrders)
-    for (const tk of withOrders) {
+    const updatedScope = reordered.map((tk, i) => ({ ...tk, sort_order: i }))
+
+    const newTasks = tasks.map((tk) => {
+      const updated = updatedScope.find((u) => u.id === tk.id)
+      return updated ?? tk
+    })
+    sync(newTasks)
+    for (const tk of updatedScope) {
       await supabase
         .from('project_stage_tasks')
         .update({ sort_order: tk.sort_order, updated_at: new Date().toISOString() })
@@ -164,47 +212,73 @@ export function TaskList({
     }
   }
 
-  const doneCount = tasks.filter((tk) => tk.status === 'done').length
-  const total = tasks.length
+  const topLevel = tasks
+    .filter((tk) => !tk.parent_task_id)
+    .sort((a, b) => a.sort_order - b.sort_order)
+
+  const allDone  = tasks.filter((tk) => tk.status === 'done').length
+  const allTotal = tasks.length
 
   // ── Read-only client view ─────────────────────────────────────────────
   if (!canEdit) {
     return (
       <div>
-        {total > 0 && (
+        {allTotal > 0 && (
           <div style={s.progressWrap}>
             <span style={s.progressLabel}>
-              {doneCount} of {total} tasks complete
+              {allDone} of {allTotal} tasks complete
             </span>
             <div style={s.progressTrack}>
               <div
                 style={{
                   ...s.progressFill,
-                  width: `${total > 0 ? (doneCount / total) * 100 : 0}%`,
+                  width: `${allTotal > 0 ? (allDone / allTotal) * 100 : 0}%`,
                 }}
               />
             </div>
           </div>
         )}
-        {total === 0 ? (
+        {allTotal === 0 ? (
           <p style={s.emptyClient}>No tasks added yet.</p>
         ) : (
           <ul style={s.list}>
-            {tasks.map((task) => (
-              <li key={task.id} style={s.rowClient}>
-                <TaskStatusIcon status={task.status} interactive={false} />
-                <span
-                  style={{
-                    ...s.titleText,
-                    textDecoration: task.status === 'done' ? 'line-through' : 'none',
-                    opacity: task.status === 'done' ? 0.5 : 1,
-                    transition: `opacity ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
-                  }}
-                >
-                  {task.title}
-                </span>
-              </li>
-            ))}
+            {topLevel.map((task) => {
+              const subtasks = tasks
+                .filter((tk) => tk.parent_task_id === task.id)
+                .sort((a, b) => a.sort_order - b.sort_order)
+              return (
+                <>
+                  <li key={task.id} style={s.rowClient}>
+                    <TaskStatusIcon status={task.status} interactive={false} />
+                    <span
+                      style={{
+                        ...s.titleText,
+                        textDecoration: task.status === 'done' ? 'line-through' : 'none',
+                        opacity: task.status === 'done' ? 0.5 : 1,
+                      }}
+                    >
+                      {task.title}
+                    </span>
+                  </li>
+                  {subtasks.map((sub) => (
+                    <li key={sub.id} style={{ ...s.rowClient, paddingLeft: 24 }}>
+                      <CornerDownRight size={12} color={t.text.muted} style={{ flexShrink: 0 }} />
+                      <TaskStatusIcon status={sub.status} interactive={false} />
+                      <span
+                        style={{
+                          ...s.titleText,
+                          fontSize: 12,
+                          textDecoration: sub.status === 'done' ? 'line-through' : 'none',
+                          opacity: sub.status === 'done' ? 0.5 : 1,
+                        }}
+                      >
+                        {sub.title}
+                      </span>
+                    </li>
+                  ))}
+                </>
+              )
+            })}
           </ul>
         )}
       </div>
@@ -214,7 +288,7 @@ export function TaskList({
   // ── Admin (editable) view ─────────────────────────────────────────────
   return (
     <div>
-      {tasks.length === 0 ? (
+      {topLevel.length === 0 ? (
         <div style={{ marginBottom: 8 }}>
           <button
             type="button"
@@ -230,84 +304,139 @@ export function TaskList({
         </div>
       ) : (
         <ul style={s.list}>
-          {tasks.map((task, idx) => (
-            <li
-              key={task.id}
-              draggable
-              onDragStart={(e) => onDragStart(e, idx)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => void onDrop(e, idx)}
-              onMouseEnter={() => setHoveredId(task.id)}
-              onMouseLeave={() => { setHoveredId(null) }}
-              style={s.rowAdmin}
-            >
-              <span style={s.grip} aria-hidden="true">
-                <GripVertical size={14} />
-              </span>
-              {/* H1: clicking cycles status with instant icon swap */}
-              <TaskStatusIcon
-                status={task.status}
-                interactive
-                onClick={() => void cycleStatus(task)}
-              />
-              {editingId === task.id ? (
-                <input
-                  autoFocus
-                  value={editDraft}
-                  onChange={(e) => setEditDraft(e.target.value)}
-                  onBlur={() => void commitEdit(task)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void commitEdit(task)
-                    // H5: Escape reverts without saving
-                    if (e.key === 'Escape') setEditingId(null)
-                  }}
-                  style={s.titleInput}
-                />
-              ) : (
-                <span
-                  style={s.titleText}
-                  onClick={() => {
-                    setEditingId(task.id)
-                    setEditDraft(task.title)
-                  }}
+          {topLevel.map((task, topIdx) => {
+            const subtasks = tasks
+              .filter((tk) => tk.parent_task_id === task.id)
+              .sort((a, b) => a.sort_order - b.sort_order)
+            return (
+              <>
+                <li
+                  key={task.id}
+                  draggable
+                  onDragStart={(e) => onDragStart(e, topIdx, null)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => void onDrop(e, topIdx, null)}
+                  onMouseEnter={() => setHoveredId(task.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  style={s.rowAdmin}
                 >
-                  {task.title}
-                </span>
-              )}
-              {/* H5: inline confirmation prevents accidental deletion */}
-              {confirmDeleteId === task.id ? (
-                <span style={s.confirmRow}>
-                  <span style={s.confirmLabel}>Delete?</span>
-                  <button
-                    type="button"
-                    style={s.confirmYes}
-                    onClick={() => void deleteTask(task.id)}
+                  <span style={s.grip} aria-hidden="true">
+                    <GripVertical size={14} />
+                  </span>
+                  <TaskStatusIcon
+                    status={task.status}
+                    interactive
+                    onClick={() => void cycleStatus(task)}
+                  />
+                  {editingId === task.id ? (
+                    <input
+                      autoFocus
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      onBlur={() => void commitEdit(task)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void commitEdit(task)
+                        if (e.key === 'Escape') setEditingId(null)
+                      }}
+                      style={s.titleInput}
+                    />
+                  ) : (
+                    <span
+                      style={s.titleText}
+                      onClick={() => { setEditingId(task.id); setEditDraft(task.title) }}
+                    >
+                      {task.title}
+                    </span>
+                  )}
+                  {hoveredId === task.id && (
+                    <button
+                      type="button"
+                      style={s.subtaskBtn}
+                      onClick={() => void addSubtask(task.id)}
+                      title="Add subtask"
+                    >
+                      + subtask
+                    </button>
+                  )}
+                  {confirmDeleteId === task.id ? (
+                    <span style={s.confirmRow}>
+                      <span style={s.confirmLabel}>Delete?</span>
+                      <button type="button" style={s.confirmYes} onClick={() => void deleteTask(task.id)}>Yes</button>
+                      <button type="button" style={s.confirmNo} onClick={() => setConfirmDeleteId(null)}>No</button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label="Delete task"
+                      style={{ ...s.deleteBtn, opacity: hoveredId === task.id ? 1 : 0 }}
+                      onClick={() => setConfirmDeleteId(task.id)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </li>
+
+                {/* Subtasks */}
+                {subtasks.map((sub, subIdx) => (
+                  <li
+                    key={sub.id}
+                    draggable
+                    onDragStart={(e) => onDragStart(e, subIdx, task.id)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => void onDrop(e, subIdx, task.id)}
+                    onMouseEnter={() => setHoveredId(sub.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                    style={{ ...s.rowAdmin, paddingLeft: 24 }}
                   >
-                    Yes
-                  </button>
-                  <button
-                    type="button"
-                    style={s.confirmNo}
-                    onClick={() => setConfirmDeleteId(null)}
-                  >
-                    No
-                  </button>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  aria-label="Delete task"
-                  style={{
-                    ...s.deleteBtn,
-                    opacity: hoveredId === task.id ? 1 : 0,
-                  }}
-                  onClick={() => setConfirmDeleteId(task.id)}
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
-            </li>
-          ))}
+                    <CornerDownRight size={12} color={t.text.muted} style={{ flexShrink: 0 }} />
+                    <span style={{ ...s.grip, opacity: 0.5 }} aria-hidden="true">
+                      <GripVertical size={12} />
+                    </span>
+                    <TaskStatusIcon
+                      status={sub.status}
+                      interactive
+                      onClick={() => void cycleStatus(sub)}
+                    />
+                    {editingId === sub.id ? (
+                      <input
+                        autoFocus
+                        value={editDraft}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        onBlur={() => void commitEdit(sub)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void commitEdit(sub)
+                          if (e.key === 'Escape') setEditingId(null)
+                        }}
+                        style={{ ...s.titleInput, fontSize: 12 }}
+                      />
+                    ) : (
+                      <span
+                        style={{ ...s.titleText, fontSize: 12 }}
+                        onClick={() => { setEditingId(sub.id); setEditDraft(sub.title) }}
+                      >
+                        {sub.title}
+                      </span>
+                    )}
+                    {confirmDeleteId === sub.id ? (
+                      <span style={s.confirmRow}>
+                        <button type="button" style={s.confirmYes} onClick={() => void deleteTask(sub.id)}>Yes</button>
+                        <button type="button" style={s.confirmNo} onClick={() => setConfirmDeleteId(null)}>No</button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label="Delete subtask"
+                        style={{ ...s.deleteBtn, opacity: hoveredId === sub.id ? 1 : 0 }}
+                        onClick={() => setConfirmDeleteId(sub.id)}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </>
+            )
+          })}
         </ul>
       )}
       <div style={s.addRow}>
@@ -322,12 +451,7 @@ export function TaskList({
           style={s.addInput}
         />
         {newTitle.trim() && (
-          <button
-            type="button"
-            style={s.addBtn}
-            onClick={() => void addTask()}
-            disabled={adding}
-          >
+          <button type="button" style={s.addBtn} onClick={() => void addTask()} disabled={adding}>
             {adding ? '...' : 'Add'}
           </button>
         )}
@@ -372,6 +496,18 @@ const s: Record<string, CSSProperties> = {
     background: tokens.surface,
     outline: 'none',
     minWidth: 0,
+  },
+  subtaskBtn: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+    background: 'none',
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 4,
+    padding: '1px 6px',
+    cursor: 'pointer',
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
   },
   deleteBtn: {
     background: 'none',
@@ -431,7 +567,7 @@ const s: Record<string, CSSProperties> = {
   progressTrack: { height: 4, background: t.background.muted, borderRadius: 999, overflow: 'hidden' },
   progressFill: {
     height: '100%',
-    background: tokens.accent,
+    background: t.text.secondary,
     borderRadius: 999,
     transition: `width ${motionTokens.durationBase} ${motionTokens.easeEnter}`,
   },

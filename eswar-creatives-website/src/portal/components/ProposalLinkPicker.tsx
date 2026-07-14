@@ -1,8 +1,9 @@
-// Admin (canEdit=true): two-step inline picker to link this stage to a proposal
-// and optionally a specific proposal phase. UPSERTs to project_stage_proposal_links.
-// Client (canEdit=false): read-only insight card showing the linked proposal scope.
+// Admin (canEdit=true): three-step inline picker to link this stage (or project)
+// to a proposal, an optional phase, and an optional solution group.
+// Client (canEdit=false): read-only insight card showing the linked scope.
 // Hidden entirely for clients when no link exists (H6: relevance-only visibility).
-import { useEffect, useState } from 'react'
+// skipPersist=true: caller handles the DB write; component just calls onLinkChange.
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { ChevronDown, FileText, Link2, Unlink } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -15,6 +16,7 @@ export type ProjectStageProposalLink = {
   stage_number: number
   proposal_id: string
   proposal_phase_id: string | null
+  proposal_line_item_id?: string | null
 }
 
 type Proposal = {
@@ -33,7 +35,13 @@ type ProposalPhase = {
   scope: string | null
 }
 
-type Step = 'idle' | 'pick-proposal' | 'pick-phase'
+type ProposalLineItem = {
+  id: string
+  solution_title: string | null
+  title: string
+}
+
+type Step = 'idle' | 'pick-proposal' | 'pick-phase' | 'pick-solution'
 
 export function ProposalLinkPicker({
   projectId,
@@ -41,6 +49,7 @@ export function ProposalLinkPicker({
   link: initialLink,
   canEdit,
   proposals = [],
+  skipPersist = false,
   onLinkChange,
 }: {
   projectId: string
@@ -48,17 +57,34 @@ export function ProposalLinkPicker({
   link: ProjectStageProposalLink | null
   canEdit: boolean
   proposals?: Proposal[]
+  skipPersist?: boolean
   onLinkChange: (link: ProjectStageProposalLink | null) => void
 }) {
   const [link, setLink] = useState<ProjectStageProposalLink | null>(initialLink)
   const [step, setStep] = useState<Step>('idle')
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
+  const [selectedPhase, setSelectedPhase] = useState<ProposalPhase | null>(null)
   const [phases, setPhases] = useState<ProposalPhase[]>([])
   const [phasesLoading, setPhasesLoading] = useState(false)
-  // Names for display (fetched on mount if link exists)
+  const [lineItems, setLineItems] = useState<ProposalLineItem[]>([])
+  const [lineItemsLoading, setLineItemsLoading] = useState(false)
   const [displayNames, setDisplayNames] = useState<{
-    proposalNumber: string; title: string; phaseName: string | null
+    proposalNumber: string
+    title: string
+    phaseName: string | null
+    solutionTitle: string | null
   } | null>(null)
+
+  // Re-sync when initialLink changes (e.g. after parent reload)
+  const prevLinkRef = useRef(initialLink)
+  useEffect(() => {
+    if (prevLinkRef.current?.id !== initialLink?.id) {
+      prevLinkRef.current = initialLink
+      setLink(initialLink)
+      if (initialLink) void fetchDisplayNames(initialLink)
+      else setDisplayNames(null)
+    }
+  }, [initialLink])
 
   useEffect(() => {
     if (link) void fetchDisplayNames(link)
@@ -79,11 +105,21 @@ export function ProposalLinkPicker({
         .single()
       phaseName = ph?.phase_name ?? null
     }
+    let solutionTitle: string | null = null
+    if (l.proposal_line_item_id) {
+      const { data: li } = await supabase
+        .from('proposal_line_items')
+        .select('solution_title')
+        .eq('id', l.proposal_line_item_id)
+        .single()
+      solutionTitle = li?.solution_title ?? null
+    }
     if (p) {
       setDisplayNames({
         proposalNumber: p.proposal_number,
         title: p.title,
         phaseName,
+        solutionTitle,
       })
     }
   }
@@ -101,31 +137,73 @@ export function ProposalLinkPicker({
     setPhasesLoading(false)
   }
 
-  async function confirmLink(phaseId: string | null) {
+  async function pickPhase(ph: ProposalPhase | null) {
+    if (!ph) {
+      // "Whole proposal" — link without phase or solution
+      await confirmLink(null, null)
+      return
+    }
+    setSelectedPhase(ph)
+    setLineItemsLoading(true)
+    setStep('pick-solution')
+    const { data } = await supabase
+      .from('proposal_line_items')
+      .select('id, solution_title, title')
+      .eq('phase_id', ph.id)
+      .order('item_number', { ascending: true })
+    setLineItems((data ?? []) as ProposalLineItem[])
+    setLineItemsLoading(false)
+  }
+
+  async function confirmLink(phaseId: string | null, lineItemId: string | null) {
     if (!selectedProposal) return
-    // UPSERT by project_id + stage_number (single link per stage)
+
     const payload = {
       project_id: projectId,
       stage_number: stageNumber,
       proposal_id: selectedProposal.id,
       proposal_phase_id: phaseId,
+      proposal_line_item_id: lineItemId,
     }
+
+    if (skipPersist) {
+      const syntheticLink: ProjectStageProposalLink = {
+        id: link?.id ?? '',
+        ...payload,
+      }
+      sync(syntheticLink)
+      await fetchDisplayNames(syntheticLink)
+      resetPicker()
+      return
+    }
+
     const { data, error } = await supabase
       .from('project_stage_proposal_links')
       .upsert(payload, { onConflict: 'project_id,stage_number' })
       .select('*')
       .single()
-    if (error || !data) { setStep('idle'); return } // H9: silent; revert UI
+    if (error || !data) { setStep('idle'); return }
     const next = data as ProjectStageProposalLink
     sync(next)
     await fetchDisplayNames(next)
+    resetPicker()
+  }
+
+  function resetPicker() {
     setStep('idle')
     setSelectedProposal(null)
+    setSelectedPhase(null)
     setPhases([])
+    setLineItems([])
   }
 
   async function removeLink() {
     if (!link) return
+    if (skipPersist) {
+      sync(null)
+      setDisplayNames(null)
+      return
+    }
     await supabase
       .from('project_stage_proposal_links')
       .delete()
@@ -142,8 +220,24 @@ export function ProposalLinkPicker({
   function cancel() {
     setStep('idle')
     setSelectedProposal(null)
+    setSelectedPhase(null)
     setPhases([])
+    setLineItems([])
   }
+
+  // Build unique solution groups for step 3
+  const solutionGroups = (() => {
+    const seen = new Set<string>()
+    const groups: { solutionTitle: string; firstItemId: string }[] = []
+    for (const item of lineItems) {
+      const key = item.solution_title ?? item.title
+      if (!seen.has(key)) {
+        seen.add(key)
+        groups.push({ solutionTitle: key, firstItemId: item.id })
+      }
+    }
+    return groups
+  })()
 
   // ── Client read-only view ─────────────────────────────────────────────
   if (!canEdit) {
@@ -154,8 +248,14 @@ export function ProposalLinkPicker({
         <div style={s.insightBody}>
           <span style={s.insightNum}>#{displayNames.proposalNumber}</span>
           <span style={s.insightTitle}>{displayNames.title}</span>
-          {displayNames.phaseName && (
+          {displayNames.phaseName && !displayNames.solutionTitle && (
             <span style={s.insightPhase}>{displayNames.phaseName}</span>
+          )}
+          {displayNames.phaseName && displayNames.solutionTitle && (
+            <span style={s.insightPhase}>{displayNames.phaseName} &middot; {displayNames.solutionTitle}</span>
+          )}
+          {!displayNames.phaseName && displayNames.solutionTitle && (
+            <span style={s.insightPhase}>{displayNames.solutionTitle}</span>
           )}
         </div>
       </div>
@@ -172,6 +272,9 @@ export function ProposalLinkPicker({
           {displayNames.title}
           {displayNames.phaseName && (
             <> &middot; <em style={s.linkedPhase}>{displayNames.phaseName}</em></>
+          )}
+          {displayNames.solutionTitle && (
+            <> &middot; <em style={s.linkedPhase}>{displayNames.solutionTitle}</em></>
           )}
         </span>
         <button type="button" style={s.changeBtn} onClick={() => setStep('pick-proposal')}>
@@ -224,34 +327,78 @@ export function ProposalLinkPicker({
   }
 
   // ── Admin view: step 2 — pick phase ──────────────────────────────────
+  if (step === 'pick-phase') {
+    return (
+      <div style={s.pickerWrap}>
+        <span style={s.pickerLabel}>
+          {selectedProposal?.title}: select a scope (optional)
+        </span>
+        {phasesLoading ? (
+          <p style={s.pickerEmpty}>Loading...</p>
+        ) : (
+          <div style={s.optionList}>
+            <button type="button" style={s.optionBtn} onClick={() => void pickPhase(null)}>
+              <span style={s.optionTitle}>Whole proposal (no specific scope)</span>
+            </button>
+            {phases.map((ph) => (
+              <button
+                key={ph.id}
+                type="button"
+                style={s.optionBtn}
+                onClick={() => void pickPhase(ph)}
+              >
+                <span style={s.optionNum}>Phase {ph.phase_number}</span>
+                <span style={s.optionTitle}>{ph.phase_name}</span>
+                {ph.timeline && <span style={s.optionMeta}>{ph.timeline}</span>}
+                <ChevronDown size={12} style={{ transform: 'rotate(-90deg)', color: t.text.muted, flexShrink: 0 }} />
+              </button>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" style={s.backBtn} onClick={() => setStep('pick-proposal')}>
+            Back
+          </button>
+          <button type="button" style={s.cancelBtn} onClick={cancel}>Cancel</button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Admin view: step 3 — pick solution ───────────────────────────────
   return (
     <div style={s.pickerWrap}>
       <span style={s.pickerLabel}>
-        {selectedProposal?.title} &mdash; select a scope (optional)
+        {selectedPhase?.phase_name}: pick a solution (optional)
       </span>
-      {phasesLoading ? (
+      {lineItemsLoading ? (
         <p style={s.pickerEmpty}>Loading...</p>
       ) : (
         <div style={s.optionList}>
-          <button type="button" style={s.optionBtn} onClick={() => void confirmLink(null)}>
-            <span style={s.optionTitle}>Whole proposal (no specific scope)</span>
+          <button
+            type="button"
+            style={s.optionBtn}
+            onClick={() => void confirmLink(selectedPhase?.id ?? null, null)}
+          >
+            <span style={s.optionTitle}>Whole phase (no specific solution)</span>
           </button>
-          {phases.map((ph) => (
+          {solutionGroups.map((g) => (
             <button
-              key={ph.id}
+              key={g.solutionTitle}
               type="button"
               style={s.optionBtn}
-              onClick={() => void confirmLink(ph.id)}
+              onClick={() => void confirmLink(selectedPhase?.id ?? null, g.firstItemId)}
             >
-              <span style={s.optionNum}>Phase {ph.phase_number}</span>
-              <span style={s.optionTitle}>{ph.phase_name}</span>
-              {ph.timeline && <span style={s.optionMeta}>{ph.timeline}</span>}
+              <span style={s.optionTitle}>{g.solutionTitle}</span>
             </button>
           ))}
+          {solutionGroups.length === 0 && !lineItemsLoading && (
+            <p style={s.pickerEmpty}>No solutions defined in this phase.</p>
+          )}
         </div>
       )}
       <div style={{ display: 'flex', gap: 8 }}>
-        <button type="button" style={s.backBtn} onClick={() => setStep('pick-proposal')}>
+        <button type="button" style={s.backBtn} onClick={() => setStep('pick-phase')}>
           Back
         </button>
         <button type="button" style={s.cancelBtn} onClick={cancel}>Cancel</button>
@@ -269,7 +416,6 @@ function statusStyle(status: string): CSSProperties {
 }
 
 const s: Record<string, CSSProperties> = {
-  // Read-only insight card (client)
   insightCard: {
     display: 'flex',
     alignItems: 'flex-start',
@@ -284,7 +430,6 @@ const s: Record<string, CSSProperties> = {
   insightTitle: { fontFamily: fonts.body, fontWeight: 600, fontSize: 13, color: t.text.primary },
   insightPhase: { fontFamily: fonts.body, fontSize: 12, color: t.text.secondary },
 
-  // Linked state (admin)
   linkedRow: {
     display: 'flex',
     alignItems: 'center',
@@ -306,7 +451,6 @@ const s: Record<string, CSSProperties> = {
     display: 'flex', flexShrink: 0,
   },
 
-  // Unlinked state (admin)
   linkBtn: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -322,7 +466,6 @@ const s: Record<string, CSSProperties> = {
     transition: `border-color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
 
-  // Picker container
   pickerWrap: {
     display: 'flex',
     flexDirection: 'column',
