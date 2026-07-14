@@ -1,13 +1,13 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 14 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 15 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
-**Active branch:** `main`
-**Status:** Stable. PR #10 (`feature/project-stage-module`) squash-merged to main on 14 July 2026.
+**Active branch:** `feature/outreach-improvements`
+**Status:** PR open, awaiting Cloudflare preview + smoke test before merge to main. PR #10 (`feature/project-stage-module`) squash-merged to main on 14 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -92,14 +92,25 @@ _Design systems landing page + wordmark (direct commits to main — 13 Jul 2026)
 _Project stage module (PR #10 — `feature/project-stage-module` — 14 Jul 2026):_
 - project_stages table + seed trigger (migration 0075): admin-named stages, auto-seeded 4 defaults on project creation
 - project_stage_attachments, project_stage_tasks (+ parent_task_id for subtasks), project_client_notes, project_stage_proposal_links (migration 0075)
-- project_attachments table (project-level files, migration 0076)
-- projects: start_date, end_date, linked_proposal_id, linked_proposal_phase_id, linked_proposal_line_item_id (migration 0076)
+- project_attachments table (project-level files, migration 0075)
+- projects: start_date, end_date, linked_proposal_id, linked_proposal_phase_id, linked_proposal_line_item_id (migration 0075)
 - Storage bucket: stage-attachments (private); blanket admin policy + client read-own policy
 - Shared components: StageLabel, TaskList, AttachmentSection, ClientNotes, ProposalLinkPicker (src/portal/components/)
 - Admin ProjectPanel: 4-tab layout (Overview, Stages, Notes, Settings); stage delete impact warning modal
 - Client dashboard: data-driven stage stepper, task-based progress ring, stage right drawer, status banners
 - Terminology: "Phase" → "Stage" in all UI copy (DB column names unchanged)
 - Stage status labels: "Upcoming" (not "Pending"), "In progress", "Done"
+
+_Outreach improvements (PR open — `feature/outreach-improvements` — 15 Jul 2026):_
+- Business hours email scheduling: send-outreach-email defers sends outside 09:00–18:00 Mon–Fri in recipient's timezone; touch status → `scheduled`; COUNTRY_TZ map for 10 countries; returns `{ scheduled: true, scheduled_for }` to caller
+- `confirm-scheduled-touch` edge function: admin verifies JWT, confirms a `scheduled` touch, calls Resend directly, updates status to `sent`/`failed`
+- ActivityTab: "Scheduled" filter option; "Confirm and Send" button on scheduled email rows with optimistic status update + spinner
+- TodayTab: "Pending Confirmation" section showing future scheduled email touches with "Confirm and Send" action
+- LinkedIn planner tab (5th tab in OutreachAdmin): Mon/Wed/Fri week-slot grid at 09:00 IST; inline textarea composer (3000 char); "Publish Now" copies to clipboard + updates DB; post history (last 20); `send-linkedin-reminder` edge function triggered by pg_cron Sunday 12:30 UTC
+- `linkedin_posts` table + `get_upcoming_linkedin_week()` STABLE SECURITY DEFINER RPC (migration 0076)
+- Leads tab: debounced full-text search across 7 fields; filter chips (status/enrollment/source); sortable column headers (asc → desc → clear); result count; empty state with Search icon
+- Add Lead CTA in TopBar: primary "Add Lead" button on all `/portal` routes; navigates to `?tab=leads&addLead=1` which auto-opens AddLeadModal
+- extract-lead-from-image: updated Claude prompt now extracts 13 fields including phone_business, phone_personal, website, location, notes; max_tokens 800; client-side website inference from business email domain
 
 **Next migration number: 0077**
 
@@ -156,6 +167,10 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 - `leads`: phone_business, phone_personal, unsubscribe_token, linkedin_visitor source
 - `sequences`, `sequence_steps`, `lead_enrollments` (statuses: active/paused/completed/cancelled), `outreach_touches`, `suppression_list`, `reply_messages`
 
+**Outreach scheduling tables (migration 0076):**
+- `outreach_touches` — 3 new columns: `recipient_timezone text`, `draft_confirmed_at timestamptz`, `draft_confirmed_by uuid → auth.users`; status constraint extended: `('pending','sent','failed','skipped','scheduled','cancelled')`
+- `linkedin_posts`: id, content, scheduled_for (timestamptz at 09:00+05:30 for Mon/Wed/Fri), status (`pending`/`published`/`failed`), published_at, reminder_sent_at, created_at, updated_at. RLS: admin-only via `is_admin()`.
+
 **Key proposal columns:**
 - `proposal_phases`: solution_title, timeline, key_note
 - `proposal_line_items`: solution_title, solution_overview
@@ -172,6 +187,7 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 - `update_own_full_name(name)` — client SECURITY DEFINER
 - `mark_proposal_viewed(proposal_id)` — client SECURITY DEFINER
 - `is_admin()` — SECURITY DEFINER, used by all RLS policies
+- `get_upcoming_linkedin_week() → TABLE(monday date, wednesday date, friday date)` — STABLE SECURITY DEFINER; returns the Mon/Wed/Fri dates for the upcoming week (Mon if today is Monday)
 
 **Invoice number sequence:** Starts at EC-I-2026-105 (via invoice_number_seq)
 
@@ -267,9 +283,11 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 | update-own-full-name | v1 | true | SECURITY DEFINER |
 | create-razorpay-order | v1 | false | Creates Razorpay order; verifies invoice token server-side |
 | verify-razorpay-payment | v1 | false | Verifies HMAC-SHA256 signature; inserts invoice_payments; syncs status |
-| send-outreach-email | v1 | true | Sends cold email via Resend; guards: suppression, daily cap (25), missing_observation, unresolved variables |
+| send-outreach-email | v2 | true | Sends cold email via Resend; guards: suppression, daily cap (25), missing_observation, unresolved variables; business hours check — defers to next Mon-Fri 09:00-18:00 in recipient timezone; returns `{ scheduled: true }` if deferred |
 | resend-outreach-webhook | v1 | false | Verifies RESEND_WEBHOOK_SECRET; handles email.bounced + email.opened events |
-| extract-lead-from-image | v1 | true | Calls Anthropic claude-sonnet-4-6; extracts lead fields from screenshot |
+| extract-lead-from-image | v2 | true | Calls claude-sonnet-4-6; extracts 13 fields: name, company, title, email, phone_business, phone_personal, website, location, source, linkedin_url, instagram_url, twitter_handle, notes; max_tokens 800; client infers website from business email domain |
+| confirm-scheduled-touch | v1 | true | Admin verifies touch status='scheduled', sends immediately via Resend, sets draft_confirmed_at/by, updates status to 'sent'/'failed' |
+| send-linkedin-reminder | v1 | false | Calls get_upcoming_linkedin_week() RPC; counts pending posts for Mon/Wed/Fri; sends reminder to eswar@eswarcreatives.in via Resend if any slot unfilled; triggered by pg_cron Sunday 12:30 UTC |
 
 **Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `ANTHROPIC_API_KEY`
 **Secrets pending:** `RESEND_WEBHOOK_SECRET` (required before resend-outreach-webhook goes live)
@@ -355,16 +373,46 @@ Token collections: teal (20), gold (20), neutral (21), ruby (20), success (20), 
 
 **Error codes from send-outreach-email:**
 `missing_observation`, `unresolved_variables`, `daily_cap_reached`, `send_failed`, `suppressed`
+Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when deferred by business hours logic.
 
 **Template variables:** `{{first_name}}`, `{{company}}`, `{{specific_observation}}`, `{{flow}}`, `{{unsubscribe_url}}`. `{{topic}}` is intentionally left for manual substitution in LinkedIn DM step 4.
 
-**Frontend tabs:** Today (daily motion tracker), Leads (sortable table + drawer), Sequences (step rail + inline editor), Activity (last 200 touches)
+**Business hours scheduling:**
+- Detected at send time using `Intl.DateTimeFormat` with `recipient_timezone` on the touch row
+- COUNTRY_TZ map covers 10 countries (IN, US, GB, SG, AU, AE, CA, NL, DE, FR); fallback = `Asia/Kolkata`
+- Touch status → `scheduled`; `scheduled_for` timestamptz set to next Mon-Fri 09:00 in recipient timezone
+- ActivityTab shows "Scheduled" in filter dropdown; per-row "Confirm and Send" button
+- TodayTab shows "Pending Confirmation" section for future scheduled email touches
+- `confirm-scheduled-touch` edge function sends immediately and marks `draft_confirmed_at/by`
+
+**Frontend tabs:** Today (daily motion tracker), Leads (search + filter chips + sortable table + drawer), Sequences (step rail + inline editor), Activity (last 200 touches; includes scheduled status), LinkedIn (Mon/Wed/Fri week planner, post history, reminder trigger)
+
+**Leads tab search + filter:**
+- Debounced (300ms) full-text search across: name, company, title, email, phone, source, notes
+- Filter chips: status (New/Contacted/…), enrollment (Enrolled/Not Enrolled), source (values from data)
+- Sortable columns: click cycles asc → desc → clear (third click); sort icon shows active direction
+- Result count displayed as `[N] leads` in SF Mono; empty state with Search icon + "No leads match"
+- URL param `?addLead=1`: auto-opens AddLeadModal on mount, clears param with replace:true
+
+**Add Lead CTA (TopBar):**
+- "Add Lead" primary button (tokens.primary background) shown on all routes starting with `/portal`
+- `UserPlus` icon from lucide-react; height 34px; navigates to `/portal/admin/outreach?tab=leads&addLead=1`
+- Sits between the flex spacer and the Settings gear
+
+**LinkedIn planner tab:**
+- `isoSlotDate(dateStr)` formats Mon/Wed/Fri as `${date}T09:00:00+05:30`
+- On mount: calls `get_upcoming_linkedin_week()` RPC; fetches existing posts for those 3 slots
+- 3-column slot grid; each slot has inline textarea composer with 3000-char limit and character count
+- "Publish Now" button: copies content to clipboard + inserts/upserts `linkedin_posts` row optimistically
+- Post history table: last 20 rows ordered by created_at desc; published_at formatted in IST
+- Weekend reminder banner when today is Sat/Sun; "Send Test Reminder" ghost button calls edge function directly
+- pg_cron job: `linkedin-weekly-reminder` schedule `'30 12 * * 0'` (Sunday 12:30 UTC) — requires pg_cron + pg_net extensions enabled
 
 **Public route:** `/unsubscribe/:token` — confirmation step before RPC fires (prevents pre-fetcher unsubscribes)
 
 **Secrets pending:** `RESEND_WEBHOOK_SECRET` before resend-outreach-webhook goes live. Register in Resend dashboard for email.bounced + email.opened events.
 
-**Phase 2 TODO:** Gmail API inbox sync, automated scheduled sending, LinkedIn API, open rate analytics, WhatsApp Business API for outreach.
+**Phase 2 TODO:** Gmail API inbox sync, LinkedIn API posting (replace clipboard copy), open rate analytics, WhatsApp Business API for outreach.
 
 ---
 
@@ -372,12 +420,13 @@ Token collections: teal (20), gold (20), neutral (21), ruby (20), success (20), 
 
 | Item | Priority |
 |---|---|
+| feature/outreach-improvements: Cloudflare preview build + smoke test (search/filter/sort, Add Lead CTA, scheduled touch confirm, LinkedIn tab, business hours deferral) | High |
+| feature/outreach-improvements: merge to main after smoke test | High |
+| RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
+| Moorthy 123 Adsprint re-add via Add Client modal | High |
 | File upload bug in AttachmentSection — storage policy fix applied, needs retest | High |
 | Notes saving — fix applied (commit 8ca9f702), needs retest | High |
-| Moorthy 123 Adsprint re-add via Add Client modal | High |
-| PORTAL_ARCHITECTURE.md commit to repo | High |
-| RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
-| Sales Cadence smoke test checklist (see Section 10) | High |
+| pg_cron + pg_net extensions: confirm enabled in Supabase so LinkedIn weekly reminder fires | Medium |
 | design-system-v1 Task 4 (About, Services, case study pages) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) | Medium |
