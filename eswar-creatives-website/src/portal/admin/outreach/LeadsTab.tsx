@@ -1,9 +1,8 @@
-// Leads tab: sortable table (desktop), card stack (mobile).
-// Filters: status, segment, missing observation toggle.
-// Add lead button, CSV import button.
+// Leads tab: search, filter chips, sortable table (desktop), card stack (mobile).
 import { useEffect, useRef, useState } from 'react'
-import { Upload, UserPlus, Linkedin, Mail } from 'lucide-react'
+import { Upload, UserPlus, Linkedin, Search, ChevronUp, ChevronDown } from 'lucide-react'
 import type { CSSProperties } from 'react'
+import { useSearchParams } from 'react-router'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, formatDate } from '../ui'
@@ -19,20 +18,30 @@ type LeadRow = {
   company: string
   email: string | null
   linkedin_url: string | null
+  role_title: string | null
+  notes: string | null
   segment: string
   status: string
+  source: string | null
   linkedin_status: string
   specific_observation: string | null
   created_at: string
-  // Derived from touches
   last_touch_at?: string | null
   next_touch_at?: string | null
+  enrolled?: boolean
 }
 
-const STATUS_OPTIONS = [
-  'new', 'active', 'replied', 'meeting_booked', 'converted',
-  'not_interested', 'unsubscribed', 'bounced', 'archived',
-]
+type SortKey = 'name' | 'company' | 'last_touch' | 'created_at' | null
+type SortDir = 'asc' | 'desc'
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
 
 function initials(first: string, last: string | null) {
   return ((first[0] ?? '') + (last?.[0] ?? '')).toUpperCase()
@@ -89,9 +98,64 @@ function StatusChip({ status }: { status: string }) {
       textTransform: 'capitalize',
       whiteSpace: 'nowrap',
     }}>
-      {status.replace('_', ' ')}
+      {status.replace(/_/g, ' ')}
     </span>
   )
+}
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      style={{
+        ...styles.filterChip,
+        ...(active ? styles.filterChipActive : {}),
+      }}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  )
+}
+
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronUp size={11} color={t.text.disabled} />
+  return sortDir === 'asc'
+    ? <ChevronUp size={11} color={tokens.primary} />
+    : <ChevronDown size={11} color={tokens.primary} />
+}
+
+function applySorting(leads: LeadRow[], sortKey: SortKey, sortDir: SortDir): LeadRow[] {
+  if (!sortKey) return leads
+  return [...leads].sort((a, b) => {
+    let va: string | null | undefined
+    let vb: string | null | undefined
+    if (sortKey === 'name') {
+      va = (a.last_name ?? a.first_name).toLowerCase()
+      vb = (b.last_name ?? b.first_name).toLowerCase()
+    } else if (sortKey === 'company') {
+      va = a.company.toLowerCase()
+      vb = b.company.toLowerCase()
+    } else if (sortKey === 'last_touch') {
+      va = a.last_touch_at ?? ''
+      vb = b.last_touch_at ?? ''
+    } else if (sortKey === 'created_at') {
+      va = a.created_at
+      vb = b.created_at
+    }
+    if (!va && !vb) return 0
+    if (!va) return sortDir === 'asc' ? 1 : -1
+    if (!vb) return sortDir === 'asc' ? -1 : 1
+    return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+  })
 }
 
 export function LeadsTab({
@@ -106,13 +170,19 @@ export function LeadsTab({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string[]>([])
-  const [filterSegment, setFilterSegment] = useState('')
+  const [filterEnrollment, setFilterEnrollment] = useState<'all' | 'enrolled' | 'not_enrolled'>('all')
+  const [filterSource, setFilterSource] = useState<string[]>([])
   const [filterMissingObs, setFilterMissingObs] = useState(false)
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
+  const [sortKey, setSortKey] = useState<SortKey>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [showAdd, setShowAdd] = useState(false)
   const [showCsv, setShowCsv] = useState(false)
   const [openLeadId, setOpenLeadId] = useState<string | null>(initialOpenLeadId)
   const [toast, setToast] = useState<string | null>(null)
   const initialHandled = useRef(false)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
     if (initialOpenLeadId && !initialHandled.current) {
@@ -121,17 +191,27 @@ export function LeadsTab({
     }
   }, [initialOpenLeadId])
 
+  // ?addLead=1 URL param opens the modal
+  useEffect(() => {
+    if (searchParams.get('addLead') === '1') {
+      setShowAdd(true)
+      setSearchParams((prev) => {
+        prev.delete('addLead')
+        return prev
+      }, { replace: true })
+    }
+  }, [])
+
   async function load() {
     setLoading(true)
     setError(null)
     try {
       let q = supabase
         .from('leads')
-        .select('id, first_name, last_name, company, email, linkedin_url, segment, status, linkedin_status, specific_observation, created_at')
+        .select('id, first_name, last_name, company, email, linkedin_url, role_title, notes, segment, status, source, linkedin_status, specific_observation, created_at')
         .order('created_at', { ascending: false })
 
       if (filterStatus.length > 0) q = q.in('status', filterStatus)
-      if (filterSegment) q = q.eq('segment', filterSegment)
       if (filterMissingObs) {
         q = q
           .or('specific_observation.is.null,specific_observation.eq.')
@@ -141,13 +221,14 @@ export function LeadsTab({
       const { data, error: err } = await q
       if (err) throw err
 
-      // Fetch last/next touch per lead
       const ids = (data ?? []).map((l) => l.id)
       let lastMap: Record<string, string> = {}
       let nextMap: Record<string, string> = {}
+      let enrolledSet = new Set<string>()
+
       if (ids.length > 0) {
         const today = new Date().toISOString().slice(0, 10)
-        const [lastRes, nextRes] = await Promise.all([
+        const [lastRes, nextRes, enrollRes] = await Promise.all([
           supabase
             .from('outreach_touches')
             .select('lead_id, sent_at')
@@ -161,6 +242,11 @@ export function LeadsTab({
             .eq('status', 'scheduled')
             .gte('scheduled_for', today)
             .order('scheduled_for', { ascending: true }),
+          supabase
+            .from('lead_enrollments')
+            .select('lead_id')
+            .in('lead_id', ids)
+            .not('status', 'eq', 'completed'),
         ])
         for (const t of (lastRes.data ?? [])) {
           if (!lastMap[t.lead_id]) lastMap[t.lead_id] = t.sent_at
@@ -168,12 +254,16 @@ export function LeadsTab({
         for (const t of (nextRes.data ?? [])) {
           if (!nextMap[t.lead_id]) nextMap[t.lead_id] = t.scheduled_for
         }
+        for (const e of (enrollRes.data ?? [])) {
+          enrolledSet.add(e.lead_id)
+        }
       }
 
       setLeads((data ?? []).map((l) => ({
         ...l,
         last_touch_at: lastMap[l.id] ?? null,
         next_touch_at: nextMap[l.id] ?? null,
+        enrolled: enrolledSet.has(l.id),
       })))
     } catch {
       setError('Could not load leads. Refresh to try again.')
@@ -182,13 +272,48 @@ export function LeadsTab({
     }
   }
 
-  useEffect(() => { load() }, [filterStatus, filterSegment, filterMissingObs])
+  useEffect(() => { load() }, [filterStatus, filterMissingObs])
 
   function handleDrawerClose() {
     setOpenLeadId(null)
     onDrawerClosed()
     load()
   }
+
+  function handleSortClick(col: SortKey) {
+    if (sortKey === col) {
+      if (sortDir === 'asc') setSortDir('desc')
+      else { setSortKey(null); setSortDir('asc') }
+    } else {
+      setSortKey(col)
+      setSortDir('asc')
+    }
+  }
+
+  function toggleStatusFilter(val: string) {
+    setFilterStatus((prev) => prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val])
+  }
+
+  function toggleSourceFilter(val: string) {
+    setFilterSource((prev) => prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val])
+  }
+
+  const q = debouncedSearch.toLowerCase()
+  const filtered = leads.filter((lead) => {
+    if (q) {
+      const text = [
+        lead.first_name, lead.last_name, lead.company, lead.email,
+        lead.role_title, lead.linkedin_url, lead.notes,
+      ].join(' ').toLowerCase()
+      if (!text.includes(q)) return false
+    }
+    if (filterEnrollment === 'enrolled' && !lead.enrolled) return false
+    if (filterEnrollment === 'not_enrolled' && lead.enrolled) return false
+    if (filterSource.length > 0 && !filterSource.includes(lead.source ?? '')) return false
+    return true
+  })
+
+  const sorted = applySorting(filtered, sortKey, sortDir)
 
   return (
     <>
@@ -217,43 +342,20 @@ export function LeadsTab({
           }}
         />
       )}
-      {toast && (
-        <div style={styles.toast}>{toast}</div>
-      )}
+      {toast && <div style={styles.toast}>{toast}</div>}
 
-      {/* Toolbar */}
-      <div style={styles.toolbar}>
-        {/* Filters */}
-        <div style={styles.filters}>
-          <select
-            style={styles.filterSelect}
-            value={filterStatus.length === 1 ? filterStatus[0] : ''}
-            onChange={(e) => setFilterStatus(e.target.value ? [e.target.value] : [])}
-          >
-            <option value="">All statuses</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s.replace('_', ' ')}</option>
-            ))}
-          </select>
-          <select
-            style={styles.filterSelect}
-            value={filterSegment}
-            onChange={(e) => setFilterSegment(e.target.value)}
-          >
-            <option value="">All segments</option>
-            <option value="security_ai">Security / AI</option>
-            <option value="saas_product">SaaS Product</option>
-          </select>
-          <label style={styles.toggleLabel}>
-            <input
-              type="checkbox"
-              checked={filterMissingObs}
-              onChange={(e) => setFilterMissingObs(e.target.checked)}
-            />
-            Missing observation
-          </label>
+      {/* Search */}
+      <div style={styles.searchRow}>
+        <div style={styles.searchWrap}>
+          <Search size={15} color={t.text.muted} style={{ flexShrink: 0 }} />
+          <input
+            style={styles.searchInput}
+            type="search"
+            placeholder="Search by name, company, email, role, or LinkedIn URL..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-        {/* Actions */}
         <div style={styles.actions}>
           <button type="button" style={styles.outlineBtn} onClick={() => setShowCsv(true)}>
             <Upload size={14} />
@@ -266,18 +368,75 @@ export function LeadsTab({
         </div>
       </div>
 
+      {/* Filter chips */}
+      <div style={styles.chipGroups}>
+        <div style={styles.chipGroup}>
+          {[
+            { val: 'active', label: 'Active' },
+            { val: 'unsubscribed', label: 'Suppressed' },
+            { val: 'converted', label: 'Converted' },
+          ].map(({ val, label }) => (
+            <FilterChip
+              key={val}
+              label={label}
+              active={filterStatus.includes(val)}
+              onClick={() => toggleStatusFilter(val)}
+            />
+          ))}
+        </div>
+        <div style={styles.chipGroup}>
+          <FilterChip label="In Sequence" active={filterEnrollment === 'enrolled'} onClick={() => setFilterEnrollment((p) => p === 'enrolled' ? 'all' : 'enrolled')} />
+          <FilterChip label="Not Enrolled" active={filterEnrollment === 'not_enrolled'} onClick={() => setFilterEnrollment((p) => p === 'not_enrolled' ? 'all' : 'not_enrolled')} />
+        </div>
+        <div style={styles.chipGroup}>
+          {['linkedin', 'screenshot', 'manual'].map((src) => (
+            <FilterChip
+              key={src}
+              label={src.charAt(0).toUpperCase() + src.slice(1)}
+              active={filterSource.includes(src)}
+              onClick={() => toggleSourceFilter(src)}
+            />
+          ))}
+        </div>
+        <label style={styles.toggleLabel}>
+          <input
+            type="checkbox"
+            checked={filterMissingObs}
+            onChange={(e) => setFilterMissingObs(e.target.checked)}
+          />
+          Missing observation
+        </label>
+      </div>
+
+      {/* Result count */}
+      {!loading && (
+        <p style={styles.resultCount}>
+          {sorted.length} lead{sorted.length !== 1 ? 's' : ''}
+        </p>
+      )}
+
       {error && <div style={styles.errorBanner}>{error}</div>}
 
       {loading ? (
         <p style={styles.loading}>Loading leads...</p>
-      ) : leads.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div style={styles.emptyState}>
-          <p style={styles.emptyHeading}>No leads yet</p>
-          <p style={styles.emptyBody}>Add your first lead or import from CSV to get started.</p>
+          {q || filterStatus.length > 0 || filterEnrollment !== 'all' || filterSource.length > 0 ? (
+            <>
+              <Search size={28} color={t.text.muted} />
+              <p style={styles.emptyHeading}>No leads found</p>
+              <p style={styles.emptyBody}>Try a different name, company, or adjust your filters.</p>
+            </>
+          ) : (
+            <>
+              <p style={styles.emptyHeading}>No leads yet</p>
+              <p style={styles.emptyBody}>Add your first lead or import from CSV to get started.</p>
+            </>
+          )}
         </div>
       ) : isMobile ? (
         <div style={styles.cardStack}>
-          {leads.map((lead) => (
+          {sorted.map((lead) => (
             <MobileCard key={lead.id} lead={lead} onOpen={() => setOpenLeadId(lead.id)} />
           ))}
         </div>
@@ -286,17 +445,35 @@ export function LeadsTab({
           <table style={styles.table}>
             <thead>
               <tr>
-                <th style={styles.th}>Lead</th>
+                <th style={styles.th}>
+                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('name')}>
+                    Lead <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th style={styles.th}>
+                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('company')}>
+                    Company <SortIcon col="company" sortKey={sortKey} sortDir={sortDir} />
+                  </button>
+                </th>
                 <th style={styles.th}>Segment</th>
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>LinkedIn</th>
-                <th style={styles.th}>Last touch</th>
+                <th style={styles.th}>
+                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('last_touch')}>
+                    Last touch <SortIcon col="last_touch" sortKey={sortKey} sortDir={sortDir} />
+                  </button>
+                </th>
                 <th style={styles.th}>Next touch</th>
+                <th style={styles.th}>
+                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('created_at')}>
+                    Created <SortIcon col="created_at" sortKey={sortKey} sortDir={sortDir} />
+                  </button>
+                </th>
                 <th style={styles.th}></th>
               </tr>
             </thead>
             <tbody>
-              {leads.map((lead) => (
+              {sorted.map((lead) => (
                 <tr key={lead.id} style={styles.tr} onClick={() => setOpenLeadId(lead.id)}>
                   <td style={styles.td}>
                     <div style={styles.leadCell}>
@@ -308,6 +485,9 @@ export function LeadsTab({
                         <div style={styles.leadCompany}>{lead.company}</div>
                       </div>
                     </div>
+                  </td>
+                  <td style={styles.td}>
+                    <span style={styles.monoCell}>{lead.company}</span>
                   </td>
                   <td style={styles.td}><SegmentChip segment={lead.segment} /></td>
                   <td style={styles.td}><StatusChip status={lead.status} /></td>
@@ -322,6 +502,11 @@ export function LeadsTab({
                   <td style={styles.td}>
                     <span style={styles.monoCell}>
                       {lead.next_touch_at ? formatDate(lead.next_touch_at) : '-'}
+                    </span>
+                  </td>
+                  <td style={styles.td}>
+                    <span style={styles.monoCell}>
+                      {formatDate(lead.created_at)}
                     </span>
                   </td>
                   <td style={styles.td}>
@@ -375,33 +560,64 @@ function MobileCard({ lead, onOpen }: { lead: LeadRow; onOpen: () => void }) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  toolbar: {
+  searchRow: {
     display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 12,
     flexWrap: 'wrap',
   },
-  filters: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
-  filterSelect: {
+  searchWrap: {
+    flex: 1,
+    minWidth: 200,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: tokens.inputBg,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: '8px 12px',
+  },
+  searchInput: {
+    flex: 1,
     fontFamily: fonts.body,
     fontSize: 13,
     color: t.text.primary,
-    background: tokens.surface,
-    border: `1px solid ${t.border.default}`,
-    borderRadius: 8,
-    padding: '7px 10px',
+    background: 'transparent',
+    border: 'none',
     outline: 'none',
   },
-  toggleLabel: {
+  chipGroups: {
     display: 'flex',
+    gap: 12,
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: 6,
+    marginBottom: 10,
+  },
+  chipGroup: { display: 'flex', gap: 6, alignItems: 'center' },
+  filterChip: {
     fontFamily: fonts.body,
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: 500,
     color: t.text.secondary,
+    background: tokens.surface,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 999,
+    padding: '4px 12px',
     cursor: 'pointer',
+    transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  filterChipActive: {
+    background: tokens.tealLight,
+    color: tokens.primary,
+    border: `1px solid ${tokens.accent}`,
+    fontWeight: 600,
+  },
+  resultCount: {
+    fontFamily: mono,
+    fontSize: 12,
+    color: t.text.muted,
+    margin: '0 0 10px',
   },
   actions: { display: 'flex', gap: 8 },
   primaryBtn: {
@@ -431,6 +647,15 @@ const styles: Record<string, CSSProperties> = {
     padding: '7px 12px',
     cursor: 'pointer',
   },
+  toggleLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.secondary,
+    cursor: 'pointer',
+  },
   errorBanner: {
     background: tokens.rubyLight,
     color: tokens.ruby,
@@ -442,7 +667,7 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 12,
   },
   loading: { fontFamily: fonts.body, fontSize: 14, color: t.text.muted, padding: '24px 0' },
-  emptyState: { textAlign: 'center', padding: '60px 24px' },
+  emptyState: { textAlign: 'center', padding: '60px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 },
   emptyHeading: {
     fontFamily: fonts.heading,
     fontSize: 20,
@@ -451,7 +676,7 @@ const styles: Record<string, CSSProperties> = {
     margin: '0 0 8px',
   },
   emptyBody: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
-  table: { width: '100%', borderCollapse: 'collapse', minWidth: 720 },
+  table: { width: '100%', borderCollapse: 'collapse', minWidth: 860 },
   th: {
     fontFamily: fonts.body,
     fontSize: 11,
@@ -463,6 +688,21 @@ const styles: Record<string, CSSProperties> = {
     textAlign: 'left',
     borderBottom: `1px solid ${t.border.subtle}`,
     whiteSpace: 'nowrap',
+  },
+  sortBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 600,
+    color: t.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    padding: 0,
   },
   tr: {
     cursor: 'pointer',

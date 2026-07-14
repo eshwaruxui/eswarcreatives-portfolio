@@ -3,13 +3,54 @@
 // Handles all edge cases: no email, linkedin awaiting connection, suppressed.
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { Mail, Linkedin, Clock, AlertTriangle } from 'lucide-react'
+import { Mail, Linkedin, Clock, AlertTriangle, Loader2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
 import { LeadDrawer } from './LeadDrawer'
+
+type ScheduledTouch = {
+  id: string
+  recipient_timezone: string | null
+  scheduled_for: string
+  lead: {
+    id: string
+    first_name: string
+    last_name: string | null
+    company: string
+  } | null
+}
+
+function useConfirmScheduledTouch(onSuccess: (id: string) => void) {
+  const [confirming, setConfirming] = useState<string | null>(null)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  async function confirm(touchId: string) {
+    setConfirming(touchId)
+    setErrors((e) => { const n = { ...e }; delete n[touchId]; return n })
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token ?? ''
+      const { data, error: fnErr } = await supabase.functions.invoke('confirm-scheduled-touch', {
+        body: { touch_id: touchId },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
+      if (fnErr || !data || data.error) {
+        setErrors((e) => ({ ...e, [touchId]: 'Could not send. Please try again.' }))
+      } else {
+        onSuccess(touchId)
+      }
+    } catch {
+      setErrors((e) => ({ ...e, [touchId]: 'Network error. Please try again.' }))
+    } finally {
+      setConfirming(null)
+    }
+  }
+
+  return { confirming, errors, confirm }
+}
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
@@ -50,10 +91,17 @@ export function TodayTab({
   const [error, setError] = useState<string | null>(null)
   const [overdue, setOverdue] = useState<TouchRow[]>([])
   const [dueToday, setDueToday] = useState<TouchRow[]>([])
+  const [pendingConfirmation, setPendingConfirmation] = useState<ScheduledTouch[]>([])
   const [activeTouch, setActiveTouch] = useState<TouchRow | null>(null)
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
   const [motionStats, setMotionStats] = useState<MotionStats>({ emailsToday: 0, liTodayCount: 0, repliesWeek: 0, callsWeek: 0 })
+  const [toast, setToast] = useState<string | null>(null)
   const today = todayStr()
+
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 2500)
+  }
 
   async function load() {
     setLoading(true)
@@ -63,7 +111,7 @@ export function TodayTab({
       weekStart.setDate(weekStart.getDate() - weekStart.getDay() + (weekStart.getDay() === 0 ? -6 : 1))
       const weekStartStr = weekStart.toISOString().slice(0, 10)
 
-      const [queueRes, emailTodayRes, liTodayRes, repliesRes, callsRes] = await Promise.all([
+      const [queueRes, emailTodayRes, liTodayRes, repliesRes, callsRes, pendingRes] = await Promise.all([
         supabase
           .from('outreach_touches')
           .select(`
@@ -108,6 +156,14 @@ export function TodayTab({
           .select('id', { count: 'exact', head: true })
           .eq('status', 'meeting_booked')
           .gte('updated_at', `${weekStartStr}T00:00:00Z`),
+        supabase
+          .from('outreach_touches')
+          .select('id, recipient_timezone, scheduled_for, lead:leads!lead_id (id, first_name, last_name, company)')
+          .eq('status', 'scheduled')
+          .eq('channel', 'email')
+          .gt('scheduled_for', `${today}T23:59:59Z`)
+          .order('scheduled_for', { ascending: true })
+          .limit(20),
       ])
 
       if (queueRes.error) throw queueRes.error
@@ -120,6 +176,7 @@ export function TodayTab({
         repliesWeek: repliesRes.count ?? 0,
         callsWeek: callsRes.count ?? 0,
       })
+      setPendingConfirmation((pendingRes.data ?? []) as ScheduledTouch[])
     } catch {
       setError('Could not load the queue. Refresh to try again.')
     } finally {
@@ -146,10 +203,16 @@ export function TodayTab({
     setDueToday(update)
   }
 
+  const { confirming: confirmingId, errors: confirmErrors, confirm } = useConfirmScheduledTouch((id) => {
+    setPendingConfirmation((prev) => prev.filter((t) => t.id !== id))
+    showToast('Email sent successfully.')
+  })
+
   const isEmpty = overdue.length === 0 && dueToday.length === 0
 
   return (
     <>
+      {toast && <div style={styles.toast}>{toast}</div>}
       {activeTouch && (
         <OutreachSendModal
           touch={activeTouch}
@@ -197,6 +260,64 @@ export function TodayTab({
               onRefresh={load}
             />
           )}
+        </div>
+      )}
+
+      {!loading && pendingConfirmation.length > 0 && (
+        <div style={styles.pendingSection}>
+          <div style={styles.pendingSectionHeader}>
+            <span style={styles.sectionTitle}>Pending Confirmation</span>
+            <span style={{ ...styles.sectionCount, color: tokens.goldDark, fontFamily: mono }}>
+              {pendingConfirmation.length}
+            </span>
+          </div>
+          <div style={styles.touchList}>
+            {pendingConfirmation.map((touch) => {
+              const lead = touch.lead
+              const isConf = confirmingId === touch.id
+              const err = confirmErrors[touch.id]
+              return (
+                <div key={touch.id} style={styles.touchCard}>
+                  <div style={styles.touchMain}>
+                    <div style={styles.avatar}>
+                      {lead ? ((lead.first_name[0] ?? '') + (lead.last_name?.[0] ?? '')).toUpperCase() : '?'}
+                    </div>
+                    <div style={styles.touchInfo}>
+                      <span style={styles.touchName}>
+                        {lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
+                      </span>
+                      <span style={styles.touchMeta}>
+                        Scheduled for {new Intl.DateTimeFormat('en-GB', {
+                          timeZone: touch.recipient_timezone ?? 'UTC',
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true,
+                        }).format(new Date(touch.scheduled_for))}
+                      </span>
+                    </div>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      {isConf ? (
+                        <Loader2 size={16} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
+                      ) : (
+                        <button
+                          type="button"
+                          style={styles.actionBtn}
+                          disabled={!!confirmingId}
+                          onClick={() => confirm(touch.id)}
+                        >
+                          Confirm and Send
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {err && <div style={styles.pendingErr}>{err}</div>}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </>
@@ -798,5 +919,39 @@ const styles: Record<string, CSSProperties> = {
   emptyLink: {
     color: t.text.primaryBrand,
     textDecoration: 'underline',
+  },
+  pendingSection: {
+    marginTop: 32,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0,
+  },
+  pendingSectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  pendingErr: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.ruby,
+    marginTop: 4,
+  },
+  toast: {
+    position: 'fixed',
+    bottom: 24,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    background: tokens.primary,
+    color: '#fff',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 500,
+    borderRadius: 8,
+    padding: '10px 20px',
+    zIndex: 9999,
+    pointerEvents: 'none' as const,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
   },
 }
