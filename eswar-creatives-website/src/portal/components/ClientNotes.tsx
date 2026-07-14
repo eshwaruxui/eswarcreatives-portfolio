@@ -55,6 +55,7 @@ export function ClientNotes({
   const [notes, setNotes] = useState<Note[]>([])
   const [draft, setDraft] = useState('')
   const [posting, setPosting] = useState(false)
+  const [postError, setPostError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -82,11 +83,12 @@ export function ClientNotes({
     const trimmed = draft.trim()
     if (!trimmed || posting) return
     setPosting(true)
+    setPostError(null)
     const { data: sess } = await supabase.auth.getUser()
     const uid = sess.user?.id ?? currentUserId
     const email = sess.user?.email ?? ''
     const authorName = email.split('@')[0] || currentUserRole
-    const { data: row, error } = await supabase
+    const { error } = await supabase
       .from('project_client_notes')
       .insert({
         project_id: projectId,
@@ -95,13 +97,14 @@ export function ClientNotes({
         author_role: currentUserRole,
         created_by: uid,
       })
-      .select('*')
-      .single()
     setPosting(false)
-    if (error || !row) return // H9: silent; textarea stays so user can retry
-    setNotes((prev) => [...prev, row as Note])
+    if (error) {
+      setPostError('Could not send message. Please try again.')
+      return
+    }
     setDraft('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    await fetchNotes()
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 60)
   }
 
@@ -130,6 +133,8 @@ export function ClientNotes({
           <div ref={bottomRef} />
         </div>
       )}
+
+      {postError && <p style={s.postError}>{postError}</p>}
 
       {/* Compose row */}
       <div style={s.composeWrap}>
@@ -238,6 +243,16 @@ const s: Record<string, CSSProperties> = {
     lineHeight: 1.5,
     padding: 0,
     overflowY: 'auto',
+  },
+  postError: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.ruby,
+    margin: '0 0 8px',
+    background: tokens.rubyLight,
+    padding: '6px 10px',
+    borderRadius: 6,
+    border: `1px solid ${tokens.ruby}`,
   },
   postBtn: {
     background: tokens.primary,
