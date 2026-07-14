@@ -91,12 +91,15 @@ export function AttachmentSection({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [zoneHovered, setZoneHovered] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const handleFileSelectRef = useRef(handleFileSelect)
   handleFileSelectRef.current = handleFileSelect
 
+  // Only listen for paste while the mouse is over THIS section's upload zone,
+  // so multiple AttachmentSection instances on the same page don't all fire.
   useEffect(() => {
-    if (!canUpload) return
+    if (!canUpload || !zoneHovered) return
     function onPaste(e: ClipboardEvent) {
       const items = e.clipboardData?.items
       if (!items) return
@@ -109,7 +112,7 @@ export function AttachmentSection({
     }
     document.addEventListener('paste', onPaste)
     return () => document.removeEventListener('paste', onPaste)
-  }, [canUpload])
+  }, [canUpload, zoneHovered])
 
   function sync(next: ProjectStageAttachment[]) {
     setAttachments(next)
@@ -283,6 +286,8 @@ export function AttachmentSection({
             }}
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
+            onMouseEnter={() => setZoneHovered(true)}
+            onMouseLeave={() => setZoneHovered(false)}
             onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
             onDragEnter={(e) => { e.preventDefault(); setDragging(true) }}
             onDragLeave={(e) => {
