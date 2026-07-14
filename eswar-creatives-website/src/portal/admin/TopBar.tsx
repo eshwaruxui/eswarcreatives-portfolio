@@ -4,8 +4,8 @@
 //   2. a client selector that scopes downstream pages via PortalContext,
 //   3. a settings gear that opens a slide-in panel (manage/add clients, sign out).
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
-import { Check, ChevronDown, Settings, X } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router'
+import { Check, ChevronDown, Settings, UserPlus, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { clientLabel, usePortal } from '../PortalContext'
 import { tokens, t, fonts, motionTokens } from '../theme'
@@ -18,8 +18,10 @@ const HAIRLINE = '#E5E7EB'
 
 export function TopBar() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { clients, selectedClientId, setSelectedClientId, selectedClient, reloadClients } =
     usePortal()
+  const isPortalRoute = location.pathname.startsWith('/portal')
 
   const { signingOut, error: signOutError, signOut } = useSignOut()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -107,6 +109,18 @@ export function TopBar() {
         </button>
 
         <div style={styles.spacer} />
+
+        {/* Add Lead CTA — shown on all portal routes */}
+        {isPortalRoute && (
+          <button
+            type="button"
+            style={styles.addLeadBtn}
+            onClick={() => navigate('/portal/admin/outreach?tab=leads&addLead=1')}
+          >
+            <UserPlus size={15} />
+            Add Lead
+          </button>
+        )}
 
         {/* Settings */}
         <button
@@ -341,6 +355,23 @@ const styles: Record<string, CSSProperties> = {
     textAlign: 'left',
   },
   spacer: { flex: 1 },
+  addLeadBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    height: 34,
+    padding: '0 14px',
+    background: tokens.primary,
+    border: 'none',
+    borderRadius: 8,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    color: t.text.onPrimary,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
   gearBtn: {
     display: 'inline-flex',
     alignItems: 'center',
