@@ -17,14 +17,14 @@ const ROUTES = [
   {
     path: 'branding',
     title: 'Brand Identity Design · Eswar Creatives',
-    description: 'Logos, visual systems, and brand language for growing businesses.',
+    description: 'Visual identity systems for growing businesses. Logo, colour, typography, and collateral that works everywhere your brand shows up. Three packages from Rs 25,000.',
     image: 'https://www.eswarcreatives.in/og-branding.png',
     url: 'https://www.eswarcreatives.in/branding/',
   },
   {
     path: 'design-systems',
     title: 'B2B SaaS Design Systems · Eswar Creatives',
-    description: 'Token architecture, components, and cross-platform consistency.',
+    description: 'Token architecture, 60+ components, and 180+ semantic tokens for B2B SaaS teams shipping across Web, iOS, and Android. Shipped at CYGNVS. Start with a $750 UX Audit.',
     image: 'https://www.eswarcreatives.in/og-design-systems.png',
     url: 'https://www.eswarcreatives.in/design-systems/',
   },

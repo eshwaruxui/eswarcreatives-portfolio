@@ -165,14 +165,14 @@ export function DesignSystemsLandingPage() {
       <Helmet>
         <title>B2B SaaS Design Systems · Eswar Creatives</title>
         <meta property="og:title" content="B2B SaaS Design Systems · Eswar Creatives" />
-        <meta property="og:description" content="Token architecture, components, and cross-platform consistency." />
+        <meta property="og:description" content="Token architecture, 60+ components, and 180+ semantic tokens for B2B SaaS teams shipping across Web, iOS, and Android. Shipped at CYGNVS. Start with a $750 UX Audit." />
         <meta property="og:image" content="https://www.eswarcreatives.in/og-design-systems.png" />
         <meta property="og:url" content="https://www.eswarcreatives.in/design-systems/" />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Eswar Creatives" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="B2B SaaS Design Systems · Eswar Creatives" />
-        <meta name="twitter:description" content="Token architecture, components, and cross-platform consistency." />
+        <meta name="twitter:description" content="Token architecture, 60+ components, and 180+ semantic tokens for B2B SaaS teams shipping across Web, iOS, and Android. Shipped at CYGNVS. Start with a $750 UX Audit." />
         <meta name="twitter:image" content="https://www.eswarcreatives.in/og-design-systems.png" />
       </Helmet>
       <div

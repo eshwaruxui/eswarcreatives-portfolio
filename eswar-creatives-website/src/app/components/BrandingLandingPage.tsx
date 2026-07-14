@@ -66,14 +66,14 @@ export function BrandingLandingPage() {
       <Helmet>
         <title>Brand Identity Design — Eswar Creatives</title>
         <meta property="og:title" content="Brand Identity Design — Eswar Creatives" />
-        <meta property="og:description" content="Logos, visual systems, and brand language for growing businesses." />
+        <meta property="og:description" content="Visual identity systems for growing businesses. Logo, colour, typography, and collateral that works everywhere your brand shows up. Three packages from Rs 25,000." />
         <meta property="og:image" content="https://www.eswarcreatives.in/og-branding.png" />
         <meta property="og:url" content="https://www.eswarcreatives.in/branding/" />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Eswar Creatives" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Brand Identity Design — Eswar Creatives" />
-        <meta name="twitter:description" content="Logos, visual systems, and brand language for growing businesses." />
+        <meta name="twitter:description" content="Visual identity systems for growing businesses. Logo, colour, typography, and collateral that works everywhere your brand shows up. Three packages from Rs 25,000." />
         <meta name="twitter:image" content="https://www.eswarcreatives.in/og-branding.png" />
       </Helmet>
       <div
