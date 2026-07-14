@@ -1,11 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import type { CSSProperties, DragEvent } from 'react'
+import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
-import { PageHeader, Card, StatusBadge, ui } from './ui'
+import { PageHeader, Card, StatusBadge, mono, formatDate, ui } from './ui'
+import { showToast } from './toast'
 import { usePortal } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
-import type { CSSProperties } from 'react'
+import { StageLabel } from '../components/StageLabel'
+import type { StageStatus } from '../components/StageLabel'
+import { TaskList } from '../components/TaskList'
+import type { ProjectStageTask } from '../components/TaskList'
+import { AttachmentSection } from '../components/AttachmentSection'
+import type { ProjectStageAttachment, AttachmentCategory } from '../components/AttachmentSection'
+import { ClientNotes } from '../components/ClientNotes'
+import { ProposalLinkPicker } from '../components/ProposalLinkPicker'
+import type { ProjectStageProposalLink } from '../components/ProposalLinkPicker'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Project = {
   id: string
@@ -17,51 +29,76 @@ type Project = {
   clients: { company_name: string | null; contact_name: string | null } | null
 }
 
+type ProjectStage = {
+  id: string
+  project_id: string
+  stage_number: number
+  name: string
+  status: StageStatus
+  sort_order: number
+  created_at: string
+}
+
+type Proposal = { id: string; proposal_number: string; title: string; status: string }
+
+type Tab = 'overview' | 'stages' | 'notes' | 'settings'
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'stages',   label: 'Stages'   },
+  { id: 'notes',    label: 'Notes'    },
+  { id: 'settings', label: 'Settings' },
+]
+
+// Canonical phase pointer kept for the progress ring caption "Phase X of Y".
+const PHASE_OPTIONS = [
+  { n: 1, name: 'Discovery' },
+  { n: 2, name: 'Design'    },
+  { n: 3, name: 'Review'    },
+  { n: 4, name: 'Delivery'  },
+] as const
+
+const STATUS_OPTIONS = [
+  { value: 'active',    label: 'Active'    },
+  { value: 'on_hold',   label: 'Paused'    },
+  { value: 'delivered', label: 'Completed' },
+] as const
+
+const ATTACHMENT_CATEGORIES: AttachmentCategory[] = [
+  'design_brief',
+  'development',
+  'output_delivery',
+]
+
+const STAGE_STATUS_OPTIONS: { value: StageStatus; label: string }[] = [
+  { value: 'pending',     label: 'Pending'     },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'done',        label: 'Done'        },
+]
+
 function clientLabel(p: Project) {
   return p.clients?.company_name || p.clients?.contact_name || '—'
 }
 
-// Canonical phase pointer (1..4) and the text label stored on current_phase.
-const PHASE_OPTIONS = [
-  { n: 1, name: 'Discovery' },
-  { n: 2, name: 'Design' },
-  { n: 3, name: 'Review' },
-  { n: 4, name: 'Delivery' },
-] as const
-
-// The project_status enum has no 'paused'/'completed' members; map the friendly
-// labels onto valid enum values so the UPDATE never violates the check.
-const STATUS_OPTIONS = [
-  { value: 'active', label: 'Active' },
-  { value: 'on_hold', label: 'Paused' },
-  { value: 'delivered', label: 'Completed' },
-] as const
+// ── ProjectsList ──────────────────────────────────────────────────────────────
 
 export function ProjectsList() {
   const { selectedClientId } = usePortal()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]   = useState<string | null>(null)
   const [openProject, setOpenProject] = useState<Project | null>(null)
-
-  // Newly saved project id, briefly highlighted gold then cleared (same pattern
-  // as the proposals list).
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    return () => {
-      if (highlightTimer.current) clearTimeout(highlightTimer.current)
-    }
-  }, [])
+
+  useEffect(() => () => { if (highlightTimer.current) clearTimeout(highlightTimer.current) }, [])
 
   async function load() {
     setLoading(true)
     try {
       let query = supabase
         .from('projects')
-        .select(
-          'id, title, status, current_phase, phase_number, client_id, clients(company_name, contact_name)'
-        )
+        .select('id, title, status, current_phase, phase_number, client_id, clients(company_name, contact_name)')
         .order('created_at', { ascending: false })
       if (selectedClientId) query = query.eq('client_id', selectedClientId)
       const { data, error: err } = await query
@@ -74,10 +111,7 @@ export function ProjectsList() {
     }
   }
 
-  useEffect(() => {
-    void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClientId])
+  useEffect(() => { void load() }, [selectedClientId])
 
   function handleSaved(id: string) {
     setOpenProject(null)
@@ -91,20 +125,20 @@ export function ProjectsList() {
     <>
       <PageHeader title="Projects" />
       <ClientFilterBanner />
-      {error && <div style={styles.error}>{error}</div>}
+      {error && <div style={s.error}>{error}</div>}
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? (
           <p style={{ ...ui.muted, padding: 20 }}>Loading...</p>
         ) : projects.length === 0 ? (
           <p style={{ ...ui.muted, padding: 20 }}>No projects yet.</p>
         ) : (
-          <table style={styles.table}>
+          <table style={s.table}>
             <thead>
               <tr>
-                <th style={styles.th}>Project</th>
-                <th style={styles.th}>Client</th>
-                <th style={styles.th}>Stage</th>
-                <th style={styles.th}>Status</th>
+                <th style={s.th}>Project</th>
+                <th style={s.th}>Client</th>
+                <th style={s.th}>Stage</th>
+                <th style={s.th}>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -113,17 +147,15 @@ export function ProjectsList() {
                   key={p.id}
                   onClick={() => setOpenProject(p)}
                   style={{
-                    ...styles.row,
-                    ...(openProject?.id === p.id ? styles.rowActive : null),
-                    ...(highlightId === p.id ? styles.rowHighlight : null),
+                    ...s.row,
+                    ...(openProject?.id === p.id ? s.rowActive : null),
+                    ...(highlightId === p.id ? s.rowHighlight : null),
                   }}
                 >
-                  <td style={{ ...styles.td, fontWeight: 600, color: t.text.primary }}>{p.title}</td>
-                  <td style={styles.td}>{clientLabel(p)}</td>
-                  <td style={styles.td}>{p.current_phase || '—'}</td>
-                  <td style={styles.td}>
-                    <StatusBadge status={p.status} />
-                  </td>
+                  <td style={{ ...s.td, fontWeight: 600, color: t.text.primary }}>{p.title}</td>
+                  <td style={s.td}>{clientLabel(p)}</td>
+                  <td style={s.td}>{p.current_phase || '—'}</td>
+                  <td style={s.td}><StatusBadge status={p.status} /></td>
                 </tr>
               ))}
             </tbody>
@@ -142,6 +174,133 @@ export function ProjectsList() {
   )
 }
 
+// ── StageCard (panel-local) ───────────────────────────────────────────────────
+
+function StageCard({
+  stage, projectId, tasks, attachments, link, proposals,
+  expanded, confirmDeleteId,
+  onToggle, onStatusChange, onTasksChange, onAttachmentsChange,
+  onLinkChange, onRequestDelete, onCancelDelete, onConfirmDelete,
+  idx, onDragStart, onDragOver, onDrop,
+}: {
+  stage: ProjectStage
+  projectId: string
+  tasks: ProjectStageTask[]
+  attachments: ProjectStageAttachment[]
+  link: ProjectStageProposalLink | null
+  proposals: Proposal[]
+  expanded: boolean
+  confirmDeleteId: string | null
+  onToggle: () => void
+  onStatusChange: (stageId: string, status: StageStatus) => Promise<void>
+  onTasksChange: (stageNumber: number, tasks: ProjectStageTask[]) => void
+  onAttachmentsChange: (stageNumber: number, atts: ProjectStageAttachment[]) => void
+  onLinkChange: (stageNumber: number, link: ProjectStageProposalLink | null) => void
+  onRequestDelete: (id: string) => void
+  onCancelDelete: () => void
+  onConfirmDelete: (stage: ProjectStage) => Promise<void>
+  idx: number
+  onDragStart: (e: DragEvent<HTMLDivElement>, idx: number) => void
+  onDragOver: (e: DragEvent<HTMLDivElement>) => void
+  onDrop: (e: DragEvent<HTMLDivElement>, idx: number) => void
+}) {
+  const attsByCategory = (cat: AttachmentCategory) => attachments.filter((a) => a.category === cat)
+
+  return (
+    <div
+      style={s.stageCard}
+      draggable
+      onDragStart={(e) => onDragStart(e, idx)}
+      onDragOver={onDragOver}
+      onDrop={(e) => onDrop(e, idx)}
+    >
+      <div style={s.stageHead}>
+        <span style={s.stageGrip} aria-hidden><GripVertical size={14} /></span>
+        <button type="button" style={s.stageToggle} onClick={onToggle}>
+          {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <StageLabel
+            stageId={stage.id}
+            stageNumber={stage.stage_number}
+            name={stage.name}
+            status={stage.status}
+            canEditName
+          />
+        </div>
+        <select
+          value={stage.status}
+          onChange={(e) => void onStatusChange(stage.id, e.target.value as StageStatus)}
+          style={s.statusSelect}
+        >
+          {STAGE_STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {confirmDeleteId === stage.id ? (
+          <span style={s.confirmRow}>
+            <button type="button" style={s.confirmYes} onClick={() => void onConfirmDelete(stage)}>Delete</button>
+            <button type="button" style={s.confirmNo} onClick={onCancelDelete}>Cancel</button>
+          </span>
+        ) : (
+          <button type="button" style={s.stageDeleteBtn} onClick={() => onRequestDelete(stage.id)}>
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+
+      {expanded && (
+        <div style={s.stageBody}>
+          <div style={s.stageSection}>
+            <span style={s.stageSectionLabel}>Scope link</span>
+            <ProposalLinkPicker
+              projectId={projectId}
+              stageNumber={stage.stage_number}
+              link={link}
+              canEdit
+              proposals={proposals}
+              onLinkChange={(l) => onLinkChange(stage.stage_number, l)}
+            />
+          </div>
+          <div style={s.stageSection}>
+            <span style={s.stageSectionLabel}>Tasks</span>
+            <TaskList
+              projectId={projectId}
+              stageNumber={stage.stage_number}
+              tasks={tasks}
+              canEdit
+              onTasksChange={(tks) => onTasksChange(stage.stage_number, tks)}
+            />
+          </div>
+          <div style={s.stageSection}>
+            <span style={s.stageSectionLabel}>Files</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {ATTACHMENT_CATEGORIES.map((cat) => (
+                <AttachmentSection
+                  key={cat}
+                  projectId={projectId}
+                  stageNumber={stage.stage_number}
+                  category={cat}
+                  attachments={attsByCategory(cat)}
+                  canUpload
+                  onAttachmentsChange={(atts) =>
+                    onAttachmentsChange(stage.stage_number, [
+                      ...attachments.filter((a) => a.category !== cat),
+                      ...atts,
+                    ])
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── ProjectPanel (4-tab) ──────────────────────────────────────────────────────
+
 function ProjectPanel({
   project,
   onClose,
@@ -151,214 +310,696 @@ function ProjectPanel({
   onClose: () => void
   onSaved: (id: string) => void
 }) {
+  // Slide-in animation
   const [shown, setShown] = useState(false)
-  const initialPhase =
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setShown(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
+  const [activeTab, setActiveTab] = useState<Tab>('overview')
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  // ── Overview ──
+  const [projectTitle, setProjectTitle] = useState(project.title)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState(project.title)
+  const [clientName, setClientName] = useState<string | null>(null)
+  const [createdAt, setCreatedAt] = useState<string | null>(null)
+
+  // ── Stages ──
+  const [stages, setStages] = useState<ProjectStage[]>([])
+  const [tasksByStage, setTasksByStage] = useState<Record<number, ProjectStageTask[]>>({})
+  const [attsByStage, setAttsByStage]   = useState<Record<number, ProjectStageAttachment[]>>({})
+  const [linksByStage, setLinksByStage] = useState<Record<number, ProjectStageProposalLink | null>>({})
+  const [proposals, setProposals]       = useState<Proposal[]>([])
+  const [expandedStageId, setExpandedStageId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const dragSrcIdx = useRef<number>(-1)
+
+  // ── Settings ──
+  const [statusDraft, setStatusDraft]   = useState(project.status)
+  const [timelineDraft, setTimelineDraft] = useState('')
+  const [phaseNumber, setPhaseNumber]   = useState<number>(
     project.phase_number && project.phase_number >= 1 && project.phase_number <= 4
       ? project.phase_number
       : (PHASE_OPTIONS.find((p) => p.name === project.current_phase)?.n ?? 1)
-  const [phaseNumber, setPhaseNumber] = useState<number>(initialPhase)
-  const [status, setStatus] = useState<string>(project.status)
+  )
   const [saving, setSaving] = useState(false)
-  const [panelError, setPanelError] = useState<string | null>(null)
 
-  // Trigger the slide-in once mounted (matches the InvoicePreview drawer).
+  // 5h: timeline extension
+  const [showExt, setShowExt]       = useState(false)
+  const [extTimeline, setExtTimeline] = useState('')
+  const [extReason, setExtReason]   = useState('')
+  const [sendingExt, setSendingExt] = useState(false)
+  const [extError, setExtError]     = useState<string | null>(null)
+
+  // ── Load ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    const t = requestAnimationFrame(() => setShown(true))
-    return () => cancelAnimationFrame(t)
-  }, [])
+    let cancelled = false
+    void (async () => {
+      try {
+        const [projRes, stagesRes, tasksRes, attsRes, linksRes] = await Promise.all([
+          supabase
+            .from('projects')
+            .select('created_at, timeline')
+            .eq('id', project.id)
+            .single(),
+          supabase
+            .from('project_stages')
+            .select('*')
+            .eq('project_id', project.id)
+            .order('sort_order', { ascending: true }),
+          supabase
+            .from('project_stage_tasks')
+            .select('id, title, description, status, sort_order, stage_number')
+            .eq('project_id', project.id)
+            .order('sort_order', { ascending: true }),
+          supabase
+            .from('project_stage_attachments')
+            .select('*')
+            .eq('project_id', project.id),
+          supabase
+            .from('project_stage_proposal_links')
+            .select('*')
+            .eq('project_id', project.id),
+        ])
 
-  // Show the live status value too if it is not one of the canonical three.
-  const statusOptions = STATUS_OPTIONS.some((o) => o.value === project.status)
-    ? STATUS_OPTIONS
-    : [{ value: project.status, label: project.status }, ...STATUS_OPTIONS]
+        if (cancelled) return
+        if (projRes.data) {
+          setCreatedAt((projRes.data as { created_at: string; timeline: string | null }).created_at)
+          setTimelineDraft(
+            (projRes.data as { created_at: string; timeline: string | null }).timeline ?? ''
+          )
+        }
 
-  async function handleSave() {
-    setSaving(true)
-    setPanelError(null)
-    try {
-      const phase = PHASE_OPTIONS.find((p) => p.n === phaseNumber)
-      const { error: err } = await supabase
-        .from('projects')
-        .update({
-          current_phase: phase?.name ?? null,
-          phase_number: phaseNumber,
-          status,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', project.id)
-      if (err) throw err
-      onSaved(project.id)
-    } catch {
-      // H9: plain-language error, never a raw Supabase string.
-      setPanelError('Could not save this project. Check the details and try again.')
-      setSaving(false)
+        const stageRows = (stagesRes.data ?? []) as ProjectStage[]
+        setStages(stageRows)
+
+        const taskMap: Record<number, ProjectStageTask[]> = {}
+        for (const tk of (tasksRes.data ?? []) as (ProjectStageTask & { stage_number: number })[]) {
+          ;(taskMap[tk.stage_number] ??= []).push(tk)
+        }
+        setTasksByStage(taskMap)
+
+        const attMap: Record<number, ProjectStageAttachment[]> = {}
+        for (const att of (attsRes.data ?? []) as ProjectStageAttachment[]) {
+          ;(attMap[att.stage_number] ??= []).push(att)
+        }
+        setAttsByStage(attMap)
+
+        const linkMap: Record<number, ProjectStageProposalLink | null> = {}
+        for (const lk of (linksRes.data ?? []) as ProjectStageProposalLink[]) {
+          linkMap[lk.stage_number] = lk
+        }
+        setLinksByStage(linkMap)
+
+        // Client name + proposals (non-critical)
+        if (project.client_id) {
+          const [clientRes, propRes] = await Promise.all([
+            supabase.from('clients').select('name, email').eq('id', project.client_id).single(),
+            supabase
+              .from('proposals')
+              .select('id, proposal_number, title, status')
+              .eq('client_id', project.client_id)
+              .order('created_at', { ascending: false }),
+          ])
+          if (!cancelled) {
+            const cl = clientRes.data as { name: string | null; email: string } | null
+            if (cl) setClientName(cl.name || cl.email)
+            setProposals((propRes.data ?? []) as Proposal[])
+          }
+        }
+      } catch {
+        if (!cancelled) setLoadError('Could not load project details. Refresh to try again.')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [project.id])
+
+  // ── Stage actions ─────────────────────────────────────────────────────
+
+  async function updateStageStatus(stageId: string, status: StageStatus) {
+    setStages((prev) => prev.map((sg) => sg.id === stageId ? { ...sg, status } : sg))
+    await supabase
+      .from('project_stages')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', stageId)
+  }
+
+  async function addStage() {
+    const maxNumber = stages.reduce((m, sg) => Math.max(m, sg.stage_number), 0)
+    const maxOrder  = stages.reduce((m, sg) => Math.max(m, sg.sort_order), -1)
+    const stageNumber = maxNumber + 1
+    const { data, error } = await supabase
+      .from('project_stages')
+      .insert({
+        project_id: project.id,
+        stage_number: stageNumber,
+        name: `Stage ${stageNumber}`,
+        status: 'pending',
+        sort_order: maxOrder + 1,
+      })
+      .select('*')
+      .single()
+    if (error || !data) { showToast('Could not add stage.', 'error'); return }
+    const newStage = data as ProjectStage
+    setStages((prev) => [...prev, newStage])
+    setExpandedStageId(newStage.id)
+  }
+
+  async function deleteStage(stage: ProjectStage) {
+    const paths = (attsByStage[stage.stage_number] ?? []).map((a) => a.storage_path)
+    await supabase.from('project_stages').delete().eq('id', stage.id)
+    if (paths.length > 0) void supabase.storage.from('stage-attachments').remove(paths)
+    setStages((prev) => prev.filter((sg) => sg.id !== stage.id))
+    const tb = { ...tasksByStage }; delete tb[stage.stage_number]; setTasksByStage(tb)
+    const ab = { ...attsByStage };  delete ab[stage.stage_number];  setAttsByStage(ab)
+    const lb = { ...linksByStage }; delete lb[stage.stage_number]; setLinksByStage(lb)
+    setConfirmDeleteId(null)
+    if (expandedStageId === stage.id) setExpandedStageId(null)
+    showToast('Stage deleted.', 'success')
+  }
+
+  function onStageDragStart(e: DragEvent<HTMLDivElement>, idx: number) {
+    dragSrcIdx.current = idx
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  async function onStageDrop(e: DragEvent<HTMLDivElement>, targetIdx: number) {
+    e.preventDefault()
+    const src = dragSrcIdx.current
+    if (src < 0 || src === targetIdx) return
+    const reordered = [...stages]
+    const [moved] = reordered.splice(src, 1)
+    reordered.splice(targetIdx, 0, moved)
+    const withOrders = reordered.map((sg, i) => ({ ...sg, sort_order: i }))
+    setStages(withOrders)
+    for (const sg of withOrders) {
+      await supabase.from('project_stages').update({ sort_order: sg.sort_order }).eq('id', sg.id)
     }
   }
 
+  // ── Overview: title edit ──────────────────────────────────────────────
+
+  async function commitTitle() {
+    const trimmed = titleDraft.trim()
+    setEditingTitle(false)
+    if (!trimmed || trimmed === projectTitle) { setTitleDraft(projectTitle); return }
+    setProjectTitle(trimmed)
+    await supabase
+      .from('projects')
+      .update({ title: trimmed, updated_at: new Date().toISOString() })
+      .eq('id', project.id)
+  }
+
+  // ── Settings: save ────────────────────────────────────────────────────
+
+  async function handleSave() {
+    setSaving(true)
+    const phase = PHASE_OPTIONS.find((p) => p.n === phaseNumber)
+    const { error: err } = await supabase
+      .from('projects')
+      .update({
+        status: statusDraft,
+        current_phase: phase?.name ?? null,
+        phase_number: phaseNumber,
+        timeline: timelineDraft.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', project.id)
+    setSaving(false)
+    if (err) { showToast('Could not save. Try again.', 'error'); return }
+    showToast('Project saved.', 'success')
+    onSaved(project.id)
+  }
+
+  // 5h: timeline extension
+  async function sendExtension() {
+    if (!extTimeline.trim()) { setExtError('Enter the new timeline.'); return }
+    setSendingExt(true)
+    setExtError(null)
+    try {
+      const { data: sess } = await supabase.auth.getUser()
+      const uid = sess.user?.id ?? null
+      const { data: ext, error: insErr } = await supabase
+        .from('timeline_extensions')
+        .insert({
+          project_id: project.id,
+          new_timeline: extTimeline.trim(),
+          reason: extReason.trim() || null,
+          created_by: uid,
+        })
+        .select('id')
+        .single()
+      if (insErr) throw insErr
+      if (project.client_id) {
+        await supabase.from('client_notifications').insert({
+          client_id: project.client_id,
+          type: 'timeline_extension',
+          reference_id: (ext as { id: string }).id,
+        })
+      }
+      setSendingExt(false)
+      setShowExt(false)
+      setExtTimeline('')
+      setExtReason('')
+      showToast('Extension sent to client.', 'success')
+    } catch {
+      setSendingExt(false)
+      setExtError('Could not send the extension. Try again.')
+    }
+  }
+
+  // ── Status options: include current value if non-canonical ────────────
+  const statusOptions = STATUS_OPTIONS.some((o) => o.value === statusDraft)
+    ? STATUS_OPTIONS
+    : [{ value: statusDraft, label: statusDraft }, ...STATUS_OPTIONS]
+
+  // ── Render ────────────────────────────────────────────────────────────
+
   return (
     <>
-      <div style={styles.backdrop} onClick={onClose} />
+      <div style={s.backdrop} onClick={onClose} />
       <aside
-        style={{ ...styles.panel, transform: shown ? 'translateX(0)' : 'translateX(100%)' }}
+        style={{ ...s.panel, transform: shown ? 'translateX(0)' : 'translateX(100%)' }}
         role="dialog"
-        aria-label={`Project ${project.title}`}
+        aria-label={`Project ${projectTitle}`}
       >
-        <button type="button" style={styles.close} onClick={onClose} aria-label="Close panel">
+        {/* Close */}
+        <button type="button" style={s.close} onClick={onClose} aria-label="Close panel">
           <X size={18} />
         </button>
 
-        <div style={styles.panelBody}>
-          <span style={styles.panelEyebrow}>Project</span>
-          <h2 style={styles.panelTitle}>{project.title}</h2>
-          <p style={styles.panelClient}>{clientLabel(project)}</p>
+        {/* Panel header */}
+        <div style={s.panelHeader}>
+          <span style={s.panelEyebrow}>Project</span>
+          <h2 style={s.panelTitle}>{projectTitle}</h2>
+          <p style={s.panelClient}>{clientLabel(project)}</p>
+        </div>
 
-          {panelError && <div style={styles.error}>{panelError}</div>}
-
-          <label style={styles.field}>
-            <span style={styles.fieldLabel}>Current stage</span>
-            <select
-              value={phaseNumber}
-              onChange={(e) => setPhaseNumber(Number(e.target.value))}
-              style={styles.input}
+        {/* Tab bar — H7: keeps orientation in multi-section panel */}
+        <div style={s.tabBar}>
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              style={{ ...s.tabBtn, ...(activeTab === tab.id ? s.tabBtnActive : {}) }}
+              onClick={() => setActiveTab(tab.id)}
             >
-              {PHASE_OPTIONS.map((p) => (
-                <option key={p.n} value={p.n}>
-                  {p.n} {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label style={styles.field}>
-            <span style={styles.fieldLabel}>Status</span>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} style={styles.input}>
-              {statusOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div style={styles.panelActions}>
-            <button type="button" style={styles.secondaryBtn} onClick={onClose} disabled={saving}>
-              Cancel
+              {tab.label}
             </button>
-            <button type="button" style={ui.primaryBtn} onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving...' : 'Save changes'}
-            </button>
-          </div>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div style={s.panelBody}>
+          {loadError && <div style={s.errorBox}>{loadError}</div>}
+
+          {/* ── Overview ─────────────────────────────────────────── */}
+          {activeTab === 'overview' && (
+            <div style={s.tabContent}>
+              <div style={s.field}>
+                <span style={s.fieldLabel}>Project name</span>
+                {editingTitle ? (
+                  <input
+                    autoFocus
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    onBlur={() => void commitTitle()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void commitTitle()
+                      if (e.key === 'Escape') { setEditingTitle(false); setTitleDraft(projectTitle) }
+                    }}
+                    style={s.input}
+                  />
+                ) : (
+                  <span
+                    style={{ ...s.fieldValue, cursor: 'text', borderBottom: `1px dashed ${t.border.medium}` }}
+                    onClick={() => { setTitleDraft(projectTitle); setEditingTitle(true) }}
+                    title="Click to rename"
+                  >
+                    {projectTitle}
+                  </span>
+                )}
+              </div>
+              <div style={s.field}>
+                <span style={s.fieldLabel}>Client</span>
+                <span style={s.fieldValue}>{clientName ?? clientLabel(project)}</span>
+              </div>
+              <div style={s.field}>
+                <span style={s.fieldLabel}>Status</span>
+                <StatusBadge status={project.status} />
+              </div>
+              {createdAt && (
+                <div style={s.field}>
+                  <span style={s.fieldLabel}>Created</span>
+                  <span style={s.fieldValue}>{formatDate(createdAt)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Stages ───────────────────────────────────────────── */}
+          {activeTab === 'stages' && (
+            <div style={s.tabContent}>
+              {stages.length === 0 ? (
+                <p style={s.emptyText}>No stages yet. Add the first one below.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  {stages.map((stage, idx) => (
+                    <StageCard
+                      key={stage.id}
+                      stage={stage}
+                      projectId={project.id}
+                      tasks={tasksByStage[stage.stage_number] ?? []}
+                      attachments={attsByStage[stage.stage_number] ?? []}
+                      link={linksByStage[stage.stage_number] ?? null}
+                      proposals={proposals}
+                      expanded={expandedStageId === stage.id}
+                      confirmDeleteId={confirmDeleteId}
+                      onToggle={() =>
+                        setExpandedStageId((prev) => (prev === stage.id ? null : stage.id))
+                      }
+                      onStatusChange={updateStageStatus}
+                      onTasksChange={(sn, tks) =>
+                        setTasksByStage((prev) => ({ ...prev, [sn]: tks }))
+                      }
+                      onAttachmentsChange={(sn, atts) =>
+                        setAttsByStage((prev) => ({ ...prev, [sn]: atts }))
+                      }
+                      onLinkChange={(sn, lk) =>
+                        setLinksByStage((prev) => ({ ...prev, [sn]: lk }))
+                      }
+                      onRequestDelete={setConfirmDeleteId}
+                      onCancelDelete={() => setConfirmDeleteId(null)}
+                      onConfirmDelete={deleteStage}
+                      idx={idx}
+                      onDragStart={onStageDragStart}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={onStageDrop}
+                    />
+                  ))}
+                </div>
+              )}
+              <button type="button" style={s.addStageBtn} onClick={() => void addStage()}>
+                <Plus size={14} />
+                Add stage
+              </button>
+            </div>
+          )}
+
+          {/* ── Notes ────────────────────────────────────────────── */}
+          {activeTab === 'notes' && (
+            <div style={s.tabContent}>
+              <ClientNotes
+                projectId={project.id}
+                currentUserRole="admin"
+                currentUserId=""
+              />
+            </div>
+          )}
+
+          {/* ── Settings ─────────────────────────────────────────── */}
+          {activeTab === 'settings' && (
+            <div style={s.tabContent}>
+              <div style={s.field}>
+                <span style={s.fieldLabel}>Project status</span>
+                <select
+                  value={statusDraft}
+                  onChange={(e) => setStatusDraft(e.target.value)}
+                  style={s.input}
+                >
+                  {statusOptions.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={s.field}>
+                <span style={s.fieldLabel}>Current stage (progress ring pointer)</span>
+                <select
+                  value={phaseNumber}
+                  onChange={(e) => setPhaseNumber(Number(e.target.value))}
+                  style={s.input}
+                >
+                  {PHASE_OPTIONS.map((p) => (
+                    <option key={p.n} value={p.n}>{p.n} — {p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={s.field}>
+                <span style={s.fieldLabel}>Timeline</span>
+                <input
+                  value={timelineDraft}
+                  onChange={(e) => setTimelineDraft(e.target.value)}
+                  style={s.input}
+                  placeholder="e.g. 6-week engagement"
+                />
+              </div>
+
+              <div style={s.settingsActions}>
+                <button type="button" style={s.secondaryBtn} onClick={onClose} disabled={saving}>
+                  Cancel
+                </button>
+                <button type="button" style={ui.primaryBtn} onClick={() => void handleSave()} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save changes'}
+                </button>
+              </div>
+
+              {/* 5h: timeline extension — active projects only */}
+              {(statusDraft === 'active' || project.status === 'active') && (
+                <div style={s.extSection}>
+                  <span style={s.fieldLabel}>Timeline extension</span>
+                  <button type="button" style={s.extBtn} onClick={() => setShowExt(true)}>
+                    Send extension request to client
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </aside>
+
+      {/* 5h: extension modal — z-index above the panel (>201) */}
+      {showExt && (
+        <div style={s.modalOverlay} onClick={() => !sendingExt && setShowExt(false)}>
+          <div style={s.modalPanel} onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHead}>
+              <h3 style={s.modalTitle}>Send timeline extension</h3>
+              <button
+                type="button"
+                style={s.close}
+                onClick={() => setShowExt(false)}
+                disabled={sendingExt}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {extError && <div style={s.errorBox}>{extError}</div>}
+            <div style={s.field}>
+              <span style={s.fieldLabel}>New timeline</span>
+              <input
+                autoFocus
+                value={extTimeline}
+                onChange={(e) => setExtTimeline(e.target.value)}
+                style={s.input}
+                placeholder="e.g. 2 extra weeks, delivery by 15 Aug"
+              />
+            </div>
+            <div style={{ ...s.field, marginTop: 12 }}>
+              <span style={s.fieldLabel}>Reason</span>
+              <textarea
+                value={extReason}
+                onChange={(e) => setExtReason(e.target.value)}
+                style={{ ...s.input, minHeight: 72, resize: 'vertical' as const }}
+                placeholder="Why the timeline needs to change"
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 }}>
+              <button
+                type="button"
+                style={s.secondaryBtn}
+                onClick={() => setShowExt(false)}
+                disabled={sendingExt}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={ui.primaryBtn}
+                onClick={() => void sendExtension()}
+                disabled={sendingExt}
+              >
+                {sendingExt ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
 
-const styles: Record<string, CSSProperties> = {
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const s: Record<string, CSSProperties> = {
   error: {
-    background: tokens.rubyLight,
-    color: tokens.ruby,
-    border: `1px solid ${tokens.ruby}`,
-    borderRadius: 8,
-    padding: '10px 14px',
-    marginBottom: 16,
-    fontFamily: fonts.body,
-    fontSize: 13,
+    background: tokens.rubyLight, color: tokens.ruby, border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8, padding: '10px 14px', marginBottom: 16,
+    fontFamily: fonts.body, fontSize: 13,
   },
-  table: { width: '100%', borderCollapse: 'collapse', fontFamily: fonts.body },
-  th: {
-    textAlign: 'left',
-    padding: '12px 20px',
-    fontSize: 12,
-    fontWeight: 600,
-    color: t.text.tertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    borderBottom: `1px solid ${tokens.border}`,
-    background: tokens.bg,
-  },
-  row: {
-    cursor: 'pointer',
-    // Lets the gold highlight fade back out smoothly once it is cleared.
-    transition: 'background-color 0.6s ease',
-  },
-  rowActive: { background: tokens.tealLight },
-  rowHighlight: { background: tokens.goldLight },
-  td: {
-    padding: '14px 20px',
-    fontSize: 14,
-    color: t.text.secondary,
-    borderBottom: `1px solid ${tokens.border}`,
+  errorBox: {
+    background: tokens.rubyLight, color: tokens.ruby, border: `1px solid ${tokens.ruby}`,
+    borderRadius: 8, padding: '10px 12px', marginBottom: 12,
+    fontFamily: fonts.body, fontSize: 13,
   },
 
-  // ── Right-side slide-in panel (matches InvoicePreview: backdrop z200, panel z201) ──
-  backdrop: {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(10, 26, 27, 0.4)',
-    zIndex: 200,
+  // Table
+  table: { width: '100%', borderCollapse: 'collapse', fontFamily: fonts.body },
+  th: {
+    textAlign: 'left', padding: '12px 20px', fontSize: 12, fontWeight: 600,
+    color: t.text.tertiary, textTransform: 'uppercase', letterSpacing: 0.4,
+    borderBottom: `1px solid ${tokens.border}`, background: tokens.bg,
   },
+  row: { cursor: 'pointer', transition: 'background-color 0.6s ease' },
+  rowActive:    { background: tokens.tealLight },
+  rowHighlight: { background: tokens.goldLight },
+  td: { padding: '14px 20px', fontSize: 14, color: t.text.secondary, borderBottom: `1px solid ${tokens.border}` },
+
+  // Panel shell
+  backdrop: { position: 'fixed', inset: 0, background: 'rgba(10, 26, 27, 0.4)', zIndex: 200 },
   panel: {
-    position: 'fixed',
-    top: 0,
-    right: 0,
-    height: '100vh',
-    width: 480,
-    maxWidth: '92vw',
-    background: tokens.surface,
-    borderLeft: `1px solid ${tokens.border}`,
-    boxShadow: '0 12px 48px rgba(2, 76, 79, 0.18)',
-    zIndex: 201,
-    overflowY: 'auto',
+    position: 'fixed', top: 0, right: 0, height: '100vh', width: 560, maxWidth: '96vw',
+    background: tokens.surface, borderLeft: `1px solid ${tokens.border}`,
+    boxShadow: '0 12px 48px rgba(2, 76, 79, 0.18)', zIndex: 201,
+    display: 'flex', flexDirection: 'column',
     transition: `transform ${motionTokens.durationBase} ${motionTokens.easeEnter}`,
   },
   close: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    background: tokens.bg,
-    border: `1px solid ${tokens.border}`,
-    borderRadius: 8,
-    color: t.text.muted,
-    cursor: 'pointer',
-    padding: 6,
-    display: 'flex',
-    zIndex: 1,
+    position: 'absolute', top: 14, right: 14, background: tokens.bg,
+    border: `1px solid ${tokens.border}`, borderRadius: 8, color: t.text.muted,
+    cursor: 'pointer', padding: 6, display: 'flex', zIndex: 1,
   },
-  panelBody: { padding: 32, display: 'flex', flexDirection: 'column', gap: 14 },
+
+  // Panel header (always visible)
+  panelHeader: {
+    padding: '28px 28px 16px',
+    borderBottom: `1px solid ${t.border.subtle}`,
+    flexShrink: 0,
+  },
   panelEyebrow: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    color: t.text.tertiary,
+    fontFamily: fonts.body, fontSize: 11, fontWeight: 700,
+    letterSpacing: 0.5, textTransform: 'uppercase', color: t.text.tertiary,
+    display: 'block', marginBottom: 4,
   },
-  panelTitle: { fontFamily: fonts.heading, fontSize: 22, fontWeight: 700, color: t.text.primary, margin: 0 },
-  panelClient: { fontFamily: fonts.body, fontSize: 14, color: t.text.tertiary, margin: '0 0 8px' },
+  panelTitle: { fontFamily: fonts.heading, fontSize: 20, fontWeight: 700, color: t.text.primary, margin: '0 0 4px' },
+  panelClient: { fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary, margin: 0 },
+
+  // Tab bar
+  tabBar: {
+    display: 'flex', gap: 2, borderBottom: `2px solid ${t.border.subtle}`,
+    padding: '0 20px', flexShrink: 0,
+  },
+  tabBtn: {
+    fontFamily: fonts.body, fontSize: 13, fontWeight: 500, color: t.text.secondary,
+    background: 'none', border: 'none', padding: '10px 12px', cursor: 'pointer',
+    borderBottom: '2px solid transparent', marginBottom: -2,
+    borderRadius: '4px 4px 0 0',
+    transition: `color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  tabBtnActive: { color: tokens.primary, fontWeight: 600, borderBottomColor: tokens.primary },
+
+  // Tab scrollable body
+  panelBody: { flex: 1, overflowY: 'auto', padding: '24px 28px' },
+  tabContent: { display: 'flex', flexDirection: 'column', gap: 16 },
+
+  // Fields
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  fieldLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: t.text.tertiary },
+  fieldLabel: { fontFamily: fonts.body, fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: t.text.tertiary },
+  fieldValue: { fontFamily: fonts.body, fontSize: 14, color: t.text.primary, paddingBottom: 2 },
   input: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: t.text.primary,
-    background: tokens.inputBg,
-    border: `1px solid ${tokens.border}`,
-    borderRadius: 8,
-    padding: '9px 11px',
-    width: '100%',
-    boxSizing: 'border-box',
+    fontFamily: fonts.body, fontSize: 14, color: t.text.primary,
+    background: tokens.inputBg, border: `1px solid ${tokens.border}`,
+    borderRadius: 8, padding: '9px 11px', width: '100%', boxSizing: 'border-box' as const, outline: 'none',
   },
-  panelActions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
+  emptyText: { fontFamily: fonts.body, fontSize: 14, color: t.text.tertiary, margin: 0 },
+
+  // Settings actions
+  settingsActions: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 4 },
   secondaryBtn: {
-    background: tokens.surface,
-    color: t.text.primary,
-    border: `1px solid ${tokens.border}`,
-    borderRadius: 8,
-    padding: '10px 16px',
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
+    background: tokens.surface, color: t.text.primary, border: `1px solid ${tokens.border}`,
+    borderRadius: 8, padding: '10px 16px', fontFamily: fonts.body, fontSize: 14, fontWeight: 600, cursor: 'pointer',
   },
+  extSection: {
+    display: 'flex', flexDirection: 'column', gap: 8,
+    marginTop: 24, paddingTop: 24, borderTop: `1px solid ${t.border.subtle}`,
+  },
+  extBtn: {
+    fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: tokens.primary,
+    background: tokens.surface, border: `1px solid ${tokens.accent}`,
+    borderRadius: 8, padding: '9px 14px', cursor: 'pointer', alignSelf: 'flex-start' as const,
+  },
+
+  // Stage list
+  stageCard: {
+    border: `1px solid ${t.border.subtle}`, borderRadius: 10,
+    background: tokens.surface, overflow: 'hidden',
+  },
+  stageHead: {
+    display: 'flex', alignItems: 'center', gap: 6, padding: '10px 12px',
+    background: t.background.subtle, borderBottom: `1px solid ${t.border.subtle}`,
+  },
+  stageGrip: { cursor: 'grab', color: t.text.muted, display: 'flex', flexShrink: 0 },
+  stageToggle: {
+    background: 'none', border: 'none', color: t.text.muted,
+    cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0,
+  },
+  stageBody: { padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 16 },
+  stageSection: { display: 'flex', flexDirection: 'column', gap: 6 },
+  stageSectionLabel: {
+    fontFamily: fonts.body, fontSize: 10, fontWeight: 700,
+    letterSpacing: 0.6, textTransform: 'uppercase', color: t.text.muted,
+  },
+  statusSelect: {
+    fontFamily: fonts.body, fontSize: 12, color: t.text.secondary,
+    background: tokens.surface, border: `1px solid ${t.border.default}`,
+    borderRadius: 6, padding: '4px 8px', cursor: 'pointer', flexShrink: 0, outline: 'none',
+  },
+  stageDeleteBtn: {
+    background: 'none', border: 'none', padding: 4, cursor: 'pointer',
+    color: t.text.muted, display: 'flex', flexShrink: 0,
+  },
+  confirmRow: { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 },
+  confirmYes: {
+    fontFamily: fonts.body, fontSize: 11, fontWeight: 600, color: tokens.ruby,
+    background: tokens.rubyLight, border: `1px solid ${tokens.ruby}`,
+    borderRadius: 4, padding: '2px 8px', cursor: 'pointer',
+  },
+  confirmNo: {
+    fontFamily: fonts.body, fontSize: 11, color: t.text.secondary,
+    background: 'none', border: `1px solid ${t.border.default}`,
+    borderRadius: 4, padding: '2px 8px', cursor: 'pointer',
+  },
+  addStageBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    fontFamily: fonts.body, fontSize: 13, fontWeight: 500, color: tokens.accent,
+    background: t.background.tint1, border: `1px solid ${t.border.brand}`,
+    borderRadius: 8, padding: '8px 14px', cursor: 'pointer',
+  },
+
+  // Extension modal
+  modalOverlay: {
+    position: 'fixed', inset: 0, background: 'rgba(10, 26, 27, 0.45)',
+    zIndex: 320, display: 'flex', alignItems: 'flex-start',
+    justifyContent: 'center', padding: '80px 20px', overflowY: 'auto',
+  },
+  modalPanel: {
+    background: tokens.surface, borderRadius: 12, border: `1px solid ${tokens.border}`,
+    padding: 24, width: '100%', maxWidth: 440,
+  },
+  modalHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  modalTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary, margin: 0 },
 }
