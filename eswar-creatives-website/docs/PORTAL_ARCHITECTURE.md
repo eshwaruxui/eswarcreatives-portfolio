@@ -6,8 +6,8 @@ Last updated: 15 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.m
 
 ## 1. Current branch state
 
-**Active branch:** `feature/outreach-improvements`
-**Status:** PR open, awaiting Cloudflare preview + smoke test before merge to main. PR #10 (`feature/project-stage-module`) squash-merged to main on 14 July 2026.
+**Active branch:** `fix/stage-attachments-bucket-and-notes-schema`
+**Status:** PR open. PR #11 (`feature/outreach-improvements`) merged to main on 14 July 2026. PR #10 (`feature/project-stage-module`) squash-merged to main on 14 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -94,14 +94,14 @@ _Project stage module (PR #10 — `feature/project-stage-module` — 14 Jul 2026
 - project_stage_attachments, project_stage_tasks (+ parent_task_id for subtasks), project_client_notes, project_stage_proposal_links (migration 0075)
 - project_attachments table (project-level files, migration 0075)
 - projects: start_date, end_date, linked_proposal_id, linked_proposal_phase_id, linked_proposal_line_item_id (migration 0075)
-- Storage bucket: stage-attachments (private); blanket admin policy + client read-own policy
+- Storage bucket: stage-attachments (private); blanket admin policy + client read-own policy — **note:** the bucket itself was never actually created during this PR (SQL Editor step was skipped); it silently broke all uploads until fixed in migration 0077, see below
 - Shared components: StageLabel, TaskList, AttachmentSection, ClientNotes, ProposalLinkPicker (src/portal/components/)
 - Admin ProjectPanel: 4-tab layout (Overview, Stages, Notes, Settings); stage delete impact warning modal
 - Client dashboard: data-driven stage stepper, task-based progress ring, stage right drawer, status banners
 - Terminology: "Phase" → "Stage" in all UI copy (DB column names unchanged)
 - Stage status labels: "Upcoming" (not "Pending"), "In progress", "Done"
 
-_Outreach improvements (PR open — `feature/outreach-improvements` — 15 Jul 2026):_
+_Outreach improvements (PR #11 — `feature/outreach-improvements` — merged 14 Jul 2026):_
 - Business hours email scheduling: send-outreach-email defers sends outside 09:00–18:00 Mon–Fri in recipient's timezone; touch status → `scheduled`; COUNTRY_TZ map for 10 countries; returns `{ scheduled: true, scheduled_for }` to caller
 - `confirm-scheduled-touch` edge function: admin verifies JWT, confirms a `scheduled` touch, calls Resend directly, updates status to `sent`/`failed`
 - ActivityTab: "Scheduled" filter option; "Confirm and Send" button on scheduled email rows with optimistic status update + spinner
@@ -112,7 +112,15 @@ _Outreach improvements (PR open — `feature/outreach-improvements` — 15 Jul 2
 - Add Lead CTA in TopBar: primary "Add Lead" button on all `/portal` routes; navigates to `?tab=leads&addLead=1` which auto-opens AddLeadModal
 - extract-lead-from-image: updated Claude prompt now extracts 13 fields including phone_business, phone_personal, website, location, notes; max_tokens 800; client-side website inference from business email domain
 
-**Next migration number: 0077**
+_Stage-attachments bucket + notes schema-cache fix (PR open — `fix/stage-attachments-bucket-and-notes-schema` — 15 Jul 2026):_
+- Root cause 1: `stage-attachments` storage bucket was never created during the project-stage-module rollout (SQL Editor step skipped), silently breaking every file upload in AttachmentSection for both admin and client
+- Root cause 2: `project_client_notes` existed in Postgres but PostgREST's schema cache was never reloaded after it was created via SQL Editor, breaking every note post for both admin and client with `PGRST204`
+- Diagnosed by directly probing the live Storage and REST APIs (bucket-not-found signature comparison; permission-denied vs schema-cache-miss error comparison) rather than guessing from code
+- Migration 0077: creates `stage-attachments` bucket (private, 10MB limit, matches AttachmentSection's accepted file types) + admin-all and client-read-own RLS policies on `storage.objects`; runs `NOTIFY pgrst, 'reload schema'`
+- Storage fix confirmed live: re-probed the Storage API after the user applied the migration — bucket upload now returns the same MIME-validation signature as working buckets
+- Notes fix: still open. `NOTIFY pgrst, 'reload schema'` run twice did not resolve it; follow-up probe shows PostgREST recognizes the table and most columns but specifically can't find `author_name`, suggesting the column may never have been added (not just a stale cache) — needs a direct `ALTER TABLE ... ADD COLUMN IF NOT EXISTS author_name text` plus a forced reload
+
+**Next migration number: 0078**
 
 ---
 
