@@ -1,13 +1,13 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 15 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 15 July 2026 (PR #12 merged). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
-**Active branch:** `fix/stage-attachments-bucket-and-notes-schema`
-**Status:** PR open. PR #11 (`feature/outreach-improvements`) merged to main on 14 July 2026. PR #10 (`feature/project-stage-module`) squash-merged to main on 14 July 2026.
+**Active branch:** `main`
+**Status:** Stable. PR #12 (`fix/stage-attachments-bucket-and-notes-schema`) merged to main on 15 July 2026. PR #11 (`feature/outreach-improvements`) merged to main on 14 July 2026. PR #10 (`feature/project-stage-module`) squash-merged to main on 14 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -112,13 +112,12 @@ _Outreach improvements (PR #11 — `feature/outreach-improvements` — merged 14
 - Add Lead CTA in TopBar: primary "Add Lead" button on all `/portal` routes; navigates to `?tab=leads&addLead=1` which auto-opens AddLeadModal
 - extract-lead-from-image: updated Claude prompt now extracts 13 fields including phone_business, phone_personal, website, location, notes; max_tokens 800; client-side website inference from business email domain
 
-_Stage-attachments bucket + notes schema-cache fix (PR open — `fix/stage-attachments-bucket-and-notes-schema` — 15 Jul 2026):_
+_Stage-attachments bucket + notes schema-cache fix (PR #12 — `fix/stage-attachments-bucket-and-notes-schema` — merged 15 Jul 2026):_
 - Root cause 1: `stage-attachments` storage bucket was never created during the project-stage-module rollout (SQL Editor step skipped), silently breaking every file upload in AttachmentSection for both admin and client
-- Root cause 2: `project_client_notes` existed in Postgres but PostgREST's schema cache was never reloaded after it was created via SQL Editor, breaking every note post for both admin and client with `PGRST204`
+- Root cause 2: `project_client_notes.author_name` column was missing (not just an uncached table), breaking every note post for both admin and client with `PGRST204`
 - Diagnosed by directly probing the live Storage and REST APIs (bucket-not-found signature comparison; permission-denied vs schema-cache-miss error comparison) rather than guessing from code
-- Migration 0077: creates `stage-attachments` bucket (private, 10MB limit, matches AttachmentSection's accepted file types) + admin-all and client-read-own RLS policies on `storage.objects`; runs `NOTIFY pgrst, 'reload schema'`
-- Storage fix confirmed live: re-probed the Storage API after the user applied the migration — bucket upload now returns the same MIME-validation signature as working buckets
-- Notes fix: still open. `NOTIFY pgrst, 'reload schema'` run twice did not resolve it; follow-up probe shows PostgREST recognizes the table and most columns but specifically can't find `author_name`, suggesting the column may never have been added (not just a stale cache) — needs a direct `ALTER TABLE ... ADD COLUMN IF NOT EXISTS author_name text` plus a forced reload
+- Migration 0077: creates `stage-attachments` bucket (private, 10MB limit, matches AttachmentSection's accepted file types) + admin-all and client-read-own RLS policies on `storage.objects`; adds `project_client_notes.author_name` defensively (`ADD COLUMN IF NOT EXISTS`); forces a schema-cache reload via `COMMENT ON COLUMN` + `NOTIFY pgrst, 'reload schema'`
+- Both fixes confirmed live post-merge: upload now returns the same MIME-validation signature as working buckets; notes insert now reaches the same downstream permission check as any other working table (no more `PGRST204`)
 
 **Next migration number: 0078**
 
@@ -428,13 +427,9 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 | Item | Priority |
 |---|---|
-| feature/outreach-improvements: Cloudflare preview build + smoke test (search/filter/sort, Add Lead CTA, scheduled touch confirm, LinkedIn tab, business hours deferral) | High |
-| feature/outreach-improvements: merge to main after smoke test | High |
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
 | Moorthy 123 Adsprint re-add via Add Client modal | High |
-| File upload bug in AttachmentSection — storage policy fix applied, needs retest | High |
-| Notes saving — fix applied (commit 8ca9f702), needs retest | High |
-| pg_cron + pg_net extensions: confirm enabled in Supabase so LinkedIn weekly reminder fires | Medium |
+| pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
 | design-system-v1 Task 4 (About, Services, case study pages) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) | Medium |
