@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, formatDate } from '../ui'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 
 type Post = {
   id: string
@@ -40,7 +41,24 @@ function formatSlotDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
 }
 
+// IST-formatted published_at for the mobile post-history card list.
+function formatIST(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date(iso))
+  } catch {
+    return formatDate(iso)
+  }
+}
+
 export function LinkedInTab() {
+  const { isMobile } = useBreakpoint()
   const [weekDates, setWeekDates] = useState<{ monday: string; wednesday: string; friday: string } | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [history, setHistory] = useState<Post[]>([])
@@ -198,16 +216,16 @@ export function LinkedInTab() {
     <div style={styles.root}>
       {toast && <div style={styles.toast}>{toast}</div>}
 
-      {/* Reminder banner */}
+      {/* Reminder banner — full-width stacked on mobile, CTA below the text */}
       {showReminderBanner && weekDates && (
-        <div style={styles.reminderBanner}>
+        <div style={{ ...styles.reminderBanner, ...(isMobile ? styles.reminderBannerMobile : null) }}>
           <span style={styles.reminderText}>
             You have {3 - pendingThisWeek} post{3 - pendingThisWeek !== 1 ? 's' : ''} missing for next week.
             Add them now to stay on schedule.
           </span>
           <button
             type="button"
-            style={styles.reminderCta}
+            style={{ ...styles.reminderCta, ...(isMobile ? styles.fullWidthBtn : null) }}
             onClick={() => plannerRef.current?.scrollIntoView({ behavior: 'smooth' })}
           >
             Add Posts
@@ -224,12 +242,16 @@ export function LinkedInTab() {
               <p style={styles.weekRange}>{formatWeekRange(weekDates.monday, weekDates.friday)}</p>
             )}
           </div>
-          <button type="button" style={styles.testReminderBtn} onClick={sendTestReminder}>
+          <button
+            type="button"
+            style={{ ...styles.testReminderBtn, ...(isMobile ? styles.fullWidthBtn : null) }}
+            onClick={sendTestReminder}
+          >
             Send Test Reminder
           </button>
         </div>
 
-        <div style={styles.slotGrid}>
+        <div style={{ ...styles.slotGrid, ...(isMobile ? styles.slotGridMobile : null) }}>
           {SLOTS.map(({ key, label }) => {
             const dateStr = weekDates?.[key] ?? ''
             const slotIso = isoSlotDate(dateStr)
@@ -347,6 +369,47 @@ export function LinkedInTab() {
           <div style={styles.emptyState}>
             <p style={styles.emptyHeading}>No posts published yet</p>
             <p style={styles.emptyBody}>Posts you publish will appear here.</p>
+          </div>
+        ) : isMobile ? (
+          <div style={styles.histCardStack}>
+            {history.map((post) => (
+              <div key={post.id} style={styles.histCard}>
+                <p style={styles.histCardContent}>{post.content}</p>
+                <div style={styles.histCardBottom}>
+                  <span style={{
+                    ...styles.statusBadge,
+                    background: STATUS_TONES[post.status]?.bg,
+                    color: STATUS_TONES[post.status]?.fg,
+                  }}>
+                    {post.status}
+                  </span>
+                  <span style={styles.monoCell}>
+                    {post.published_at ? formatIST(post.published_at) : formatDate(post.scheduled_for)}
+                  </span>
+                  <div style={styles.histActions}>
+                    <button
+                      type="button"
+                      style={styles.iconBtnMobile}
+                      onClick={() => handleCopy(post.content)}
+                      title="Copy post"
+                      aria-label="Copy post"
+                    >
+                      <Copy size={14} color={t.text.muted} />
+                    </button>
+                    <button
+                      type="button"
+                      style={styles.iconBtnMobile}
+                      onClick={() => handleHistoryDelete(post.id)}
+                      disabled={deleting === post.id}
+                      title="Delete"
+                      aria-label="Delete"
+                    >
+                      <Trash2 size={14} color={tokens.ruby} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
