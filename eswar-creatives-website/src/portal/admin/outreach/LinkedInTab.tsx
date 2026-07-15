@@ -426,6 +426,8 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     padding: '12px 16px',
   },
+  reminderBannerMobile: { flexDirection: 'column', alignItems: 'stretch' },
+  fullWidthBtn: { width: '100%', textAlign: 'center', justifyContent: 'center' },
   reminderText: { fontFamily: fonts.body, fontSize: 13, color: tokens.goldDark, flex: 1 },
   reminderCta: {
     background: tokens.goldDark,
@@ -475,6 +477,7 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: 'repeat(3, 1fr)',
     gap: 16,
   },
+  slotGridMobile: { gridTemplateColumns: '1fr', gap: 12 },
   slotCard: {
     background: tokens.surface,
     border: `1px solid ${t.border.default}`,
@@ -547,6 +550,17 @@ const styles: Record<string, CSSProperties> = {
     padding: 4,
     display: 'flex',
     alignItems: 'center',
+  },
+  // 44px min tap target for the mobile post-history card actions.
+  iconBtnMobile: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    width: 44,
+    height: 44,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addPostBtn: {
     background: 'none',
@@ -644,6 +658,30 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.secondary,
   },
   histActions: { display: 'flex', gap: 6, alignItems: 'center' },
+
+  // Mobile post-history card list (replaces the table)
+  histCardStack: { display: 'flex', flexDirection: 'column', gap: 8 },
+  histCard: {
+    background: tokens.surface,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 10,
+    padding: '12px 14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  histCardContent: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.primary,
+    margin: 0,
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  },
+  histCardBottom: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+
   toast: {
     position: 'fixed',
     bottom: 24,
