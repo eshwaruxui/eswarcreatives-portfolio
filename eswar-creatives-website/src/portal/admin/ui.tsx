@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { tokens, t, fonts } from '../theme'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 
 // SF Mono for monetary amounts and proposal/invoice numbers. There is no mono
 // token in theme.ts, so it lives here as the single admin-wide definition.
@@ -160,6 +161,8 @@ export function Modal({
   headerExtra?: ReactNode
   children: ReactNode
 }) {
+  const { isMobile } = useBreakpoint()
+
   // H7: Flexibility and efficiency — Escape closes any open modal. The owning
   // component's onClose handles its own unsaved-work confirmation when needed.
   useEffect(() => {
@@ -170,8 +173,19 @@ export function Modal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  // Mobile: lock body scroll while the modal covers the full screen.
+  useEffect(() => {
+    if (!isMobile) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [isMobile])
+
   return (
-    <div style={ui.modalOverlay} onClick={closeOnBackdrop ? onClose : undefined}>
+    <div
+      style={{ ...ui.modalOverlay, ...(isMobile ? ui.modalOverlayMobile : null) }}
+      onClick={closeOnBackdrop ? onClose : undefined}
+    >
       <div
         style={{
           ...ui.modalPanel,
@@ -180,6 +194,7 @@ export function Modal({
           // cream background lets those white cards stand out the way they do on
           // the full-page content area. Simple modals stay on a white panel.
           background: size === 'lg' ? tokens.bg : tokens.surface,
+          ...(isMobile ? ui.modalPanelMobile : null),
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -187,7 +202,12 @@ export function Modal({
           <h2 style={ui.modalTitle}>{title}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {headerExtra}
-            <button type="button" style={ui.modalClose} onClick={onClose} aria-label="Close">
+            <button
+              type="button"
+              style={{ ...ui.modalClose, ...(isMobile ? ui.modalCloseMobile : null) }}
+              onClick={onClose}
+              aria-label="Close"
+            >
               <X size={20} />
             </button>
           </div>
@@ -277,12 +297,28 @@ export const ui: Record<string, CSSProperties> = {
     zIndex: 100,
     overflowY: 'auto',
   },
+  // Mobile: no backdrop padding needed, the panel itself goes full-screen.
+  modalOverlayMobile: {
+    padding: 0,
+    alignItems: 'stretch',
+  },
   modalPanel: {
     background: tokens.surface,
     borderRadius: 12,
     border: `1px solid ${tokens.border}`,
     padding: 24,
     width: '100%',
+  },
+  // Mobile: fill the viewport (same full-screen pattern as SidePanel) so forms
+  // get the whole screen instead of a cramped centered card.
+  modalPanelMobile: {
+    minHeight: '100dvh',
+    width: '100vw',
+    maxWidth: '100vw',
+    borderRadius: 0,
+    border: 'none',
+    boxSizing: 'border-box',
+    padding: '20px 16px calc(80px)',
   },
   modalHead: {
     display: 'flex',
@@ -305,6 +341,13 @@ export const ui: Record<string, CSSProperties> = {
     cursor: 'pointer',
     padding: 4,
     display: 'flex',
+  },
+  // 44x44 tap target on mobile.
+  modalCloseMobile: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyState: {
     display: 'flex',

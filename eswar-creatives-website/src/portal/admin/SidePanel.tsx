@@ -1,18 +1,21 @@
-// Shared right-side slide-in drawer for the admin portal. Mirrors the invoice
-// preview drawer: a desktop drawer pinned right (and a bottom sheet below 768px),
-// backdrop at z-200 and panel at z-201, sliding in via transform only using the
-// shared motionTokens. Used by the manage-client and project panels so all admin
-// drawers animate and stack identically.
+// Shared right-side slide-in drawer for the admin portal. Desktop/tablet: a
+// drawer pinned right at a fixed pixel width. Mobile (<768px): a full-screen
+// overlay (100vw x 100dvh, deliberately covering the TopBar) sliding in from
+// the right, since a fixed-width or bottom-sheet drawer doesn't fit a phone
+// screen for the amount of content these panels hold (tabs, forms, lists).
+// Backdrop at baseZIndex-1, panel at baseZIndex (201 by default). Used by every
+// admin drawer (ClientPanel, ProjectPanel, LeadDrawer, etc.) so they animate and
+// stack identically — resolved internally via useBreakpoint, no prop changes.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 
-// Slide duration in ms. Desktop drawer uses durationBase; mobile sheet uses
-// durationSlow so the longer travel distance (full-height entry) reads naturally.
+// Slide duration in ms — durationBase for every breakpoint (mobile now slides
+// horizontally like the desktop drawer, just full-screen, so the shorter
+// duration reads correctly for both).
 const SLIDE_MS = parseInt(motionTokens.durationBase, 10)
-const SLIDE_MS_SLOW = parseInt(motionTokens.durationSlow, 10)
 
 export function SidePanel({
   title,
@@ -51,8 +54,8 @@ export function SidePanel({
     if (closingRef.current) return
     closingRef.current = true
     setShown(false)
-    window.setTimeout(onClose, narrow ? SLIDE_MS_SLOW : SLIDE_MS)
-  }, [onClose, narrow])
+    window.setTimeout(onClose, SLIDE_MS)
+  }, [onClose])
 
   // H7 (flexibility/efficiency): Escape closes the drawer.
   useEffect(() => {
@@ -63,15 +66,22 @@ export function SidePanel({
     return () => window.removeEventListener('keydown', onKey)
   }, [requestClose])
 
+  // Mobile: lock body scroll while the panel covers the whole screen (it
+  // deliberately sits on top of the sticky TopBar too).
+  useEffect(() => {
+    if (!narrow) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [narrow])
+
   const panelStyle: CSSProperties = narrow
     ? {
         ...styles.panelBase,
-        ...styles.sheet,
+        ...styles.fullScreen,
         zIndex: baseZIndex,
-        // Single continuous motion from translateY(100%) to translateY(0) with no
-        // intermediate state. durationSlow (350ms) suits the longer travel distance.
-        transition: `transform ${motionTokens.durationSlow} ${motionTokens.easeDefault}`,
-        transform: shown ? 'translateY(0)' : 'translateY(100%)',
+        transition: `transform ${motionTokens.durationBase} ${shown ? motionTokens.easeEnter : motionTokens.easeExit}`,
+        transform: shown ? 'translateX(0)' : 'translateX(100vw)',
       }
     : {
         ...styles.panelBase,
@@ -94,19 +104,24 @@ export function SidePanel({
         onClick={requestClose}
       />
       <aside style={panelStyle} role="dialog" aria-label={title}>
-        <header style={styles.head}>
+        <header style={{ ...styles.head, ...(narrow ? styles.headMobile : null) }}>
           <div style={{ minWidth: 0 }}>
             <h2 style={styles.title}>{title}</h2>
             {subtitle && <p style={styles.subtitle}>{subtitle}</p>}
           </div>
           <div style={styles.headActions}>
             {headerExtra}
-            <button type="button" style={styles.close} onClick={requestClose} aria-label="Close panel">
+            <button
+              type="button"
+              style={{ ...styles.close, ...(narrow ? styles.closeMobile : null) }}
+              onClick={requestClose}
+              aria-label="Close panel"
+            >
               <X size={18} />
             </button>
           </div>
         </header>
-        <div style={styles.body}>{children}</div>
+        <div style={{ ...styles.body, ...(narrow ? styles.bodyMobile : null) }}>{children}</div>
       </aside>
     </>
   )
@@ -134,13 +149,18 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: '92vw',
     borderLeft: `1px solid ${t.border.overlayMedium}`, // H4: neutral panel tone - panel left edge
   },
-  sheet: {
+  // Mobile: full-screen overlay, deliberately covering the TopBar too (top:0).
+  // No position:fixed pitfalls beyond the panel root itself — everything inside
+  // uses normal flow / sticky, never nested position:fixed (breaks on iOS).
+  fullScreen: {
+    top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    maxHeight: '88vh',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    width: '100vw',
+    height: '100dvh',
+    maxWidth: '100vw',
+    borderRadius: 0,
+    border: 'none',
   },
   head: {
     display: 'flex',
@@ -150,6 +170,9 @@ const styles: Record<string, CSSProperties> = {
     padding: '20px 24px',
     borderBottom: `1px solid ${t.border.subtle}`, // H4: neutral panel tone - header divider
     flexShrink: 0,
+  },
+  headMobile: {
+    padding: '16px 16px 16px 16px',
   },
   title: {
     fontFamily: fonts.heading,
@@ -176,5 +199,21 @@ const styles: Record<string, CSSProperties> = {
     padding: 6,
     display: 'flex',
   },
+  // Always-visible, 44x44 tap target on mobile, above the panel content.
+  closeMobile: {
+    width: 44,
+    height: 44,
+    padding: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
   body: { padding: 24, overflowY: 'auto', flex: 1 },
+  // Extra bottom clearance on mobile (safe-area / thumb reach for the last
+  // action in a long form) plus the same overflow behavior as desktop.
+  bodyMobile: {
+    padding: '20px 16px',
+    paddingBottom: 80,
+    overflowY: 'auto',
+  },
 }

@@ -7,6 +7,7 @@ import { X, Upload } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts } from '../../theme'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { Modal, mono } from '../ui'
 
 type Segment = 'security_ai' | 'saas_product'
@@ -53,6 +54,7 @@ export function AddLeadModal({
   onClose: () => void
   onSaved: (leadId: string) => void
 }) {
+  const { isMobile } = useBreakpoint()
   const [form, setForm] = useState<FormState>(EMPTY)
   const [dupWarning, setDupWarning] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -319,7 +321,14 @@ export function AddLeadModal({
           )}
         </div>
 
-        <div style={{ ...styles.grid, opacity: fieldsDisabled ? 0.5 : 1, pointerEvents: fieldsDisabled ? 'none' : undefined }}>
+        <div
+          style={{
+            ...styles.grid,
+            ...(isMobile ? { gridTemplateColumns: '1fr' } : null),
+            opacity: fieldsDisabled ? 0.5 : 1,
+            pointerEvents: fieldsDisabled ? 'none' : undefined,
+          }}
+        >
           <Field label="First name *">
             <input style={styles.input} value={form.first_name} onChange={(e) => set('first_name', e.target.value)} placeholder="Jane" disabled={fieldsDisabled} />
           </Field>
