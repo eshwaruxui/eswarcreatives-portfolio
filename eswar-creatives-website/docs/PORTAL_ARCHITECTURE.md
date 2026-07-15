@@ -1,13 +1,13 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 15 July 2026 (PR #12 merged). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 16 July 2026 (PR #13 merged). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
 **Active branch:** `main`
-**Status:** Stable. PR #12 (`fix/stage-attachments-bucket-and-notes-schema`) merged to main on 15 July 2026. PR #11 (`feature/outreach-improvements`) merged to main on 14 July 2026. PR #10 (`feature/project-stage-module`) squash-merged to main on 14 July 2026.
+**Status:** Stable. PR #13 (`feature/admin-mobile-responsive`) squash-merged to main on 16 July 2026. PR #12 (`fix/stage-attachments-bucket-and-notes-schema`) merged to main on 15 July 2026. PR #11 (`feature/outreach-improvements`) merged to main on 14 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -29,6 +29,7 @@ _Phase 6 mobile-responsive client portal (PR #3 — `feature/phase6-mobile-respo
 - `/portal/mockups`: 1/2/3 col grid; ConceptSetPanel 100dvh overlay with swipe-down-to-close; lightbox buttons 44px
 - Mobile polish: skeleton loaders, transitions, overlay coverage, bottom nav height
 - Admin iPad pass: sidebar 180px icon-only at 768px; overflowX hidden on layout root
+- **Full admin mobile pass shipped in PR #13** — see PR #13 entry in Section 1 for complete details
 
 _Invoice nudge system (PR #4 — `feature/invoice-nudge-system`):_
 - `InvoiceDocument` header: SVG logo, `EswarCreatives`, `Branding Solution`
@@ -111,6 +112,29 @@ _Outreach improvements (PR #11 — `feature/outreach-improvements` — merged 14
 - Leads tab: debounced full-text search across 7 fields; filter chips (status/enrollment/source); sortable column headers (asc → desc → clear); result count; empty state with Search icon
 - Add Lead CTA in TopBar: primary "Add Lead" button on all `/portal` routes; navigates to `?tab=leads&addLead=1` which auto-opens AddLeadModal
 - extract-lead-from-image: updated Claude prompt now extracts 13 fields including phone_business, phone_personal, website, location, notes; max_tokens 800; client-side website inference from business email domain
+
+_Admin portal full mobile-responsive pass (PR #13 — `feature/admin-mobile-responsive` — merged 16 Jul 2026):_
+- `AdminShell`: hamburger drawer nav on mobile (< 768px) — 280px slide-in from left, `t.background.surface`, z-index 300, scrim z-index 299, body scroll-lock while open
+- `TopBar`: condensed on mobile — Menu icon (44×44px) left, wordmark centered, Add Lead icon-only (no label), Settings gear right
+- Admin sidebar: hidden on mobile (< 768px); hamburger drawer replaces it; icon-only 180px stays at tablet (768–1023px); full labels at desktop (>= 1024px)
+- `SidePanel` (`src/portal/admin/SidePanel.tsx`): 100vw × 100dvh on mobile, position fixed, slides from right; existing width on tablet+; close button 44×44px always visible top-right
+- `ui.tsx` shared `Modal` component: scrim fixed to `t.background.scrim` at z-index 400 (was raw `rgba(10,26,27,0.4)` at z-index 100, below SidePanel z-201); fixes AddLeadModal, NudgeModal, ConfirmPaymentModal, ProposalNudgeModal, CsvImportModal, AddClientModal simultaneously
+- `/portal/admin` dashboard: 2-column KPI grid on mobile (4-column on desktop)
+- `/portal/admin/clients` (`ClientsList.tsx`): table → card list on mobile; card: name + status pill, company, email, 3-dot overflow menu; sticky "+ Add Client" footer button
+- `/portal/admin/projects` (`ProjectsList.tsx`): table → card list on mobile; card: project name, client, status pill, stage count
+- `ProjectPanel.tsx`: 4-tab bar horizontally scrollable on mobile; Overview/Stages/Notes/Settings all full-width stacked; stage cards vertical accordion; "+" Add stage full-width
+- `/portal/admin/invoices` (`InvoicesAdmin.tsx`): table → card list on mobile; card: invoice number (SF Mono), client, amount, due date, status pill, nudge bell + 3-dot menu
+- `/portal/admin/proposals` (`ProposalsAdmin.tsx`): 1-column card grid on mobile (was multi-column)
+- `OutreachAdmin.tsx`: 5-tab bar horizontally scrollable on mobile (overflow-x auto, no wrap)
+- `LeadsTab.tsx`: table → card list; horizontal scrollable filter chips; sort bottom-sheet on mobile; `AddLeadModal` full-screen on mobile
+- `SequencesTab.tsx`: step rail → full-width vertical stack on mobile
+- `ActivityTab.tsx`: table → card list; status filter scrollable chips
+- `LinkedInTab.tsx`: 3-column Mon/Wed/Fri slot grid → single-column stack on mobile
+- `TodayTab.tsx`: single-column stack; "Confirm and Send" full-width on mobile
+- Micro-transitions: `motionTokens.durationFast` (120ms) on tab content fade, stage chevron rotate (0→90deg), card tap feedback; hamburger drawer + SidePanel already on `motionTokens.durationBase` (200ms)
+- Pre-existing bug fixed in passing: `InvoicePreview.tsx` had raw `window.matchMedia` call violating useBreakpoint-only rule — replaced with `useBreakpoint`
+- Three modals intentionally left desktop-only (use custom fixed-position layout outside shared Modal): `DeleteProposalModal`, `DeleteInvoiceModal`, `OutreachSendModal`
+- Two duplicate `ProjectPanel` implementations found (one via ClientPanel+SidePanel, one hand-rolled in ProjectsList.tsx for main route) — both fixed independently; consolidation deferred to a future cleanup PR
 
 _Stage-attachments bucket + notes schema-cache fix (PR #12 — `fix/stage-attachments-bucket-and-notes-schema` — merged 15 Jul 2026):_
 - Root cause 1: `stage-attachments` storage bucket was never created during the project-stage-module rollout (SQL Editor step skipped), silently breaking every file upload in AttachmentSection for both admin and client
@@ -428,11 +452,12 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 | Item | Priority |
 |---|---|
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
-| Moorthy 123 Adsprint re-add via Add Client modal | High |
 | pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
-| design-system-v1 Task 4 (About, Services, case study pages) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
-| Portal UX writing pass (raw err.message strings) | Medium |
+| Portal UX writing pass (raw err.message strings) — standing gap across Proposals, Invoices admin, and all portal error states | Medium |
+| Reviewers / clients architecture separation — six logo review users currently added as clients with dummy projects; needs dedicated `reviewers` table separation | Medium |
+| Consolidate duplicate `ProjectPanel` implementations — one via ClientPanel+SidePanel, one hand-rolled in ProjectsList.tsx; deferred from PR #13 | Low |
+| Three admin modals desktop-only (DeleteProposalModal, DeleteInvoiceModal, OutreachSendModal) — not using shared Modal component; mobile treatment deferred | Low |
 | Public campaign responses pagination + filters | Low |
 
 ---
@@ -460,7 +485,8 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - FK delete order must be followed (see Section 3).
 - Stage status labels: always "Upcoming", "In progress", "Done" — never "Pending".
 - Reusable components in `src/portal/components/` only — never duplicated per screen.
-- `useBreakpoint` is the only breakpoint authority — no ad-hoc resize listeners.
+- `useBreakpoint` is the only breakpoint authority — no ad-hoc resize listeners, no `window.matchMedia`, no `window.innerWidth`.
+- Admin mobile patterns: hamburger drawer (z-300) + scrim (z-299) for nav; SidePanel full-screen (z-201) on mobile; shared Modal scrim at z-400. Never use `position: fixed` inside SidePanel (breaks iOS).
 
 ---
 
