@@ -16,6 +16,7 @@ import { ProposalForm } from './ProposalForm'
 import { DeleteProposalModal } from './DeleteProposalModal'
 import { ProposalNudgeModal, type NudgeProposal } from './ProposalNudgeModal'
 import { usePortal } from '../PortalContext'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ClientFilterBanner } from './ClientFilterBanner'
 import { toast } from 'sonner'
 import type { PortalProfile } from '../PortalGuard'
@@ -39,6 +40,7 @@ type Proposal = {
 export function ProposalsAdmin() {
   const navigate = useNavigate()
   const { selectedClientId } = usePortal()
+  const { isMobile } = useBreakpoint()
   // AdminShell gates this whole area to owner/admin and passes the profile via
   // the router outlet; only those roles may hard-delete a proposal.
   const profile = useOutletContext<PortalProfile>()
@@ -124,10 +126,12 @@ export function ProposalsAdmin() {
       <PageHeader
         title="Proposals"
         action={
-          <button type="button" style={ui.primaryBtn} onClick={() => setShowNew(true)}>
-            <Plus size={16} />
-            New proposal
-          </button>
+          !isMobile && (
+            <button type="button" style={ui.primaryBtn} onClick={() => setShowNew(true)}>
+              <Plus size={16} />
+              New proposal
+            </button>
+          )
         }
       />
       <ClientFilterBanner />
@@ -138,7 +142,7 @@ export function ProposalsAdmin() {
       ) : proposals.length === 0 ? (
         <p style={ui.muted}>No proposals yet. Create one to get started.</p>
       ) : (
-        <div style={styles.grid}>
+        <div style={{ ...styles.grid, ...(isMobile ? styles.gridMobile : null), ...(isMobile ? { paddingBottom: 88 } : null) }}>
           {proposals.map((p) => (
             <div
               key={p.id}
@@ -200,6 +204,16 @@ export function ProposalsAdmin() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Mobile sticky footer "+ New Proposal" */}
+      {isMobile && (
+        <div style={styles.stickyFooter}>
+          <button type="button" style={styles.stickyFooterBtn} onClick={() => setShowNew(true)}>
+            <Plus size={16} />
+            New Proposal
+          </button>
         </div>
       )}
 
@@ -294,6 +308,34 @@ const styles: Record<string, CSSProperties> = {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
     gap: 16,
+  },
+  // Force a single full-width column on mobile with a tighter gap.
+  gridMobile: { gridTemplateColumns: '1fr', gap: 12 },
+  stickyFooter: {
+    position: 'fixed',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 40,
+    padding: '10px 16px calc(10px + env(safe-area-inset-bottom, 0px))',
+    background: tokens.surface,
+    borderTop: `1px solid ${tokens.border}`,
+  },
+  stickyFooterBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+    height: 48,
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    border: 'none',
+    borderRadius: 10,
+    fontFamily: fonts.body,
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: 'pointer',
   },
   card: {
     background: tokens.surface,

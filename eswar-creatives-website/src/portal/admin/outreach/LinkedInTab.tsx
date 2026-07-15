@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, formatDate } from '../ui'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 
 type Post = {
   id: string
@@ -40,7 +41,24 @@ function formatSlotDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
 }
 
+// IST-formatted published_at for the mobile post-history card list.
+function formatIST(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date(iso))
+  } catch {
+    return formatDate(iso)
+  }
+}
+
 export function LinkedInTab() {
+  const { isMobile } = useBreakpoint()
   const [weekDates, setWeekDates] = useState<{ monday: string; wednesday: string; friday: string } | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [history, setHistory] = useState<Post[]>([])
@@ -198,16 +216,16 @@ export function LinkedInTab() {
     <div style={styles.root}>
       {toast && <div style={styles.toast}>{toast}</div>}
 
-      {/* Reminder banner */}
+      {/* Reminder banner — full-width stacked on mobile, CTA below the text */}
       {showReminderBanner && weekDates && (
-        <div style={styles.reminderBanner}>
+        <div style={{ ...styles.reminderBanner, ...(isMobile ? styles.reminderBannerMobile : null) }}>
           <span style={styles.reminderText}>
             You have {3 - pendingThisWeek} post{3 - pendingThisWeek !== 1 ? 's' : ''} missing for next week.
             Add them now to stay on schedule.
           </span>
           <button
             type="button"
-            style={styles.reminderCta}
+            style={{ ...styles.reminderCta, ...(isMobile ? styles.fullWidthBtn : null) }}
             onClick={() => plannerRef.current?.scrollIntoView({ behavior: 'smooth' })}
           >
             Add Posts
@@ -224,12 +242,16 @@ export function LinkedInTab() {
               <p style={styles.weekRange}>{formatWeekRange(weekDates.monday, weekDates.friday)}</p>
             )}
           </div>
-          <button type="button" style={styles.testReminderBtn} onClick={sendTestReminder}>
+          <button
+            type="button"
+            style={{ ...styles.testReminderBtn, ...(isMobile ? styles.fullWidthBtn : null) }}
+            onClick={sendTestReminder}
+          >
             Send Test Reminder
           </button>
         </div>
 
-        <div style={styles.slotGrid}>
+        <div style={{ ...styles.slotGrid, ...(isMobile ? styles.slotGridMobile : null) }}>
           {SLOTS.map(({ key, label }) => {
             const dateStr = weekDates?.[key] ?? ''
             const slotIso = isoSlotDate(dateStr)
@@ -348,6 +370,47 @@ export function LinkedInTab() {
             <p style={styles.emptyHeading}>No posts published yet</p>
             <p style={styles.emptyBody}>Posts you publish will appear here.</p>
           </div>
+        ) : isMobile ? (
+          <div style={styles.histCardStack}>
+            {history.map((post) => (
+              <div key={post.id} style={styles.histCard}>
+                <p style={styles.histCardContent}>{post.content}</p>
+                <div style={styles.histCardBottom}>
+                  <span style={{
+                    ...styles.statusBadge,
+                    background: STATUS_TONES[post.status]?.bg,
+                    color: STATUS_TONES[post.status]?.fg,
+                  }}>
+                    {post.status}
+                  </span>
+                  <span style={styles.monoCell}>
+                    {post.published_at ? formatIST(post.published_at) : formatDate(post.scheduled_for)}
+                  </span>
+                  <div style={styles.histActions}>
+                    <button
+                      type="button"
+                      style={styles.iconBtnMobile}
+                      onClick={() => handleCopy(post.content)}
+                      title="Copy post"
+                      aria-label="Copy post"
+                    >
+                      <Copy size={14} color={t.text.muted} />
+                    </button>
+                    <button
+                      type="button"
+                      style={styles.iconBtnMobile}
+                      onClick={() => handleHistoryDelete(post.id)}
+                      disabled={deleting === post.id}
+                      title="Delete"
+                      aria-label="Delete"
+                    >
+                      <Trash2 size={14} color={tokens.ruby} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={styles.histTable}>
@@ -426,6 +489,8 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     padding: '12px 16px',
   },
+  reminderBannerMobile: { flexDirection: 'column', alignItems: 'stretch' },
+  fullWidthBtn: { width: '100%', textAlign: 'center', justifyContent: 'center' },
   reminderText: { fontFamily: fonts.body, fontSize: 13, color: tokens.goldDark, flex: 1 },
   reminderCta: {
     background: tokens.goldDark,
@@ -475,6 +540,7 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: 'repeat(3, 1fr)',
     gap: 16,
   },
+  slotGridMobile: { gridTemplateColumns: '1fr', gap: 12 },
   slotCard: {
     background: tokens.surface,
     border: `1px solid ${t.border.default}`,
@@ -547,6 +613,17 @@ const styles: Record<string, CSSProperties> = {
     padding: 4,
     display: 'flex',
     alignItems: 'center',
+  },
+  // 44px min tap target for the mobile post-history card actions.
+  iconBtnMobile: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    width: 44,
+    height: 44,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addPostBtn: {
     background: 'none',
@@ -644,6 +721,30 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.secondary,
   },
   histActions: { display: 'flex', gap: 6, alignItems: 'center' },
+
+  // Mobile post-history card list (replaces the table)
+  histCardStack: { display: 'flex', flexDirection: 'column', gap: 8 },
+  histCard: {
+    background: tokens.surface,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 10,
+    padding: '12px 14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  histCardContent: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.primary,
+    margin: 0,
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  },
+  histCardBottom: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+
   toast: {
     position: 'fixed',
     bottom: 24,

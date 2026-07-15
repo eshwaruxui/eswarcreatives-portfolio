@@ -1,6 +1,6 @@
 // Leads tab: search, filter chips, sortable table (desktop), card stack (mobile).
 import { useEffect, useRef, useState } from 'react'
-import { Upload, UserPlus, Linkedin, Search, ChevronUp, ChevronDown } from 'lucide-react'
+import { Upload, UserPlus, Linkedin, Search, ChevronUp, ChevronDown, ArrowUpDown, Check } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useSearchParams } from 'react-router'
 import { supabase } from '../../../lib/supabase'
@@ -31,8 +31,18 @@ type LeadRow = {
   enrolled?: boolean
 }
 
-type SortKey = 'name' | 'company' | 'last_touch' | 'created_at' | null
+type SortKey = 'name' | 'company' | 'last_touch' | 'created_at' | 'status' | null
 type SortDir = 'asc' | 'desc'
+
+// Mobile "Sort" bottom sheet options — Name/Company/Status/Date Added per spec.
+// Status wasn't a sortable desktop column before; added here (and to
+// applySorting below) since a bottom sheet needs a fixed, meaningful set.
+const SORT_SHEET_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'name', label: 'Name' },
+  { key: 'company', label: 'Company' },
+  { key: 'status', label: 'Status' },
+  { key: 'created_at', label: 'Date Added' },
+]
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -150,6 +160,9 @@ function applySorting(leads: LeadRow[], sortKey: SortKey, sortDir: SortDir): Lea
     } else if (sortKey === 'created_at') {
       va = a.created_at
       vb = b.created_at
+    } else if (sortKey === 'status') {
+      va = a.status
+      vb = b.status
     }
     if (!va && !vb) return 0
     if (!va) return sortDir === 'asc' ? 1 : -1
@@ -179,6 +192,7 @@ export function LeadsTab({
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [showAdd, setShowAdd] = useState(false)
   const [showCsv, setShowCsv] = useState(false)
+  const [showSortSheet, setShowSortSheet] = useState(false)
   const [openLeadId, setOpenLeadId] = useState<string | null>(initialOpenLeadId)
   const [toast, setToast] = useState<string | null>(null)
   const initialHandled = useRef(false)
@@ -408,11 +422,49 @@ export function LeadsTab({
         </label>
       </div>
 
-      {/* Result count */}
+      {/* Result count + mobile Sort trigger (desktop sorts via column headers) */}
       {!loading && (
-        <p style={styles.resultCount}>
-          {sorted.length} lead{sorted.length !== 1 ? 's' : ''}
-        </p>
+        <div style={styles.resultRow}>
+          <p style={styles.resultCount}>
+            {sorted.length} lead{sorted.length !== 1 ? 's' : ''}
+          </p>
+          {isMobile && (
+            <button type="button" style={styles.sortSheetBtn} onClick={() => setShowSortSheet(true)}>
+              <ArrowUpDown size={13} />
+              Sort
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Mobile sort bottom sheet */}
+      {showSortSheet && (
+        <>
+          <div style={styles.sheetScrim} onClick={() => setShowSortSheet(false)} />
+          <div style={styles.sheet} role="dialog" aria-label="Sort leads">
+            <div style={styles.sheetHandle} />
+            {SORT_SHEET_OPTIONS.map((opt) => {
+              const active = sortKey === opt.key
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  style={styles.sheetRow}
+                  onClick={() => {
+                    setSortKey(opt.key)
+                    setSortDir('asc')
+                    setShowSortSheet(false)
+                  }}
+                >
+                  <span style={{ color: active ? tokens.primary : t.text.primary, fontWeight: active ? 600 : 400 }}>
+                    {opt.label}
+                  </span>
+                  {active && <Check size={16} color={tokens.primary} />}
+                </button>
+              )
+            })}
+          </div>
+        </>
       )}
 
       {error && <div style={styles.errorBanner}>{error}</div>}
@@ -613,11 +665,74 @@ const styles: Record<string, CSSProperties> = {
     border: `1px solid ${tokens.accent}`,
     fontWeight: 600,
   },
+  resultRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
   resultCount: {
     fontFamily: mono,
     fontSize: 12,
     color: t.text.muted,
-    margin: '0 0 10px',
+    margin: 0,
+  },
+  sortSheetBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: tokens.surface,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    padding: '6px 12px',
+    minHeight: 32,
+    cursor: 'pointer',
+  },
+  // Mobile sort bottom sheet
+  sheetScrim: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 299,
+    background: t.background.scrim,
+  },
+  sheet: {
+    position: 'fixed',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 300,
+    width: '100vw',
+    background: tokens.surface,
+    borderRadius: '16px 16px 0 0',
+    padding: '8px 8px calc(8px + env(safe-area-inset-bottom, 0px))',
+    boxSizing: 'border-box',
+    boxShadow: '0 -12px 32px rgba(2, 76, 79, 0.14)',
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 999,
+    background: t.border.medium,
+    margin: '4px auto 8px',
+  },
+  sheetRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    height: 48,
+    padding: '0 16px',
+    background: 'none',
+    border: 'none',
+    borderRadius: 8,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    cursor: 'pointer',
+    textAlign: 'left',
   },
   actions: { display: 'flex', gap: 8 },
   primaryBtn: {

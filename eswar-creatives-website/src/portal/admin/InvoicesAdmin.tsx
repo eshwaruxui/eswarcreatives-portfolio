@@ -11,6 +11,7 @@ import {
   ui,
   mono,
   formatMoney,
+  formatDate,
 } from './ui'
 import { InvoicePreview } from './InvoicePreview'
 import { DeleteInvoiceModal } from './DeleteInvoiceModal'
@@ -19,6 +20,7 @@ import { PaymentsSection, type PaymentDraft } from './PaymentsSection'
 import { NudgeModal, NUDGEABLE } from './NudgeModal'
 import { addInvoicePayment } from '../hooks/useInvoicePayments'
 import { usePortal } from '../PortalContext'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ClientFilterBanner } from './ClientFilterBanner'
 import type { PortalProfile } from '../PortalGuard'
 import type { CSSProperties } from 'react'
@@ -83,6 +85,7 @@ export function InvoicesAdmin() {
   // the router outlet; only those roles may delete an invoice.
   const profile = useOutletContext<PortalProfile>()
   const canDelete = profile?.role === 'owner' || profile?.role === 'admin'
+  const { isMobile } = useBreakpoint()
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [clients, setClients] = useState<ClientOption[]>([])
@@ -223,16 +226,18 @@ export function InvoicesAdmin() {
       <PageHeader
         title="Invoices"
         action={
-          <button type="button" style={ui.primaryBtn} onClick={() => setShowNew(true)}>
-            <Plus size={16} /> New invoice
-          </button>
+          !isMobile && (
+            <button type="button" style={ui.primaryBtn} onClick={() => setShowNew(true)}>
+              <Plus size={16} /> New invoice
+            </button>
+          )
         }
       />
       <ClientFilterBanner />
       {toast && <div style={styles.toast}>{toast}</div>}
       {error && <div style={styles.error}>{error}</div>}
 
-      <div style={styles.statRow}>
+      <div style={{ ...styles.statRow, ...(isMobile ? styles.statRowMobile : null) }}>
         <StatCard label="Paid" byCur={paidByCur} />
         <StatCard label="Outstanding" byCur={outstandingByCur} />
         <div style={styles.statCard}>
@@ -242,7 +247,7 @@ export function InvoicesAdmin() {
       </div>
 
       <div style={styles.controls}>
-        <div style={styles.pills}>
+        <div style={{ ...styles.pills, ...(isMobile ? styles.pillsMobile : null) }}>
           {FILTERS.map((f) => (
             <button
               key={f}
@@ -250,6 +255,7 @@ export function InvoicesAdmin() {
               onClick={() => setFilter(f)}
               style={{
                 ...styles.pill,
+                ...(isMobile ? styles.pillMobile : null),
                 ...(filter === f ? styles.pillActive : null),
               }}
             >
@@ -257,7 +263,7 @@ export function InvoicesAdmin() {
             </button>
           ))}
         </div>
-        <div style={styles.searchWrap}>
+        <div style={{ ...styles.searchWrap, ...(isMobile ? styles.searchWrapMobile : null) }}>
           <Search size={15} style={{ color: t.text.muted }} />
           <input
             value={search}
@@ -268,160 +274,298 @@ export function InvoicesAdmin() {
         </div>
       </div>
 
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
-        {loading ? (
-          <p style={{ ...ui.muted, padding: 20 }}>Loading...</p>
+      {isMobile ? (
+        loading ? (
+          <p style={{ ...ui.muted, padding: '20px 0' }}>Loading...</p>
         ) : filtered.length === 0 ? (
-          <p style={{ ...ui.muted, padding: 20 }}>No invoices match.</p>
+          <p style={{ ...ui.muted, padding: '20px 0' }}>No invoices match.</p>
         ) : (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Number</th>
-                <th style={styles.th}>Client</th>
-                <th style={styles.th}>Amount</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Balance due</th>
-                <th style={styles.th}>Status</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((inv) => (
-                <tr
-                  key={inv.id}
-                  onClick={() => setOpenInvoice(inv)}
-                  style={{
-                    ...styles.row,
-                    ...(openInvoice?.id === inv.id ? styles.rowActive : null),
-                  }}
-                >
-                  <td style={{ ...styles.td, fontFamily: mono, fontSize: 12 }}>
-                    {inv.invoice_number}
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ color: t.text.primary, fontWeight: 600 }}>{displayName(inv)}</div>
-                    {inv.label && <div style={styles.subtle}>{inv.label}</div>}
-                  </td>
-                  <td style={{ ...styles.td, fontFamily: mono, color: t.text.primary }}>
-                    {formatMoney(Number(inv.amount), inv.currency)}
-                  </td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontFamily: mono }}>
-                    {inv.status === 'partially_paid' ? (
-                      <span style={{ color: tokens.ruby }}>
-                        {formatMoney(Number(inv.amount) - (inv._amountPaid ?? 0), inv.currency)}
-                      </span>
-                    ) : inv.status === 'paid' ? (
-                      <span style={{ color: t.text.muted }}>
-                        {formatMoney(0, inv.currency)}
-                      </span>
-                    ) : (
-                      <span style={{ color: t.text.primary }}>
-                        {formatMoney(Number(inv.amount), inv.currency)}
-                      </span>
-                    )}
-                  </td>
-                  <td style={styles.td}>
+          <div style={{ ...styles.cardStack, paddingBottom: 88 }}>
+            {filtered.map((inv) => (
+              <div
+                key={inv.id}
+                style={{ ...styles.mobileCard, ...(openInvoice?.id === inv.id ? styles.rowActive : null) }}
+              >
+                <div style={styles.mobileCardBody} onClick={() => setOpenInvoice(inv)}>
+                  <div style={styles.mobileCardTop}>
+                    <span style={styles.invoiceNumberMono}>{inv.invoice_number}</span>
                     <StatusBadge status={inv.status} />
-                  </td>
-                  <td
-                    style={{ ...styles.td, textAlign: 'right' }}
-                    onClick={(e) => e.stopPropagation()}
+                  </div>
+                  <span style={styles.mobileCardCompany}>{displayName(inv)}</span>
+                  <div style={styles.mobileCardTop}>
+                    <span
+                      style={{
+                        ...styles.mobileCardAmount,
+                        color:
+                          inv.status === 'partially_paid'
+                            ? tokens.ruby
+                            : inv.status === 'paid'
+                              ? t.text.muted
+                              : tokens.primary,
+                      }}
+                    >
+                      {inv.status === 'partially_paid'
+                        ? formatMoney(Number(inv.amount) - (inv._amountPaid ?? 0), inv.currency)
+                        : inv.status === 'paid'
+                          ? formatMoney(0, inv.currency)
+                          : formatMoney(Number(inv.amount), inv.currency)}
+                    </span>
+                    <span style={styles.mobileCardDue}>Due {formatDate(inv.due_date)}</span>
+                  </div>
+                </div>
+                <div style={styles.mobileCardActions}>
+                  {NUDGEABLE.has(inv.status) ? (
+                    <button
+                      type="button"
+                      style={styles.nudgeIconBtn}
+                      onClick={() => setNudgeTarget(inv)}
+                      aria-label="Send payment reminder"
+                    >
+                      <Bell size={16} />
+                    </button>
+                  ) : <span />}
+                  <div
+                    style={{ position: 'relative' }}
+                    ref={(el) => { if (menuOpenId === inv.id) menuRef.current = el }}
                   >
-                    <span style={styles.actionCell}>
-                      {/* Nudge bell: always visible for nudgeable statuses. */}
-                      {NUDGEABLE.has(inv.status) && (
+                    <button
+                      type="button"
+                      style={{ ...styles.dotMenuBtn, ...styles.dotMenuBtnMobile }}
+                      onClick={(e) => {
+                        if (menuOpenId === inv.id) {
+                          setMenuOpenId(null)
+                          setMenuPos(null)
+                        } else {
+                          const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+                          setMenuOpenId(inv.id)
+                          setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                        }
+                      }}
+                      aria-label="More actions"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {menuOpenId === inv.id && menuPos && (
+                      <div style={{ ...styles.dropMenu, top: menuPos.top, right: menuPos.right }}>
                         <button
                           type="button"
-                          style={styles.nudgeBtn}
-                          onClick={() => setNudgeTarget(inv)}
-                          title="Send payment reminder"
-                          aria-label="Send payment reminder"
+                          style={styles.dropItem}
+                          onClick={() => { setOpenInvoice(inv); setMenuOpenId(null) }}
                         >
-                          <Bell size={14} />
-                          Nudge
+                          Open
                         </button>
-                      )}
-                      {/* 3-dot overflow menu. */}
-                      <div
-                        style={{ position: 'relative' }}
-                        ref={(el) => { if (menuOpenId === inv.id) menuRef.current = el }}
-                      >
-                        <button
-                          type="button"
-                          style={styles.dotMenuBtn}
-                          onClick={(e) => {
-                            if (menuOpenId === inv.id) {
-                              setMenuOpenId(null)
-                              setMenuPos(null)
-                            } else {
-                              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
-                              setMenuOpenId(inv.id)
-                              setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-                            }
-                          }}
-                          aria-label="More actions"
-                          title="More actions"
-                        >
-                          <MoreVertical size={16} />
-                        </button>
-                        {menuOpenId === inv.id && menuPos && (
-                          <div style={{ ...styles.dropMenu, top: menuPos.top, right: menuPos.right }}>
+                        {!['paid', 'draft', 'cancelled'].includes(inv.status) && (
+                          <button
+                            type="button"
+                            style={styles.dropItem}
+                            onClick={() => { setConfirmTarget(inv); setConfirmMode('record_payment'); setMenuOpenId(null) }}
+                          >
+                            Record payment
+                          </button>
+                        )}
+                        {['pending', 'sent', 'overdue'].includes(inv.status) && (
+                          <button
+                            type="button"
+                            style={styles.dropItem}
+                            onClick={() => { setConfirmTarget(inv); setConfirmMode('mark_paid'); setMenuOpenId(null) }}
+                          >
+                            Mark paid
+                          </button>
+                        )}
+                        {canDelete && (
+                          inv.proposal_id ? (
                             <button
                               type="button"
-                              style={styles.dropItem}
-                              onClick={() => { setOpenInvoice(inv); setMenuOpenId(null) }}
+                              style={{ ...styles.dropItem, ...styles.dropItemDisabled }}
+                              disabled
+                              title="Delete via the proposal"
                             >
-                              Open
+                              Delete
                             </button>
-                            {!['paid', 'draft', 'cancelled'].includes(inv.status) && (
-                              <button
-                                type="button"
-                                style={styles.dropItem}
-                                onClick={() => { setConfirmTarget(inv); setConfirmMode('record_payment'); setMenuOpenId(null) }}
-                              >
-                                Record payment
-                              </button>
-                            )}
-                            {['pending', 'sent', 'overdue'].includes(inv.status) && (
-                              <button
-                                type="button"
-                                style={styles.dropItem}
-                                onClick={() => { setConfirmTarget(inv); setConfirmMode('mark_paid'); setMenuOpenId(null) }}
-                              >
-                                Mark paid
-                              </button>
-                            )}
-                            {canDelete && (
-                              inv.proposal_id ? (
-                                <button
-                                  type="button"
-                                  style={{ ...styles.dropItem, ...styles.dropItemDisabled }}
-                                  disabled
-                                  title="Delete via the proposal"
-                                >
-                                  Delete
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  style={{ ...styles.dropItem, ...styles.dropItemDanger }}
-                                  onClick={() => { setDeleteTarget(inv); setMenuOpenId(null) }}
-                                >
-                                  Delete
-                                </button>
-                              )
-                            )}
-                          </div>
+                          ) : (
+                            <button
+                              type="button"
+                              style={{ ...styles.dropItem, ...styles.dropItemDanger }}
+                              onClick={() => { setDeleteTarget(inv); setMenuOpenId(null) }}
+                            >
+                              Delete
+                            </button>
+                          )
                         )}
                       </div>
-                    </span>
-                  </td>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          {loading ? (
+            <p style={{ ...ui.muted, padding: 20 }}>Loading...</p>
+          ) : filtered.length === 0 ? (
+            <p style={{ ...ui.muted, padding: 20 }}>No invoices match.</p>
+          ) : (
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Number</th>
+                  <th style={styles.th}>Client</th>
+                  <th style={styles.th}>Amount</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Balance due</th>
+                  <th style={styles.th}>Status</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+              </thead>
+              <tbody>
+                {filtered.map((inv) => (
+                  <tr
+                    key={inv.id}
+                    onClick={() => setOpenInvoice(inv)}
+                    style={{
+                      ...styles.row,
+                      ...(openInvoice?.id === inv.id ? styles.rowActive : null),
+                    }}
+                  >
+                    <td style={{ ...styles.td, fontFamily: mono, fontSize: 12 }}>
+                      {inv.invoice_number}
+                    </td>
+                    <td style={styles.td}>
+                      <div style={{ color: t.text.primary, fontWeight: 600 }}>{displayName(inv)}</div>
+                      {inv.label && <div style={styles.subtle}>{inv.label}</div>}
+                    </td>
+                    <td style={{ ...styles.td, fontFamily: mono, color: t.text.primary }}>
+                      {formatMoney(Number(inv.amount), inv.currency)}
+                    </td>
+                    <td style={{ ...styles.td, textAlign: 'right', fontFamily: mono }}>
+                      {inv.status === 'partially_paid' ? (
+                        <span style={{ color: tokens.ruby }}>
+                          {formatMoney(Number(inv.amount) - (inv._amountPaid ?? 0), inv.currency)}
+                        </span>
+                      ) : inv.status === 'paid' ? (
+                        <span style={{ color: t.text.muted }}>
+                          {formatMoney(0, inv.currency)}
+                        </span>
+                      ) : (
+                        <span style={{ color: t.text.primary }}>
+                          {formatMoney(Number(inv.amount), inv.currency)}
+                        </span>
+                      )}
+                    </td>
+                    <td style={styles.td}>
+                      <StatusBadge status={inv.status} />
+                    </td>
+                    <td
+                      style={{ ...styles.td, textAlign: 'right' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span style={styles.actionCell}>
+                        {/* Nudge bell: always visible for nudgeable statuses. */}
+                        {NUDGEABLE.has(inv.status) && (
+                          <button
+                            type="button"
+                            style={styles.nudgeBtn}
+                            onClick={() => setNudgeTarget(inv)}
+                            title="Send payment reminder"
+                            aria-label="Send payment reminder"
+                          >
+                            <Bell size={14} />
+                            Nudge
+                          </button>
+                        )}
+                        {/* 3-dot overflow menu. */}
+                        <div
+                          style={{ position: 'relative' }}
+                          ref={(el) => { if (menuOpenId === inv.id) menuRef.current = el }}
+                        >
+                          <button
+                            type="button"
+                            style={styles.dotMenuBtn}
+                            onClick={(e) => {
+                              if (menuOpenId === inv.id) {
+                                setMenuOpenId(null)
+                                setMenuPos(null)
+                              } else {
+                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+                                setMenuOpenId(inv.id)
+                                setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                              }
+                            }}
+                            aria-label="More actions"
+                            title="More actions"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                          {menuOpenId === inv.id && menuPos && (
+                            <div style={{ ...styles.dropMenu, top: menuPos.top, right: menuPos.right }}>
+                              <button
+                                type="button"
+                                style={styles.dropItem}
+                                onClick={() => { setOpenInvoice(inv); setMenuOpenId(null) }}
+                              >
+                                Open
+                              </button>
+                              {!['paid', 'draft', 'cancelled'].includes(inv.status) && (
+                                <button
+                                  type="button"
+                                  style={styles.dropItem}
+                                  onClick={() => { setConfirmTarget(inv); setConfirmMode('record_payment'); setMenuOpenId(null) }}
+                                >
+                                  Record payment
+                                </button>
+                              )}
+                              {['pending', 'sent', 'overdue'].includes(inv.status) && (
+                                <button
+                                  type="button"
+                                  style={styles.dropItem}
+                                  onClick={() => { setConfirmTarget(inv); setConfirmMode('mark_paid'); setMenuOpenId(null) }}
+                                >
+                                  Mark paid
+                                </button>
+                              )}
+                              {canDelete && (
+                                inv.proposal_id ? (
+                                  <button
+                                    type="button"
+                                    style={{ ...styles.dropItem, ...styles.dropItemDisabled }}
+                                    disabled
+                                    title="Delete via the proposal"
+                                  >
+                                    Delete
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    style={{ ...styles.dropItem, ...styles.dropItemDanger }}
+                                    onClick={() => { setDeleteTarget(inv); setMenuOpenId(null) }}
+                                  >
+                                    Delete
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      )}
+
+      {/* Mobile sticky footer "+ New Invoice" */}
+      {isMobile && (
+        <div style={styles.stickyFooter}>
+          <button type="button" style={styles.stickyFooterBtn} onClick={() => setShowNew(true)}>
+            <Plus size={16} />
+            New Invoice
+          </button>
+        </div>
+      )}
 
       {showNew && (
         <NewInvoiceModal
@@ -999,6 +1143,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 16,
     marginBottom: 20,
   },
+  statRowMobile: { gridTemplateColumns: '1fr', gap: 8 },
   statCard: {
     background: tokens.surface,
     border: `1px solid ${tokens.border}`,
@@ -1019,6 +1164,8 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: 'wrap',
   },
   pills: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  // Horizontal scrollable chip row on mobile instead of wrapping.
+  pillsMobile: { flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' },
   pill: {
     background: tokens.surface,
     border: `1px solid ${tokens.border}`,
@@ -1030,6 +1177,7 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.tertiary,
     cursor: 'pointer',
   },
+  pillMobile: { flexShrink: 0 },
   pillActive: {
     background: tokens.tealLight,
     color: tokens.primary,
@@ -1046,6 +1194,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '8px 12px',
     minWidth: 240,
   },
+  searchWrapMobile: { minWidth: 0, width: '100%' },
   searchInput: {
     border: 'none',
     outline: 'none',
@@ -1194,6 +1343,74 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.disabled,
     cursor: 'not-allowed' as const,
   },
+
+  // Mobile card list
+  cardStack: { display: 'flex', flexDirection: 'column', gap: 8 },
+  mobileCard: {
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  mobileCardBody: { padding: 16, display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' },
+  mobileCardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  invoiceNumberMono: { fontFamily: mono, fontSize: 13, color: t.text.tertiary },
+  mobileCardCompany: { fontFamily: fonts.body, fontSize: 14, fontWeight: 500, color: t.text.primary },
+  mobileCardAmount: { fontFamily: mono, fontSize: 14, fontWeight: 600 },
+  mobileCardDue: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted },
+  mobileCardActions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    padding: '8px 12px',
+    borderTop: `1px solid ${t.border.subtle}`,
+    background: t.background.subtle,
+  },
+  nudgeIconBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    background: tokens.goldLight,
+    border: 'none',
+    borderRadius: '50%',
+    color: tokens.goldDark,
+    cursor: 'pointer',
+  },
+  // 44px min tap target on mobile card actions (the shared dotMenuBtn above
+  // stays 32px for the existing desktop table row, unchanged).
+  dotMenuBtnMobile: { width: 44, height: 44 },
+
+  // Sticky "+ New Invoice" footer (mobile only)
+  stickyFooter: {
+    position: 'fixed' as const,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 40,
+    padding: '10px 16px calc(10px + env(safe-area-inset-bottom, 0px))',
+    background: tokens.surface,
+    borderTop: `1px solid ${tokens.border}`,
+  },
+  stickyFooterBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+    height: 48,
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    border: 'none',
+    borderRadius: 10,
+    fontFamily: fonts.body,
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+
   toast: {
     position: 'fixed' as const,
     bottom: 24,

@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts } from '../../theme'
 import { mono, formatDate } from '../ui'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { LeadDrawer } from './LeadDrawer'
 
 type ActivityRow = {
@@ -85,6 +86,7 @@ function useConfirmScheduledTouch(onSuccess: (id: string) => void) {
 }
 
 export function ActivityTab({ onOpenLeadDrawer }: { onOpenLeadDrawer: (id: string) => void }) {
+  const { isMobile } = useBreakpoint()
   const [rows, setRows] = useState<ActivityRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filterChannel, setFilterChannel] = useState('')
@@ -138,7 +140,7 @@ export function ActivityTab({ onOpenLeadDrawer }: { onOpenLeadDrawer: (id: strin
       )}
       {toast && <div style={styles.toast}>{toast}</div>}
 
-      <div style={styles.filterBar}>
+      <div style={{ ...styles.filterBar, ...(isMobile ? styles.filterBarMobile : null) }}>
         <select style={styles.filterSelect} value={filterChannel} onChange={(e) => setFilterChannel(e.target.value)}>
           <option value="">All channels</option>
           <option value="email">Email</option>
@@ -161,6 +163,60 @@ export function ActivityTab({ onOpenLeadDrawer }: { onOpenLeadDrawer: (id: strin
         <div style={styles.emptyState}>
           <p style={styles.emptyHeading}>No activity yet</p>
           <p style={styles.emptyBody}>Enroll your first lead to get started.</p>
+        </div>
+      ) : isMobile ? (
+        <div style={styles.cardStack}>
+          {rows.map((row) => {
+            const tone = STATUS_TONES[row.status] ?? { bg: t.background.muted, fg: t.text.muted }
+            const isScheduled = row.status === 'scheduled'
+            const isConfirming = confirming === row.id
+            const rowError = errors[row.id]
+            return (
+              <div key={row.id} style={styles.mobileCard}>
+                <div style={styles.mobileCardTop} onClick={() => row.lead && onOpenLeadDrawer(row.lead.id)}>
+                  <div style={styles.leadCell}>
+                    <strong style={styles.leadName}>
+                      {row.lead ? `${row.lead.first_name} ${row.lead.last_name ?? ''}` : 'Unknown'}
+                    </strong>
+                    {row.lead && <span style={styles.leadCompany}>{row.lead.company}</span>}
+                  </div>
+                  <ChannelIcon channel={row.channel} />
+                </div>
+                <p style={styles.mobileCardSubject}>
+                  {row.enrollment?.sequence?.name ?? 'Sequence'}
+                  {row.step ? ` · Step ${row.step.step_number}` : ''}
+                </p>
+                <div style={styles.mobileCardBottom}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {isScheduled && <Clock size={11} color={tokens.goldDark} />}
+                    <span style={{ ...styles.statusBadge, background: tone.bg, color: tone.fg }}>
+                      {row.status}
+                    </span>
+                    {row.opened_at && <Eye size={13} color={tokens.green} />}
+                    {row.bounced_at && <span style={styles.bounced}>Bounced</span>}
+                  </span>
+                  <span style={styles.mono}>{formatDate(row.sent_at ?? row.scheduled_for)}</span>
+                </div>
+                {isScheduled && row.channel === 'email' && (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    {isConfirming ? (
+                      <Loader2 size={15} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
+                    ) : (
+                      <button
+                        type="button"
+                        style={styles.confirmBtnMobile}
+                        disabled={!!confirming}
+                        onClick={() => confirm(row.id)}
+                      >
+                        Confirm and Send
+                      </button>
+                    )}
+                  </div>
+                )}
+                {rowError && <div style={styles.mobileCardError}>{rowError}</div>}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
@@ -278,6 +334,7 @@ function ChannelIcon({ channel }: { channel: string }) {
 
 const styles: Record<string, CSSProperties> = {
   filterBar: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+  filterBarMobile: { flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch' },
   filterSelect: {
     fontFamily: fonts.body,
     fontSize: 13,
@@ -287,6 +344,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     padding: '7px 10px',
     outline: 'none',
+    flexShrink: 0,
   },
   loading: { fontFamily: fonts.body, fontSize: 14, color: t.text.muted, padding: '24px 0' },
   emptyState: { textAlign: 'center', padding: '60px 24px' },
@@ -365,6 +423,45 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.ruby,
     padding: '4px 12px 8px',
     borderBottom: `1px solid ${t.border.subtle}`,
+  },
+
+  // Mobile card list
+  cardStack: { display: 'flex', flexDirection: 'column', gap: 8 },
+  mobileCard: {
+    background: tokens.surface,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 10,
+    padding: '12px 14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  mobileCardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer' },
+  mobileCardSubject: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.secondary,
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  mobileCardBottom: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  mobileCardError: { fontFamily: fonts.body, fontSize: 12, color: tokens.ruby },
+  // 44px min tap target per the portal-wide rule (spec suggested 32px to match
+  // the desktop table's inline button, but the 44px minimum takes precedence).
+  confirmBtnMobile: {
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 14px',
+    minHeight: 44,
+    cursor: 'pointer',
+    width: '100%',
   },
   toast: {
     position: 'fixed',
