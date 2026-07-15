@@ -143,9 +143,17 @@ export function ProposalsAdmin() {
         <p style={ui.muted}>No proposals yet. Create one to get started.</p>
       ) : (
         <div style={{ ...styles.grid, ...(isMobile ? styles.gridMobile : null), ...(isMobile ? { paddingBottom: 88 } : null) }}>
+          {/* box-shadow (not background) for tap feedback: the card's existing
+              background-color transition is tuned to 0.6s for the highlight/delete
+              fade, so a fast tap ring uses a channel that doesn't fight it. */}
+          <style>{`
+            .ec-tap-card-ring { transition: box-shadow ${motionTokens.durationFast} ${motionTokens.easeDefault}; }
+            .ec-tap-card-ring:active { box-shadow: inset 0 0 0 1px ${t.border.brand}; }
+          `}</style>
           {proposals.map((p) => (
             <div
               key={p.id}
+              className="ec-tap-card-ring"
               onClick={() => navigate(`/portal/admin/proposals/${p.id}`)}
               style={{
                 ...styles.card,

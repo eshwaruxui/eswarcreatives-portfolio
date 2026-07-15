@@ -79,7 +79,8 @@ export function OutreachAdmin() {
         })}
       </div>
 
-      <div style={styles.tabContent}>
+      <style>{`@keyframes ecTabFadeIn{from{opacity:0}to{opacity:1}}`}</style>
+      <div key={activeTab} style={{ ...styles.tabContent, animation: `ecTabFadeIn ${motionTokens.durationFast} ${motionTokens.easeDefault}` }}>
         {activeTab === 'today' && (
           <TodayTab
             onOpenLeadDrawer={(id) => {
