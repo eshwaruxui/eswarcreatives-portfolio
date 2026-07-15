@@ -5,23 +5,25 @@
 //   3. a settings gear that opens a slide-in panel (manage/add clients, sign out).
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router'
-import { Check, ChevronDown, Settings, UserPlus, X } from 'lucide-react'
+import { Check, ChevronDown, Menu, Settings, UserPlus, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { clientLabel, usePortal } from '../PortalContext'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { useSignOut } from '../useSignOut'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import { Spinner } from '../Spinner'
 import { AddClientModal } from './AddClientModal'
 
 // Neutral grey divider used by the bar and its popovers, per the Phase 3 spec.
 const HAIRLINE = '#E5E7EB'
 
-export function TopBar() {
+export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
   const navigate = useNavigate()
   const location = useLocation()
   const { clients, selectedClientId, setSelectedClientId, selectedClient, reloadClients } =
     usePortal()
   const isPortalRoute = location.pathname.startsWith('/portal')
+  const { isMobile } = useBreakpoint()
 
   const { signingOut, error: signOutError, signOut } = useSignOut()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -48,89 +50,133 @@ export function TopBar() {
 
   return (
     <>
-      <header style={styles.bar}>
-        {/* Brand */}
-        <div style={styles.brand}>
-          <span style={styles.logoCircle}>
-            <span style={styles.logoLetter}>e</span>
-          </span>
-          <span style={styles.brandName}>EswarCreatives</span>
-        </div>
+      <header style={{ ...styles.bar, ...(isMobile ? styles.barMobile : null) }}>
+        {isMobile ? (
+          <>
+            {/* Hamburger — opens the mobile nav drawer owned by AdminShell. */}
+            <button
+              type="button"
+              style={styles.menuBtn}
+              onClick={onMenuClick}
+              aria-label="Open menu"
+            >
+              <Menu size={20} />
+            </button>
 
-        {/* Client selector */}
-        <div style={styles.selectorWrap}>
-          <button
-            type="button"
-            style={styles.selectorBtn}
-            onClick={() => setMenuOpen((o) => !o)}
-            aria-haspopup="listbox"
-            aria-expanded={menuOpen}
-          >
-            {selectorLabel}
-            <ChevronDown size={15} />
-          </button>
-          {menuOpen && (
-            <>
-              <div style={styles.backdrop} onClick={() => setMenuOpen(false)} />
-              <ul style={styles.menu} role="listbox">
-                <SelectorItem
-                  label="All clients"
-                  selected={selectedClientId === null}
-                  onClick={() => {
-                    setSelectedClientId(null)
-                    setMenuOpen(false)
-                  }}
-                />
-                {clients.map((c) => (
-                  <SelectorItem
-                    key={c.id}
-                    label={clientLabel(c)}
-                    selected={selectedClientId === c.id}
-                    onClick={() => {
-                      setSelectedClientId(c.id)
-                      setMenuOpen(false)
-                    }}
-                  />
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
+            {/* Wordmark, centered */}
+            <div style={styles.brandMobile}>
+              <span style={styles.brandName}>EswarCreatives</span>
+            </div>
 
-        {/* H7 (flexibility/efficiency): a direct "Add client" action next to the
-            selector, so adding a client no longer requires opening Settings.
-            Reuses the same AddClientModal rendered below. */}
-        <button
-          type="button"
-          style={styles.addClientBtn}
-          onClick={() => setShowAddClient(true)}
-        >
-          + Add client
-        </button>
+            {/* Add Lead: icon-only on mobile */}
+            {isPortalRoute && (
+              <button
+                type="button"
+                style={styles.addLeadBtnIconOnly}
+                onClick={() => navigate('/portal/admin/outreach?tab=leads&addLead=1')}
+                aria-label="Add Lead"
+                title="Add Lead"
+              >
+                <UserPlus size={15} />
+              </button>
+            )}
 
-        <div style={styles.spacer} />
+            {/* Settings */}
+            <button
+              type="button"
+              style={styles.gearBtn}
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Settings"
+            >
+              <Settings size={18} />
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Brand */}
+            <div style={styles.brand}>
+              <span style={styles.logoCircle}>
+                <span style={styles.logoLetter}>e</span>
+              </span>
+              <span style={styles.brandName}>EswarCreatives</span>
+            </div>
 
-        {/* Add Lead CTA — shown on all portal routes */}
-        {isPortalRoute && (
-          <button
-            type="button"
-            style={styles.addLeadBtn}
-            onClick={() => navigate('/portal/admin/outreach?tab=leads&addLead=1')}
-          >
-            <UserPlus size={15} />
-            Add Lead
-          </button>
+            {/* Client selector */}
+            <div style={styles.selectorWrap}>
+              <button
+                type="button"
+                style={styles.selectorBtn}
+                onClick={() => setMenuOpen((o) => !o)}
+                aria-haspopup="listbox"
+                aria-expanded={menuOpen}
+              >
+                {selectorLabel}
+                <ChevronDown size={15} />
+              </button>
+              {menuOpen && (
+                <>
+                  <div style={styles.backdrop} onClick={() => setMenuOpen(false)} />
+                  <ul style={styles.menu} role="listbox">
+                    <SelectorItem
+                      label="All clients"
+                      selected={selectedClientId === null}
+                      onClick={() => {
+                        setSelectedClientId(null)
+                        setMenuOpen(false)
+                      }}
+                    />
+                    {clients.map((c) => (
+                      <SelectorItem
+                        key={c.id}
+                        label={clientLabel(c)}
+                        selected={selectedClientId === c.id}
+                        onClick={() => {
+                          setSelectedClientId(c.id)
+                          setMenuOpen(false)
+                        }}
+                      />
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+
+            {/* H7 (flexibility/efficiency): a direct "Add client" action next to the
+                selector, so adding a client no longer requires opening Settings.
+                Reuses the same AddClientModal rendered below. */}
+            <button
+              type="button"
+              style={styles.addClientBtn}
+              onClick={() => setShowAddClient(true)}
+            >
+              + Add client
+            </button>
+
+            <div style={styles.spacer} />
+
+            {/* Add Lead CTA — shown on all portal routes */}
+            {isPortalRoute && (
+              <button
+                type="button"
+                style={styles.addLeadBtn}
+                onClick={() => navigate('/portal/admin/outreach?tab=leads&addLead=1')}
+              >
+                <UserPlus size={15} />
+                Add Lead
+              </button>
+            )}
+
+            {/* Settings */}
+            <button
+              type="button"
+              style={styles.gearBtn}
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Settings"
+            >
+              <Settings size={18} />
+            </button>
+          </>
         )}
-
-        {/* Settings */}
-        <button
-          type="button"
-          style={styles.gearBtn}
-          onClick={() => setSettingsOpen(true)}
-          aria-label="Settings"
-        >
-          <Settings size={18} />
-        </button>
       </header>
 
       {settingsOpen && (
@@ -263,7 +309,47 @@ const styles: Record<string, CSSProperties> = {
     borderBottom: `1px solid ${HAIRLINE}`,
     boxSizing: 'border-box',
   },
+  // Mobile: tighter gap/padding so hamburger + wordmark + icon-only actions fit.
+  barMobile: {
+    gap: 4,
+    padding: '0 8px',
+  },
   brand: { display: 'flex', alignItems: 'center', gap: 10 },
+  // Mobile: hamburger left, centered wordmark, icon-only Add Lead + gear right.
+  menuBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    marginLeft: -10,
+    background: 'transparent',
+    border: 'none',
+    color: t.text.primary,
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  brandMobile: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  addLeadBtnIconOnly: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 34,
+    width: 34,
+    padding: 0,
+    background: tokens.primary,
+    border: 'none',
+    borderRadius: 8,
+    color: t.text.onPrimary,
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
   logoCircle: {
     width: 28,
     height: 28,
