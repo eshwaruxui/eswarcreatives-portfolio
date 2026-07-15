@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import { InvoiceDocument, type InvoiceLine, type InvoicePaymentRow } from '../components/shared/InvoiceDocument'
 import { mono, formatDate } from './ui'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import type { CSSProperties } from 'react'
 
 type NudgeLogRow = {
@@ -32,19 +33,6 @@ export type PreviewInvoice = {
   client_id: string | null
 }
 
-function useIsNarrow(): boolean {
-  const [narrow, setNarrow] = useState(
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const on = () => setNarrow(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
-  }, [])
-  return narrow
-}
-
 export function InvoicePreview({
   invoice,
   numberLabel,
@@ -55,7 +43,9 @@ export function InvoicePreview({
   numberLabel?: string
   onClose: () => void
 }) {
-  const narrow = useIsNarrow()
+  // useBreakpoint is the sole breakpoint authority (see hooks/useBreakpoint.ts);
+  // this used to be a local window.matchMedia hook, replaced to match the rule.
+  const { isMobile: narrow } = useBreakpoint()
   const [shown, setShown] = useState(false)
   const [email, setEmail] = useState<string | null>(null)
   const [city, setCity] = useState<string | null>(null)

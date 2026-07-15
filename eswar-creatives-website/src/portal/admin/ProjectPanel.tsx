@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { StatusBadge, mono, formatDate, relativeTime as _rt, ui } from './ui'
 import { SidePanel } from './SidePanel'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import { showToast } from './toast'
 import { StageLabel } from '../components/StageLabel'
 import type { StageStatus } from '../components/StageLabel'
@@ -249,6 +250,7 @@ export function ProjectPanel({
   projectId: string
   onClose: () => void
 }) {
+  const { isMobile } = useBreakpoint()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
 
   // Core data
@@ -713,14 +715,16 @@ export function ProjectPanel({
           <p style={s.errorText}>{loadError ?? 'Project not found.'}</p>
         ) : (
           <>
-            {/* Tab bar — H7: keeps users oriented in the panel hierarchy */}
-            <div style={s.tabBar}>
+            {/* Tab bar — H7: keeps users oriented in the panel hierarchy.
+                Horizontal scroll strip on mobile so all 4 tabs stay reachable. */}
+            <div style={{ ...s.tabBar, ...(isMobile ? s.tabBarMobile : null) }}>
               {TABS.map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
                   style={{
                     ...s.tabBtn,
+                    ...(isMobile ? s.tabBtnMobile : null),
                     ...(activeTab === tab.id ? s.tabBtnActive : {}),
                   }}
                   onClick={() => setActiveTab(tab.id)}
@@ -813,6 +817,11 @@ const s: Record<string, CSSProperties> = {
     marginBottom: 20,
     flexShrink: 0,
   },
+  tabBarMobile: {
+    overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    flexWrap: 'nowrap',
+  },
   tabBtn: {
     fontFamily: fonts.body,
     fontSize: 13,
@@ -827,6 +836,7 @@ const s: Record<string, CSSProperties> = {
     borderRadius: '4px 4px 0 0',
     transition: `color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
+  tabBtnMobile: { minWidth: 80, padding: '12px 16px', flexShrink: 0, whiteSpace: 'nowrap' },
   tabBtnActive: {
     color: tokens.primary,
     fontWeight: 600,

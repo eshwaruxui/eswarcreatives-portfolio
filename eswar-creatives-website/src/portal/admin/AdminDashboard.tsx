@@ -12,6 +12,7 @@ import {
   formatMoney,
   relativeTime,
 } from './ui'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import type { CSSProperties } from 'react'
 
 type ProposalRow = {
@@ -64,6 +65,7 @@ function displayName(r: { client_name: string | null; company_name: string | nul
 }
 
 export function AdminDashboard() {
+  const { isMobile, isTablet } = useBreakpoint()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [outstanding, setOutstanding] = useState<Record<string, number>>({})
@@ -182,7 +184,7 @@ export function AdminDashboard() {
 
       {error && <div style={styles.error}>{error}</div>}
 
-      <div style={styles.statRow}>
+      <div style={{ ...styles.statRow, ...((isMobile || isTablet) ? styles.statRowNarrow : null) }}>
         <Stat label="Outstanding invoices" value={outstandingValue} mono />
         <Stat label="Active proposals" value={loading ? '—' : String(activeProposals)} />
         <Stat label="Active campaigns" value={loading ? '—' : String(activeCampaigns)} />
@@ -198,7 +200,7 @@ export function AdminDashboard() {
           </div>
           <Link to="/portal/admin/outreach" style={styles.viewQueueLink}>View queue</Link>
         </div>
-        <div style={styles.outreachStats}>
+        <div style={{ ...styles.outreachStats, ...(isMobile ? styles.outreachStatsMobile : null) }}>
           <OutreachStat label="Due today" value={outreach.dueToday} />
           <OutreachStat label="Overdue" value={outreach.overdue} danger />
           <OutreachStat label="Replies this week" value={outreach.repliesThisWeek} />
@@ -285,6 +287,8 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: 'repeat(4, 1fr)',
     gap: 16,
   },
+  // Tablet and mobile: 2 columns (mobile stays 2-col for density, not 1-col).
+  statRowNarrow: { gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 },
   statCard: {
     background: tokens.surface,
     border: `1px solid ${tokens.border}`,
@@ -378,6 +382,7 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: 'repeat(3, 1fr)',
     gap: 12,
   },
+  outreachStatsMobile: { gridTemplateColumns: '1fr' },
   outreachStatCard: {
     background: tokens.bg,
     border: `1px solid ${tokens.border}`,

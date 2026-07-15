@@ -6,6 +6,7 @@ import { tokens, t, fonts, motionTokens } from '../theme'
 import { PageHeader, Card, StatusBadge, mono, formatDate, ui } from './ui'
 import { showToast } from './toast'
 import { usePortal } from '../PortalContext'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ClientFilterBanner } from './ClientFilterBanner'
 import { StageLabel } from '../components/StageLabel'
 import type { StageStatus } from '../components/StageLabel'
@@ -84,6 +85,7 @@ function clientLabel(p: Project) {
 
 export function ProjectsList() {
   const { selectedClientId } = usePortal()
+  const { isMobile } = useBreakpoint()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState<string | null>(null)
@@ -126,42 +128,72 @@ export function ProjectsList() {
       <PageHeader title="Projects" />
       <ClientFilterBanner />
       {error && <div style={s.error}>{error}</div>}
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
-        {loading ? (
-          <p style={{ ...ui.muted, padding: 20 }}>Loading...</p>
+      {isMobile ? (
+        loading ? (
+          <p style={{ ...ui.muted, padding: '20px 0' }}>Loading...</p>
         ) : projects.length === 0 ? (
-          <p style={{ ...ui.muted, padding: 20 }}>No projects yet.</p>
+          <p style={{ ...ui.muted, padding: '20px 0' }}>No projects yet.</p>
         ) : (
-          <table style={s.table}>
-            <thead>
-              <tr>
-                <th style={s.th}>Project</th>
-                <th style={s.th}>Client</th>
-                <th style={s.th}>Stage</th>
-                <th style={s.th}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((p) => (
-                <tr
-                  key={p.id}
-                  onClick={() => setOpenProject(p)}
-                  style={{
-                    ...s.row,
-                    ...(openProject?.id === p.id ? s.rowActive : null),
-                    ...(highlightId === p.id ? s.rowHighlight : null),
-                  }}
-                >
-                  <td style={{ ...s.td, fontWeight: 600, color: t.text.primary }}>{p.title}</td>
-                  <td style={s.td}>{clientLabel(p)}</td>
-                  <td style={s.td}>{p.current_phase || '—'}</td>
-                  <td style={s.td}><StatusBadge status={p.status} /></td>
+          <div style={s.cardStack}>
+            {projects.map((p) => (
+              <div
+                key={p.id}
+                onClick={() => setOpenProject(p)}
+                style={{
+                  ...s.mobileCard,
+                  ...(highlightId === p.id ? s.rowHighlight : null),
+                }}
+              >
+                <div style={s.mobileCardTop}>
+                  <span style={s.mobileCardTitle}>{p.title}</span>
+                  <StatusBadge status={p.status} />
+                </div>
+                <span style={s.mobileCardClient}>{clientLabel(p)}</span>
+                {p.current_phase && (
+                  <span style={s.mobileCardStage}>{p.current_phase}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          {loading ? (
+            <p style={{ ...ui.muted, padding: 20 }}>Loading...</p>
+          ) : projects.length === 0 ? (
+            <p style={{ ...ui.muted, padding: 20 }}>No projects yet.</p>
+          ) : (
+            <table style={s.table}>
+              <thead>
+                <tr>
+                  <th style={s.th}>Project</th>
+                  <th style={s.th}>Client</th>
+                  <th style={s.th}>Stage</th>
+                  <th style={s.th}>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+              </thead>
+              <tbody>
+                {projects.map((p) => (
+                  <tr
+                    key={p.id}
+                    onClick={() => setOpenProject(p)}
+                    style={{
+                      ...s.row,
+                      ...(openProject?.id === p.id ? s.rowActive : null),
+                      ...(highlightId === p.id ? s.rowHighlight : null),
+                    }}
+                  >
+                    <td style={{ ...s.td, fontWeight: 600, color: t.text.primary }}>{p.title}</td>
+                    <td style={s.td}>{clientLabel(p)}</td>
+                    <td style={s.td}>{p.current_phase || '—'}</td>
+                    <td style={s.td}><StatusBadge status={p.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      )}
 
       {openProject && (
         <ProjectPanel
@@ -310,12 +342,21 @@ function ProjectPanel({
   onClose: () => void
   onSaved: (id: string) => void
 }) {
+  const { isMobile } = useBreakpoint()
   // Slide-in animation
   const [shown, setShown] = useState(false)
   useEffect(() => {
     const id = requestAnimationFrame(() => setShown(true))
     return () => cancelAnimationFrame(id)
   }, [])
+
+  // Mobile: lock body scroll while the panel covers the full screen.
+  useEffect(() => {
+    if (!isMobile) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [isMobile])
 
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -662,29 +703,43 @@ function ProjectPanel({
     <>
       <div style={s.backdrop} onClick={onClose} />
       <aside
-        style={{ ...s.panel, transform: shown ? 'translateX(0)' : 'translateX(100%)' }}
+        style={{
+          ...s.panel,
+          ...(isMobile ? s.panelMobile : null),
+          transform: shown ? 'translateX(0)' : isMobile ? 'translateX(100vw)' : 'translateX(100%)',
+        }}
         role="dialog"
         aria-label={`Project ${projectTitle}`}
       >
-        {/* Close */}
-        <button type="button" style={s.close} onClick={onClose} aria-label="Close panel">
+        {/* Close — always visible, 44x44 tap target on mobile */}
+        <button
+          type="button"
+          style={{ ...s.close, ...(isMobile ? s.closeMobile : null) }}
+          onClick={onClose}
+          aria-label="Close panel"
+        >
           <X size={18} />
         </button>
 
         {/* Panel header */}
-        <div style={s.panelHeader}>
+        <div style={{ ...s.panelHeader, ...(isMobile ? s.panelHeaderMobile : null) }}>
           <span style={s.panelEyebrow}>Project</span>
           <h2 style={s.panelTitle}>{projectTitle}</h2>
           <p style={s.panelClient}>{clientLabel(project)}</p>
         </div>
 
-        {/* Tab bar — H7: keeps orientation in multi-section panel */}
-        <div style={s.tabBar}>
+        {/* Tab bar — H7: keeps orientation in multi-section panel. Horizontal
+            scroll strip on mobile so all 4 tabs stay reachable without wrap. */}
+        <div style={{ ...s.tabBar, ...(isMobile ? s.tabBarMobile : null) }}>
           {TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
-              style={{ ...s.tabBtn, ...(activeTab === tab.id ? s.tabBtnActive : {}) }}
+              style={{
+                ...s.tabBtn,
+                ...(isMobile ? s.tabBtnMobile : null),
+                ...(activeTab === tab.id ? s.tabBtnActive : {}),
+              }}
               onClick={() => setActiveTab(tab.id)}
             >
               {tab.label}
@@ -693,7 +748,7 @@ function ProjectPanel({
         </div>
 
         {/* Tab content */}
-        <div style={s.panelBody}>
+        <div style={{ ...s.panelBody, ...(isMobile ? s.panelBodyMobile : null) }}>
           {loadError && <div style={s.errorBox}>{loadError}</div>}
 
           {/* ── Overview ─────────────────────────────────────────── */}
@@ -741,7 +796,7 @@ function ProjectPanel({
               {/* Project dates */}
               <div style={s.field}>
                 <span style={s.fieldLabel}>Project dates</span>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.muted }}>Start</span>
                     <input
@@ -941,15 +996,21 @@ function ProjectPanel({
         </div>
       </aside>
 
-      {/* Stage delete impact modal */}
+      {/* Stage delete impact modal — full-screen on mobile with stacked actions */}
       {deleteImpactStage && (
-        <div style={s.modalOverlay} onClick={() => !loadingImpact && setDeleteImpactStage(null)}>
-          <div style={s.modalPanel} onClick={(e) => e.stopPropagation()}>
+        <div
+          style={{ ...s.modalOverlay, ...(isMobile ? s.modalOverlayMobile : null) }}
+          onClick={() => !loadingImpact && setDeleteImpactStage(null)}
+        >
+          <div
+            style={{ ...s.modalPanel, ...(isMobile ? s.modalPanelMobile : null) }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={s.modalHead}>
               <h3 style={s.modalTitle}>Delete &ldquo;{deleteImpactStage.name}&rdquo;?</h3>
               <button
                 type="button"
-                style={s.close}
+                style={{ ...s.close, ...(isMobile ? s.closeMobile : null) }}
                 onClick={() => setDeleteImpactStage(null)}
                 aria-label="Close"
               >
@@ -977,17 +1038,23 @@ function ProjectPanel({
                     <li>No linked data</li>
                   )}
                 </ul>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                <div
+                  style={
+                    isMobile
+                      ? { display: 'flex', flexDirection: 'column', gap: 10 }
+                      : { display: 'flex', justifyContent: 'flex-end', gap: 12 }
+                  }
+                >
                   <button
                     type="button"
-                    style={s.secondaryBtn}
+                    style={{ ...s.secondaryBtn, ...(isMobile ? s.fullWidthBtn : null) }}
                     onClick={() => setDeleteImpactStage(null)}
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
-                    style={s.deleteImpactBtn}
+                    style={{ ...s.deleteImpactBtn, ...(isMobile ? s.fullWidthBtn : null) }}
                     onClick={() => {
                       void deleteStage(deleteImpactStage)
                       setDeleteImpactStage(null)
@@ -1005,13 +1072,19 @@ function ProjectPanel({
 
       {/* 5h: extension modal — z-index above the panel (>201) */}
       {showExt && (
-        <div style={s.modalOverlay} onClick={() => !sendingExt && setShowExt(false)}>
-          <div style={s.modalPanel} onClick={(e) => e.stopPropagation()}>
+        <div
+          style={{ ...s.modalOverlay, ...(isMobile ? s.modalOverlayMobile : null) }}
+          onClick={() => !sendingExt && setShowExt(false)}
+        >
+          <div
+            style={{ ...s.modalPanel, ...(isMobile ? s.modalPanelMobile : null) }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={s.modalHead}>
               <h3 style={s.modalTitle}>Send timeline extension</h3>
               <button
                 type="button"
-                style={s.close}
+                style={{ ...s.close, ...(isMobile ? s.closeMobile : null) }}
                 onClick={() => setShowExt(false)}
                 disabled={sendingExt}
                 aria-label="Close"
@@ -1039,10 +1112,16 @@ function ProjectPanel({
                 placeholder="Why the timeline needs to change"
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 }}>
+            <div
+              style={
+                isMobile
+                  ? { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 20 }
+                  : { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 }
+              }
+            >
               <button
                 type="button"
-                style={s.secondaryBtn}
+                style={{ ...s.secondaryBtn, ...(isMobile ? s.fullWidthBtn : null) }}
                 onClick={() => setShowExt(false)}
                 disabled={sendingExt}
               >
@@ -1050,7 +1129,7 @@ function ProjectPanel({
               </button>
               <button
                 type="button"
-                style={ui.primaryBtn}
+                style={{ ...ui.primaryBtn, ...(isMobile ? s.fullWidthBtn : null) }}
                 onClick={() => void sendExtension()}
                 disabled={sendingExt}
               >
@@ -1090,6 +1169,18 @@ const s: Record<string, CSSProperties> = {
   rowHighlight: { background: tokens.goldLight },
   td: { padding: '14px 20px', fontSize: 14, color: t.text.secondary, borderBottom: `1px solid ${tokens.border}` },
 
+  // Mobile card list (replaces the table below 768px)
+  cardStack: { display: 'flex', flexDirection: 'column', gap: 8 },
+  mobileCard: {
+    background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 12,
+    padding: 16, display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer',
+    transition: 'background-color 0.6s ease',
+  },
+  mobileCardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  mobileCardTitle: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, color: t.text.primary },
+  mobileCardClient: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary },
+  mobileCardStage: { fontFamily: mono, fontSize: 12, color: t.text.muted },
+
   // Panel shell
   backdrop: { position: 'fixed', inset: 0, background: 'rgba(10, 26, 27, 0.4)', zIndex: 200 },
   panel: {
@@ -1099,11 +1190,18 @@ const s: Record<string, CSSProperties> = {
     display: 'flex', flexDirection: 'column',
     transition: `transform ${motionTokens.durationBase} ${motionTokens.easeEnter}`,
   },
+  // Mobile: full-screen overlay, same pattern as SidePanel (deliberately covers
+  // the TopBar). Never position:fixed inside — only the panel root itself.
+  panelMobile: {
+    top: 0, left: 0, right: 0, width: '100vw', height: '100dvh', maxWidth: '100vw',
+    borderRadius: 0, border: 'none',
+  },
   close: {
     position: 'absolute', top: 14, right: 14, background: tokens.bg,
     border: `1px solid ${tokens.border}`, borderRadius: 8, color: t.text.muted,
     cursor: 'pointer', padding: 6, display: 'flex', zIndex: 1,
   },
+  closeMobile: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 
   // Panel header (always visible)
   panelHeader: {
@@ -1111,6 +1209,7 @@ const s: Record<string, CSSProperties> = {
     borderBottom: `1px solid ${t.border.subtle}`,
     flexShrink: 0,
   },
+  panelHeaderMobile: { padding: '20px 48px 16px 16px' },
   panelEyebrow: {
     fontFamily: fonts.body, fontSize: 11, fontWeight: 700,
     letterSpacing: 0.5, textTransform: 'uppercase', color: t.text.tertiary,
@@ -1124,6 +1223,11 @@ const s: Record<string, CSSProperties> = {
     display: 'flex', gap: 2, borderBottom: `2px solid ${t.border.subtle}`,
     padding: '0 20px', flexShrink: 0,
   },
+  // Horizontal scrollable strip on mobile so all 4 tabs stay reachable.
+  tabBarMobile: {
+    padding: '0 16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+    flexWrap: 'nowrap',
+  },
   tabBtn: {
     fontFamily: fonts.body, fontSize: 13, fontWeight: 500, color: t.text.secondary,
     background: 'none', border: 'none', padding: '10px 12px', cursor: 'pointer',
@@ -1131,10 +1235,12 @@ const s: Record<string, CSSProperties> = {
     borderRadius: '4px 4px 0 0',
     transition: `color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
+  tabBtnMobile: { minWidth: 80, padding: '12px 16px', flexShrink: 0, whiteSpace: 'nowrap' },
   tabBtnActive: { color: tokens.primary, fontWeight: 600, borderBottomColor: tokens.primary },
 
   // Tab scrollable body
   panelBody: { flex: 1, overflowY: 'auto', padding: '24px 28px' },
+  panelBodyMobile: { padding: '20px 16px', paddingBottom: 80 },
   tabContent: { display: 'flex', flexDirection: 'column', gap: 16 },
 
   // Fields
@@ -1216,16 +1322,23 @@ const s: Record<string, CSSProperties> = {
     background: tokens.ruby, border: 'none',
     borderRadius: 8, padding: '10px 16px', cursor: 'pointer',
   },
+  fullWidthBtn: { width: '100%', textAlign: 'center' as const, justifyContent: 'center' },
 
-  // Extension modal
+  // Extension modal + stage-delete impact modal (shared overlay/panel)
   modalOverlay: {
     position: 'fixed', inset: 0, background: 'rgba(10, 26, 27, 0.45)',
     zIndex: 320, display: 'flex', alignItems: 'flex-start',
     justifyContent: 'center', padding: '80px 20px', overflowY: 'auto',
   },
+  // Mobile: full-screen, same pattern as the shared admin Modal + SidePanel.
+  modalOverlayMobile: { padding: 0, alignItems: 'stretch' },
   modalPanel: {
     background: tokens.surface, borderRadius: 12, border: `1px solid ${tokens.border}`,
     padding: 24, width: '100%', maxWidth: 440,
+  },
+  modalPanelMobile: {
+    minHeight: '100dvh', width: '100vw', maxWidth: '100vw', borderRadius: 0,
+    border: 'none', boxSizing: 'border-box' as const, padding: '20px 16px 80px',
   },
   modalHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   modalTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary, margin: 0 },
