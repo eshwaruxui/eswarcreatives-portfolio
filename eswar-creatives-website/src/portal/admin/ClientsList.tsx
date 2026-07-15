@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
 import { Plus, Check, ChevronDown, MoreVertical } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, t, fonts } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 import { Card, ui } from './ui'
 import { AddClientModal } from './AddClientModal'
 import { ClientPanel } from './ClientPanel'
@@ -161,12 +161,13 @@ export function ClientsList() {
           <p style={{ ...ui.muted, padding: '20px 0' }}>No clients yet.</p>
         ) : (
           <div style={{ ...styles.cardStack, paddingBottom: 88 }}>
+            <style>{`.ec-tap-card:active { background: ${t.background.tint1}; }`}</style>
             {filtered.map((c) => (
               <div
                 key={c.id}
                 style={{ ...styles.mobileCard, ...(c.id === highlightId ? styles.rowHighlight : null) }}
               >
-                <div style={styles.mobileCardBody} onClick={() => setPanelClientId(c.id)}>
+                <div className="ec-tap-card" style={styles.mobileCardBody} onClick={() => setPanelClientId(c.id)}>
                   <div style={styles.mobileCardTop}>
                     <span style={styles.mobileCardName}>{c.company_name || '(unnamed)'}</span>
                   </div>
@@ -435,7 +436,14 @@ const styles: Record<string, CSSProperties> = {
     overflow: 'hidden',
     transition: 'background-color 0.6s ease',
   },
-  mobileCardBody: { padding: 16, display: 'flex', flexDirection: 'column', gap: 4, cursor: 'pointer' },
+  mobileCardBody: {
+    padding: 16,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    cursor: 'pointer',
+    transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
   mobileCardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   mobileCardName: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, color: t.text.primary },
   mobileCardMeta: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary },

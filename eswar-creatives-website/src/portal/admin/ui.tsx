@@ -289,12 +289,14 @@ export const ui: Record<string, CSSProperties> = {
   modalOverlay: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(10, 26, 27, 0.4)',
+    background: t.background.scrim,
     display: 'flex',
     alignItems: 'flex-start',
     justifyContent: 'center',
     padding: '60px 20px',
-    zIndex: 100,
+    // Above SidePanel (z-201) so a modal opened from within a drawer (e.g.
+    // AddLeadModal from LeadDrawer) always sits on top, backdrop included.
+    zIndex: 400,
     overflowY: 'auto',
   },
   // Mobile: no backdrop padding needed, the panel itself goes full-screen.

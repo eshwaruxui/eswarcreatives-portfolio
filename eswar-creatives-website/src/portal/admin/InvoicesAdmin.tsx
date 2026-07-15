@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
 import { Bell, MoreVertical, Plus, Search, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, t, fonts } from '../theme'
+import { tokens, t, fonts, motionTokens } from '../theme'
 import {
   PageHeader,
   Card,
@@ -281,12 +281,13 @@ export function InvoicesAdmin() {
           <p style={{ ...ui.muted, padding: '20px 0' }}>No invoices match.</p>
         ) : (
           <div style={{ ...styles.cardStack, paddingBottom: 88 }}>
+            <style>{`.ec-tap-card:active { background: ${t.background.tint1}; }`}</style>
             {filtered.map((inv) => (
               <div
                 key={inv.id}
                 style={{ ...styles.mobileCard, ...(openInvoice?.id === inv.id ? styles.rowActive : null) }}
               >
-                <div style={styles.mobileCardBody} onClick={() => setOpenInvoice(inv)}>
+                <div className="ec-tap-card" style={styles.mobileCardBody} onClick={() => setOpenInvoice(inv)}>
                   <div style={styles.mobileCardTop}>
                     <span style={styles.invoiceNumberMono}>{inv.invoice_number}</span>
                     <StatusBadge status={inv.status} />
@@ -1352,7 +1353,14 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 12,
     overflow: 'hidden',
   },
-  mobileCardBody: { padding: 16, display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' },
+  mobileCardBody: {
+    padding: 16,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    cursor: 'pointer',
+    transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
   mobileCardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   invoiceNumberMono: { fontFamily: mono, fontSize: 13, color: t.text.tertiary },
   mobileCardCompany: { fontFamily: fonts.body, fontSize: 14, fontWeight: 500, color: t.text.primary },

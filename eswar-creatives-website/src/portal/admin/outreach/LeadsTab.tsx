@@ -488,6 +488,10 @@ export function LeadsTab({
         </div>
       ) : isMobile ? (
         <div style={styles.cardStack}>
+          <style>{`
+            .ec-tap-card { background: ${tokens.surface}; transition: background ${motionTokens.durationFast} ${motionTokens.easeDefault}; }
+            .ec-tap-card:active { background: ${t.background.tint1}; }
+          `}</style>
           {sorted.map((lead) => (
             <MobileCard key={lead.id} lead={lead} onOpen={() => setOpenLeadId(lead.id)} />
           ))}
@@ -592,7 +596,7 @@ function LinkedInStatusIcon({ status }: { status: string }) {
 
 function MobileCard({ lead, onOpen }: { lead: LeadRow; onOpen: () => void }) {
   return (
-    <div style={styles.mobileCard} onClick={onOpen}>
+    <div className="ec-tap-card" style={styles.mobileCard} onClick={onOpen}>
       <div style={styles.mobileCardHead}>
         <div style={styles.avatar}>{initials(lead.first_name, lead.last_name)}</div>
         <div style={{ flex: 1 }}>
@@ -875,8 +879,9 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   cardStack: { display: 'flex', flexDirection: 'column', gap: 10 },
+  // Resting background lives in the .ec-tap-card CSS class (see render) so the
+  // :active tap-feedback rule isn't blocked by inline-style specificity.
   mobileCard: {
-    background: tokens.surface,
     border: `1px solid ${t.border.default}`,
     borderRadius: 10,
     padding: '14px 16px',

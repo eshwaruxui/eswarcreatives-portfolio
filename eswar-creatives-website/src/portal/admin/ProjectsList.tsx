@@ -135,9 +135,14 @@ export function ProjectsList() {
           <p style={{ ...ui.muted, padding: '20px 0' }}>No projects yet.</p>
         ) : (
           <div style={s.cardStack}>
+            <style>{`
+              .ec-tap-card { background: ${tokens.surface}; transition: background ${motionTokens.durationFast} ${motionTokens.easeDefault}; }
+              .ec-tap-card:active { background: ${t.background.tint1}; }
+            `}</style>
             {projects.map((p) => (
               <div
                 key={p.id}
+                className="ec-tap-card"
                 onClick={() => setOpenProject(p)}
                 style={{
                   ...s.mobileCard,
@@ -1166,15 +1171,18 @@ const s: Record<string, CSSProperties> = {
   },
   row: { cursor: 'pointer', transition: 'background-color 0.6s ease' },
   rowActive:    { background: tokens.tealLight },
-  rowHighlight: { background: tokens.goldLight },
+  rowHighlight: { background: tokens.goldLight, transition: 'background-color 0.6s ease' },
   td: { padding: '14px 20px', fontSize: 14, color: t.text.secondary, borderBottom: `1px solid ${tokens.border}` },
 
   // Mobile card list (replaces the table below 768px)
   cardStack: { display: 'flex', flexDirection: 'column', gap: 8 },
+  // Resting background lives in the .ec-tap-card CSS class (see render), not
+  // here, so the :active tap-feedback rule isn't blocked by inline-style
+  // specificity. rowHighlight still overrides it inline for the "just added"
+  // fade (0.6s), independent of the fast tap transition.
   mobileCard: {
-    background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 12,
+    border: `1px solid ${tokens.border}`, borderRadius: 12,
     padding: 16, display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer',
-    transition: 'background-color 0.6s ease',
   },
   mobileCardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   mobileCardTitle: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, color: t.text.primary },
