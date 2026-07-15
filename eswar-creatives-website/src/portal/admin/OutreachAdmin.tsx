@@ -25,6 +25,7 @@ const TABS: { id: Tab; label: string; icon?: React.ReactNode }[] = [
 ]
 
 export function OutreachAdmin() {
+  const { isMobile } = useBreakpoint()
   const [params, setParams] = useSearchParams()
   const activeTab = (params.get('tab') as Tab | null) ?? 'today'
   const [dueCount, setDueCount] = useState(0)
@@ -54,7 +55,7 @@ export function OutreachAdmin() {
         subtitle="Manage outbound email and LinkedIn cadences"
       />
 
-      <div style={styles.tabBar}>
+      <div style={{ ...styles.tabBar, ...(isMobile ? styles.tabBarMobile : null) }}>
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id
           return (
@@ -63,6 +64,7 @@ export function OutreachAdmin() {
               type="button"
               style={{
                 ...styles.tabBtn,
+                ...(isMobile ? styles.tabBtnMobile : null),
                 ...(isActive ? styles.tabBtnActive : null),
               }}
               onClick={() => setTab(tab.id)}
@@ -108,6 +110,12 @@ const styles: Record<string, CSSProperties> = {
     borderBottom: `1px solid ${t.border.subtle}`,
     marginBottom: 24,
   },
+  // Horizontal scrollable strip on mobile, no wrap, so all 5 tabs stay reachable.
+  tabBarMobile: {
+    overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    flexWrap: 'nowrap',
+  },
   tabBtn: {
     display: 'flex',
     alignItems: 'center',
@@ -123,6 +131,14 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     transition: `color ${motionTokens.durationFast} ${motionTokens.easeDefault}, border-color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
     marginBottom: -1,
+  },
+  tabBtnMobile: {
+    fontSize: 13,
+    minWidth: 90,
+    padding: '12px 16px',
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
+    justifyContent: 'center',
   },
   tabBtnActive: {
     color: tokens.primary,

@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 
 type Step = {
   id: string
@@ -217,6 +218,7 @@ function SequenceCard({
   onShowWarning: () => void
   onDismissWarning: () => void
 }) {
+  const { isMobile } = useBreakpoint()
   const { sent_count, reply_rate } = seq.stats
   const ratePercent = Math.round(reply_rate * 100)
   const showLowReplyWarning = sent_count >= 10 && reply_rate < 0.04 && !warningDismissed
@@ -224,53 +226,67 @@ function SequenceCard({
 
   return (
     <div style={styles.seqCard}>
-      {/* Header */}
-      <div style={styles.seqHead} onClick={onToggleExpand}>
-        <ChevronRight
-          size={16}
-          style={{
-            transform: isExpanded ? 'rotate(90deg)' : 'none',
-            transition: `transform ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
-            color: isExpanded ? t.text.primaryBrand : t.text.muted,
-            flexShrink: 0,
-          }}
-        />
-        <div style={styles.seqHeadInfo}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={styles.seqName}>{seq.name}</span>
-            {/* Feature 4: strong reply rate chip */}
-            {showStrongReply && (
-              <span style={styles.strongReplyChip}>
-                Strong reply rate. Consider scaling volume.{' '}
-                <span style={styles.strongReplyPct}>{ratePercent}%</span>
+      {/* Header — on mobile the stats strip drops to its own row below the
+          name/toggle row instead of squeezing into one line. */}
+      <div style={{ ...styles.seqHead, ...(isMobile ? styles.seqHeadMobile : null) }} onClick={onToggleExpand}>
+        <div style={styles.seqHeadTopRow}>
+          <ChevronRight
+            size={16}
+            style={{
+              transform: isExpanded ? 'rotate(90deg)' : 'none',
+              transition: `transform ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+              color: isExpanded ? t.text.primaryBrand : t.text.muted,
+              flexShrink: 0,
+            }}
+          />
+          <div style={styles.seqHeadInfo}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={styles.seqName}>{seq.name}</span>
+              {/* Feature 4: strong reply rate chip */}
+              {showStrongReply && (
+                <span style={styles.strongReplyChip}>
+                  Strong reply rate. Consider scaling volume.{' '}
+                  <span style={styles.strongReplyPct}>{ratePercent}%</span>
+                </span>
+              )}
+            </div>
+            {seq.segment && (
+              <span style={styles.seqSeg}>
+                {seq.segment === 'security_ai' ? 'Security / AI' : 'SaaS Product'}
               </span>
             )}
           </div>
-          {seq.segment && (
-            <span style={styles.seqSeg}>
-              {seq.segment === 'security_ai' ? 'Security / AI' : 'SaaS Product'}
-            </span>
+          {!isMobile && (
+            <div style={styles.statsStrip} onClick={(e) => e.stopPropagation()}>
+              <Stat label="Enrolled" value={seq.stats.enrolled} />
+              <Stat label="Active" value={seq.stats.active} />
+              <Stat label="Replied" value={seq.stats.replied} />
+              <Stat label="Rate" value={`${ratePercent}%`} />
+            </div>
           )}
+          {/* Active toggle */}
+          <button
+            type="button"
+            style={{
+              ...styles.toggleBtn,
+              background: seq.is_active ? tokens.tealLight : t.background.muted,
+              color: seq.is_active ? tokens.primary : t.text.muted,
+            }}
+            onClick={(e) => { e.stopPropagation(); onToggleActive() }}
+          >
+            {seq.is_active ? 'Active' : 'Inactive'}
+          </button>
         </div>
-        {/* Stats strip */}
-        <div style={styles.statsStrip} onClick={(e) => e.stopPropagation()}>
-          <Stat label="Enrolled" value={seq.stats.enrolled} />
-          <Stat label="Active" value={seq.stats.active} />
-          <Stat label="Replied" value={seq.stats.replied} />
-          <Stat label="Rate" value={`${ratePercent}%`} />
-        </div>
-        {/* Active toggle */}
-        <button
-          type="button"
-          style={{
-            ...styles.toggleBtn,
-            background: seq.is_active ? tokens.tealLight : t.background.muted,
-            color: seq.is_active ? tokens.primary : t.text.muted,
-          }}
-          onClick={(e) => { e.stopPropagation(); onToggleActive() }}
-        >
-          {seq.is_active ? 'Active' : 'Inactive'}
-        </button>
+        {/* Mobile: stats strip drops below the name/toggle row, horizontally
+            scrollable so all 4 stats stay reachable without wrapping oddly. */}
+        {isMobile && (
+          <div style={styles.statsStripMobile} onClick={(e) => e.stopPropagation()}>
+            <Stat label="Enrolled" value={seq.stats.enrolled} />
+            <Stat label="Active" value={seq.stats.active} />
+            <Stat label="Replied" value={seq.stats.replied} />
+            <Stat label="Rate" value={`${ratePercent}%`} />
+          </div>
+        )}
       </div>
 
       {/* Feature 4: low reply rate warning banner */}
@@ -342,16 +358,24 @@ function SequenceCard({
                         rows={6}
                       />
                     </div>
-                    <div style={styles.editorActions}>
+                    <div style={{ ...styles.editorActions, ...(isMobile ? styles.editorActionsMobile : null) }}>
                       <button
                         type="button"
-                        style={{ ...styles.primaryBtn, opacity: savingStep ? 0.6 : 1 }}
+                        style={{
+                          ...styles.primaryBtn,
+                          opacity: savingStep ? 0.6 : 1,
+                          ...(isMobile ? styles.fullWidthBtn : null),
+                        }}
                         onClick={() => onSaveStep(step)}
                         disabled={savingStep}
                       >
                         {savingStep ? 'Saving...' : 'Save changes'}
                       </button>
-                      <button type="button" style={styles.outlineBtn} onClick={onCancelEdit}>
+                      <button
+                        type="button"
+                        style={{ ...styles.outlineBtn, ...(isMobile ? styles.fullWidthBtn : null) }}
+                        onClick={onCancelEdit}
+                      >
                         Cancel
                       </button>
                     </div>
@@ -396,6 +420,8 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     borderBottom: `1px solid ${t.border.subtle}`,
   },
+  seqHeadMobile: { flexDirection: 'column', alignItems: 'stretch', gap: 10 },
+  seqHeadTopRow: { display: 'flex', alignItems: 'center', gap: 10 },
   seqHeadInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
   seqName: {
     fontFamily: fonts.body,
@@ -408,6 +434,13 @@ const styles: Record<string, CSSProperties> = {
   },
   seqSeg: { fontFamily: fonts.body, fontSize: 11, color: t.text.muted },
   statsStrip: { display: 'flex', gap: 20, flexShrink: 0 },
+  statsStripMobile: {
+    display: 'flex',
+    gap: 20,
+    overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    paddingLeft: 26,
+  },
   stat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statLabel: { fontFamily: fonts.body, fontSize: 10, color: t.text.muted, textTransform: 'uppercase', letterSpacing: 0.3 },
   statValue: { fontFamily: mono, fontSize: 13, fontWeight: 700, color: t.text.primary },
@@ -528,6 +561,8 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 6,
     padding: '8px 10px',
     outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
   },
   editorTextarea: {
     fontFamily: fonts.body,
@@ -540,8 +575,11 @@ const styles: Record<string, CSSProperties> = {
     outline: 'none',
     resize: 'vertical',
     lineHeight: 1.5,
+    width: '100%',
+    boxSizing: 'border-box',
   },
   editorActions: { display: 'flex', gap: 8 },
+  editorActionsMobile: { flexDirection: 'column' },
   primaryBtn: {
     background: tokens.primary,
     color: t.text.onPrimary,

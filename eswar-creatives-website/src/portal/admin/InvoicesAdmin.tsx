@@ -330,7 +330,7 @@ export function InvoicesAdmin() {
                   >
                     <button
                       type="button"
-                      style={styles.dotMenuBtn}
+                      style={{ ...styles.dotMenuBtn, ...styles.dotMenuBtnMobile }}
                       onClick={(e) => {
                         if (menuOpenId === inv.id) {
                           setMenuOpenId(null)
@@ -1371,14 +1371,17 @@ const styles: Record<string, CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     background: tokens.goldLight,
     border: 'none',
     borderRadius: '50%',
     color: tokens.goldDark,
     cursor: 'pointer',
   },
+  // 44px min tap target on mobile card actions (the shared dotMenuBtn above
+  // stays 32px for the existing desktop table row, unchanged).
+  dotMenuBtnMobile: { width: 44, height: 44 },
 
   // Sticky "+ New Invoice" footer (mobile only)
   stickyFooter: {
