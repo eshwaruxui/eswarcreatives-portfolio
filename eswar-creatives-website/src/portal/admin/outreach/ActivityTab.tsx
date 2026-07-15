@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Eye, Mail, Linkedin, Clock, Loader2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { tokens, t, fonts } from '../../theme'
+import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, formatDate } from '../ui'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { LeadDrawer } from './LeadDrawer'
@@ -166,6 +166,7 @@ export function ActivityTab({ onOpenLeadDrawer }: { onOpenLeadDrawer: (id: strin
         </div>
       ) : isMobile ? (
         <div style={styles.cardStack}>
+          <style>{`.ec-tap-card:active { background: ${t.background.tint1}; }`}</style>
           {rows.map((row) => {
             const tone = STATUS_TONES[row.status] ?? { bg: t.background.muted, fg: t.text.muted }
             const isScheduled = row.status === 'scheduled'
@@ -173,7 +174,7 @@ export function ActivityTab({ onOpenLeadDrawer }: { onOpenLeadDrawer: (id: strin
             const rowError = errors[row.id]
             return (
               <div key={row.id} style={styles.mobileCard}>
-                <div style={styles.mobileCardTop} onClick={() => row.lead && onOpenLeadDrawer(row.lead.id)}>
+                <div className="ec-tap-card" style={styles.mobileCardTop} onClick={() => row.lead && onOpenLeadDrawer(row.lead.id)}>
                   <div style={styles.leadCell}>
                     <strong style={styles.leadName}>
                       {row.lead ? `${row.lead.first_name} ${row.lead.last_name ?? ''}` : 'Unknown'}
@@ -436,7 +437,15 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     gap: 8,
   },
-  mobileCardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer' },
+  mobileCardTop: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    cursor: 'pointer',
+    borderRadius: 6,
+    transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
   mobileCardSubject: {
     fontFamily: fonts.body,
     fontSize: 12,

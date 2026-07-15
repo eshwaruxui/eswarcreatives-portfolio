@@ -4,7 +4,7 @@
 // Preserves the 5h timeline extension modal.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, DragEvent } from 'react'
-import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2, X } from 'lucide-react'
+import { ChevronRight, GripVertical, Plus, Trash2, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { StatusBadge, mono, formatDate, relativeTime as _rt, ui } from './ui'
@@ -140,9 +140,13 @@ function StageCard({
           onClick={onToggle}
           aria-label={expanded ? 'Collapse stage' : 'Expand stage'}
         >
-          {expanded
-            ? <ChevronDown size={15} />
-            : <ChevronRight size={15} />}
+          <ChevronRight
+            size={15}
+            style={{
+              transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: `transform ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+            }}
+          />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <StageLabel
@@ -734,10 +738,13 @@ export function ProjectPanel({
               ))}
             </div>
 
-            {activeTab === 'overview' && <OverviewTab />}
-            {activeTab === 'stages'   && <StagesTab />}
-            {activeTab === 'notes'    && <NotesTab />}
-            {activeTab === 'settings' && <SettingsTab />}
+            <style>{`@keyframes ecTabFadeIn{from{opacity:0}to{opacity:1}}`}</style>
+            <div key={activeTab} style={{ animation: `ecTabFadeIn ${motionTokens.durationFast} ${motionTokens.easeDefault}` }}>
+              {activeTab === 'overview' && <OverviewTab />}
+              {activeTab === 'stages'   && <StagesTab />}
+              {activeTab === 'notes'    && <NotesTab />}
+              {activeTab === 'settings' && <SettingsTab />}
+            </div>
           </>
         )}
       </SidePanel>
