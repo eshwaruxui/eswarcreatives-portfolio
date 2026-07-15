@@ -172,7 +172,7 @@ export function ClientsList() {
                   </div>
                   {c.contact_name && <span style={styles.mobileCardMeta}>{c.contact_name}</span>}
                   <span style={styles.mobileCardMeta}>
-                    {c.country || '—'} · {c.preferred_currency}
+                    {c.country || '-'}, {c.preferred_currency}
                   </span>
                 </div>
                 <div style={styles.mobileCardActions}>
