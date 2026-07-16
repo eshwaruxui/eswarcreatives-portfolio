@@ -23,7 +23,35 @@ type ScheduledTouch = {
     last_name: string | null
     company: string
     email: string | null
+    specific_observation: string | null
+    unsubscribe_token: string
   } | null
+  step: {
+    subject_template: string | null
+    body_template: string | null
+  } | null
+}
+
+// Mirrors the substitution + grammar fix applied by the confirm-scheduled-touch
+// edge function, so the preview shows exactly what will be sent (not the raw
+// template with unresolved {{variables}}).
+function resolveTemplate(template: string, lead: NonNullable<ScheduledTouch['lead']>): string {
+  const vars: Record<string, string> = {
+    first_name: lead.first_name,
+    company: lead.company,
+    specific_observation: lead.specific_observation ?? '',
+    flow: 'product',
+    unsubscribe_url: `https://www.eswarcreatives.in/unsubscribe/${lead.unsubscribe_token}`,
+    topic: '{{topic}}',
+  }
+  let out = template
+  for (const [key, val] of Object.entries(vars)) {
+    out = out.replaceAll(`{{${key}}}`, val)
+  }
+  if (lead.company.slice(-1).toLowerCase() === 's') {
+    out = out.replaceAll(`${lead.company}'s`, `${lead.company}'`)
+  }
+  return out
 }
 
 function useConfirmScheduledTouch(onSuccess: (id: string) => void) {
@@ -83,6 +111,14 @@ type MotionStats = {
   callsWeek: number
 }
 
+type FollowUpLead = {
+  id: string
+  first_name: string
+  last_name: string | null
+  company: string
+  draft_message: string | null
+}
+
 export function TodayTab({
   onRefreshCount,
 }: {
@@ -93,6 +129,7 @@ export function TodayTab({
   const [overdue, setOverdue] = useState<TouchRow[]>([])
   const [dueToday, setDueToday] = useState<TouchRow[]>([])
   const [pendingConfirmation, setPendingConfirmation] = useState<ScheduledTouch[]>([])
+  const [followUps, setFollowUps] = useState<FollowUpLead[]>([])
   const [activeTouch, setActiveTouch] = useState<TouchRow | null>(null)
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
   const [previewTouch, setPreviewTouch] = useState<ScheduledTouch | null>(null)
@@ -113,7 +150,7 @@ export function TodayTab({
       weekStart.setDate(weekStart.getDate() - weekStart.getDay() + (weekStart.getDay() === 0 ? -6 : 1))
       const weekStartStr = weekStart.toISOString().slice(0, 10)
 
-      const [queueRes, emailTodayRes, liTodayRes, repliesRes, callsRes, pendingRes] = await Promise.all([
+      const [queueRes, emailTodayRes, liTodayRes, repliesRes, callsRes, pendingRes, followUpRes] = await Promise.all([
         supabase
           .from('outreach_touches')
           .select(`
@@ -160,12 +197,22 @@ export function TodayTab({
           .gte('updated_at', `${weekStartStr}T00:00:00Z`),
         supabase
           .from('outreach_touches')
-          .select('id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot, lead:leads!lead_id (id, first_name, last_name, company, email)')
+          .select(`
+            id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot,
+            lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
+            step:sequence_steps!step_id (subject_template, body_template)
+          `)
           .eq('status', 'scheduled')
           .eq('channel', 'email')
           .gt('scheduled_for', `${today}T23:59:59Z`)
           .order('scheduled_for', { ascending: true })
           .limit(20),
+        supabase
+          .from('leads')
+          .select('id, first_name, last_name, company, draft_message')
+          .eq('follow_up_date', today)
+          .neq('status', 'not_interested')
+          .order('first_name', { ascending: true }),
       ])
 
       if (queueRes.error) throw queueRes.error
@@ -179,6 +226,7 @@ export function TodayTab({
         callsWeek: callsRes.count ?? 0,
       })
       setPendingConfirmation((pendingRes.data ?? []) as ScheduledTouch[])
+      setFollowUps((followUpRes.data ?? []) as FollowUpLead[])
     } catch {
       setError('Could not load the queue. Refresh to try again.')
     } finally {
@@ -210,7 +258,19 @@ export function TodayTab({
     showToast('Email sent successfully.')
   })
 
+  async function handleMarkFollowUpDone(leadId: string) {
+    await supabase.from('leads').update({ follow_up_date: null }).eq('id', leadId)
+    setFollowUps((prev) => prev.filter((l) => l.id !== leadId))
+  }
+
   const isEmpty = overdue.length === 0 && dueToday.length === 0
+
+  const previewSubject = previewTouch?.lead
+    ? resolveTemplate(previewTouch.step?.subject_template ?? previewTouch.subject_snapshot ?? '', previewTouch.lead)
+    : ''
+  const previewBody = previewTouch?.lead
+    ? resolveTemplate(previewTouch.step?.body_template ?? previewTouch.body_snapshot ?? '', previewTouch.lead)
+    : ''
 
   return (
     <>
@@ -242,12 +302,12 @@ export function TodayTab({
             </div>
             <div style={styles.previewField}>
               <span style={styles.previewLabel}>Subject</span>
-              <span style={styles.previewValue}>{previewTouch.subject_snapshot || '(no subject)'}</span>
+              <span style={styles.previewValue}>{previewSubject || '(no subject)'}</span>
             </div>
             <div style={styles.previewField}>
               <span style={styles.previewLabel}>Body</span>
               <div style={styles.previewBodyScroll}>
-                {previewTouch.body_snapshot || '(no content)'}
+                {previewBody || '(no content)'}
               </div>
             </div>
             <button type="button" style={styles.previewCloseBtn} onClick={() => setPreviewTouch(null)}>
@@ -260,6 +320,58 @@ export function TodayTab({
       {error && <div style={styles.errorBanner}>{error}</div>}
 
       {!loading && <MotionTracker stats={motionStats} />}
+
+      {!loading && followUps.length > 0 && (
+        <div style={styles.pendingSection}>
+          <div style={styles.pendingSectionHeader}>
+            <span style={styles.sectionTitle}>Follow-ups today</span>
+            <span style={{ ...styles.sectionCount, color: tokens.primary, fontFamily: mono }}>
+              {followUps.length}
+            </span>
+          </div>
+          <div style={styles.touchList}>
+            {followUps.map((lead) => (
+              <div key={lead.id} style={styles.touchCard}>
+                <div style={styles.touchMain}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}
+                    onClick={() => setActiveLeadId(lead.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') setActiveLeadId(lead.id) }}
+                    aria-label={`Open ${lead.first_name} ${lead.last_name ?? ''} detail`}
+                  >
+                    <div style={styles.avatar}>
+                      {((lead.first_name[0] ?? '') + (lead.last_name?.[0] ?? '')).toUpperCase()}
+                    </div>
+                    <div style={styles.touchInfo}>
+                      <span style={styles.touchName}>
+                        {lead.first_name} {lead.last_name ?? ''} · {lead.company}
+                      </span>
+                      {lead.draft_message && (
+                        <span style={styles.draftPreview}>
+                          {lead.draft_message.length > 100
+                            ? lead.draft_message.slice(0, 100) + '…'
+                            : lead.draft_message}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      style={styles.previewBtn}
+                      onClick={() => handleMarkFollowUpDone(lead.id)}
+                    >
+                      Mark done
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div style={styles.loadingText}>Loading queue...</div>
@@ -797,6 +909,14 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 12,
     color: t.text.muted,
+  },
+  draftPreview: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.muted,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   overdueLabel: {
     display: 'inline-flex',

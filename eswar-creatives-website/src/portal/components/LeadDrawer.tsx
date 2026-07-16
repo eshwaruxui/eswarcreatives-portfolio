@@ -33,6 +33,8 @@ export type LeadDetail = {
   notes: string | null
   created_at: string
   unsubscribe_token: string
+  follow_up_date: string | null
+  draft_message: string | null
 }
 
 type EnrollmentRow = {
@@ -562,6 +564,33 @@ export function LeadDrawer({
           />
         </Section>
 
+        {/* Follow-up: manual reminder date + staged draft message */}
+        <Section title="Follow-up">
+          <div style={styles.followUpField}>
+            <label style={styles.followUpLabel}>Follow up on</label>
+            <input
+              type="date"
+              style={styles.dateInput}
+              value={lead.follow_up_date ?? ''}
+              onChange={(e) => saveLead({ follow_up_date: e.target.value || null })}
+            />
+          </div>
+          <div style={styles.followUpField}>
+            <label style={styles.followUpLabel}>Draft message</label>
+            <textarea
+              key={lead.id + 'draft'}
+              defaultValue={lead.draft_message ?? ''}
+              style={styles.textarea}
+              rows={4}
+              placeholder="Paste or write your next message here."
+              onBlur={(e) => {
+                const val = e.target.value.trim()
+                if (val !== (lead.draft_message ?? '').trim()) saveLead({ draft_message: val || null })
+              }}
+            />
+          </div>
+        </Section>
+
         {/* Enroll section */}
         <Section title="Enroll in sequence">
           {/* Active enrollments with cancel button */}
@@ -1044,6 +1073,12 @@ const styles: Record<string, CSSProperties> = {
   drawerBody: { display: 'flex', flexDirection: 'column', gap: 24 },
   chipRow: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   section: { display: 'flex', flexDirection: 'column', gap: 12 },
+  followUpField: { display: 'flex', flexDirection: 'column', gap: 6 },
+  followUpLabel: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: t.text.secondary,
+  },
   sectionTitle: {
     fontFamily: fonts.heading,
     fontSize: 15,
