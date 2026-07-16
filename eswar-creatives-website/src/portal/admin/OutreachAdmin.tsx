@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import type { CSSProperties } from 'react'
-import { Linkedin } from 'lucide-react'
+import { Linkedin, Sparkles } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { mono, PageHeader } from './ui'
@@ -13,8 +13,9 @@ import { LeadsTab } from './outreach/LeadsTab'
 import { SequencesTab } from './outreach/SequencesTab'
 import { ActivityTab } from './outreach/ActivityTab'
 import { LinkedInTab } from './outreach/LinkedInTab'
+import { SmartShortlistTab } from './outreach/SmartShortlistTab'
 
-type Tab = 'today' | 'leads' | 'sequences' | 'activity' | 'linkedin'
+type Tab = 'today' | 'leads' | 'sequences' | 'activity' | 'linkedin' | 'shortlist'
 
 const TABS: { id: Tab; label: string; icon?: React.ReactNode }[] = [
   { id: 'today', label: 'Today' },
@@ -22,6 +23,7 @@ const TABS: { id: Tab; label: string; icon?: React.ReactNode }[] = [
   { id: 'sequences', label: 'Sequences' },
   { id: 'activity', label: 'Activity' },
   { id: 'linkedin', label: 'LinkedIn', icon: <Linkedin size={14} /> },
+  { id: 'shortlist', label: 'Smart Shortlist', icon: <Sparkles size={14} /> },
 ]
 
 export function OutreachAdmin() {
@@ -85,6 +87,7 @@ export function OutreachAdmin() {
         {activeTab === 'sequences' && <SequencesTab />}
         {activeTab === 'activity' && <ActivityTab />}
         {activeTab === 'linkedin' && <LinkedInTab />}
+        {activeTab === 'shortlist' && <SmartShortlistTab />}
       </div>
     </>
   )
