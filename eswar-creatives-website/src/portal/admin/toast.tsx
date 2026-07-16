@@ -7,7 +7,9 @@ import type { CSSProperties } from 'react'
 import { tokens, t, fonts, motionTokens } from '../theme'
 
 export type ToastVariant = 'success' | 'error'
-type ToastData = { id: number; message: string; variant: ToastVariant }
+type ToastData = { id: number; message: string; variant: ToastVariant; durationMs: number }
+
+const DEFAULT_DURATION_MS = 4000
 
 let current: ToastData | null = null
 let seq = 0
@@ -17,8 +19,10 @@ function emit() {
   for (const l of listeners) l()
 }
 
-export function showToast(message: string, variant: ToastVariant) {
-  current = { id: ++seq, message, variant }
+// durationMs is optional and defaults to 4000ms; pass it to shorten/lengthen
+// a specific toast (e.g. a quick 2s confirmation) without affecting others.
+export function showToast(message: string, variant: ToastVariant, durationMs = DEFAULT_DURATION_MS) {
+  current = { id: ++seq, message, variant, durationMs }
   emit()
 }
 
@@ -47,8 +51,8 @@ export function ToastHost() {
     if (!toast || toast.id === lastId.current) return
     lastId.current = toast.id
     setPhase('enter')
-    const tExit = setTimeout(() => setPhase('exit'), 4000)
-    const tClear = setTimeout(() => clearToast(), 4200)
+    const tExit = setTimeout(() => setPhase('exit'), toast.durationMs)
+    const tClear = setTimeout(() => clearToast(), toast.durationMs + 200)
     return () => {
       clearTimeout(tExit)
       clearTimeout(tClear)

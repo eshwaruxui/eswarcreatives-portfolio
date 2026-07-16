@@ -180,7 +180,7 @@ export function LeadDrawer({
   const [convertOpen, setConvertOpen] = useState(false)
   const [obsValue, setObsValue] = useState('')
   const [obsSavedValue, setObsSavedValue] = useState('')
-  const [obsSaveState, setObsSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [obsSaveState, setObsSaveState] = useState<'idle' | 'saving'>('idle')
   const [followUpValue, setFollowUpValue] = useState('')
   const [followUpSavedValue, setFollowUpSavedValue] = useState('')
   const [followUpSaving, setFollowUpSaving] = useState(false)
@@ -277,8 +277,8 @@ export function LeadDrawer({
     await supabase.from('leads').update({ specific_observation: trimmed }).eq('id', lead.id)
     setLead((prev) => prev ? { ...prev, specific_observation: trimmed } : prev)
     setObsSavedValue(obsValue)
-    setObsSaveState('saved')
-    setTimeout(() => setObsSaveState('idle'), 1500)
+    setObsSaveState('idle')
+    showToast('Observation saved', 'success')
   }
 
   async function handleSaveFollowUp() {
@@ -524,7 +524,7 @@ export function LeadDrawer({
           <span style={styles.obsQualityHint}>
             Start with the product area, describe what is missing or broken, explain the business impact. Only write what you saw on their actual site.
           </span>
-          {(obsValue !== obsSavedValue || obsSaveState === 'saved') && (
+          {obsValue !== obsSavedValue && (
             <button
               type="button"
               style={{
@@ -537,7 +537,7 @@ export function LeadDrawer({
               onClick={saveObservation}
               disabled={obsSaveState === 'saving'}
             >
-              {obsSaveState === 'saved' ? 'Saved' : 'Save'}
+              {obsSaveState === 'saving' ? 'Saving...' : 'Save'}
             </button>
           )}
         </div>
