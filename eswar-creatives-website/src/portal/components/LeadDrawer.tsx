@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, Clock, Mail, Linkedin, X, Reply } from 'lucide-react'
 import type { CSSProperties } from 'react'
-import { supabase } from '../../../lib/supabase'
-import { tokens, t, fonts, motionTokens } from '../../theme'
-import { SidePanel } from '../SidePanel'
-import { mono, formatDate } from '../ui'
+import { supabase } from '../../lib/supabase'
+import { tokens, t, fonts, motionTokens } from '../theme'
+import { SidePanel } from '../admin/SidePanel'
+import { mono, formatDate } from '../admin/ui'
+import { showToast } from '../admin/toast'
 
 type LeadStatus =
   | 'new' | 'active' | 'replied' | 'meeting_booked' | 'converted'
@@ -33,6 +34,8 @@ export type LeadDetail = {
   notes: string | null
   created_at: string
   unsubscribe_token: string
+  follow_up_date: string | null
+  draft_message: string | null
 }
 
 type EnrollmentRow = {
@@ -53,6 +56,7 @@ type TouchTimelineRow = {
   bounced_at: string | null
   skipped_reason: string | null
   subject_snapshot: string | null
+  enrollment_id: string
   step: { step_number: number; day_offset: number | null } | null
   enrollment: { sequence: { name: string } | null } | null
 }
@@ -131,6 +135,24 @@ function intentLabel(dayOffset: number | null): string {
   return 'Follow-up'
 }
 
+// Current step = highest step_number among sent touches for this enrollment,
+// plus one for the step about to go out next (or 1 if nothing has sent yet).
+function currentStepForEnrollment(enrollmentId: string, timeline: TouchTimelineRow[]): number {
+  const sentSteps = timeline
+    .filter((row) => row.enrollment_id === enrollmentId && row.status === 'sent')
+    .map((row) => row.step?.step_number ?? 0)
+  return sentSteps.length > 0 ? Math.max(...sentSteps) + 1 : 1
+}
+
+function formatIST(iso: string): string {
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(iso))
+}
+
 export function LeadDrawer({
   leadId,
   onClose,
@@ -159,6 +181,9 @@ export function LeadDrawer({
   const [obsValue, setObsValue] = useState('')
   const [obsSavedValue, setObsSavedValue] = useState('')
   const [obsSaveState, setObsSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [followUpValue, setFollowUpValue] = useState('')
+  const [followUpSavedValue, setFollowUpSavedValue] = useState('')
+  const [followUpSaving, setFollowUpSaving] = useState(false)
 
   // Delete lead state
   const [deleteDialog, setDeleteDialog] = useState(false)
@@ -198,6 +223,9 @@ export function LeadDrawer({
       const obs = lead.specific_observation ?? ''
       setObsValue(obs)
       setObsSavedValue(obs)
+      const followUp = lead.follow_up_date ?? ''
+      setFollowUpValue(followUp)
+      setFollowUpSavedValue(followUp)
     }
   }, [lead?.id])
 
@@ -217,7 +245,7 @@ export function LeadDrawer({
         sequence:sequences!sequence_id (name, segment)
       `).eq('lead_id', leadId).order('started_at', { ascending: false }),
       supabase.from('outreach_touches').select(`
-        id, channel, status, scheduled_for, sent_at, opened_at, bounced_at, skipped_reason, subject_snapshot,
+        id, channel, status, scheduled_for, sent_at, opened_at, bounced_at, skipped_reason, subject_snapshot, enrollment_id,
         step:sequence_steps!step_id (step_number, day_offset),
         enrollment:lead_enrollments!enrollment_id (sequence:sequences!sequence_id (name))
       `).eq('lead_id', leadId).order('scheduled_for', { ascending: false }).limit(50),
@@ -251,6 +279,26 @@ export function LeadDrawer({
     setObsSavedValue(obsValue)
     setObsSaveState('saved')
     setTimeout(() => setObsSaveState('idle'), 1500)
+  }
+
+  async function handleSaveFollowUp() {
+    if (!lead) return
+    setFollowUpSaving(true)
+    const value = followUpValue || null
+    await supabase.from('leads').update({ follow_up_date: value }).eq('id', lead.id)
+    setLead((prev) => prev ? { ...prev, follow_up_date: value } : prev)
+    setFollowUpSavedValue(followUpValue)
+    setFollowUpSaving(false)
+    if (value) {
+      const reminderDate = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'UTC',
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }).format(new Date(value))
+      showToast(`We'll remind you on ${reminderDate}`, 'success')
+    }
   }
 
   async function handleEnroll(skipWebsiteCheck = false) {
@@ -350,6 +398,10 @@ export function LeadDrawer({
 
   const activeEnrollments = enrollments.filter((e) => e.status === 'active')
 
+  const lastTouchAt = timeline
+    .filter((row) => row.status === 'sent' && row.sent_at)
+    .reduce<string | null>((latest, row) => (!latest || row.sent_at! > latest ? row.sent_at! : latest), null)
+
   // Build combined timeline (touches + replies) sorted by date DESC
   const combinedTimeline: TimelineItem[] = [
     ...timeline.map((t): TimelineItem => ({ kind: 'touch', data: t })),
@@ -376,7 +428,7 @@ export function LeadDrawer({
   return (
     <SidePanel
       title={`${lead.first_name} ${lead.last_name ?? ''}`}
-      subtitle={lead.company}
+      subtitle={lead.role_title ? `${lead.company} · ${lead.role_title}` : lead.company}
       onClose={onClose}
       width={520}
     >
@@ -386,6 +438,10 @@ export function LeadDrawer({
           <SegmentChip segment={lead.segment} />
           <StatusChip status={lead.status} />
         </div>
+
+        {lastTouchAt && (
+          <span style={styles.lastTouch}>Last touch {formatIST(lastTouchAt)}</span>
+        )}
 
         {error && <div style={styles.errorBanner}>{error}</div>}
 
@@ -398,7 +454,14 @@ export function LeadDrawer({
             <EditableInput value={lead.last_name ?? ''} onSave={(v) => saveLead({ last_name: v || null })} />
           </FieldRow>
           <FieldRow label="Email">
-            <EditableInput value={lead.email ?? ''} onSave={(v) => saveLead({ email: v || null })} type="email" />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <EditableInput value={lead.email ?? ''} onSave={(v) => saveLead({ email: v || null })} type="email" />
+              {lead.email && (
+                <a href={`mailto:${lead.email}`} style={styles.extLink}>
+                  <Mail size={13} />
+                </a>
+              )}
+            </div>
           </FieldRow>
           <FieldRow label="Business phone">
             <EditableInput value={lead.phone_business ?? ''} onSave={(v) => saveLead({ phone_business: v || null })} />
@@ -528,6 +591,43 @@ export function LeadDrawer({
           />
         </Section>
 
+        {/* Follow-up: manual reminder date + staged draft message */}
+        <Section title="Follow-up">
+          <div style={styles.followUpField}>
+            <label style={styles.followUpLabel}>Follow up on</label>
+            <input
+              type="date"
+              style={{ ...styles.dateInput, width: '100%', boxSizing: 'border-box' as const }}
+              value={followUpValue}
+              onChange={(e) => setFollowUpValue(e.target.value)}
+            />
+            {followUpValue !== followUpSavedValue && (
+              <button
+                type="button"
+                style={{ ...styles.primaryBtn, width: '100%', height: 36, boxSizing: 'border-box' as const, opacity: followUpSaving ? 0.6 : 1 }}
+                onClick={handleSaveFollowUp}
+                disabled={followUpSaving}
+              >
+                {followUpSaving ? 'Saving...' : 'Save'}
+              </button>
+            )}
+          </div>
+          <div style={styles.followUpField}>
+            <label style={styles.followUpLabel}>Draft message</label>
+            <textarea
+              key={lead.id + 'draft'}
+              defaultValue={lead.draft_message ?? ''}
+              style={styles.textarea}
+              rows={4}
+              placeholder="Paste or write your next message here."
+              onBlur={(e) => {
+                const val = e.target.value.trim()
+                if (val !== (lead.draft_message ?? '').trim()) saveLead({ draft_message: val || null })
+              }}
+            />
+          </div>
+        </Section>
+
         {/* Enroll section */}
         <Section title="Enroll in sequence">
           {/* Active enrollments with cancel button */}
@@ -535,7 +635,9 @@ export function LeadDrawer({
             <div style={styles.activeEnrollList}>
               {activeEnrollments.map((enr) => (
                 <div key={enr.id} style={styles.activeEnrollRow}>
-                  <span style={styles.activeEnrollName}>{enr.sequence?.name ?? 'Sequence'}</span>
+                  <span style={styles.activeEnrollName}>
+                    {enr.sequence?.name ?? 'Sequence'} · Step {currentStepForEnrollment(enr.id, timeline)}
+                  </span>
                   <button
                     type="button"
                     style={styles.cancelEnrollBtn}
@@ -1008,6 +1110,12 @@ const styles: Record<string, CSSProperties> = {
   drawerBody: { display: 'flex', flexDirection: 'column', gap: 24 },
   chipRow: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   section: { display: 'flex', flexDirection: 'column', gap: 12 },
+  followUpField: { display: 'flex', flexDirection: 'column', gap: 6 },
+  followUpLabel: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: t.text.secondary,
+  },
   sectionTitle: {
     fontFamily: fonts.heading,
     fontSize: 15,
@@ -1309,7 +1417,12 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 13,
   },
-  extLink: { color: t.text.primaryBrand, display: 'flex' },
+  extLink: { color: t.text.urlLink, display: 'flex' },
+  lastTouch: {
+    fontFamily: mono,
+    fontSize: 12,
+    color: t.text.muted,
+  },
   overlay: {
     position: 'fixed',
     inset: 0,

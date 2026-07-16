@@ -146,6 +146,7 @@ export function Modal({
   title,
   onClose,
   size = 'sm',
+  maxWidth,
   closeOnBackdrop = true,
   headerExtra,
   children,
@@ -153,6 +154,9 @@ export function Modal({
   title: string
   onClose: () => void
   size?: 'sm' | 'lg'
+  // Overrides the size-based default (480 / 760) for callers that need a
+  // specific width, e.g. the email preview modal's 600px per spec.
+  maxWidth?: number
   // When false the modal ignores backdrop clicks and only closes via the
   // explicit close button (used by the proposal builder, which holds unsaved
   // work that an accidental outside click should never discard).
@@ -189,7 +193,7 @@ export function Modal({
       <div
         style={{
           ...ui.modalPanel,
-          maxWidth: size === 'lg' ? 760 : 480,
+          maxWidth: maxWidth ?? (size === 'lg' ? 760 : 480),
           // Large modals host card-based forms (e.g. the proposal builder); the
           // cream background lets those white cards stand out the way they do on
           // the full-page content area. Simple modals stay on a white panel.

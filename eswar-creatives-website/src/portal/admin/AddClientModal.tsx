@@ -142,7 +142,7 @@ export function AddClientModal({
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={{ ...styles.input, paddingRight: 42 }}
+              style={{ ...styles.input, paddingRight: 48 }}
               autoComplete="new-password"
               placeholder="Min 8 characters"
             />
@@ -219,12 +219,15 @@ const styles: Record<string, CSSProperties> = {
   passwordWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   eyeBtn: {
     position: 'absolute',
-    right: 6,
+    right: 12,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 44,
+    height: 44,
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
     color: t.text.muted,
-    padding: 6,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

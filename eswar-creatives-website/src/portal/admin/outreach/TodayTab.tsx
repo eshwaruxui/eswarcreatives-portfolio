@@ -7,20 +7,51 @@ import { Mail, Linkedin, Clock, AlertTriangle, Loader2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
-import { mono } from '../ui'
+import { mono, Modal } from '../ui'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
-import { LeadDrawer } from './LeadDrawer'
+import { LeadDrawer } from '../../components/LeadDrawer'
 
 type ScheduledTouch = {
   id: string
   recipient_timezone: string | null
   scheduled_for: string
+  subject_snapshot: string | null
+  body_snapshot: string | null
   lead: {
     id: string
     first_name: string
     last_name: string | null
     company: string
+    email: string | null
+    specific_observation: string | null
+    unsubscribe_token: string
   } | null
+  step: {
+    subject_template: string | null
+    body_template: string | null
+  } | null
+}
+
+// Mirrors the substitution + grammar fix applied by the confirm-scheduled-touch
+// edge function, so the preview shows exactly what will be sent (not the raw
+// template with unresolved {{variables}}).
+function resolveTemplate(template: string, lead: NonNullable<ScheduledTouch['lead']>): string {
+  const vars: Record<string, string> = {
+    first_name: lead.first_name,
+    company: lead.company,
+    specific_observation: lead.specific_observation ?? '',
+    flow: 'product',
+    unsubscribe_url: `https://www.eswarcreatives.in/unsubscribe/${lead.unsubscribe_token}`,
+    topic: '{{topic}}',
+  }
+  let out = template
+  for (const [key, val] of Object.entries(vars)) {
+    out = out.replaceAll(`{{${key}}}`, val)
+  }
+  if (lead.company.slice(-1).toLowerCase() === 's') {
+    out = out.replaceAll(`${lead.company}'s`, `${lead.company}'`)
+  }
+  return out
 }
 
 function useConfirmScheduledTouch(onSuccess: (id: string) => void) {
@@ -80,11 +111,17 @@ type MotionStats = {
   callsWeek: number
 }
 
+type FollowUpLead = {
+  id: string
+  first_name: string
+  last_name: string | null
+  company: string
+  draft_message: string | null
+}
+
 export function TodayTab({
-  onOpenLeadDrawer,
   onRefreshCount,
 }: {
-  onOpenLeadDrawer: (leadId: string) => void
   onRefreshCount?: () => void
 }) {
   const [loading, setLoading] = useState(true)
@@ -92,8 +129,14 @@ export function TodayTab({
   const [overdue, setOverdue] = useState<TouchRow[]>([])
   const [dueToday, setDueToday] = useState<TouchRow[]>([])
   const [pendingConfirmation, setPendingConfirmation] = useState<ScheduledTouch[]>([])
+  const [followUps, setFollowUps] = useState<FollowUpLead[]>([])
   const [activeTouch, setActiveTouch] = useState<TouchRow | null>(null)
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
+  const [previewTouch, setPreviewTouch] = useState<ScheduledTouch | null>(null)
+  const [previewSubjectEdit, setPreviewSubjectEdit] = useState('')
+  const [previewBodyEdit, setPreviewBodyEdit] = useState('')
+  const [previewSaving, setPreviewSaving] = useState(false)
+  const [previewSaved, setPreviewSaved] = useState(false)
   const [motionStats, setMotionStats] = useState<MotionStats>({ emailsToday: 0, liTodayCount: 0, repliesWeek: 0, callsWeek: 0 })
   const [toast, setToast] = useState<string | null>(null)
   const today = todayStr()
@@ -111,7 +154,7 @@ export function TodayTab({
       weekStart.setDate(weekStart.getDate() - weekStart.getDay() + (weekStart.getDay() === 0 ? -6 : 1))
       const weekStartStr = weekStart.toISOString().slice(0, 10)
 
-      const [queueRes, emailTodayRes, liTodayRes, repliesRes, callsRes, pendingRes] = await Promise.all([
+      const [queueRes, emailTodayRes, liTodayRes, repliesRes, callsRes, pendingRes, followUpRes] = await Promise.all([
         supabase
           .from('outreach_touches')
           .select(`
@@ -158,12 +201,22 @@ export function TodayTab({
           .gte('updated_at', `${weekStartStr}T00:00:00Z`),
         supabase
           .from('outreach_touches')
-          .select('id, recipient_timezone, scheduled_for, lead:leads!lead_id (id, first_name, last_name, company)')
+          .select(`
+            id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot,
+            lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
+            step:sequence_steps!step_id (subject_template, body_template)
+          `)
           .eq('status', 'scheduled')
           .eq('channel', 'email')
           .gt('scheduled_for', `${today}T23:59:59Z`)
           .order('scheduled_for', { ascending: true })
           .limit(20),
+        supabase
+          .from('leads')
+          .select('id, first_name, last_name, company, draft_message')
+          .eq('follow_up_date', today)
+          .neq('status', 'not_interested')
+          .order('first_name', { ascending: true }),
       ])
 
       if (queueRes.error) throw queueRes.error
@@ -177,6 +230,7 @@ export function TodayTab({
         callsWeek: callsRes.count ?? 0,
       })
       setPendingConfirmation((pendingRes.data ?? []) as ScheduledTouch[])
+      setFollowUps((followUpRes.data ?? []) as FollowUpLead[])
     } catch {
       setError('Could not load the queue. Refresh to try again.')
     } finally {
@@ -208,7 +262,57 @@ export function TodayTab({
     showToast('Email sent successfully.')
   })
 
+  async function handleMarkFollowUpDone(leadId: string) {
+    await supabase.from('leads').update({ follow_up_date: null }).eq('id', leadId)
+    setFollowUps((prev) => prev.filter((l) => l.id !== leadId))
+    showToast('Follow-up cleared')
+  }
+
   const isEmpty = overdue.length === 0 && dueToday.length === 0
+
+  function previewInitialSubject(touch: ScheduledTouch): string {
+    return touch.lead ? resolveTemplate(touch.step?.subject_template ?? touch.subject_snapshot ?? '', touch.lead) : ''
+  }
+  function previewInitialBody(touch: ScheduledTouch): string {
+    return touch.lead ? resolveTemplate(touch.step?.body_template ?? touch.body_snapshot ?? '', touch.lead) : ''
+  }
+
+  function openPreview(touch: ScheduledTouch) {
+    setPreviewTouch(touch)
+    setPreviewSubjectEdit(previewInitialSubject(touch))
+    setPreviewBodyEdit(previewInitialBody(touch))
+    setPreviewSaved(false)
+  }
+
+  const previewDirty = !!previewTouch && (
+    previewSubjectEdit !== previewInitialSubject(previewTouch) ||
+    previewBodyEdit !== previewInitialBody(previewTouch)
+  )
+
+  function handlePreviewCloseRequest() {
+    if (previewDirty && !window.confirm('You have unsaved changes. Close anyway?')) return
+    setPreviewTouch(null)
+  }
+
+  async function handleSavePreview() {
+    if (!previewTouch) return
+    setPreviewSaving(true)
+    await supabase
+      .from('outreach_touches')
+      .update({ subject_snapshot: previewSubjectEdit, body_snapshot: previewBodyEdit, step_id: null })
+      .eq('id', previewTouch.id)
+    const updatedTouch: ScheduledTouch = {
+      ...previewTouch,
+      subject_snapshot: previewSubjectEdit,
+      body_snapshot: previewBodyEdit,
+      step: null,
+    }
+    setPreviewTouch(updatedTouch)
+    setPendingConfirmation((prev) => prev.map((t) => (t.id === updatedTouch.id ? updatedTouch : t)))
+    setPreviewSaving(false)
+    setPreviewSaved(true)
+    setTimeout(() => setPreviewSaved(false), 2000)
+  }
 
   return (
     <>
@@ -227,10 +331,109 @@ export function TodayTab({
           onClose={() => setActiveLeadId(null)}
         />
       )}
+      {previewTouch && (
+        <Modal title="Email preview" onClose={handlePreviewCloseRequest} maxWidth={600} closeOnBackdrop={false}>
+          <div style={styles.previewBody}>
+            <div style={styles.previewField}>
+              <span style={styles.previewLabel}>To</span>
+              <span style={styles.previewValue}>
+                {previewTouch.lead
+                  ? `${previewTouch.lead.first_name} ${previewTouch.lead.last_name ?? ''} <${previewTouch.lead.email ?? 'no email on file'}>`
+                  : 'Unknown lead'}
+              </span>
+            </div>
+            <div style={styles.previewField}>
+              <span style={styles.previewLabel}>Subject</span>
+              <input
+                type="text"
+                style={styles.previewInput}
+                value={previewSubjectEdit}
+                onChange={(e) => setPreviewSubjectEdit(e.target.value)}
+              />
+            </div>
+            <div style={styles.previewField}>
+              <span style={styles.previewLabel}>Body</span>
+              <textarea
+                style={styles.previewTextarea}
+                value={previewBodyEdit}
+                onChange={(e) => setPreviewBodyEdit(e.target.value)}
+              />
+            </div>
+            <div style={styles.previewActions}>
+              {previewDirty && (
+                <button
+                  type="button"
+                  style={{ ...styles.previewSaveBtn, opacity: previewSaving ? 0.6 : 1 }}
+                  onClick={handleSavePreview}
+                  disabled={previewSaving}
+                >
+                  {previewSaving ? 'Saving...' : 'Save changes'}
+                </button>
+              )}
+              <button type="button" style={styles.previewCloseBtn} onClick={handlePreviewCloseRequest}>
+                Close
+              </button>
+            </div>
+            {previewSaved && <span style={styles.previewSavedNote}>Changes saved</span>}
+          </div>
+        </Modal>
+      )}
 
       {error && <div style={styles.errorBanner}>{error}</div>}
 
       {!loading && <MotionTracker stats={motionStats} />}
+
+      {!loading && followUps.length > 0 && (
+        <div style={styles.pendingSection}>
+          <div style={styles.pendingSectionHeader}>
+            <span style={styles.sectionTitle}>Follow-ups today</span>
+            <span style={{ ...styles.sectionCount, color: tokens.primary, fontFamily: mono }}>
+              {followUps.length}
+            </span>
+          </div>
+          <div style={styles.touchList}>
+            {followUps.map((lead) => (
+              <div key={lead.id} style={styles.touchCard}>
+                <div style={styles.touchMain}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}
+                    onClick={() => setActiveLeadId(lead.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') setActiveLeadId(lead.id) }}
+                    aria-label={`Open ${lead.first_name} ${lead.last_name ?? ''} detail`}
+                  >
+                    <div style={styles.avatar}>
+                      {((lead.first_name[0] ?? '') + (lead.last_name?.[0] ?? '')).toUpperCase()}
+                    </div>
+                    <div style={styles.touchInfo}>
+                      <span style={styles.touchName}>
+                        {lead.first_name} {lead.last_name ?? ''} · {lead.company}
+                      </span>
+                      {lead.draft_message && (
+                        <span style={styles.draftPreview}>
+                          {lead.draft_message.length > 100
+                            ? lead.draft_message.slice(0, 100) + '…'
+                            : lead.draft_message}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      style={styles.previewBtn}
+                      onClick={() => handleMarkFollowUpDone(lead.id)}
+                    >
+                      Mark done
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div style={styles.loadingText}>Loading queue...</div>
@@ -279,37 +482,55 @@ export function TodayTab({
               return (
                 <div key={touch.id} style={styles.touchCard}>
                   <div style={styles.touchMain}>
-                    <div style={styles.avatar}>
-                      {lead ? ((lead.first_name[0] ?? '') + (lead.last_name?.[0] ?? '')).toUpperCase() : '?'}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: lead ? 'pointer' : 'default' }}
+                      onClick={() => lead && setActiveLeadId(lead.id)}
+                      onKeyDown={(e) => { if (lead && e.key === 'Enter') setActiveLeadId(lead.id) }}
+                      aria-label={lead ? `Open ${lead.first_name} ${lead.last_name ?? ''} detail` : undefined}
+                    >
+                      <div style={styles.avatar}>
+                        {lead ? ((lead.first_name[0] ?? '') + (lead.last_name?.[0] ?? '')).toUpperCase() : '?'}
+                      </div>
+                      <div style={styles.touchInfo}>
+                        <span style={styles.touchName}>
+                          {lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
+                        </span>
+                        <span style={styles.touchMeta}>
+                          Scheduled for {new Intl.DateTimeFormat('en-GB', {
+                            timeZone: touch.recipient_timezone ?? 'UTC',
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                          }).format(new Date(touch.scheduled_for))}
+                        </span>
+                      </div>
                     </div>
-                    <div style={styles.touchInfo}>
-                      <span style={styles.touchName}>
-                        {lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
-                      </span>
-                      <span style={styles.touchMeta}>
-                        Scheduled for {new Intl.DateTimeFormat('en-GB', {
-                          timeZone: touch.recipient_timezone ?? 'UTC',
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'short',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true,
-                        }).format(new Date(touch.scheduled_for))}
-                      </span>
-                    </div>
-                    <div onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(e) => e.stopPropagation()}>
                       {isConf ? (
                         <Loader2 size={16} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
                       ) : (
-                        <button
-                          type="button"
-                          style={styles.actionBtn}
-                          disabled={!!confirmingId}
-                          onClick={() => confirm(touch.id)}
-                        >
-                          Confirm and Send
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            style={styles.previewBtn}
+                            onClick={() => openPreview(touch)}
+                          >
+                            Preview
+                          </button>
+                          <button
+                            type="button"
+                            style={styles.actionBtn}
+                            disabled={!!confirmingId}
+                            onClick={() => confirm(touch.id)}
+                          >
+                            Confirm and Send
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -751,6 +972,14 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     color: t.text.muted,
   },
+  draftPreview: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.muted,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   overdueLabel: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -775,6 +1004,102 @@ const styles: Record<string, CSSProperties> = {
     padding: '8px 14px',
     cursor: 'pointer',
     transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  previewBtn: {
+    background: 'none',
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  previewBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  },
+  previewField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  previewLabel: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 600,
+    color: t.text.tertiary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  },
+  previewValue: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: t.text.primary,
+  },
+  previewInput: {
+    width: '100%',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: t.text.primary,
+    background: t.background.subtle,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 4,
+    padding: 8,
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+  },
+  previewTextarea: {
+    width: '100%',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: t.text.primary,
+    background: t.background.subtle,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 4,
+    padding: 8,
+    outline: 'none',
+    minHeight: 200,
+    resize: 'vertical' as const,
+    boxSizing: 'border-box' as const,
+  },
+  previewActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  previewSaveBtn: {
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+  },
+  previewCloseBtn: {
+    background: tokens.surface,
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+  },
+  previewSavedNote: {
+    alignSelf: 'flex-end' as const,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 500,
+    color: tokens.green,
   },
   overflowBtn: {
     background: tokens.surface,

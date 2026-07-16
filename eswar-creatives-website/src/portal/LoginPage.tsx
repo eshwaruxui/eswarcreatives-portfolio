@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { useNavigate } from 'react-router'
+import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { tokens, fonts } from './theme'
+import { tokens, t, fonts } from './theme'
 import { PortalNav } from './PortalNav'
 
 type Mode = 'password' | 'magic'
@@ -12,6 +13,7 @@ export function LoginPage() {
   const [mode, setMode] = useState<Mode>('password')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -133,14 +135,24 @@ export function LoginPage() {
           {mode === 'password' && (
             <label style={styles.label}>
               Password
-              <input
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={styles.input}
-              />
+              <div style={styles.passwordWrap}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ ...styles.input, width: '100%', paddingRight: 44, boxSizing: 'border-box' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  style={styles.eyeBtn}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </label>
           )}
 
@@ -240,6 +252,22 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontFamily: fonts.body,
     outline: 'none',
+  },
+  passwordWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
+  eyeBtn: {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 44,
+    height: 44,
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    color: t.text.muted,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   submit: {
     background: tokens.primary,

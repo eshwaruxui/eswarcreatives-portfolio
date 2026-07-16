@@ -1,5 +1,5 @@
 // Leads tab: search, filter chips, sortable table (desktop), card stack (mobile).
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Upload, UserPlus, Linkedin, Search, ChevronUp, ChevronDown, ArrowUpDown, Check } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useSearchParams } from 'react-router'
@@ -9,7 +9,7 @@ import { mono, formatDate } from '../ui'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { AddLeadModal } from './AddLeadModal'
 import { CsvImportModal } from './CsvImportModal'
-import { LeadDrawer } from './LeadDrawer'
+import { LeadDrawer } from '../../components/LeadDrawer'
 
 type LeadRow = {
   id: string
@@ -171,13 +171,7 @@ function applySorting(leads: LeadRow[], sortKey: SortKey, sortDir: SortDir): Lea
   })
 }
 
-export function LeadsTab({
-  initialOpenLeadId,
-  onDrawerClosed,
-}: {
-  initialOpenLeadId: string | null
-  onDrawerClosed: () => void
-}) {
+export function LeadsTab() {
   const { isMobile } = useBreakpoint()
   const [leads, setLeads] = useState<LeadRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -193,17 +187,9 @@ export function LeadsTab({
   const [showAdd, setShowAdd] = useState(false)
   const [showCsv, setShowCsv] = useState(false)
   const [showSortSheet, setShowSortSheet] = useState(false)
-  const [openLeadId, setOpenLeadId] = useState<string | null>(initialOpenLeadId)
+  const [openLeadId, setOpenLeadId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const initialHandled = useRef(false)
   const [searchParams, setSearchParams] = useSearchParams()
-
-  useEffect(() => {
-    if (initialOpenLeadId && !initialHandled.current) {
-      setOpenLeadId(initialOpenLeadId)
-      initialHandled.current = true
-    }
-  }, [initialOpenLeadId])
 
   // ?addLead=1 URL param opens the modal
   useEffect(() => {
@@ -290,7 +276,6 @@ export function LeadsTab({
 
   function handleDrawerClose() {
     setOpenLeadId(null)
-    onDrawerClosed()
     load()
   }
 
@@ -350,7 +335,6 @@ export function LeadsTab({
           onDeleted={() => {
             setLeads((prev) => prev.filter((l) => l.id !== openLeadId))
             setOpenLeadId(null)
-            onDrawerClosed()
             setToast('Lead deleted')
             setTimeout(() => setToast(null), 2500)
           }}
