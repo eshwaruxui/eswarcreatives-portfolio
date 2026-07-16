@@ -143,7 +143,27 @@ _Stage-attachments bucket + notes schema-cache fix (PR #12 — `fix/stage-attach
 - Migration 0077: creates `stage-attachments` bucket (private, 10MB limit, matches AttachmentSection's accepted file types) + admin-all and client-read-own RLS policies on `storage.objects`; adds `project_client_notes.author_name` defensively (`ADD COLUMN IF NOT EXISTS`); forces a schema-cache reload via `COMMENT ON COLUMN` + `NOTIFY pgrst, 'reload schema'`
 - Both fixes confirmed live post-merge: upload now returns the same MIME-validation signature as working buckets; notes insert now reaches the same downstream permission check as any other working table (no more `PGRST204`)
 
-**Next migration number: 0078**
+_Outreach preview polish + follow-up system (`feature/outreach-preview-polish` — merged today 17 Jul 2026):_
+- `LeadDrawer.tsx` moved from `admin/outreach/` to `src/portal/components/LeadDrawer.tsx` — single shared component, wired into TodayTab, ActivityTab, LeadsTab
+- TodayTab: "Pending Confirmation" lead name/avatar now opens LeadDrawer (was not clickable before)
+- ActivityTab: mobile and desktop both open LeadDrawer locally (was inconsistent — mobile navigated away)
+- Dead cross-tab navigation props removed from OutreachAdmin, TodayTab, ActivityTab, LeadsTab (`onOpenLeadDrawer`, `initialOpenLeadId`, `onDrawerClosed`)
+- Email preview modal: "Preview" ghost button added to every Pending Confirmation row
+- Preview modal fetches touch content by joining `sequence_steps` (subject + body); resolves template variables (first_name, company, specific_observation, unsubscribe_token) client-side via `resolveTemplate()` helper mirroring `confirm-scheduled-touch` edge function logic
+- Preview modal: Subject editable input, Body editable textarea; "Save changes" button appears only when dirty; on save writes `subject_snapshot`, `body_snapshot`, `step_id: null` to outreach_touches row
+- Preview modal: scrim click disabled (`closeOnBackdrop` false); close only via X button or Close button; unsaved changes guard via native `confirm()` on close
+- Preview modal: "Previous emails" collapsible section showing all sent touches for the same lead, read-only, ordered by sent_at desc; joined via `sequence_steps`
+- "Changes saved" confirmation moved to `showToast` system ("Email content saved", 2s) — inline footer text removed
+- Follow-up date (`follow_up_date` date, nullable) added to leads table via migration 0078
+- Draft message (`draft_message` text, nullable) added to leads table via migration 0078
+- LeadDrawer: "Follow-up" section below Notes — date input with explicit Save button (appears only when dirty); on save shows toast "We'll remind you on [Day], [DD] [Mon] [YYYY]"
+- LeadDrawer: "Draft message" textarea, auto-saves on blur
+- TodayTab: "Follow-ups today" section above Due Today — queries leads where follow_up_date = today and status != 'not_interested'; each row shows lead + draft preview (first 100 chars); "Mark done" clears follow_up_date and shows "Follow-up cleared" toast
+- Login page (`LoginPage.tsx`): password show/hide toggle added — Eye/EyeOff from lucide-react, absolute right 12px, 44x44px tap target, aria-label toggling, type="button"
+- `AddClientModal.tsx`: password toggle brought to same 44x44px spec (was already present but undersized)
+- Modal component (`ui.tsx`): `closeOnBackdrop` prop confirmed already existed — no change needed
+
+**Next migration number: 0080**
 
 ---
 
@@ -201,6 +221,10 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 **Outreach scheduling tables (migration 0076):**
 - `outreach_touches` — 3 new columns: `recipient_timezone text`, `draft_confirmed_at timestamptz`, `draft_confirmed_by uuid → auth.users`; status constraint extended: `('pending','sent','failed','skipped','scheduled','cancelled')`
 - `linkedin_posts`: id, content, scheduled_for (timestamptz at 09:00+05:30 for Mon/Wed/Fri), status (`pending`/`published`/`failed`), published_at, reminder_sent_at, created_at, updated_at. RLS: admin-only via `is_admin()`.
+
+**Migration 0078 — leads table additions:**
+- `follow_up_date` date (nullable): powers Follow-ups today section in TodayTab and date input in LeadDrawer
+- `draft_message` text (nullable): staged message shown as preview in Follow-ups today, edited in LeadDrawer
 
 **Key proposal columns:**
 - `proposal_phases`: solution_title, timeline, key_note
@@ -418,6 +442,8 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 **Frontend tabs:** Today (daily motion tracker), Leads (search + filter chips + sortable table + drawer), Sequences (step rail + inline editor), Activity (last 200 touches; includes scheduled status), LinkedIn (Mon/Wed/Fri week planner, post history, reminder trigger)
 
+**LeadDrawer (`src/portal/components/LeadDrawer.tsx`):** shared drawer used by TodayTab, ActivityTab, LeadsTab. Shows: name, company, title, email (mailto), LinkedIn URL, status pill, specific observation, enrolled sequence + current step, last touch date (IST SF Mono), Notes (auto-save on blur), Follow-up date (explicit save + toast), Draft message (auto-save on blur).
+
 **Leads tab search + filter:**
 - Debounced (300ms) full-text search across: name, company, title, email, phone, source, notes
 - Filter chips: status (New/Contacted/…), enrollment (Enrolled/Not Enrolled), source (values from data)
@@ -452,6 +478,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 | Item | Priority |
 |---|---|
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
+| Smart Shortlist tab (migration 0079, process-shortlist-run edge function, SmartShortlistTab.tsx) | High |
 | pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) — standing gap across Proposals, Invoices admin, and all portal error states | Medium |
