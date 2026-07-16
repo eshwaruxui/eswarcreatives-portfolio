@@ -7,7 +7,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, formatDate } from '../ui'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
-import { LeadDrawer } from './LeadDrawer'
+import { LeadDrawer } from '../../components/LeadDrawer'
 
 type ActivityRow = {
   id: string
@@ -85,7 +85,7 @@ function useConfirmScheduledTouch(onSuccess: (id: string) => void) {
   return { confirming, errors, confirm }
 }
 
-export function ActivityTab({ onOpenLeadDrawer }: { onOpenLeadDrawer: (id: string) => void }) {
+export function ActivityTab() {
   const { isMobile } = useBreakpoint()
   const [rows, setRows] = useState<ActivityRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -174,7 +174,7 @@ export function ActivityTab({ onOpenLeadDrawer }: { onOpenLeadDrawer: (id: strin
             const rowError = errors[row.id]
             return (
               <div key={row.id} style={styles.mobileCard}>
-                <div className="ec-tap-card" style={styles.mobileCardTop} onClick={() => row.lead && onOpenLeadDrawer(row.lead.id)}>
+                <div className="ec-tap-card" style={styles.mobileCardTop} onClick={() => row.lead && setOpenLeadId(row.lead.id)}>
                   <div style={styles.leadCell}>
                     <strong style={styles.leadName}>
                       {row.lead ? `${row.lead.first_name} ${row.lead.last_name ?? ''}` : 'Unknown'}

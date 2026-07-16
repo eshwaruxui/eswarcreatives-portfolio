@@ -29,7 +29,6 @@ export function OutreachAdmin() {
   const [params, setParams] = useSearchParams()
   const activeTab = (params.get('tab') as Tab | null) ?? 'today'
   const [dueCount, setDueCount] = useState(0)
-  const [openLeadId, setOpenLeadId] = useState<string | null>(null)
 
   function setTab(tab: Tab) {
     setParams({ tab })
@@ -81,23 +80,10 @@ export function OutreachAdmin() {
 
       <style>{`@keyframes ecTabFadeIn{from{opacity:0}to{opacity:1}}`}</style>
       <div key={activeTab} style={{ ...styles.tabContent, animation: `ecTabFadeIn ${motionTokens.durationFast} ${motionTokens.easeDefault}` }}>
-        {activeTab === 'today' && (
-          <TodayTab
-            onOpenLeadDrawer={(id) => {
-              setOpenLeadId(id)
-              setTab('leads')
-            }}
-            onRefreshCount={loadDueCount}
-          />
-        )}
-        {activeTab === 'leads' && (
-          <LeadsTab
-            initialOpenLeadId={openLeadId}
-            onDrawerClosed={() => setOpenLeadId(null)}
-          />
-        )}
+        {activeTab === 'today' && <TodayTab onRefreshCount={loadDueCount} />}
+        {activeTab === 'leads' && <LeadsTab />}
         {activeTab === 'sequences' && <SequencesTab />}
-        {activeTab === 'activity' && <ActivityTab onOpenLeadDrawer={(id) => { setOpenLeadId(id); setTab('leads') }} />}
+        {activeTab === 'activity' && <ActivityTab />}
         {activeTab === 'linkedin' && <LinkedInTab />}
       </div>
     </>

@@ -7,19 +7,22 @@ import { Mail, Linkedin, Clock, AlertTriangle, Loader2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
-import { mono } from '../ui'
+import { mono, Modal } from '../ui'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
-import { LeadDrawer } from './LeadDrawer'
+import { LeadDrawer } from '../../components/LeadDrawer'
 
 type ScheduledTouch = {
   id: string
   recipient_timezone: string | null
   scheduled_for: string
+  subject_snapshot: string | null
+  body_snapshot: string | null
   lead: {
     id: string
     first_name: string
     last_name: string | null
     company: string
+    email: string | null
   } | null
 }
 
@@ -81,10 +84,8 @@ type MotionStats = {
 }
 
 export function TodayTab({
-  onOpenLeadDrawer,
   onRefreshCount,
 }: {
-  onOpenLeadDrawer: (leadId: string) => void
   onRefreshCount?: () => void
 }) {
   const [loading, setLoading] = useState(true)
@@ -94,6 +95,7 @@ export function TodayTab({
   const [pendingConfirmation, setPendingConfirmation] = useState<ScheduledTouch[]>([])
   const [activeTouch, setActiveTouch] = useState<TouchRow | null>(null)
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
+  const [previewTouch, setPreviewTouch] = useState<ScheduledTouch | null>(null)
   const [motionStats, setMotionStats] = useState<MotionStats>({ emailsToday: 0, liTodayCount: 0, repliesWeek: 0, callsWeek: 0 })
   const [toast, setToast] = useState<string | null>(null)
   const today = todayStr()
@@ -158,7 +160,7 @@ export function TodayTab({
           .gte('updated_at', `${weekStartStr}T00:00:00Z`),
         supabase
           .from('outreach_touches')
-          .select('id, recipient_timezone, scheduled_for, lead:leads!lead_id (id, first_name, last_name, company)')
+          .select('id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot, lead:leads!lead_id (id, first_name, last_name, company, email)')
           .eq('status', 'scheduled')
           .eq('channel', 'email')
           .gt('scheduled_for', `${today}T23:59:59Z`)
@@ -227,6 +229,33 @@ export function TodayTab({
           onClose={() => setActiveLeadId(null)}
         />
       )}
+      {previewTouch && (
+        <Modal title="Email preview" onClose={() => setPreviewTouch(null)} maxWidth={600}>
+          <div style={styles.previewBody}>
+            <div style={styles.previewField}>
+              <span style={styles.previewLabel}>To</span>
+              <span style={styles.previewValue}>
+                {previewTouch.lead
+                  ? `${previewTouch.lead.first_name} ${previewTouch.lead.last_name ?? ''} <${previewTouch.lead.email ?? 'no email on file'}>`
+                  : 'Unknown lead'}
+              </span>
+            </div>
+            <div style={styles.previewField}>
+              <span style={styles.previewLabel}>Subject</span>
+              <span style={styles.previewValue}>{previewTouch.subject_snapshot || '(no subject)'}</span>
+            </div>
+            <div style={styles.previewField}>
+              <span style={styles.previewLabel}>Body</span>
+              <div style={styles.previewBodyScroll}>
+                {previewTouch.body_snapshot || '(no content)'}
+              </div>
+            </div>
+            <button type="button" style={styles.previewCloseBtn} onClick={() => setPreviewTouch(null)}>
+              Close
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {error && <div style={styles.errorBanner}>{error}</div>}
 
@@ -279,37 +308,55 @@ export function TodayTab({
               return (
                 <div key={touch.id} style={styles.touchCard}>
                   <div style={styles.touchMain}>
-                    <div style={styles.avatar}>
-                      {lead ? ((lead.first_name[0] ?? '') + (lead.last_name?.[0] ?? '')).toUpperCase() : '?'}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: lead ? 'pointer' : 'default' }}
+                      onClick={() => lead && setActiveLeadId(lead.id)}
+                      onKeyDown={(e) => { if (lead && e.key === 'Enter') setActiveLeadId(lead.id) }}
+                      aria-label={lead ? `Open ${lead.first_name} ${lead.last_name ?? ''} detail` : undefined}
+                    >
+                      <div style={styles.avatar}>
+                        {lead ? ((lead.first_name[0] ?? '') + (lead.last_name?.[0] ?? '')).toUpperCase() : '?'}
+                      </div>
+                      <div style={styles.touchInfo}>
+                        <span style={styles.touchName}>
+                          {lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
+                        </span>
+                        <span style={styles.touchMeta}>
+                          Scheduled for {new Intl.DateTimeFormat('en-GB', {
+                            timeZone: touch.recipient_timezone ?? 'UTC',
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                          }).format(new Date(touch.scheduled_for))}
+                        </span>
+                      </div>
                     </div>
-                    <div style={styles.touchInfo}>
-                      <span style={styles.touchName}>
-                        {lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
-                      </span>
-                      <span style={styles.touchMeta}>
-                        Scheduled for {new Intl.DateTimeFormat('en-GB', {
-                          timeZone: touch.recipient_timezone ?? 'UTC',
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'short',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true,
-                        }).format(new Date(touch.scheduled_for))}
-                      </span>
-                    </div>
-                    <div onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(e) => e.stopPropagation()}>
                       {isConf ? (
                         <Loader2 size={16} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
                       ) : (
-                        <button
-                          type="button"
-                          style={styles.actionBtn}
-                          disabled={!!confirmingId}
-                          onClick={() => confirm(touch.id)}
-                        >
-                          Confirm and Send
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            style={styles.previewBtn}
+                            onClick={() => setPreviewTouch(touch)}
+                          >
+                            Preview
+                          </button>
+                          <button
+                            type="button"
+                            style={styles.actionBtn}
+                            disabled={!!confirmingId}
+                            onClick={() => confirm(touch.id)}
+                          >
+                            Confirm and Send
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -775,6 +822,66 @@ const styles: Record<string, CSSProperties> = {
     padding: '8px 14px',
     cursor: 'pointer',
     transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  previewBtn: {
+    background: 'none',
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  previewBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  },
+  previewField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  previewLabel: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: 600,
+    color: t.text.tertiary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  },
+  previewValue: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: t.text.primary,
+  },
+  previewBodyScroll: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: t.text.primary,
+    whiteSpace: 'pre-wrap' as const,
+    maxHeight: 360,
+    overflowY: 'auto' as const,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    padding: '12px 14px',
+    background: t.background.subtle,
+  },
+  previewCloseBtn: {
+    alignSelf: 'flex-end' as const,
+    background: tokens.surface,
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
   },
   overflowBtn: {
     background: tokens.surface,
