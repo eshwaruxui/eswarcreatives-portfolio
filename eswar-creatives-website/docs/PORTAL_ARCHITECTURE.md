@@ -343,6 +343,7 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 | extract-lead-from-image | v2 | true | Calls claude-sonnet-4-6; extracts 13 fields: name, company, title, email, phone_business, phone_personal, website, location, source, linkedin_url, instagram_url, twitter_handle, notes; max_tokens 800; client infers website from business email domain |
 | confirm-scheduled-touch | v1 | true | Admin verifies touch status='scheduled', sends immediately via Resend, sets draft_confirmed_at/by, updates status to 'sent'/'failed' |
 | send-linkedin-reminder | v1 | false | Calls get_upcoming_linkedin_week() RPC; counts pending posts for Mon/Wed/Fri; sends reminder to eswar@eswarcreatives.in via Resend if any slot unfilled; triggered by pg_cron Sunday 12:30 UTC |
+| process-shortlist-run | v1 | true | Admin JWT + explicit profiles.role check; downloads run screenshots from stage-attachments as base64; calls claude-sonnet-4-6 (max_tokens 4000) with ICP/goal text + existing-leads fuzzy-dedup list; parses candidate JSON array; filters excluded + not_interested matches; inserts shortlist_candidates; sets shortlist_runs.status to complete/failed |
 
 **Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `ANTHROPIC_API_KEY`
 **Secrets pending:** `RESEND_WEBHOOK_SECRET` (required before resend-outreach-webhook goes live)
@@ -498,7 +499,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - `CandidateCard` (`src/portal/components/shortlist/CandidateCard.tsx`, reused in both columns): score bar, reasons, low-confidence border/badge, inline (non-modal) "Add to leads" expansion — email input + mandatory `specific_observation` (100-200 chars, "Confirm and add" disabled outside that range) — and "Ignore" (200ms fade, sets `decision: 'ignored'`)
 - Section D: history table (desktop) / card list (mobile) of runs with aggregated screenshot/candidate/added counts; View reopens Section C for that run; Archive/Delete per row; archived hidden by default behind "Show archived (N)"
 
-**Pending before this ships:** apply migration 0079, deploy `process-shortlist-run`, create the `icp-attachments` bucket is already handled by the migration (no manual dashboard step needed), Cloudflare preview + incognito test.
+**Status:** migration 0079 applied and `process-shortlist-run` deployed (v1, verify_jwt true) directly against the live project on 17 Jul 2026. **Pending before this ships:** Cloudflare preview + incognito test.
 
 ---
 
@@ -507,7 +508,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 | Item | Priority |
 |---|---|
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
-| Smart Shortlist tab — code complete (migration 0079, process-shortlist-run edge function, SmartShortlistTab.tsx), pending: apply migration 0079 in SQL Editor, deploy process-shortlist-run edge function, set ANTHROPIC_API_KEY (already set for extract-lead-from-image, reused here), Cloudflare preview + incognito test | High |
+| Smart Shortlist tab — migration 0079 applied, process-shortlist-run deployed (v1, verify_jwt true), ANTHROPIC_API_KEY already set (shared with extract-lead-from-image); pending: Cloudflare preview + incognito test | High |
 | pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) — standing gap across Proposals, Invoices admin, and all portal error states | Medium |
