@@ -91,6 +91,22 @@ const HERO_STATS = [
   { value: "180+", label: "Semantic tokens", sub: "across platforms" },
 ];
 
+const TRIAGE_CARDS: { label: string; desc: string; illustration?: string }[] = [
+  {
+    label: "Cross-platform consistency",
+    desc:  "Eliminated relearning cost when analysts switched between web, iOS, and Android",
+  },
+  {
+    label: "Predictable button placement",
+    desc:  "Reduced clicks-to-action by anchoring primary actions to consistent positions",
+  },
+  {
+    label: "Grouped alert banner",
+    desc:  "Collapsed 12 individual alerts into 1 incident view, enabling triage at a glance",
+    illustration: alertInboxIllustration,
+  },
+];
+
 export function DesignSystemsLandingPage() {
   const isMobile = useIsMobile();
   const reducedMotion = !!useReducedMotion();
@@ -240,6 +256,89 @@ export function DesignSystemsLandingPage() {
                 />
               </motion.div>
             )}
+          </div>
+        </section>
+
+        {/* ── SECTION 2 — CYGNVS CASE STUDY ───────────────────────── */}
+        <section style={{ background: C.cream, padding: "80px 0", borderTop: `1px solid ${C.border}` }}>
+          <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
+            <motion.div {...reveal(reducedMotion)} style={{ textAlign: "center", marginBottom: "48px" }}>
+              <div style={{ width: "40px", height: "2px", background: C.gold, margin: "0 auto 16px" }} />
+              <h2 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "32px", color: C.text }}>
+                CYGNVS case study
+              </h2>
+            </motion.div>
+
+            <motion.div {...reveal(reducedMotion, { delay: 0.1 })} style={{ marginBottom: "48px" }}>
+              {isMobile ? (
+                <div
+                  style={{
+                    display:       "flex",
+                    alignItems:    "center",
+                    justifyContent: "center",
+                    flexWrap:      "wrap",
+                    gap:           "8px",
+                    fontSize:      "14px",
+                    color:         C.textMuted,
+                  }}
+                >
+                  {["Hexes", "Primitives", "Semantic", "User Interface"].map((step, i, arr) => (
+                    <span key={step} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      {step}
+                      {i < arr.length - 1 && <span style={{ color: C.gold }}>→</span>}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <img
+                  src={tokenDiagram}
+                  alt="Token architecture flowing from hexes to primitives to semantic tokens to UI"
+                  style={{ display: "block", width: "100%", maxWidth: "960px", margin: "0 auto" }}
+                />
+              )}
+            </motion.div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: "20px", marginBottom: "40px" }}>
+              {TRIAGE_CARDS.map(({ label, desc, illustration }, i) => (
+                <motion.div
+                  key={label}
+                  {...reveal(reducedMotion, { delay: i * 0.08 })}
+                  style={{ background: C.tint1, borderRadius: "8px", padding: "20px" }}
+                >
+                  <p style={{ fontSize: "15px", fontWeight: 600, color: C.text, marginBottom: "8px" }}>{label}</p>
+                  <p style={{ fontSize: "14px", lineHeight: 1.5, color: C.textSec }}>{desc}</p>
+                  {illustration && (
+                    <img
+                      src={illustration}
+                      alt=""
+                      aria-hidden="true"
+                      style={{ display: "block", width: "100%", marginTop: "12px", borderRadius: "4px" }}
+                    />
+                  )}
+                </motion.div>
+              ))}
+            </div>
+
+            <motion.div {...reveal(reducedMotion)} style={{ textAlign: "center", maxWidth: "640px", margin: "0 auto" }}>
+              <p style={{ fontSize: "16px", lineHeight: 1.6, color: C.text, marginBottom: "12px" }}>
+                60+ components, 180+ semantic tokens, shipped across Web, iOS, and Android at CYGNVS. 32% reduction in triage time. +18% analyst satisfaction.
+              </p>
+              <a
+                href="/design-systems/case-study"
+                className="hover:underline"
+                style={{
+                  fontSize:       "14px",
+                  color:          C.teal,
+                  textDecoration: "none",
+                  display:        "inline-flex",
+                  alignItems:     "center",
+                  gap:            "6px",
+                }}
+              >
+                Read the Case Study
+                <ArrowRight style={{ width: "14px", height: "14px" }} />
+              </a>
+            </motion.div>
           </div>
         </section>
       </div>
