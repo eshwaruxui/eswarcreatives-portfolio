@@ -8,6 +8,7 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
+import { showToast } from '../toast'
 
 export type TouchRow = {
   id: string
@@ -507,7 +508,6 @@ export function OutreachSendModal({
       return !!saved
     } catch { return false }
   })
-  const [draftSaveLabel, setDraftSaveLabel] = useState<'Save draft' | 'Saved'>('Save draft')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [emailError, setEmailError] = useState<EmailErrorCode | null>(null)
@@ -587,8 +587,7 @@ export function OutreachSendModal({
     try {
       localStorage.setItem(draftKey, JSON.stringify({ subject, body }))
     } catch { /* ignore */ }
-    setDraftSaveLabel('Saved')
-    setTimeout(() => setDraftSaveLabel('Save draft'), 1500)
+    showToast('Draft saved', 'success')
   }
 
   async function handleSendEmail() {
@@ -788,7 +787,7 @@ export function OutreachSendModal({
                       style={styles.draftBtn}
                       onClick={handleSaveDraft}
                     >
-                      {draftSaveLabel}
+                      Save draft
                     </button>
                     <button
                       type="button"

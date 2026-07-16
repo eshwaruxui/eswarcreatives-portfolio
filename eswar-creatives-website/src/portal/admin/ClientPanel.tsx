@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Check, X, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { tokens, t, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts } from '../theme'
 import { StatusBadge, mono, formatMoney, formatDate } from './ui'
 import { showToast } from './toast'
 import { SidePanel } from './SidePanel'
@@ -383,7 +383,6 @@ function InlineField({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value ?? '')
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [err, setErr] = useState(false)
 
   function startEdit() {
@@ -405,9 +404,8 @@ function InlineField({
       return
     }
     setEditing(false)
-    // H1: confirm the save inline, then fade the confirmation out.
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    // H1: confirm the outcome of the action with a toast.
+    showToast(`${label} saved`, 'success', 2000)
   }
 
   // Display value, falling back to the matching option label for selects.
@@ -424,7 +422,6 @@ function InlineField({
           <span style={{ ...styles.fieldValue, color: display === '—' ? t.text.muted : t.text.primary }}>
             {display}
           </span>
-          {saved && <span style={styles.savedFlash}>Saved</span>}
           {!readOnly && onSave && (
             <button type="button" style={styles.editBtn} onClick={startEdit} aria-label={`Edit ${label}`}>
               <Pencil size={13} />
@@ -510,13 +507,6 @@ const styles: Record<string, CSSProperties> = {
   },
   fieldValueRow: { display: 'flex', alignItems: 'center', gap: 8, minHeight: 24 },
   fieldValue: { fontFamily: fonts.body, fontSize: 14 },
-  savedFlash: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: 600,
-    color: tokens.green,
-    transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
-  },
   editBtn: {
     background: 'transparent',
     border: 'none',

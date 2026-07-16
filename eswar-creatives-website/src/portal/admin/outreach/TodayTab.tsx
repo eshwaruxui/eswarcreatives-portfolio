@@ -1,15 +1,16 @@
 // Today queue tab for the Outreach admin module.
 // Shows Overdue (scheduled_for < today) then Due Today sections.
 // Handles all edge cases: no email, linkedin awaiting connection, suppressed.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { Mail, Linkedin, Clock, AlertTriangle, Loader2 } from 'lucide-react'
+import { Mail, Linkedin, Clock, AlertTriangle, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, Modal } from '../ui'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
+import { showToast as showGlobalToast } from '../toast'
 
 type ScheduledTouch = {
   id: string
@@ -52,6 +53,26 @@ function resolveTemplate(template: string, lead: NonNullable<ScheduledTouch['lea
     out = out.replaceAll(`${lead.company}'s`, `${lead.company}'`)
   }
   return out
+}
+
+type ThreadTouch = {
+  id: string
+  sent_at: string
+  subject: string
+  body: string
+}
+
+function formatThreadDate(iso: string): string {
+  const formatted = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(iso))
+  return `${formatted} IST`
 }
 
 function useConfirmScheduledTouch(onSuccess: (id: string) => void) {
@@ -136,7 +157,8 @@ export function TodayTab({
   const [previewSubjectEdit, setPreviewSubjectEdit] = useState('')
   const [previewBodyEdit, setPreviewBodyEdit] = useState('')
   const [previewSaving, setPreviewSaving] = useState(false)
-  const [previewSaved, setPreviewSaved] = useState(false)
+  const [threadTouches, setThreadTouches] = useState<ThreadTouch[]>([])
+  const [threadOpen, setThreadOpen] = useState(false)
   const [motionStats, setMotionStats] = useState<MotionStats>({ emailsToday: 0, liTodayCount: 0, repliesWeek: 0, callsWeek: 0 })
   const [toast, setToast] = useState<string | null>(null)
   const today = todayStr()
@@ -281,7 +303,39 @@ export function TodayTab({
     setPreviewTouch(touch)
     setPreviewSubjectEdit(previewInitialSubject(touch))
     setPreviewBodyEdit(previewInitialBody(touch))
-    setPreviewSaved(false)
+    setThreadOpen(false)
+    setThreadTouches([])
+    if (touch.lead) loadThread(touch.lead.id, touch.lead)
+  }
+
+  async function loadThread(leadId: string, lead: NonNullable<ScheduledTouch['lead']>) {
+    const { data } = await supabase
+      .from('outreach_touches')
+      .select(`
+        id, sent_at, subject_snapshot, body_snapshot,
+        step:sequence_steps!step_id (subject_template, body_template)
+      `)
+      .eq('lead_id', leadId)
+      .eq('status', 'sent')
+      .order('sent_at', { ascending: false })
+    type ThreadRow = {
+      id: string
+      sent_at: string | null
+      subject_snapshot: string | null
+      body_snapshot: string | null
+      step: { subject_template: string | null; body_template: string | null } | null
+    }
+    const rows = (data ?? []) as ThreadRow[]
+    setThreadTouches(rows.map((r) => ({
+      id: r.id,
+      sent_at: r.sent_at ?? '',
+      // Sent touches already carry the exact content that went out (the
+      // edge function writes the resolved snapshot at send time) — prefer
+      // that historical record over re-resolving the template with current
+      // lead data, which could differ from what was actually sent.
+      subject: r.subject_snapshot ?? (r.step?.subject_template ? resolveTemplate(r.step.subject_template, lead) : ''),
+      body: r.body_snapshot ?? (r.step?.body_template ? resolveTemplate(r.step.body_template, lead) : ''),
+    })))
   }
 
   const previewDirty = !!previewTouch && (
@@ -310,8 +364,7 @@ export function TodayTab({
     setPreviewTouch(updatedTouch)
     setPendingConfirmation((prev) => prev.map((t) => (t.id === updatedTouch.id ? updatedTouch : t)))
     setPreviewSaving(false)
-    setPreviewSaved(true)
-    setTimeout(() => setPreviewSaved(false), 2000)
+    showGlobalToast('Email content saved', 'success', 2000)
   }
 
   return (
@@ -359,6 +412,30 @@ export function TodayTab({
                 onChange={(e) => setPreviewBodyEdit(e.target.value)}
               />
             </div>
+            {threadTouches.length > 0 && (
+              <>
+                <div style={styles.previewDivider} />
+                <button
+                  type="button"
+                  style={styles.threadToggle}
+                  onClick={() => setThreadOpen((o) => !o)}
+                >
+                  <span style={styles.threadToggleLabel}>Previous emails ({threadTouches.length})</span>
+                  {threadOpen ? (
+                    <ChevronUp size={16} color={t.text.muted} />
+                  ) : (
+                    <ChevronDown size={16} color={t.text.muted} />
+                  )}
+                </button>
+                {threadOpen && (
+                  <div style={styles.threadList}>
+                    {threadTouches.map((pt) => (
+                      <PriorEmailCard key={pt.id} touch={pt} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
             <div style={styles.previewActions}>
               {previewDirty && (
                 <button
@@ -374,7 +451,6 @@ export function TodayTab({
                 Close
               </button>
             </div>
-            {previewSaved && <span style={styles.previewSavedNote}>Changes saved</span>}
           </div>
         </Modal>
       )}
@@ -846,6 +922,38 @@ function EmptyQueue() {
   )
 }
 
+// Read-only card for a previously sent email in the thread history. Clamps
+// the body to 4 lines and only reveals "Show more" when the text actually
+// overflows that clamp (checked via scrollHeight vs clientHeight).
+function PriorEmailCard({ touch }: { touch: ThreadTouch }) {
+  const [expanded, setExpanded] = useState(false)
+  const [overflowing, setOverflowing] = useState(false)
+  const bodyRef = useRef<HTMLParagraphElement>(null)
+
+  useEffect(() => {
+    const el = bodyRef.current
+    if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1)
+  }, [touch.body])
+
+  return (
+    <div style={styles.threadCard}>
+      <span style={styles.threadDate}>{formatThreadDate(touch.sent_at)}</span>
+      <span style={styles.threadSubject}>{touch.subject || '(no subject)'}</span>
+      <p
+        ref={bodyRef}
+        style={{ ...styles.threadBody, ...(expanded ? null : styles.threadBodyClamped) }}
+      >
+        {touch.body || '(no content)'}
+      </p>
+      {!expanded && overflowing && (
+        <button type="button" style={styles.threadShowMore} onClick={() => setExpanded(true)}>
+          Show more
+        </button>
+      )}
+    </div>
+  )
+}
+
 const styles: Record<string, CSSProperties> = {
   motionStrip: {
     display: 'flex',
@@ -1021,6 +1129,8 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 16,
+    maxHeight: '70vh',
+    overflowY: 'auto' as const,
   },
   previewField: {
     display: 'flex',
@@ -1094,12 +1204,74 @@ const styles: Record<string, CSSProperties> = {
     padding: '8px 16px',
     cursor: 'pointer',
   },
-  previewSavedNote: {
-    alignSelf: 'flex-end' as const,
+  previewDivider: {
+    height: 1,
+    background: t.border.subtle,
+  },
+  threadToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
+  },
+  threadToggleLabel: {
     fontFamily: fonts.body,
     fontSize: 13,
-    fontWeight: 500,
-    color: tokens.green,
+    color: t.text.secondary,
+  },
+  threadList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  threadCard: {
+    background: t.background.subtle,
+    borderRadius: 8,
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  threadDate: {
+    alignSelf: 'flex-end' as const,
+    fontFamily: mono,
+    fontSize: 11,
+    color: t.text.muted,
+  },
+  threadSubject: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    color: t.text.primary,
+  },
+  threadBody: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.secondary,
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap' as const,
+    margin: 0,
+  },
+  threadBodyClamped: {
+    display: '-webkit-box' as const,
+    WebkitLineClamp: 4,
+    WebkitBoxOrient: 'vertical' as const,
+    overflow: 'hidden',
+  },
+  threadShowMore: {
+    alignSelf: 'flex-start' as const,
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.urlLink,
+    cursor: 'pointer',
+    textDecoration: 'underline',
   },
   overflowBtn: {
     background: tokens.surface,
