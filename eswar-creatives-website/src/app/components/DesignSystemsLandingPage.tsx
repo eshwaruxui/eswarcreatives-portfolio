@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
-import { ArrowRight, Shield } from "lucide-react";
+import { ArrowRight, Linkedin } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { PortfolioButton } from "./ui/portfolio-button";
@@ -15,6 +15,7 @@ import checkCircleGoldIcon from "../../imports/design-systems/check-circle-gold-
 import componentCubeTealIcon from "../../imports/design-systems/component-cube-teal-icon.svg";
 import quoteMarkGoldIcon from "../../imports/design-systems/quote-mark-gold-icon.svg";
 import searchTealIcon from "../../imports/design-systems/search-teal-icon.svg";
+import shieldCheckIcon from "../../imports/design-systems/shield-check-outline-icon.svg";
 import usersTealIcon from "../../imports/design-systems/users-teal-icon.svg";
 
 // ── Design tokens (src/app convention: local const mapping to theme.css vars) ──
@@ -124,6 +125,33 @@ const PAIN_QUESTIONS: { question: string; illustration: string; caption: string;
     caption:      "Inconsistent experience. Confused users. Weaker brand.",
     cta:          true,
   },
+];
+
+const HOW_IT_WORKS = [
+  {
+    icon:  searchTealIcon,
+    step:  "01",
+    title: "Audit",
+    desc:  "Most teams have 400 hardcoded values when they need 40. We find the 20% causing 80% of the drift before touching a single component.",
+  },
+  {
+    icon:  componentCubeTealIcon,
+    step:  "02",
+    title: "Build",
+    desc:  "Token architecture ships before components. Every component after that is just assembly, consistent by construction, not by convention.",
+  },
+  {
+    icon:  usersTealIcon,
+    step:  "03",
+    title: "Embed",
+    desc:  "We write documentation for the engineer searching at 11pm before a deadline, not the one reading it cover to cover. The system outlives the engagement.",
+  },
+];
+
+const PRICING_CHECKLIST = [
+  "5 business days. One flow. Every friction point mapped.",
+  "Before/after direction for the top 3 issues.",
+  "30-min walkthrough call on delivery.",
 ];
 
 function ScrollDots({
@@ -536,6 +564,165 @@ export function DesignSystemsLandingPage() {
             </div>
           </section>
         ))}
+
+        {/* ── SECTION 5 — HOW IT WORKS (white, intentional contrast break) ── */}
+        <section style={{ background: "#FFFFFF", padding: "80px 0", borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
+            <motion.div {...reveal(reducedMotion)} style={{ textAlign: "center", marginBottom: "48px" }}>
+              <div style={{ width: "40px", height: "2px", background: C.gold, margin: "0 auto 16px" }} />
+              <h2 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "32px", color: C.text, marginBottom: "12px" }}>
+                How it works
+              </h2>
+              <p style={{ fontSize: "16px", color: C.textMuted }}>Three phases. Clear deliverables at each step.</p>
+            </motion.div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: "32px", marginBottom: "48px" }}>
+              {HOW_IT_WORKS.map(({ icon, step, title, desc }, i) => (
+                <motion.div key={step} {...reveal(reducedMotion, { delay: i * 0.1 })}>
+                  <p style={{ fontFamily: MONO, fontWeight: 700, fontSize: "64px", lineHeight: 1, color: C.border, marginBottom: "8px" }}>
+                    {step}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                    <img src={icon} alt="" aria-hidden="true" style={{ width: "20px", height: "20px" }} />
+                    <p style={{ fontFamily: SERIF, fontWeight: 600, fontSize: "16px", color: C.text }}>{title}</p>
+                  </div>
+                  <p style={{ fontSize: "15px", lineHeight: 1.6, color: C.textMuted }}>{desc}</p>
+                </motion.div>
+              ))}
+            </div>
+
+            <motion.div {...reveal(reducedMotion)} style={{ textAlign: "center" }}>
+              <p style={{ fontSize: "18px", fontWeight: 500, color: C.text, marginBottom: "24px" }}>
+                Your next sprint deserves a system behind it.
+              </p>
+              <PortfolioButton
+                href="/services/design-systems/enquiry?type=ux-audit"
+                variant="brand"
+                size="lg"
+                style={{ borderRadius: "8px" }}
+              >
+                Start with the Audit
+                <ArrowRight className="w-4 h-4" />
+              </PortfolioButton>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ── SECTION 6 — UX AUDIT PRICING WEDGE ──────────────────── */}
+        <section style={{ background: C.cream, padding: "80px 0" }}>
+          <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
+            <motion.div {...reveal(reducedMotion)} style={{ textAlign: "center", marginBottom: "32px" }}>
+              <div style={{ width: "40px", height: "2px", background: C.gold, margin: "0 auto 16px" }} />
+              <h2 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "24px", color: C.text }}>Start smaller</h2>
+            </motion.div>
+
+            <motion.div
+              {...reveal(reducedMotion, { delay: 0.1 })}
+              style={{
+                maxWidth:     "600px",
+                margin:       "0 auto",
+                border:       `2px solid ${C.gold}`,
+                borderRadius: "16px",
+                padding:      isMobile ? "24px" : "48px",
+                background:   "#FFFFFF",
+                textAlign:    "center",
+              }}
+            >
+              <p style={{ fontFamily: MONO, fontSize: "11px", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: C.textMuted, marginBottom: "16px" }}>
+                Low-risk entry point
+              </p>
+              <h3 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: isMobile ? "28px" : "36px", color: C.text, marginBottom: "16px" }}>
+                Start with a UX Audit.
+              </h3>
+              <p style={{ fontSize: "16px", lineHeight: 1.6, color: C.textMuted, maxWidth: "480px", margin: "0 auto 32px" }}>
+                A full design systems engagement starts at $2,500. The audit gives you the same diagnostic clarity for $750, and every dollar credits toward the full engagement if you proceed. Most teams find the report alone is worth the fee.
+              </p>
+
+              <div style={{ display: "inline-flex", border: `1px solid ${C.border}`, borderRadius: "8px", marginBottom: "32px" }}>
+                <div style={{ padding: "16px 24px", textAlign: "left" }}>
+                  <p style={{ fontSize: "20px", textDecoration: "line-through", color: C.textMuted, marginBottom: "2px" }}>$2,500</p>
+                  <p style={{ fontSize: "13px", color: C.textMuted }}>(Value)</p>
+                </div>
+                <div style={{ width: "1px", background: C.border }} />
+                <div style={{ padding: "16px 24px", textAlign: "left" }}>
+                  <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "48px", color: C.text, lineHeight: 1.1 }}>$750</p>
+                  <p style={{ fontSize: "13px", color: C.textMuted }}>(Fixed fee)</p>
+                </div>
+              </div>
+
+              <div style={{ textAlign: "left", marginBottom: "24px", display: "flex", flexDirection: "column", gap: "14px" }}>
+                {PRICING_CHECKLIST.map((row) => (
+                  <div key={row} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                    <img src={checkCircleGoldIcon} alt="" aria-hidden="true" style={{ width: "16px", height: "16px", marginTop: "2px", flexShrink: 0 }} />
+                    <p style={{ fontSize: "15px", fontWeight: 500, color: C.text }}>{row}</p>
+                  </div>
+                ))}
+              </div>
+
+              <p style={{ fontSize: "14px", color: C.textMuted, marginBottom: "20px" }}>
+                Start with an audit. Commit to nothing else yet.
+              </p>
+
+              <PortfolioButton
+                href="/services/design-systems/enquiry?type=ux-audit"
+                variant="brand"
+                size="lg"
+                fullWidth
+                style={{ borderRadius: "8px", marginBottom: "16px" }}
+              >
+                Start with the Audit
+                <ArrowRight className="w-4 h-4" />
+              </PortfolioButton>
+
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <img src={shieldCheckIcon} alt="" aria-hidden="true" style={{ width: "16px", height: "16px" }} />
+                <p style={{ fontSize: "13px", color: C.textMuted }}>100% money-back guarantee. No questions asked.</p>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ── SECTION 7 — FOOTER CTA ───────────────────────────────── */}
+        <section style={{ background: C.inverse, padding: isMobile ? "64px 0" : "100px 0" }}>
+          <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px", textAlign: "center" }}>
+            <motion.div {...reveal(reducedMotion)}>
+              <h2 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "28px", color: "#FFFFFF", marginBottom: "16px" }}>
+                Still figuring out where to start?
+              </h2>
+              <p style={{ fontSize: "15px", lineHeight: 1.6, color: "#9CA3AF", maxWidth: "520px", margin: "0 auto 32px" }}>
+                Tell us what you are working with. Describe your challenges, team size, and biggest current pain. We will suggest the right entry point, whether that is a $750 audit, a project proposal, or just a 20-minute conversation.
+              </p>
+              <PortfolioButton
+                href="/services/design-systems/enquiry?ref=landing-cta"
+                variant="accent"
+                size="lg"
+                style={{ borderRadius: "8px", marginBottom: "32px" }}
+              >
+                Send a Note
+                <ArrowRight className="w-4 h-4" />
+              </PortfolioButton>
+
+              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: "24px" }}>
+                <a
+                  href="https://www.linkedin.com/in/eswaruxui/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#6B7280", textDecoration: "none" }}
+                >
+                  <Linkedin style={{ width: "14px", height: "14px" }} />
+                  linkedin.com/in/eswaruxui
+                </a>
+                <a href="mailto:eswar@eswarcreatives.in" style={{ fontSize: "13px", color: "#6B7280", textDecoration: "none" }}>
+                  eswar@eswarcreatives.in
+                </a>
+              </div>
+
+              <p style={{ fontSize: "12px", color: "#4B5563", marginTop: "32px" }}>
+                © 2026 Eswar Creatives. All rights reserved.
+              </p>
+            </motion.div>
+          </div>
+        </section>
       </div>
     </>
   );
