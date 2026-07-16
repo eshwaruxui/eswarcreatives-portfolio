@@ -107,13 +107,87 @@ const TRIAGE_CARDS: { label: string; desc: string; illustration?: string }[] = [
   },
 ];
 
+const PAIN_QUESTIONS: { question: string; illustration: string; caption: string; cta?: boolean }[] = [
+  {
+    question:     "Does every new feature start from scratch because there is no shared component library?",
+    illustration: buildFromScratchIllustration,
+    caption:      "Wasted time. Duplicated effort. Inconsistent experience.",
+  },
+  {
+    question:     "Is your AI product starting to look like every other AI product?",
+    illustration: aiSimilarityIllustration,
+    caption:      "The sea of sameness. Every AI product built without a system looks like the last one.",
+  },
+  {
+    question:     "Does your product look different on web, iOS, and Android?",
+    illustration: crossPlatformIllustration,
+    caption:      "Inconsistent experience. Confused users. Weaker brand.",
+    cta:          true,
+  },
+];
+
+function ScrollDots({
+  count,
+  active,
+  onSelect,
+}: {
+  count: number;
+  active: number;
+  onSelect: (i: number) => void;
+}) {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px", marginTop: "24px" }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <button
+          key={i}
+          onClick={() => onSelect(i)}
+          aria-label={`Go to question ${i + 1} of ${count}`}
+          aria-current={active === i}
+          style={{
+            width:         active === i ? "8px" : "6px",
+            height:        active === i ? "8px" : "6px",
+            borderRadius:  "50%",
+            background:    active === i ? C.teal : C.textMuted,
+            border:        "none",
+            padding:       0,
+            cursor:        "pointer",
+            transition:    "background-color 200ms ease",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function DesignSystemsLandingPage() {
   const isMobile = useIsMobile();
   const reducedMotion = !!useReducedMotion();
 
+  const painRefs = useRef<(HTMLElement | null)[]>([]);
+  const [activeQuestion, setActiveQuestion] = useState(0);
+
   useEffect(() => {
     document.title = "Design Systems for B2B SaaS · Eswar Creatives";
   }, []);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const idx = painRefs.current.indexOf(entry.target as HTMLElement);
+          if (idx !== -1) setActiveQuestion(idx);
+        });
+      },
+      { threshold: 0.5 }
+    );
+    painRefs.current.forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  function scrollToPainSection(i: number) {
+    painRefs.current[i]?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+  }
 
   return (
     <>
@@ -341,6 +415,127 @@ export function DesignSystemsLandingPage() {
             </motion.div>
           </div>
         </section>
+
+        {/* ── SECTION 3 — TESTIMONIAL ──────────────────────────────── */}
+        <section style={{ background: C.cream, padding: "80px 0" }}>
+          <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
+            <motion.div {...reveal(reducedMotion)} style={{ textAlign: "center", marginBottom: "40px" }}>
+              <div style={{ width: "40px", height: "2px", background: C.gold, margin: "0 auto 16px" }} />
+              <h2 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "32px", color: C.text }}>
+                What design leaders say
+              </h2>
+            </motion.div>
+
+            <motion.div
+              {...reveal(reducedMotion, { delay: 0.1 })}
+              style={{
+                maxWidth:     "680px",
+                margin:       "0 auto",
+                border:       `1px solid ${C.gold}`,
+                borderRadius: "12px",
+                padding:      isMobile ? "24px 20px" : "40px 48px",
+                background:   "#FFFFFF",
+                textAlign:    "center",
+              }}
+            >
+              <img
+                src={quoteMarkGoldIcon}
+                alt=""
+                aria-hidden="true"
+                style={{ height: "48px", margin: "0 auto 8px", display: "block" }}
+              />
+              <p
+                style={{
+                  fontFamily:   SERIF,
+                  fontStyle:    "italic",
+                  fontSize:     isMobile ? "17px" : "20px",
+                  lineHeight:   1.6,
+                  color:        C.text,
+                  marginBottom: "24px",
+                }}
+              >
+                Eswar took full ownership of our mobile design system, investing significant time and care into building, refining, and maintaining it.
+              </p>
+              <div
+                style={{
+                  borderTop:      `1px solid ${C.border}`,
+                  paddingTop:     "24px",
+                  display:        "flex",
+                  alignItems:     "center",
+                  justifyContent: "center",
+                  gap:            "12px",
+                }}
+              >
+                <div
+                  style={{
+                    width:          "40px",
+                    height:         "40px",
+                    borderRadius:   "50%",
+                    background:     "#E5E7EB",
+                    display:        "flex",
+                    alignItems:     "center",
+                    justifyContent: "center",
+                    flexShrink:     0,
+                  }}
+                  aria-hidden="true"
+                >
+                  <span style={{ fontSize: "14px", fontWeight: 600, color: "#6B7280" }}>KG</span>
+                </div>
+                <div style={{ textAlign: "left" }}>
+                  <p style={{ fontSize: "15px", fontWeight: 700, color: C.text }}>Kevin Gaffney</p>
+                  <p style={{ fontSize: "13px", color: C.textMuted }}>Chief Technology Officer, CYGNVS</p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ── SECTION 4 — PAIN QUESTIONS ───────────────────────────── */}
+        {PAIN_QUESTIONS.map(({ question, illustration, caption, cta }, i) => (
+          <section
+            key={question}
+            ref={(el) => { painRefs.current[i] = el; }}
+            style={{ background: C.cream, padding: "80px 0" }}
+          >
+            <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px", textAlign: "center" }}>
+              <motion.div {...reveal(reducedMotion)}>
+                <h2
+                  style={{
+                    fontFamily:   SERIF,
+                    fontWeight:   700,
+                    fontSize:     isMobile ? "22px" : "28px",
+                    color:        C.text,
+                    maxWidth:     "640px",
+                    margin:       "0 auto 32px",
+                  }}
+                >
+                  {question}
+                </h2>
+                <img
+                  src={illustration}
+                  alt=""
+                  aria-hidden="true"
+                  style={{ display: "block", width: "100%", maxWidth: "680px", margin: "0 auto 24px" }}
+                />
+                <p style={{ fontSize: "14px", color: C.textMuted, marginBottom: cta ? "24px" : 0 }}>
+                  {caption}
+                </p>
+                {cta && (
+                  <PortfolioButton
+                    href="/services/design-systems/enquiry?type=ux-audit"
+                    variant="brand"
+                    size="lg"
+                    style={{ borderRadius: "8px" }}
+                  >
+                    Start with the Audit
+                    <ArrowRight className="w-4 h-4" />
+                  </PortfolioButton>
+                )}
+              </motion.div>
+              <ScrollDots count={PAIN_QUESTIONS.length} active={activeQuestion} onSelect={scrollToPainSection} />
+            </div>
+          </section>
+        ))}
       </div>
     </>
   );
