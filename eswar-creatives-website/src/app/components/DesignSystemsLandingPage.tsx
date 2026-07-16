@@ -23,19 +23,16 @@ const C = {
   cream:      "#FAF8F4",
   gold:       "#D5B067",
   border:     "var(--border-default)",
-  surface:    "var(--card)",
   inverse:    "var(--bg-inverse)",
   tint1:      "var(--bg-tint-1)",
   teal:       "var(--text-brand)",
   text:       "var(--text-primary)",
   textSec:    "var(--text-secondary)",
   textMuted:  "var(--text-tertiary)",
-  textInv:    "var(--text-inverse)",
 } as const;
 
-const SERIF       = "'Fraunces', Georgia, 'Times New Roman', serif";
-const MONO        = "var(--font-mono, 'SF Mono', monospace)";
-const CARD_SHADOW = "0px 4px 6px -1px rgba(2,4,4,0.07)";
+const SERIF = "'Fraunces', Georgia, 'Times New Roman', serif";
+const MONO  = "var(--font-mono, 'SF Mono', monospace)";
 
 const overline = {
   fontSize:      "12px",
