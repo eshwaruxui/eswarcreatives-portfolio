@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { SidePanel } from '../admin/SidePanel'
 import { mono, formatDate } from '../admin/ui'
+import { showToast } from '../admin/toast'
 
 type LeadStatus =
   | 'new' | 'active' | 'replied' | 'meeting_booked' | 'converted'
@@ -180,6 +181,9 @@ export function LeadDrawer({
   const [obsValue, setObsValue] = useState('')
   const [obsSavedValue, setObsSavedValue] = useState('')
   const [obsSaveState, setObsSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [followUpValue, setFollowUpValue] = useState('')
+  const [followUpSavedValue, setFollowUpSavedValue] = useState('')
+  const [followUpSaving, setFollowUpSaving] = useState(false)
 
   // Delete lead state
   const [deleteDialog, setDeleteDialog] = useState(false)
@@ -219,6 +223,9 @@ export function LeadDrawer({
       const obs = lead.specific_observation ?? ''
       setObsValue(obs)
       setObsSavedValue(obs)
+      const followUp = lead.follow_up_date ?? ''
+      setFollowUpValue(followUp)
+      setFollowUpSavedValue(followUp)
     }
   }, [lead?.id])
 
@@ -272,6 +279,26 @@ export function LeadDrawer({
     setObsSavedValue(obsValue)
     setObsSaveState('saved')
     setTimeout(() => setObsSaveState('idle'), 1500)
+  }
+
+  async function handleSaveFollowUp() {
+    if (!lead) return
+    setFollowUpSaving(true)
+    const value = followUpValue || null
+    await supabase.from('leads').update({ follow_up_date: value }).eq('id', lead.id)
+    setLead((prev) => prev ? { ...prev, follow_up_date: value } : prev)
+    setFollowUpSavedValue(followUpValue)
+    setFollowUpSaving(false)
+    if (value) {
+      const reminderDate = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'UTC',
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }).format(new Date(value))
+      showToast(`We'll remind you on ${reminderDate}`, 'success')
+    }
   }
 
   async function handleEnroll(skipWebsiteCheck = false) {
@@ -570,10 +597,20 @@ export function LeadDrawer({
             <label style={styles.followUpLabel}>Follow up on</label>
             <input
               type="date"
-              style={styles.dateInput}
-              value={lead.follow_up_date ?? ''}
-              onChange={(e) => saveLead({ follow_up_date: e.target.value || null })}
+              style={{ ...styles.dateInput, width: '100%', boxSizing: 'border-box' as const }}
+              value={followUpValue}
+              onChange={(e) => setFollowUpValue(e.target.value)}
             />
+            {followUpValue !== followUpSavedValue && (
+              <button
+                type="button"
+                style={{ ...styles.primaryBtn, width: '100%', height: 36, boxSizing: 'border-box' as const, opacity: followUpSaving ? 0.6 : 1 }}
+                onClick={handleSaveFollowUp}
+                disabled={followUpSaving}
+              >
+                {followUpSaving ? 'Saving...' : 'Save'}
+              </button>
+            )}
           </div>
           <div style={styles.followUpField}>
             <label style={styles.followUpLabel}>Draft message</label>

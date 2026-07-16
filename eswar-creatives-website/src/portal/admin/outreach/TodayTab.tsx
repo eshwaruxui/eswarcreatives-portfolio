@@ -133,6 +133,10 @@ export function TodayTab({
   const [activeTouch, setActiveTouch] = useState<TouchRow | null>(null)
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
   const [previewTouch, setPreviewTouch] = useState<ScheduledTouch | null>(null)
+  const [previewSubjectEdit, setPreviewSubjectEdit] = useState('')
+  const [previewBodyEdit, setPreviewBodyEdit] = useState('')
+  const [previewSaving, setPreviewSaving] = useState(false)
+  const [previewSaved, setPreviewSaved] = useState(false)
   const [motionStats, setMotionStats] = useState<MotionStats>({ emailsToday: 0, liTodayCount: 0, repliesWeek: 0, callsWeek: 0 })
   const [toast, setToast] = useState<string | null>(null)
   const today = todayStr()
@@ -261,16 +265,54 @@ export function TodayTab({
   async function handleMarkFollowUpDone(leadId: string) {
     await supabase.from('leads').update({ follow_up_date: null }).eq('id', leadId)
     setFollowUps((prev) => prev.filter((l) => l.id !== leadId))
+    showToast('Follow-up cleared')
   }
 
   const isEmpty = overdue.length === 0 && dueToday.length === 0
 
-  const previewSubject = previewTouch?.lead
-    ? resolveTemplate(previewTouch.step?.subject_template ?? previewTouch.subject_snapshot ?? '', previewTouch.lead)
-    : ''
-  const previewBody = previewTouch?.lead
-    ? resolveTemplate(previewTouch.step?.body_template ?? previewTouch.body_snapshot ?? '', previewTouch.lead)
-    : ''
+  function previewInitialSubject(touch: ScheduledTouch): string {
+    return touch.lead ? resolveTemplate(touch.step?.subject_template ?? touch.subject_snapshot ?? '', touch.lead) : ''
+  }
+  function previewInitialBody(touch: ScheduledTouch): string {
+    return touch.lead ? resolveTemplate(touch.step?.body_template ?? touch.body_snapshot ?? '', touch.lead) : ''
+  }
+
+  function openPreview(touch: ScheduledTouch) {
+    setPreviewTouch(touch)
+    setPreviewSubjectEdit(previewInitialSubject(touch))
+    setPreviewBodyEdit(previewInitialBody(touch))
+    setPreviewSaved(false)
+  }
+
+  const previewDirty = !!previewTouch && (
+    previewSubjectEdit !== previewInitialSubject(previewTouch) ||
+    previewBodyEdit !== previewInitialBody(previewTouch)
+  )
+
+  function handlePreviewCloseRequest() {
+    if (previewDirty && !window.confirm('You have unsaved changes. Close anyway?')) return
+    setPreviewTouch(null)
+  }
+
+  async function handleSavePreview() {
+    if (!previewTouch) return
+    setPreviewSaving(true)
+    await supabase
+      .from('outreach_touches')
+      .update({ subject_snapshot: previewSubjectEdit, body_snapshot: previewBodyEdit, step_id: null })
+      .eq('id', previewTouch.id)
+    const updatedTouch: ScheduledTouch = {
+      ...previewTouch,
+      subject_snapshot: previewSubjectEdit,
+      body_snapshot: previewBodyEdit,
+      step: null,
+    }
+    setPreviewTouch(updatedTouch)
+    setPendingConfirmation((prev) => prev.map((t) => (t.id === updatedTouch.id ? updatedTouch : t)))
+    setPreviewSaving(false)
+    setPreviewSaved(true)
+    setTimeout(() => setPreviewSaved(false), 2000)
+  }
 
   return (
     <>
@@ -290,7 +332,7 @@ export function TodayTab({
         />
       )}
       {previewTouch && (
-        <Modal title="Email preview" onClose={() => setPreviewTouch(null)} maxWidth={600}>
+        <Modal title="Email preview" onClose={handlePreviewCloseRequest} maxWidth={600} closeOnBackdrop={false}>
           <div style={styles.previewBody}>
             <div style={styles.previewField}>
               <span style={styles.previewLabel}>To</span>
@@ -302,17 +344,37 @@ export function TodayTab({
             </div>
             <div style={styles.previewField}>
               <span style={styles.previewLabel}>Subject</span>
-              <span style={styles.previewValue}>{previewSubject || '(no subject)'}</span>
+              <input
+                type="text"
+                style={styles.previewInput}
+                value={previewSubjectEdit}
+                onChange={(e) => setPreviewSubjectEdit(e.target.value)}
+              />
             </div>
             <div style={styles.previewField}>
               <span style={styles.previewLabel}>Body</span>
-              <div style={styles.previewBodyScroll}>
-                {previewBody || '(no content)'}
-              </div>
+              <textarea
+                style={styles.previewTextarea}
+                value={previewBodyEdit}
+                onChange={(e) => setPreviewBodyEdit(e.target.value)}
+              />
             </div>
-            <button type="button" style={styles.previewCloseBtn} onClick={() => setPreviewTouch(null)}>
-              Close
-            </button>
+            <div style={styles.previewActions}>
+              {previewDirty && (
+                <button
+                  type="button"
+                  style={{ ...styles.previewSaveBtn, opacity: previewSaving ? 0.6 : 1 }}
+                  onClick={handleSavePreview}
+                  disabled={previewSaving}
+                >
+                  {previewSaving ? 'Saving...' : 'Save changes'}
+                </button>
+              )}
+              <button type="button" style={styles.previewCloseBtn} onClick={handlePreviewCloseRequest}>
+                Close
+              </button>
+            </div>
+            {previewSaved && <span style={styles.previewSavedNote}>Changes saved</span>}
           </div>
         </Modal>
       )}
@@ -456,7 +518,7 @@ export function TodayTab({
                           <button
                             type="button"
                             style={styles.previewBtn}
-                            onClick={() => setPreviewTouch(touch)}
+                            onClick={() => openPreview(touch)}
                           >
                             Preview
                           </button>
@@ -978,21 +1040,50 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     color: t.text.primary,
   },
-  previewBodyScroll: {
+  previewInput: {
+    width: '100%',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: t.text.primary,
+    background: t.background.subtle,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 4,
+    padding: 8,
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+  },
+  previewTextarea: {
+    width: '100%',
     fontFamily: fonts.body,
     fontSize: 14,
     lineHeight: 1.6,
     color: t.text.primary,
-    whiteSpace: 'pre-wrap' as const,
-    maxHeight: 360,
-    overflowY: 'auto' as const,
-    border: `1px solid ${t.border.subtle}`,
-    borderRadius: 8,
-    padding: '12px 14px',
     background: t.background.subtle,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 4,
+    padding: 8,
+    outline: 'none',
+    minHeight: 200,
+    resize: 'vertical' as const,
+    boxSizing: 'border-box' as const,
+  },
+  previewActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  previewSaveBtn: {
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
   },
   previewCloseBtn: {
-    alignSelf: 'flex-end' as const,
     background: tokens.surface,
     color: t.text.secondary,
     fontFamily: fonts.body,
@@ -1002,6 +1093,13 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     padding: '8px 16px',
     cursor: 'pointer',
+  },
+  previewSavedNote: {
+    alignSelf: 'flex-end' as const,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 500,
+    color: tokens.green,
   },
   overflowBtn: {
     background: tokens.surface,
