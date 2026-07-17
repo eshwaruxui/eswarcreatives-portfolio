@@ -145,7 +145,7 @@ export function ProjectsList() {
         ) : projects.length === 0 ? (
           <p style={{ ...ui.muted, padding: '20px 0' }}>No projects yet.</p>
         ) : (
-          <div style={s.cardStack}>
+          <div style={{ ...s.cardStack, paddingBottom: 88 }}>
             <style>{`
               .ec-tap-card { background: ${tokens.surface}; transition: background ${motionTokens.durationFast} ${motionTokens.easeDefault}; }
               .ec-tap-card:active { background: ${t.background.tint1}; }
@@ -209,6 +209,16 @@ export function ProjectsList() {
             </table>
           )}
         </Card>
+      )}
+
+      {/* Mobile sticky footer "+ Add project", mirrors InvoicesAdmin/ClientsList */}
+      {isMobile && (
+        <div style={s.stickyFooter}>
+          <button type="button" style={s.stickyFooterBtn} onClick={() => setShowAdd(true)}>
+            <Plus size={16} />
+            Add project
+          </button>
+        </div>
       )}
 
       {openProject && (
@@ -1180,6 +1190,19 @@ const s: Record<string, CSSProperties> = {
     background: tokens.rubyLight, color: tokens.ruby, border: `1px solid ${tokens.ruby}`,
     borderRadius: 8, padding: '10px 12px', marginBottom: 12,
     fontFamily: fonts.body, fontSize: 13,
+  },
+
+  // Sticky "+ Add project" footer (mobile only)
+  stickyFooter: {
+    position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 40,
+    padding: '10px 16px calc(10px + env(safe-area-inset-bottom, 0px))',
+    background: tokens.surface, borderTop: `1px solid ${tokens.border}`,
+  },
+  stickyFooterBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    width: '100%', height: 48, background: tokens.primary, color: t.text.onPrimary,
+    border: 'none', borderRadius: 10, fontFamily: fonts.body, fontSize: 15,
+    fontWeight: 600, cursor: 'pointer',
   },
 
   // Table
