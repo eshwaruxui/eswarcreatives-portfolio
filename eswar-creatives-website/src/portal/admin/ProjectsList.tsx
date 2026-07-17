@@ -8,6 +8,7 @@ import { showToast } from './toast'
 import { usePortal } from '../PortalContext'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ClientFilterBanner } from './ClientFilterBanner'
+import { AddProjectModal } from './AddProjectModal'
 import { StageLabel } from '../components/StageLabel'
 import type { StageStatus } from '../components/StageLabel'
 import { TaskList } from '../components/TaskList'
@@ -84,12 +85,13 @@ function clientLabel(p: Project) {
 // ── ProjectsList ──────────────────────────────────────────────────────────────
 
 export function ProjectsList() {
-  const { selectedClientId } = usePortal()
+  const { selectedClientId, clients } = usePortal()
   const { isMobile } = useBreakpoint()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState<string | null>(null)
   const [openProject, setOpenProject] = useState<Project | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -125,7 +127,16 @@ export function ProjectsList() {
 
   return (
     <>
-      <PageHeader title="Projects" />
+      <PageHeader
+        title="Projects"
+        action={
+          !isMobile && (
+            <button type="button" style={ui.primaryBtn} onClick={() => setShowAdd(true)}>
+              <Plus size={16} /> Add project
+            </button>
+          )
+        }
+      />
       <ClientFilterBanner />
       {error && <div style={s.error}>{error}</div>}
       {isMobile ? (
@@ -205,6 +216,15 @@ export function ProjectsList() {
           project={openProject}
           onClose={() => setOpenProject(null)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {showAdd && (
+        <AddProjectModal
+          clients={clients}
+          preselectedClientId={selectedClientId}
+          onClose={() => setShowAdd(false)}
+          onCreated={(id) => { setShowAdd(false); handleSaved(id) }}
         />
       )}
     </>
