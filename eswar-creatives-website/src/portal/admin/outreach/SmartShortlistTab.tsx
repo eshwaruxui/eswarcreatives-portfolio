@@ -21,6 +21,45 @@ const VOLUME_OPTIONS = [5, 10, 15]
 const ATTACHMENT_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp'
 const SCREENSHOT_ACCEPT = 'image/jpeg,image/png,image/webp'
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+const LARGE_UPLOAD_WARNING_BYTES = 15 * 1024 * 1024
+const COMPRESS_MAX_DIMENSION = 1200
+const COMPRESS_JPEG_QUALITY = 0.85
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = url
+  })
+}
+
+// Resizes to a 1200px longest side and re-encodes as JPEG at 0.85 quality so
+// uploads stay small enough for process-shortlist-run to finish inside its
+// Anthropic call window.
+async function compressScreenshot(file: File): Promise<File> {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await loadImage(url)
+    const scale = Math.min(1, COMPRESS_MAX_DIMENSION / Math.max(img.width, img.height))
+    const width = Math.round(img.width * scale)
+    const height = Math.round(img.height * scale)
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.drawImage(img, 0, 0, width, height)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', COMPRESS_JPEG_QUALITY))
+    if (!blob) return file
+    const newName = file.name.replace(/\.[^.]+$/, '') + '.jpg'
+    return new File([blob], newName, { type: 'image/jpeg' })
+  } catch {
+    return file
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
 
 type HistoryCounts = Record<string, { screenshots: number; candidates: number; added: number }>
 
@@ -51,6 +90,7 @@ export function SmartShortlistTab() {
   const [volumeLinkedin, setVolumeLinkedin] = useState(5)
   const [screenshotStaged, setScreenshotStaged] = useState<{ file: File; previewUrl: string }[]>([])
   const [running, setRunning] = useState(false)
+  const [optimising, setOptimising] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
 
   // ── Section C: review stage ──────────────────────────────────────────────
@@ -181,6 +221,9 @@ export function SmartShortlistTab() {
     setCandidates((data ?? []) as ShortlistCandidate[])
   }
 
+  const stagedBytes = screenshotStaged.reduce((sum, s) => sum + s.file.size, 0)
+  const showLargeUploadWarning = stagedBytes > LARGE_UPLOAD_WARNING_BYTES
+
   const hasIcpForRunVertical = Boolean(icpConfigs[runVertical]?.icp_text)
   const runDisabledReason =
     screenshotStaged.length === 0
@@ -194,6 +237,10 @@ export function SmartShortlistTab() {
     setRunning(true)
     setRunError(null)
     try {
+      setOptimising(true)
+      const compressed = await Promise.all(screenshotStaged.map((staged) => compressScreenshot(staged.file)))
+      setOptimising(false)
+
       const { data: runRow, error: runErr } = await supabase
         .from('shortlist_runs')
         .insert({
@@ -206,9 +253,9 @@ export function SmartShortlistTab() {
         .single()
       if (runErr || !runRow) throw new Error('run_create_failed')
 
-      for (const staged of screenshotStaged) {
-        const path = `shortlist-runs/${runRow.id}/${Date.now()}-${staged.file.name}`
-        const { error: upErr } = await supabase.storage.from('stage-attachments').upload(path, staged.file)
+      for (const file of compressed) {
+        const path = `shortlist-runs/${runRow.id}/${Date.now()}-${file.name}`
+        const { error: upErr } = await supabase.storage.from('stage-attachments').upload(path, file)
         if (upErr) continue
         await supabase.from('shortlist_run_screenshots').insert({ run_id: runRow.id, storage_path: path })
       }
@@ -221,7 +268,11 @@ export function SmartShortlistTab() {
       })
 
       if (fnErr || !fnData || fnData.error) {
-        setRunError('Could not analyse these screenshots. Please try again.')
+        setRunError(
+          fnData?.error === 'anthropic_timeout'
+            ? 'Processing took too long. Try uploading fewer or smaller screenshots.'
+            : 'Could not analyse these screenshots. Please try again.'
+        )
         setRunning(false)
         await loadHistory()
         return
@@ -237,6 +288,7 @@ export function SmartShortlistTab() {
       setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
     } catch {
       setRunError('Could not start this run. Please try again.')
+      setOptimising(false)
       setRunning(false)
     }
   }
@@ -439,6 +491,12 @@ export function SmartShortlistTab() {
           </div>
         )}
 
+        {showLargeUploadWarning && (
+          <p style={s.warningBanner}>
+            Large files detected. Images will be optimised automatically before processing.
+          </p>
+        )}
+
         {runError && <p style={s.errorText}>{runError}</p>}
         {!runError && runDisabledReason && !running && <p style={s.hintText}>{runDisabledReason}</p>}
 
@@ -453,7 +511,11 @@ export function SmartShortlistTab() {
           onClick={handleRunShortlist}
           disabled={running || Boolean(runDisabledReason)}
         >
-          {running ? 'Analysing screenshots against your ICP...' : 'Run shortlist'}
+          {optimising
+            ? 'Optimising images...'
+            : running
+            ? 'Analysing screenshots against your ICP...'
+            : 'Run shortlist'}
         </button>
       </div>
 
@@ -989,6 +1051,17 @@ const s: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   errorText: { fontFamily: fonts.body, fontSize: 13, color: tokens.ruby, marginTop: 12 },
+  warningBanner: {
+    background: tokens.goldLight,
+    color: tokens.goldDark,
+    border: `1px solid ${tokens.gold}`,
+    borderRadius: 8,
+    padding: '10px 14px',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 1.5,
+    marginTop: 12,
+  },
   hintText: { fontFamily: fonts.body, fontSize: 13, color: t.text.muted, marginTop: 12 },
   runMeta: { fontFamily: mono, fontSize: 12, color: t.text.muted, margin: '4px 0 20px' },
   reviewCols: { display: 'flex', gap: 24 },

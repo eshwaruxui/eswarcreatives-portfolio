@@ -203,31 +203,43 @@ Return JSON array:
 }]
 Sorted by icp_score descending.`;
 
-  // 7. Call Anthropic
+  // 7. Call Anthropic, bounded by a 25s timeout so the function returns a clear
+  // error instead of the run silently timing out on the edge runtime's own limit.
+  const ANTHROPIC_TIMEOUT_MS = 25_000;
   let anthropicRes: Response;
   try {
-    anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 4000,
-        system:
-          "You are an expert B2B outreach analyst. You will be given screenshots from LinkedIn and an ICP profile. Extract every visible person from the screenshots and score each against the ICP. Return only JSON, no preamble, no markdown.",
-        messages: [
-          {
-            role: "user",
-            content: [...imageBlocks, { type: "text", text: userPromptText }],
-          },
-        ],
-      }),
-    });
-  } catch {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
+    try {
+      anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 4000,
+          system:
+            "You are an expert B2B outreach analyst. You will be given screenshots from LinkedIn and an ICP profile. Extract every visible person from the screenshots and score each against the ICP. Return only JSON, no preamble, no markdown.",
+          messages: [
+            {
+              role: "user",
+              content: [...imageBlocks, { type: "text", text: userPromptText }],
+            },
+          ],
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (err) {
     await callerClient.from("shortlist_runs").update({ status: "failed" }).eq("id", run_id);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return ok({ error: "anthropic_timeout" });
+    }
     return ok({ error: "parse_failed" });
   }
 
