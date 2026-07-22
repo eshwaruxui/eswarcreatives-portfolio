@@ -164,13 +164,21 @@ export async function onRequest({ request, env, params }) {
     `<meta name="twitter:image" content="${ogImage}" />`,
   ].join('\n    ')
 
-  if (!html.includes('</head>')) {
+  // Strip the SPA shell's static og:/twitter: tags first — otherwise the
+  // homepage's tags stay earlier in <head> and crawlers (Facebook included)
+  // read the first occurrence of each property, ignoring the ones we inject.
+  const stripped = html.replace(
+    /<meta\s+(?:property|name)="(?:og:|twitter:)[^"]*"[^>]*\/?>/gi,
+    ''
+  )
+
+  if (!stripped.includes('</head>')) {
     console.error('[og-worker] </head> not found in index.html — injecting into <html> tag instead')
   }
 
-  const modified = html.includes('</head>')
-    ? html.replace('</head>', `    ${ogTags}\n  </head>`)
-    : html
+  const modified = stripped.includes('</head>')
+    ? stripped.replace('</head>', `    ${ogTags}\n  </head>`)
+    : stripped
 
   // For debug requests, add a visible banner so you can confirm the function ran.
   const withDebugBanner = isDebug
