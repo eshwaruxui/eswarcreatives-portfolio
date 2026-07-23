@@ -18,13 +18,32 @@ export type ICPConfig = {
 
 export type RunStatus = 'processing' | 'complete' | 'archived' | 'failed'
 
+// One channel per run (Fix 3). volume_email/volume_linkedin stay as the two
+// storage columns from migration 0079 — the active channel's column holds the
+// chosen volume, the inactive one is 0. Older rows (pre-migration-0080) may
+// still carry channel = 'both' with both columns populated.
+export type RunChannel = 'email' | 'linkedin' | 'both'
+
 export type ShortlistRun = {
   id: string
   vertical: Vertical
+  channel: RunChannel
   volume_email: number
   volume_linkedin: number
   status: RunStatus
+  error_code: string | null
   created_at: string
+}
+
+// The single volume figure for a run's chosen channel, for display and for
+// slicing the review list into main vs overflow.
+export function runVolume(run: ShortlistRun): number {
+  return run.channel === 'linkedin' ? run.volume_linkedin : run.volume_email
+}
+
+export const CHANNEL_LABELS: Record<'email' | 'linkedin', string> = {
+  email: 'Email outreach',
+  linkedin: 'LinkedIn DM',
 }
 
 export type CandidateChannel = 'email' | 'linkedin'
