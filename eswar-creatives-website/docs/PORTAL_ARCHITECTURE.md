@@ -1,6 +1,6 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 16 July 2026 (PR #13 merged). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 24 July 2026 (`feature/outreach-shortlist-fixes` in progress). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
@@ -8,6 +8,8 @@ Last updated: 16 July 2026 (PR #13 merged). Keep this in the repo at `docs/PORTA
 
 **Active branch:** `main`
 **Status:** Stable. PR #13 (`feature/admin-mobile-responsive`) squash-merged to main on 16 July 2026. PR #12 (`fix/stage-attachments-bucket-and-notes-schema`) merged to main on 15 July 2026. PR #11 (`feature/outreach-improvements`) merged to main on 14 July 2026.
+
+**In progress, not yet merged:** `feature/outreach-shortlist-fixes`, stacked on top of the still-unmerged `feature/smart-shortlist` (both need the Cloudflare preview + incognito test before either can merge — see Section 12). Ten fixes across the Outreach module and Smart Shortlist tab; migration 0080 is written but not yet applied. Full detail at the bottom of Section 1.
 
 **Shipped and merged to main (chronological):**
 
@@ -163,7 +165,17 @@ _Outreach preview polish + follow-up system (`feature/outreach-preview-polish` �
 - `AddClientModal.tsx`: password toggle brought to same 44x44px spec (was already present but undersized)
 - Modal component (`ui.tsx`): `closeOnBackdrop` prop confirmed already existed — no change needed
 
-**Next migration number: 0080**
+_Outreach + Smart Shortlist fixes (`feature/outreach-shortlist-fixes`, stacked on the still-unmerged `feature/smart-shortlist` — not yet merged to main):_
+- Migration 0080: `shortlist_runs.channel` (`email`/`linkedin`/`both`, default `both`) + `shortlist_runs.error_code`; `outreach_touches` status constraint extended with `held`; `enroll_lead` replaced to gate `requires_connected` steps behind `held` instead of `scheduled`; new `mark_lead_connected(p_lead_id)` RPC
+- New Settings page (`/portal/admin/settings`, `src/portal/admin/settings/SettingsPage.tsx`): sub-nav pattern, one section "ICP configuration" — the ICP panel moved here wholesale from `SmartShortlistTab.tsx`'s old Section A. Reachable via a new "ICP configuration" link inside the existing TopBar gear's slide-in Settings panel (that panel and its Manage Clients / Sign out sections are unchanged)
+- `SmartShortlistTab.tsx` restructured as a runs-listing page: page header + "New shortlist" button, ICP summary card (active vertical + first-80-chars preview + "Edit in Settings" link + no-ICP warning banner), Previous runs table as the main content, empty state
+- `NewShortlistModal.tsx` (new, `src/portal/admin/outreach/`): vertical selector, single channel selector (Email outreach / LinkedIn DM — replaces the old dual email/LinkedIn volume selects), one volume selector (5/10/15), screenshot drop zone (drag-and-drop now also added to the ICP/goal attachment upload zones in Settings, which previously had none), large-upload warning (>15MB, gold-15%-opacity banner), 4-stage progress indicator with pulsing active icon, and a red error banner mapping edge-function error codes to specific copy (`anthropic_timeout`, `parse_failed`, `no_icp`, `upload_failed`, generic fallback)
+- Review UI moved from an inline Section C into a `SidePanel`, opened from a run's "View" action or automatically when a new run completes; single-column now (was two, Email + LinkedIn side by side) since a run only ever has one channel
+- `process-shortlist-run` edge function: validation (auth, run status, ICP present, screenshots present) stays synchronous and returns a clear error immediately (including a new `no_icp` check that used to silently proceed with "(none provided)"); once validation passes, the Anthropic call + candidate insert + status update run inside `EdgeRuntime.waitUntil` (first use of this pattern in the codebase) and the function returns `{ queued: true }` immediately — this is the actual fix for the Supabase free-tier synchronous timeout. Candidates are now filtered to the run's single channel before insert. Failures write a specific `error_code` onto the run row instead of just flipping status to `failed`
+- Frontend no longer awaits the edge function's result: it polls `shortlist_runs.status` every 4s (3-minute timeout, with a "taking longer than expected" message that leaves the run visible in Previous runs) instead of blocking on the synchronous response
+- LinkedIn sequence pileup fix: `enroll_lead` still creates every step's touch up front (unchanged eager-insert model — see Section 10), but `requires_connected` steps now start as `held` instead of `scheduled`, so they never show as actionable. `TodayTab.tsx`'s queue query fetches `scheduled` + `held`, then dedupes to the earliest unresolved step per enrollment (`dedupeByEnrollment`) so steps 2/3/4 of the LinkedIn sequence can never all surface as separate "Waiting on connection" cards for the same lead at once. `held` touches always land in Due Today, never Overdue. "Mark connected" now calls `mark_lead_connected` (promotes all of that lead's `held` touches to `scheduled` atomically) instead of a raw `leads` table update
+
+**Next migration number: 0081**
 
 ---
 
@@ -243,6 +255,7 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 - `mark_proposal_viewed(proposal_id)` — client SECURITY DEFINER
 - `is_admin()` — SECURITY DEFINER, used by all RLS policies
 - `get_upcoming_linkedin_week() → TABLE(monday date, wednesday date, friday date)` — STABLE SECURITY DEFINER; returns the Mon/Wed/Fri dates for the upcoming week (Mon if today is Monday)
+- `mark_lead_connected(p_lead_id uuid)` — admin-only SECURITY DEFINER (migration 0080); sets `leads.linkedin_status = 'connected'` and promotes that lead's `held` touches to `scheduled` in one call
 
 **Invoice number sequence:** Starts at EC-I-2026-105 (via invoice_number_seq)
 
@@ -508,7 +521,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 | Item | Priority |
 |---|---|
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
-| Smart Shortlist tab — migration 0079 applied, process-shortlist-run deployed (v1, verify_jwt true), ANTHROPIC_API_KEY already set (shared with extract-lead-from-image); pending: Cloudflare preview + incognito test | High |
+| Smart Shortlist tab + outreach fixes (`feature/outreach-shortlist-fixes`) — migration 0080 written but not yet applied; code complete (Settings page, runs listing + modal, async processing, LinkedIn held-status fix); pending: apply migration 0080, deploy updated process-shortlist-run, Cloudflare preview + incognito test | High |
 | pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) — standing gap across Proposals, Invoices admin, and all portal error states | Medium |
