@@ -119,6 +119,27 @@ function initials(first: string, last: string | null): string {
   return ((first[0] ?? '') + (last?.[0] ?? '')).toUpperCase()
 }
 
+// Fix 9: enroll_lead still creates every sequence step's touch up front, so
+// without this, LinkedIn DM follow-ups (steps 2-4, all gated 'held' once
+// requires_connected) can all become due on the same day and pile up as
+// separate "Waiting on connection" cards for the same lead. Keep only the
+// earliest unresolved step per enrollment so later steps stay hidden until
+// the current one is resolved (connected or skipped).
+function dedupeByEnrollment(rows: TouchRow[]): TouchRow[] {
+  const byEnrollment = new Map<string, TouchRow>()
+  const unkeyed: TouchRow[] = []
+  for (const row of rows) {
+    const key = row.enrollment?.id
+    if (!key) { unkeyed.push(row); continue }
+    const existing = byEnrollment.get(key)
+    const stepNum = row.step?.step_number ?? 0
+    if (!existing || stepNum < (existing.step?.step_number ?? 0)) {
+      byEnrollment.set(key, row)
+    }
+  }
+  return [...byEnrollment.values(), ...unkeyed]
+}
+
 const CHANNEL_LABELS: Record<string, string> = {
   email: 'Review and Send',
   linkedin_connect: 'Send Connect',
@@ -193,7 +214,7 @@ export function TodayTab({
               id, sequence:sequences!sequence_id (name)
             )
           `)
-          .eq('status', 'scheduled')
+          .in('status', ['scheduled', 'held'])
           .lte('scheduled_for', today)
           .order('scheduled_for', { ascending: true })
           .order('created_at', { ascending: true }),
@@ -242,9 +263,12 @@ export function TodayTab({
       ])
 
       if (queueRes.error) throw queueRes.error
-      const rows = (queueRes.data ?? []) as TouchRow[]
-      setOverdue(rows.filter((r) => r.scheduled_for < today))
-      setDueToday(rows.filter((r) => r.scheduled_for === today))
+      const rows = dedupeByEnrollment((queueRes.data ?? []) as TouchRow[])
+      // Fix 9: 'held' touches (LinkedIn steps gated behind an accepted
+      // connection) are blocked, not late — they always land in Due Today,
+      // never Overdue, regardless of how far past their scheduled_for date.
+      setOverdue(rows.filter((r) => r.status !== 'held' && r.scheduled_for < today))
+      setDueToday(rows.filter((r) => r.status === 'held' || r.scheduled_for === today))
       setMotionStats({
         emailsToday: emailTodayRes.count ?? 0,
         liTodayCount: liTodayRes.count ?? 0,
@@ -722,7 +746,10 @@ function TouchRowCard({
   const overdueCount = daysOverdue(touch.scheduled_for)
   const isEmail = touch.channel === 'email'
   const isDm = touch.channel === 'linkedin_dm'
-  const awaitingConnection = isDm && lead.linkedin_status !== 'connected'
+  // Fix 9: 'held' is the primary signal now (set by enroll_lead / promoted by
+  // mark_lead_connected). The linkedin_status fallback covers any row that
+  // predates migration 0080 and never got backfilled to 'held'.
+  const awaitingConnection = touch.status === 'held' || (isDm && lead.linkedin_status !== 'connected')
   const noEmail = isEmail && !lead.email
 
   function handleLeadAreaClick(e: React.MouseEvent) {
@@ -755,10 +782,9 @@ function TouchRowCard({
   }
 
   async function handleMarkConnected() {
-    await supabase
-      .from('leads')
-      .update({ linkedin_status: 'connected' })
-      .eq('id', lead.id)
+    // Fix 9: mark_lead_connected (migration 0080) flips linkedin_status AND
+    // promotes any 'held' touches for this lead to 'scheduled' atomically.
+    await supabase.rpc('mark_lead_connected', { p_lead_id: lead.id })
     onRefresh()
   }
 
