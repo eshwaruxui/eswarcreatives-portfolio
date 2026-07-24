@@ -64,6 +64,7 @@ type TokenPayload = {
     client_name: string | null
     company_name: string | null
     label: string | null
+    billing_title: string | null
     amount: number
     currency: string
     status: string
@@ -304,6 +305,7 @@ export function PublicInvoicePage() {
             number: displayNum(inv.invoice_number),
             status: inv.status,
             label: inv.label,
+            billingTitle: inv.billing_title,
             amount: Number(inv.amount),
             currency: inv.currency,
             issuedDate: inv.created_at,

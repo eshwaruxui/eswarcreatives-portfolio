@@ -33,6 +33,7 @@ type Invoice = {
   client_name: string | null
   company_name: string | null
   label: string | null
+  billing_title: string | null
   amount: number
   currency: string
   status: string
@@ -61,6 +62,11 @@ type ProposalOption = {
   client_name: string | null
   company_name: string | null
   currency: string
+}
+
+type ProjectOption = {
+  id: string
+  title: string
 }
 
 const FILTERS = ['all', 'draft', 'sent', 'paid', 'overdue', 'partially_paid'] as const
@@ -143,7 +149,7 @@ export function InvoicesAdmin() {
       let invQuery = supabase
         .from('invoices')
         .select(
-          'id, invoice_number, proposal_id, client_id, client_name, company_name, label, amount, currency, status, pct_of_total, due_date, paid_date, payment_method, notes, created_at, nudge_count'
+          'id, invoice_number, proposal_id, client_id, client_name, company_name, label, billing_title, amount, currency, status, pct_of_total, due_date, paid_date, payment_method, notes, created_at, nudge_count'
         )
         .order('created_at', { ascending: false })
       if (selectedClientId) invQuery = invQuery.eq('client_id', selectedClientId)
@@ -293,6 +299,9 @@ export function InvoicesAdmin() {
                     <StatusBadge status={inv.status} />
                   </div>
                   <span style={styles.mobileCardCompany}>{displayName(inv)}</span>
+                  {inv.billing_title && (
+                    <span style={styles.billingTitleSubtext}>{inv.billing_title}</span>
+                  )}
                   <div style={styles.mobileCardTop}>
                     <span
                       style={{
@@ -434,6 +443,9 @@ export function InvoicesAdmin() {
                     </td>
                     <td style={styles.td}>
                       <div style={{ color: t.text.primary, fontWeight: 600 }}>{displayName(inv)}</div>
+                      {inv.billing_title && (
+                        <div style={styles.billingTitleSubtext}>{inv.billing_title}</div>
+                      )}
                       {inv.label && <div style={styles.subtle}>{inv.label}</div>}
                     </td>
                     <td style={{ ...styles.td, fontFamily: mono, color: t.text.primary }}>
@@ -696,6 +708,42 @@ function NewInvoiceModal({
   const [saving, setSaving] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
 
+  // "Billing for" project picker + editable billing title.
+  const [clientProjects, setClientProjects] = useState<ProjectOption[]>([])
+  const [billingProjectId, setBillingProjectId] = useState('') // '' | 'custom' | project id
+  const [billingTitle, setBillingTitle] = useState('')
+
+  // Refetch this client's projects whenever the client changes (picked directly
+  // or resolved from a linked proposal); resets the billing selection since the
+  // available project list changed.
+  useEffect(() => {
+    setBillingProjectId('')
+    setBillingTitle('')
+    setClientProjects([])
+    if (!clientId) return
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select('id, title')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+      if (cancelled) return
+      setClientProjects((data ?? []) as ProjectOption[])
+    })()
+    return () => { cancelled = true }
+  }, [clientId])
+
+  function onPickBillingProject(value: string) {
+    setBillingProjectId(value)
+    if (value === 'custom') {
+      setBillingTitle('')
+    } else if (value) {
+      const p = clientProjects.find((x) => x.id === value)
+      setBillingTitle(p?.title ?? '')
+    }
+  }
+
   // Itemised invoice: editable lines + the billables offered by the proposal.
   const [lines, setLines] = useState<LineDraft[]>([])
   const [billables, setBillables] = useState<Billable[]>([])
@@ -913,6 +961,8 @@ function NewInvoiceModal({
           client_id: clientId || null,
           client_name: clientName.trim() || null,
           company_name: companyName.trim() || null,
+          project_id: billingProjectId && billingProjectId !== 'custom' ? billingProjectId : null,
+          billing_title: billingTitle.trim() || null,
           label: summary,
           amount: amountTotal,
           currency,
@@ -979,6 +1029,28 @@ function NewInvoiceModal({
               </option>
             ))}
           </select>
+        </Field>
+        <Field label="Billing for">
+          <select
+            value={billingProjectId}
+            onChange={(e) => onPickBillingProject(e.target.value)}
+            style={styles.input}
+            disabled={!clientId}
+          >
+            <option value="">{clientId ? 'Select a project' : 'Select a client first'}</option>
+            {clientProjects.map((p) => (
+              <option key={p.id} value={p.id}>{p.title}</option>
+            ))}
+            <option value="custom">Custom</option>
+          </select>
+        </Field>
+        <Field label="Billing title">
+          <input
+            value={billingTitle}
+            onChange={(e) => setBillingTitle(e.target.value)}
+            placeholder="What this invoice is for"
+            style={styles.input}
+          />
         </Field>
         <div style={styles.modalRow}>
           <Field label="Company name">
@@ -1227,6 +1299,7 @@ const styles: Record<string, CSSProperties> = {
     verticalAlign: 'middle',
   },
   subtle: { fontSize: 12, color: t.text.muted, marginTop: 2 },
+  billingTitleSubtext: { fontSize: 12, color: t.text.muted, fontWeight: 500, marginTop: 2 },
   actionCell: { display: 'inline-flex', gap: 12, alignItems: 'center' },
   linkBtn: {
     background: 'transparent',

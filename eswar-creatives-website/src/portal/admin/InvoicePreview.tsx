@@ -3,13 +3,17 @@
 // 768px it becomes a bottom sheet. The document body is the shared
 // InvoiceDocument, so admin and client show the exact same invoice template.
 import { useEffect, useState, useRef } from 'react'
-import { Download, X, Copy, ExternalLink } from 'lucide-react'
+import { Download, X, Copy, ExternalLink, Paperclip } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { sanitizeFilename } from '../../lib/sanitizeFilename'
 import { tokens, t, fonts } from '../theme'
 import { InvoiceDocument, type InvoiceLine, type InvoicePaymentRow } from '../components/shared/InvoiceDocument'
 import { mono, formatDate } from './ui'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import type { CSSProperties } from 'react'
+
+const MAX_PROOF_BYTES = 5 * 1024 * 1024 // 5 MB, matches ConfirmPaymentModal.
+const PROOF_ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 
 type NudgeLogRow = {
   id: string
@@ -24,6 +28,7 @@ export type PreviewInvoice = {
   client_name: string | null
   company_name: string | null
   label: string | null
+  billing_title: string | null
   amount: number
   currency: string
   status: string
@@ -57,6 +62,13 @@ export function InvoicePreview({
   const [regenerating, setRegenerating] = useState(false)
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Payment proof view/attach (paperclip view via signed URL; attach uploads
+  // to payment_proofs and writes proof_url back onto the invoice_payments row).
+  const [proofBusyId, setProofBusyId] = useState<string | null>(null)
+  const [proofToast, setProofToast] = useState<string | null>(null)
+  const proofFileInputRef = useRef<HTMLInputElement | null>(null)
+  const pendingProofPaymentIdRef = useRef<string | null>(null)
+
   // Trigger the slide-in transition once mounted.
   useEffect(() => {
     const t = requestAnimationFrame(() => setShown(true))
@@ -88,16 +100,18 @@ export function InvoicePreview({
     ;(async () => {
       const { data } = await supabase
         .from('invoice_payments')
-        .select('paid_on, method, amount, reference_note')
+        .select('id, paid_on, method, amount, reference_note, proof_url')
         .eq('invoice_id', invoice.id)
         .order('paid_on', { ascending: true })
       if (cancelled || !data) return
       setPayments(
         data.map((r) => ({
+          id: r.id as string,
           paid_on: r.paid_on as string,
           method: r.method as string | null,
           amount: Number(r.amount),
           reference_note: r.reference_note as string | null,
+          proof_url: r.proof_url as string | null,
         }))
       )
     })()
@@ -166,6 +180,105 @@ export function InvoicePreview({
     }
   }, [invoice.client_id])
 
+  // Auto-dismiss the proof action toast.
+  useEffect(() => {
+    if (!proofToast) return
+    const id = setTimeout(() => setProofToast(null), 3500)
+    return () => clearTimeout(id)
+  }, [proofToast])
+
+  async function handleViewProof(payment: InvoicePaymentRow) {
+    if (!payment.id || !payment.proof_url) return
+    setProofBusyId(payment.id)
+    try {
+      const { data, error } = await supabase.storage
+        .from('payment_proofs')
+        .createSignedUrl(payment.proof_url, 3600)
+      if (error || !data?.signedUrl) {
+        setProofToast('Could not open the proof file. Try again.')
+        return
+      }
+      window.open(data.signedUrl, '_blank', 'noopener')
+    } finally {
+      setProofBusyId(null)
+    }
+  }
+
+  function triggerAttachProof(payment: InvoicePaymentRow) {
+    if (!payment.id) return
+    pendingProofPaymentIdRef.current = payment.id
+    proofFileInputRef.current?.click()
+  }
+
+  async function onProofFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const paymentId = pendingProofPaymentIdRef.current
+    if (proofFileInputRef.current) proofFileInputRef.current.value = ''
+    if (!file || !paymentId) return
+
+    if (!PROOF_ACCEPTED_TYPES.includes(file.type)) {
+      setProofToast('Only JPEG, PNG, WebP, or PDF files are accepted.')
+      return
+    }
+    if (file.size > MAX_PROOF_BYTES) {
+      setProofToast('File exceeds the 5 MB limit.')
+      return
+    }
+
+    setProofBusyId(paymentId)
+    try {
+      const ext = file.name.split('.').pop() ?? 'bin'
+      const path = `${invoice.id}/${Date.now()}-${sanitizeFilename(file.name)}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('payment_proofs')
+        .upload(path, file, { contentType: file.type, upsert: false })
+      if (upErr) {
+        setProofToast('Could not attach the proof. Try again.')
+        return
+      }
+      const { error: updErr } = await supabase
+        .from('invoice_payments')
+        .update({ proof_url: path })
+        .eq('id', paymentId)
+      if (updErr) {
+        setProofToast('Proof uploaded but could not be saved. Refresh to verify.')
+        return
+      }
+      setPayments((prev) => prev.map((p) => (p.id === paymentId ? { ...p, proof_url: path } : p)))
+      setProofToast('Proof attached.')
+    } finally {
+      setProofBusyId(null)
+    }
+  }
+
+  function renderPaymentProof(payment: InvoicePaymentRow) {
+    const busy = proofBusyId === payment.id
+    if (payment.proof_url) {
+      return (
+        <button
+          type="button"
+          style={proofStyles.iconBtn}
+          onClick={() => void handleViewProof(payment)}
+          disabled={busy}
+          aria-label="View payment proof"
+          title="View payment proof"
+        >
+          <Paperclip size={13} />
+        </button>
+      )
+    }
+    return (
+      <button
+        type="button"
+        style={proofStyles.attachBtn}
+        onClick={() => triggerAttachProof(payment)}
+        disabled={busy}
+      >
+        {busy ? 'Uploading...' : '+ Attach proof'}
+      </button>
+    )
+  }
+
   const number = numberLabel ?? invoice.invoice_number
   const company = invoice.company_name || invoice.client_name || 'Client'
 
@@ -196,6 +309,7 @@ export function InvoicePreview({
             number,
             status: invoice.status,
             label: invoice.label,
+            billingTitle: invoice.billing_title,
             amount: Number(invoice.amount),
             currency: invoice.currency,
             issuedDate: invoice.created_at,
@@ -210,7 +324,18 @@ export function InvoicePreview({
           }}
           lines={lines}
           payments={payments.length > 0 ? payments : undefined}
+          renderPaymentProof={renderPaymentProof}
         />
+
+        <input
+          ref={proofFileInputRef}
+          type="file"
+          accept={PROOF_ACCEPTED_TYPES.join(',')}
+          style={{ display: 'none' }}
+          onChange={(e) => void onProofFileChange(e)}
+        />
+
+        {proofToast && <div style={proofStyles.toast}>{proofToast}</div>}
 
         <div style={downloadWrap}>
           <button type="button" style={downloadBtn} onClick={handleDownloadPDF}>
@@ -414,6 +539,50 @@ const linkStyles: Record<string, CSSProperties> = {
     fontWeight: 500,
     cursor: 'pointer',
     textDecoration: 'none',
+  },
+}
+
+const proofStyles: Record<string, CSSProperties> = {
+  iconBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+    height: 24,
+    background: 'transparent',
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 6,
+    color: t.text.secondary,
+    cursor: 'pointer',
+    padding: 0,
+    flexShrink: 0,
+  },
+  attachBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: t.text.primaryBrand,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: 0,
+    whiteSpace: 'nowrap' as const,
+    flexShrink: 0,
+  },
+  toast: {
+    position: 'fixed' as const,
+    bottom: 24,
+    right: 24,
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    borderRadius: 8,
+    padding: '10px 16px',
+    zIndex: 500,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+    pointerEvents: 'none' as const,
   },
 }
 
