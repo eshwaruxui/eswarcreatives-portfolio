@@ -33,6 +33,23 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   })
 }
 
+// Storage object keys must stay ASCII-safe. macOS screenshot filenames like
+// "Screenshot 2026-07-24 at 3.18.09 AM.png" contain U+202F (narrow no-break
+// space) between the time and AM/PM, which Supabase Storage rejects with a
+// 400 on upload. Strip the extension, fold accents, and collapse anything
+// that isn't a word character into hyphens.
+function sanitizeFilename(name: string): string {
+  return name
+    .replace(/\.[^.]+$/, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s-]/g, '-')
+    .replace(/[\s\u00A0\u202F\u2009\u200B]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase()
+}
+
 // Resizes to a 1200px longest side and re-encodes as JPEG at 0.85 quality so
 // uploads stay small enough for process-shortlist-run to finish quickly.
 async function compressScreenshot(file: File): Promise<File> {
@@ -50,7 +67,7 @@ async function compressScreenshot(file: File): Promise<File> {
     ctx.drawImage(img, 0, 0, width, height)
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', COMPRESS_JPEG_QUALITY))
     if (!blob) return file
-    const newName = file.name.replace(/\.[^.]+$/, '') + '.jpg'
+    const newName = sanitizeFilename(file.name) + '.jpg'
     return new File([blob], newName, { type: 'image/jpeg' })
   } catch {
     return file
@@ -210,9 +227,16 @@ export function NewShortlistModal({
       for (const file of compressed) {
         const path = `shortlist-runs/${runRow.id}/${Date.now()}-${file.name}`
         const { error: upErr } = await supabase.storage.from('stage-attachments').upload(path, file)
-        if (upErr) { uploadFailed = true; continue }
+        if (upErr) {
+          console.error('[shortlist] screenshot upload failed:', upErr.message)
+          uploadFailed = true
+          continue
+        }
         const { error: rowErr } = await supabase.from('shortlist_run_screenshots').insert({ run_id: runRow.id, storage_path: path })
-        if (rowErr) uploadFailed = true
+        if (rowErr) {
+          console.error('[shortlist] screenshot row insert failed:', rowErr.message)
+          uploadFailed = true
+        }
       }
       if (uploadFailed) {
         setRunError(errorMessageFor('upload_failed'))
