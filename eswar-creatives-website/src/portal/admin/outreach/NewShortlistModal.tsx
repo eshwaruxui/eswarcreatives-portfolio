@@ -354,12 +354,13 @@ export function NewShortlistModal({
 
             <button
               type="button"
-              style={{ ...s.primaryBtn, opacity: Boolean(runDisabledReason) ? 0.5 : 1 }}
+              style={{ ...s.primaryBtn, opacity: 0.5 }}
               onClick={handleRunShortlist}
-              disabled={Boolean(runDisabledReason)}
+              disabled
             >
-              Run shortlist
+              AI processing coming soon
             </button>
+            <p style={s.comingSoonNote}>We are upgrading the AI engine. Check back soon.</p>
           </>
         )}
 
@@ -566,6 +567,7 @@ const s: Record<string, CSSProperties> = {
     color: t.text.primary,
   },
   hintText: { fontFamily: fonts.body, fontSize: 13, color: t.text.muted },
+  comingSoonNote: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, textAlign: 'center' as const, margin: 0 },
   primaryBtn: {
     width: '100%',
     textAlign: 'center' as const,

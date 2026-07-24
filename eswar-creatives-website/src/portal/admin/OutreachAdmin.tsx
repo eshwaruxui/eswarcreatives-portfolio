@@ -75,6 +75,7 @@ export function OutreachAdmin() {
               {tab.id === 'today' && dueCount > 0 && (
                 <span style={styles.badge}>{dueCount > 99 ? '99+' : dueCount}</span>
               )}
+              {tab.id === 'shortlist' && <span style={styles.betaPill}>Beta</span>}
             </button>
           )
         })}
@@ -149,6 +150,17 @@ const styles: Record<string, CSSProperties> = {
     height: 18,
     padding: '0 5px',
     lineHeight: 1,
+  },
+  betaPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    fontFamily: fonts.body,
+    fontSize: 10,
+    color: t.text.muted,
+    background: t.background.subtle,
+    borderRadius: 4,
+    padding: '4px 6px',
+    marginLeft: 6,
   },
   tabContent: {
     minHeight: 200,
