@@ -343,6 +343,7 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 | extract-lead-from-image | v2 | true | Calls claude-sonnet-4-6; extracts 13 fields: name, company, title, email, phone_business, phone_personal, website, location, source, linkedin_url, instagram_url, twitter_handle, notes; max_tokens 800; client infers website from business email domain |
 | confirm-scheduled-touch | v1 | true | Admin verifies touch status='scheduled', sends immediately via Resend, sets draft_confirmed_at/by, updates status to 'sent'/'failed' |
 | send-linkedin-reminder | v1 | false | Calls get_upcoming_linkedin_week() RPC; counts pending posts for Mon/Wed/Fri; sends reminder to eswar@eswarcreatives.in via Resend if any slot unfilled; triggered by pg_cron Sunday 12:30 UTC |
+| process-shortlist-run | v1 | true | Admin JWT + explicit profiles.role check; downloads run screenshots from stage-attachments as base64; calls claude-sonnet-4-6 (max_tokens 4000) with ICP/goal text + existing-leads fuzzy-dedup list; parses candidate JSON array; filters excluded + not_interested matches; inserts shortlist_candidates; sets shortlist_runs.status to complete/failed |
 
 **Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `ANTHROPIC_API_KEY`
 **Secrets pending:** `RESEND_WEBHOOK_SECRET` (required before resend-outreach-webhook goes live)
@@ -473,12 +474,41 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 ---
 
-## 11. Pending work
+## 11. Smart Shortlist module
+
+**Admin-only. 6th tab in OutreachAdmin (Sparkles icon).** AI-powered lead prioritization: extracts LinkedIn profiles from screenshots, scores them against a saved ICP, produces a reviewed shortlist for outreach.
+
+**Tables (migration 0079):**
+- `icp_configs`: one row per vertical (`design_systems` | `branding`), upserted. `icp_text`, `goal_text`, `icp_attachment_url`/`goal_attachment_url` (storage paths in the private `icp-attachments` bucket, not public URLs — signed URL generated on view, same pattern as `stage-attachments`)
+- `shortlist_runs`: `vertical`, `volume_email`, `volume_linkedin`, `status` (`processing`/`complete`/`archived`/`failed` — `failed` added beyond spec for the edge function's parse-failure path)
+- `shortlist_run_screenshots`: screenshots per run, stored in the existing `stage-attachments` bucket at `shortlist-runs/{run_id}/{timestamp}-{filename}` (not a new bucket — reuses the bucket per spec)
+- `shortlist_candidates`: extracted + scored people. `decision` (`pending`/`added`/`ignored`), `lead_id` back-reference once added
+
+**Schema gaps closed in migration 0079 (not in the original spec):**
+- `leads.vertical` (nullable, `design_systems`/`branding`) added as a separate column — `leads.segment` (`security_ai`/`saas_product`, NOT NULL) is a different, pre-existing taxonomy and was not touched. Shortlist-added leads get `segment: 'saas_product'` (same fallback `CsvImportModal` already uses) plus their real `vertical`.
+- `leads.source` CHECK extended to include `'smart_shortlist'`, same mechanical pattern as `0072c`'s `linkedin_visitor` addition.
+- `stage-attachments` bucket's `allowed_mime_types` extended with `image/webp` (was jpeg/png only) since Section B screenshots need webp support.
+- `icp-attachments` bucket created via SQL `insert into storage.buckets` in the migration itself, not the Supabase dashboard — the dashboard-creation step for `stage-attachments` was skipped during the project-stage-module rollout and silently broke every upload until migration 0077 fixed it; doing it in SQL here avoids repeating that failure.
+
+**Edge function:** `process-shortlist-run` (`supabase/functions/process-shortlist-run/index.ts`) — admin JWT required (same auth pattern as `extract-lead-from-image`: caller-scoped client + explicit `profiles.role` check). Downloads run screenshots as base64, calls `claude-sonnet-4-6` (max_tokens 4000) with the ICP text/goal and existing-leads list for fuzzy dedup, parses the JSON candidate array, filters excluded/not-interested matches, inserts `shortlist_candidates`, sets run status to `complete` (or `failed` on any parse/insert error — raw errors never surface to the client).
+
+**Frontend (`SmartShortlistTab.tsx` + `src/portal/components/shortlist/`):**
+- Section A: collapsible ICP config, per-vertical tabs, textarea + file upload (PDF/image) for both ICP and goal, upsert on "Save ICP"
+- Section B: vertical selector, email/LinkedIn volume selects (5/10/15), multi-screenshot drop zone with thumbnail grid, "Run shortlist" disabled until screenshots exist and the selected vertical has a saved ICP
+- Section C: two-column review (Email outreach / LinkedIn DM), sorted by `icp_score` desc, sliced to the run's volume; low-confidence candidates pulled into a collapsed "Needs manual review" section per column instead of the ranked list; "Only N of volume slots filled" banner when the high-confidence pool is short
+- `CandidateCard` (`src/portal/components/shortlist/CandidateCard.tsx`, reused in both columns): score bar, reasons, low-confidence border/badge, inline (non-modal) "Add to leads" expansion — email input + mandatory `specific_observation` (100-200 chars, "Confirm and add" disabled outside that range) — and "Ignore" (200ms fade, sets `decision: 'ignored'`)
+- Section D: history table (desktop) / card list (mobile) of runs with aggregated screenshot/candidate/added counts; View reopens Section C for that run; Archive/Delete per row; archived hidden by default behind "Show archived (N)"
+
+**Status:** migration 0079 applied and `process-shortlist-run` deployed (v1, verify_jwt true) directly against the live project on 17 Jul 2026. **Pending before this ships:** Cloudflare preview + incognito test.
+
+---
+
+## 12. Pending work
 
 | Item | Priority |
 |---|---|
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
-| Smart Shortlist tab (migration 0079, process-shortlist-run edge function, SmartShortlistTab.tsx) | High |
+| Smart Shortlist tab — migration 0079 applied, process-shortlist-run deployed (v1, verify_jwt true), ANTHROPIC_API_KEY already set (shared with extract-lead-from-image); pending: Cloudflare preview + incognito test | High |
 | pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) — standing gap across Proposals, Invoices admin, and all portal error states | Medium |
@@ -489,7 +519,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 ---
 
-## 12. Roadmap in pipeline
+## 13. Roadmap in pipeline
 
 **Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered.
 
@@ -499,7 +529,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 ---
 
-## 13. Execution rules
+## 14. Execution rules
 
 - One branch per feature. One commit per logical layer.
 - Never merge to main without Cloudflare preview + incognito test.
@@ -517,6 +547,6 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 ---
 
-## 14. One-line summary
+## 15. One-line summary
 
 Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending".
