@@ -33,6 +33,7 @@ type Invoice = {
   client_name: string | null
   company_name: string | null
   label: string | null
+  billing_title: string | null
   amount: number
   currency: string
   status: string
@@ -148,7 +149,7 @@ export function InvoicesAdmin() {
       let invQuery = supabase
         .from('invoices')
         .select(
-          'id, invoice_number, proposal_id, client_id, client_name, company_name, label, amount, currency, status, pct_of_total, due_date, paid_date, payment_method, notes, created_at, nudge_count'
+          'id, invoice_number, proposal_id, client_id, client_name, company_name, label, billing_title, amount, currency, status, pct_of_total, due_date, paid_date, payment_method, notes, created_at, nudge_count'
         )
         .order('created_at', { ascending: false })
       if (selectedClientId) invQuery = invQuery.eq('client_id', selectedClientId)
@@ -298,6 +299,9 @@ export function InvoicesAdmin() {
                     <StatusBadge status={inv.status} />
                   </div>
                   <span style={styles.mobileCardCompany}>{displayName(inv)}</span>
+                  {inv.billing_title && (
+                    <span style={styles.billingTitleSubtext}>{inv.billing_title}</span>
+                  )}
                   <div style={styles.mobileCardTop}>
                     <span
                       style={{
@@ -439,6 +443,9 @@ export function InvoicesAdmin() {
                     </td>
                     <td style={styles.td}>
                       <div style={{ color: t.text.primary, fontWeight: 600 }}>{displayName(inv)}</div>
+                      {inv.billing_title && (
+                        <div style={styles.billingTitleSubtext}>{inv.billing_title}</div>
+                      )}
                       {inv.label && <div style={styles.subtle}>{inv.label}</div>}
                     </td>
                     <td style={{ ...styles.td, fontFamily: mono, color: t.text.primary }}>
@@ -1292,6 +1299,7 @@ const styles: Record<string, CSSProperties> = {
     verticalAlign: 'middle',
   },
   subtle: { fontSize: 12, color: t.text.muted, marginTop: 2 },
+  billingTitleSubtext: { fontSize: 12, color: t.text.muted, fontWeight: 500, marginTop: 2 },
   actionCell: { display: 'inline-flex', gap: 12, alignItems: 'center' },
   linkBtn: {
     background: 'transparent',

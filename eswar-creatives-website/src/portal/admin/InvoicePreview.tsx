@@ -24,6 +24,7 @@ export type PreviewInvoice = {
   client_name: string | null
   company_name: string | null
   label: string | null
+  billing_title: string | null
   amount: number
   currency: string
   status: string
@@ -196,6 +197,7 @@ export function InvoicePreview({
             number,
             status: invoice.status,
             label: invoice.label,
+            billingTitle: invoice.billing_title,
             amount: Number(invoice.amount),
             currency: invoice.currency,
             issuedDate: invoice.created_at,

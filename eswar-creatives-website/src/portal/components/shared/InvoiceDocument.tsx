@@ -19,6 +19,7 @@ export type InvoiceDoc = {
   dueDate: string | null
   paidDate?: string | null
   paymentMethod?: string | null
+  billingTitle?: string | null
   notes: string | null
 }
 
@@ -35,10 +36,12 @@ export type InvoiceLine = { label: string; amount: number }
 
 // Structured payment record (from invoice_payments).
 export type InvoicePaymentRow = {
+  id?: string
   paid_on: string
   method: string | null
   amount: number
   reference_note?: string | null
+  proof_url?: string | null
 }
 
 function todayISO() {
@@ -81,6 +84,7 @@ export function InvoiceDocument({
   lines,
   payments,
   readOnly: _readOnly,
+  renderPaymentProof,
 }: {
   invoice: InvoiceDoc
   billedTo: InvoiceBilledTo
@@ -89,6 +93,9 @@ export function InvoiceDocument({
   // Signals that this render is for a public or read-only surface.
   // The document is already non-editable; this prop is for future controls.
   readOnly?: boolean
+  // Caller-owned proof-of-payment control per payment row (view/attach). Keeps
+  // this component role-agnostic; admin and client supply their own actions.
+  renderPaymentProof?: (payment: InvoicePaymentRow, index: number) => React.ReactNode
 }) {
   const pill = invoiceStatusPill(invoice.status, invoice.dueDate)
   // Itemised lines when present, otherwise a single line from label + amount.
@@ -132,6 +139,7 @@ export function InvoiceDocument({
           <div style={styles.sectionLabel}>Details</div>
           <DetailLine k="Issued" v={formatDate(invoice.issuedDate)} />
           <DetailLine k="Due" v={formatDate(invoice.dueDate)} />
+          {invoice.billingTitle && <DetailLine k="For" v={invoice.billingTitle} />}
           {invoice.paidDate && <DetailLine k="Paid" v={formatDate(invoice.paidDate)} />}
           {invoice.paymentMethod && <DetailLine k="Method" v={invoice.paymentMethod} />}
           <DetailLine k="Currency" v={invoice.currency} />
@@ -177,6 +185,9 @@ export function InvoiceDocument({
                   {p.method && <span style={styles.paymentMethod}>{p.method}</span>}
                   {p.reference_note && <span style={styles.paymentRef}>{p.reference_note}</span>}
                   <span style={styles.paymentAmt}>{formatAmount(Number(p.amount), invoice.currency)}</span>
+                  {renderPaymentProof && (
+                    <span style={styles.paymentProofSlot}>{renderPaymentProof(p, i)}</span>
+                  )}
                 </div>
               ))}
               <div style={styles.subRow}>
@@ -368,6 +379,7 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap' as const,
   },
   paymentAmt: { fontFamily: mono, fontSize: 13, color: t.text.primary, marginLeft: 'auto', whiteSpace: 'nowrap' as const },
+  paymentProofSlot: { display: 'flex', alignItems: 'center', flexShrink: 0, marginLeft: 6 },
   notes: { marginTop: 20, background: tokens.bg, borderRadius: 8, padding: 14 },
   notesLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 700, color: t.text.primary, marginBottom: 4 },
   notesBody: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary, margin: 0, lineHeight: 1.5 },

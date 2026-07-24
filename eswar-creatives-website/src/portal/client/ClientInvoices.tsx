@@ -18,6 +18,7 @@ type Invoice = {
   id: string
   invoice_number: string
   label: string | null
+  billing_title: string | null
   amount: number
   currency: string
   status: string
@@ -77,7 +78,7 @@ function Invoices({ profile }: { profile: PortalProfile }) {
         const { data, error: iErr } = await supabase
           .from('invoices')
           .select(
-            'id, invoice_number, label, amount, currency, status, due_date, pct_of_total, paid_date, payment_method, notes, created_at'
+            'id, invoice_number, label, billing_title, amount, currency, status, due_date, pct_of_total, paid_date, payment_method, notes, created_at'
           )
           .eq('client_id', client.id)
           .order('created_at', { ascending: false })
@@ -380,6 +381,7 @@ function InvoicePanel({
         number: displayInvoiceNumber(invoice.invoice_number),
         status: invoice.status,
         label: invoice.label,
+        billingTitle: invoice.billing_title,
         amount: Number(invoice.amount),
         currency: invoice.currency,
         issuedDate: invoice.created_at,
