@@ -63,6 +63,11 @@ type ProposalOption = {
   currency: string
 }
 
+type ProjectOption = {
+  id: string
+  title: string
+}
+
 const FILTERS = ['all', 'draft', 'sent', 'paid', 'overdue', 'partially_paid'] as const
 type Filter = (typeof FILTERS)[number]
 
@@ -696,6 +701,42 @@ function NewInvoiceModal({
   const [saving, setSaving] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
 
+  // "Billing for" project picker + editable billing title.
+  const [clientProjects, setClientProjects] = useState<ProjectOption[]>([])
+  const [billingProjectId, setBillingProjectId] = useState('') // '' | 'custom' | project id
+  const [billingTitle, setBillingTitle] = useState('')
+
+  // Refetch this client's projects whenever the client changes (picked directly
+  // or resolved from a linked proposal); resets the billing selection since the
+  // available project list changed.
+  useEffect(() => {
+    setBillingProjectId('')
+    setBillingTitle('')
+    setClientProjects([])
+    if (!clientId) return
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select('id, title')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+      if (cancelled) return
+      setClientProjects((data ?? []) as ProjectOption[])
+    })()
+    return () => { cancelled = true }
+  }, [clientId])
+
+  function onPickBillingProject(value: string) {
+    setBillingProjectId(value)
+    if (value === 'custom') {
+      setBillingTitle('')
+    } else if (value) {
+      const p = clientProjects.find((x) => x.id === value)
+      setBillingTitle(p?.title ?? '')
+    }
+  }
+
   // Itemised invoice: editable lines + the billables offered by the proposal.
   const [lines, setLines] = useState<LineDraft[]>([])
   const [billables, setBillables] = useState<Billable[]>([])
@@ -913,6 +954,8 @@ function NewInvoiceModal({
           client_id: clientId || null,
           client_name: clientName.trim() || null,
           company_name: companyName.trim() || null,
+          project_id: billingProjectId && billingProjectId !== 'custom' ? billingProjectId : null,
+          billing_title: billingTitle.trim() || null,
           label: summary,
           amount: amountTotal,
           currency,
@@ -979,6 +1022,28 @@ function NewInvoiceModal({
               </option>
             ))}
           </select>
+        </Field>
+        <Field label="Billing for">
+          <select
+            value={billingProjectId}
+            onChange={(e) => onPickBillingProject(e.target.value)}
+            style={styles.input}
+            disabled={!clientId}
+          >
+            <option value="">{clientId ? 'Select a project' : 'Select a client first'}</option>
+            {clientProjects.map((p) => (
+              <option key={p.id} value={p.id}>{p.title}</option>
+            ))}
+            <option value="custom">Custom</option>
+          </select>
+        </Field>
+        <Field label="Billing title">
+          <input
+            value={billingTitle}
+            onChange={(e) => setBillingTitle(e.target.value)}
+            placeholder="What this invoice is for"
+            style={styles.input}
+          />
         </Field>
         <div style={styles.modalRow}>
           <Field label="Company name">
