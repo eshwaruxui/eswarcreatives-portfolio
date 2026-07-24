@@ -1,15 +1,15 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 24 July 2026 (`feature/outreach-shortlist-fixes` in progress). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 24 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
 **Active branch:** `main`
-**Status:** Stable. PR #13 (`feature/admin-mobile-responsive`) squash-merged to main on 16 July 2026. PR #12 (`fix/stage-attachments-bucket-and-notes-schema`) merged to main on 15 July 2026. PR #11 (`feature/outreach-improvements`) merged to main on 14 July 2026.
+**Status:** Stable. `feature/smart-shortlist` merged to main on 24 July 2026 (commit 9f8c1642), then `feature/outreach-shortlist-fixes` merged to main on 24 July 2026 (commit 807bd460), both after Cloudflare preview + incognito test. Migration 0080 (`outreach_fixes`) confirmed applied live. PR #13 (`feature/admin-mobile-responsive`) squash-merged to main on 16 July 2026. PR #12 (`fix/stage-attachments-bucket-and-notes-schema`) merged to main on 15 July 2026. PR #11 (`feature/outreach-improvements`) merged to main on 14 July 2026.
 
-**In progress, not yet merged:** `feature/outreach-shortlist-fixes`, stacked on top of the still-unmerged `feature/smart-shortlist` (both need the Cloudflare preview + incognito test before either can merge — see Section 12). Ten fixes across the Outreach module and Smart Shortlist tab; migration 0080 is written but not yet applied. Full detail at the bottom of Section 1.
+**Smart Shortlist run is temporarily disabled:** the "Run shortlist" button in `NewShortlistModal.tsx` shows "AI processing coming soon" and is disabled pending an architecture fix; a "Beta" pill was added next to the tab label in `OutreachAdmin.tsx`. Upload zone, vertical/channel/volume selectors stay visible and functional. Full detail at the bottom of Section 1.
 
 **Shipped and merged to main (chronological):**
 
