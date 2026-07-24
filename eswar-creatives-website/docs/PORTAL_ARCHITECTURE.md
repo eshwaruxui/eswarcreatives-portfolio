@@ -6,8 +6,8 @@ Last updated: 24 July 2026 (Smart Shortlist + Outreach fixes merged). Keep this 
 
 ## 1. Current branch state
 
-**Active branch:** `main` (stable) + `feature/invoice-billing-title-and-proof-attachments` (in progress, not yet merged — see entry below)
-**Status:** Stable. `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
+**Active branch:** `main`
+**Status:** Stable. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -198,7 +198,7 @@ _Ten Outreach + Smart Shortlist fixes (`feature/outreach-shortlist-fixes` — me
 - Add Project button restored in ProjectsList.tsx: `AddProjectModal` (client picker + project name), desktop top-right + mobile sticky footer button
 - Docs updated in PORTAL_ARCHITECTURE.md post-merge
 
-_Invoice billing title + payment proof attachments (`feature/invoice-billing-title-and-proof-attachments` — in progress, not yet merged):_
+_Invoice billing title + payment proof attachments (`feature/invoice-billing-title-and-proof-attachments` — merged to main 24 July 2026):_
 - Migration 0081 applied: `invoices.billing_title` (text, nullable). Note: `invoices.project_id` already existed live (from an earlier, undocumented change) — verified via `list_tables` before writing the migration rather than assuming, so the migration only added the missing column.
 - Admin invoice create form: "Billing for" dropdown directly after Client (that client's `projects.title` values + "Custom"); selecting a project autofills an editable "Billing title" input with the project title, "Custom" clears it for manual entry; both `project_id` and `billing_title` are written on save
 - `billing_title` surfaced as a muted subtext line (above the existing item-description line) in `InvoicesAdmin.tsx` list (desktop table + mobile card), as a "For" row in the shared `InvoiceDocument` Details box (alongside Issued/Due/Currency) — covers the admin preview drawer, the public `/invoice/:token` page, and the print/PDF output, since all three render the same component. `get_invoice_by_token` needed no RPC change: it returns `to_jsonb(invoices row)`, which picks up new columns automatically.
@@ -206,7 +206,7 @@ _Invoice billing title + payment proof attachments (`feature/invoice-billing-tit
 - `InvoiceDocument` gained an optional `renderPaymentProof(payment, index)` render-prop so it stays role-agnostic; each surface supplies its own control. Admin (`InvoicePreview.tsx`): paperclip icon opens a signed URL for rows with `proof_url`, "+ Attach proof" ghost link uploads to `payment_proofs/{invoice_id}/{timestamp}-{sanitized}.{ext}` and writes the path back to `invoice_payments.proof_url` for rows without. Client (`ClientInvoices.tsx`): same paperclip/view treatment, no upload control. Public invoice page: no proof control (out of scope).
 - `sanitizeFilename` extracted from `NewShortlistModal.tsx` into a shared `src/lib/sanitizeFilename.ts` helper (was duplicated logic in the making); both the Smart Shortlist screenshot upload and the new payment-proof attach path now import it.
 - Cloudflare preview smoke-tested (admin + client sessions): Billing for/Billing title flow, list/detail/public-page/PDF surfacing, admin attach+view proof, client view-only proof all confirmed working end to end. One fix from that pass: the "For" value initially rendered in the mono font used by short Details tokens (dates, currency), which wrapped awkwardly for longer titles — switched to the body font for that row only (`DetailLine`'s `prose` variant).
-- Not yet merged to main.
+- Merged to main 24 July 2026 (no-ff, no conflicts).
 
 **Supabase plan:** Pro ($25/month, upgraded 24 Jul 2026). Project ref: `urrinqwcrpivmvenupiu` (Mumbai, ap-south-1).
 
