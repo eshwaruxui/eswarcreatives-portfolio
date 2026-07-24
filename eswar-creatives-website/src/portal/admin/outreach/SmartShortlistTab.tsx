@@ -1,116 +1,54 @@
-// Smart Shortlist tab: ICP config (A), run a new shortlist (B), review stage (C), history (D).
-import { useEffect, useRef, useState } from 'react'
+// Smart Shortlist tab: runs listing page (Fix 2). ICP configuration lives in
+// Settings now (Fix 1); creating a run happens in NewShortlistModal (Fix 2/3);
+// reviewing results happens in a SidePanel (Fix 2) instead of an inline section.
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { ChevronDown, ChevronUp, Upload, X, Archive, Trash2, Eye, ArchiveRestore } from 'lucide-react'
+import { ChevronDown, ChevronUp, Sparkles, Archive, Trash2, Eye, ArchiveRestore } from 'lucide-react'
+import { useNavigate } from 'react-router'
 import { supabase } from '../../../lib/supabase'
-import { tokens, t, fonts, motionTokens } from '../../theme'
-import { mono, formatDate } from '../ui'
-import { showToast } from '../toast'
+import { tokens, t, fonts } from '../../theme'
+import { mono, formatDate, EmptyState } from '../ui'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { SidePanel } from '../SidePanel'
 import { CandidateCard } from '../../components/shortlist/CandidateCard'
+import { NewShortlistModal } from './NewShortlistModal'
 import {
   VERTICAL_LABELS,
+  CHANNEL_LABELS,
+  runVolume,
   type Vertical,
   type ICPConfig,
   type ShortlistRun,
   type ShortlistCandidate,
 } from '../../components/shortlist/types'
 
-const VERTICALS: Vertical[] = ['design_systems', 'branding']
-const VOLUME_OPTIONS = [5, 10, 15]
-const ATTACHMENT_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp'
-const SCREENSHOT_ACCEPT = 'image/jpeg,image/png,image/webp'
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-const LARGE_UPLOAD_WARNING_BYTES = 15 * 1024 * 1024
-const COMPRESS_MAX_DIMENSION = 1200
-const COMPRESS_JPEG_QUALITY = 0.85
-
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = reject
-    img.src = url
-  })
-}
-
-// Resizes to a 1200px longest side and re-encodes as JPEG at 0.85 quality so
-// uploads stay small enough for process-shortlist-run to finish inside its
-// Anthropic call window.
-async function compressScreenshot(file: File): Promise<File> {
-  const url = URL.createObjectURL(file)
-  try {
-    const img = await loadImage(url)
-    const scale = Math.min(1, COMPRESS_MAX_DIMENSION / Math.max(img.width, img.height))
-    const width = Math.round(img.width * scale)
-    const height = Math.round(img.height * scale)
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return file
-    ctx.drawImage(img, 0, 0, width, height)
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', COMPRESS_JPEG_QUALITY))
-    if (!blob) return file
-    const newName = file.name.replace(/\.[^.]+$/, '') + '.jpg'
-    return new File([blob], newName, { type: 'image/jpeg' })
-  } catch {
-    return file
-  } finally {
-    URL.revokeObjectURL(url)
-  }
-}
-
 type HistoryCounts = Record<string, { screenshots: number; candidates: number; added: number }>
 
 export function SmartShortlistTab() {
   const { isMobile } = useBreakpoint()
-  const reviewRef = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
 
-  // ── Section A: ICP config ────────────────────────────────────────────────
   const [icpConfigs, setIcpConfigs] = useState<Record<Vertical, ICPConfig | null>>({
     design_systems: null,
     branding: null,
   })
-  const [configLoaded, setConfigLoaded] = useState(false)
-  const [configExpanded, setConfigExpanded] = useState(false)
-  const [configVertical, setConfigVertical] = useState<Vertical>('design_systems')
-  const [icpTextDraft, setIcpTextDraft] = useState('')
-  const [goalTextDraft, setGoalTextDraft] = useState('')
-  const [icpAttachmentPath, setIcpAttachmentPath] = useState<string | null>(null)
-  const [goalAttachmentPath, setGoalAttachmentPath] = useState<string | null>(null)
-  const [icpUploading, setIcpUploading] = useState(false)
-  const [goalUploading, setGoalUploading] = useState(false)
-  const [savingConfig, setSavingConfig] = useState(false)
-  const [savedFlash, setSavedFlash] = useState(false)
+  const [summaryVertical, setSummaryVertical] = useState<Vertical>('design_systems')
 
-  // ── Section B: new run ───────────────────────────────────────────────────
-  const [runVertical, setRunVertical] = useState<Vertical>('design_systems')
-  const [volumeEmail, setVolumeEmail] = useState(5)
-  const [volumeLinkedin, setVolumeLinkedin] = useState(5)
-  const [screenshotStaged, setScreenshotStaged] = useState<{ file: File; previewUrl: string }[]>([])
-  const [running, setRunning] = useState(false)
-  const [optimising, setOptimising] = useState(false)
-  const [runError, setRunError] = useState<string | null>(null)
-
-  // ── Section C: review stage ──────────────────────────────────────────────
-  const [currentRun, setCurrentRun] = useState<ShortlistRun | null>(null)
-  const [candidates, setCandidates] = useState<ShortlistCandidate[]>([])
-  const [showEmailReview, setShowEmailReview] = useState(false)
-  const [showLinkedinReview, setShowLinkedinReview] = useState(false)
-
-  // ── Section D: history ────────────────────────────────────────────────────
   const [historyRuns, setHistoryRuns] = useState<ShortlistRun[]>([])
   const [historyCounts, setHistoryCounts] = useState<HistoryCounts>({})
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
+  const [showNewShortlist, setShowNewShortlist] = useState(false)
+  const [reviewRun, setReviewRun] = useState<ShortlistRun | null>(null)
+  const [reviewCandidates, setReviewCandidates] = useState<ShortlistCandidate[]>([])
+  const [reviewOpen, setReviewOpen] = useState(false)
 
   async function loadIcpConfigs() {
     const { data } = await supabase.from('icp_configs').select('*')
     const map: Record<Vertical, ICPConfig | null> = { design_systems: null, branding: null }
     for (const row of (data ?? []) as ICPConfig[]) map[row.vertical] = row
     setIcpConfigs(map)
-    setConfigLoaded(true)
   }
 
   async function loadHistory() {
@@ -135,172 +73,25 @@ export function SmartShortlistTab() {
 
   useEffect(() => { loadIcpConfigs(); loadHistory() }, [])
 
-  // Collapsed by default only when at least one vertical already has a saved
-  // ICP; expanded on first load if both are empty. Only evaluated once, right
-  // after configs finish loading, not on every vertical-tab switch.
-  useEffect(() => {
-    if (!configLoaded) return
-    const hasAny = Boolean(icpConfigs.design_systems?.icp_text || icpConfigs.branding?.icp_text)
-    setConfigExpanded(!hasAny)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configLoaded])
-
-  useEffect(() => {
-    const cfg = icpConfigs[configVertical]
-    setIcpTextDraft(cfg?.icp_text ?? '')
-    setGoalTextDraft(cfg?.goal_text ?? '')
-    setIcpAttachmentPath(cfg?.icp_attachment_url ?? null)
-    setGoalAttachmentPath(cfg?.goal_attachment_url ?? null)
-  }, [configVertical, icpConfigs])
-
-  async function uploadAttachment(kind: 'icp' | 'goal', file: File) {
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      showToast('File too large (max 10MB).', 'error')
-      return
-    }
-    const setUploading = kind === 'icp' ? setIcpUploading : setGoalUploading
-    setUploading(true)
-    const ext = file.name.split('.').pop() ?? 'bin'
-    const path = `icp/${configVertical}/${kind}-${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('icp-attachments').upload(path, file)
-    setUploading(false)
-    if (error) {
-      showToast('Upload failed. Please try again.', 'error')
-      return
-    }
-    if (kind === 'icp') setIcpAttachmentPath(path)
-    else setGoalAttachmentPath(path)
-  }
-
-  async function viewAttachment(path: string) {
-    const { data } = await supabase.storage.from('icp-attachments').createSignedUrl(path, 3600)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener')
-  }
-
-  async function handleSaveIcp() {
-    setSavingConfig(true)
-    const { error } = await supabase.from('icp_configs').upsert(
-      {
-        vertical: configVertical,
-        icp_text: icpTextDraft.trim() || null,
-        goal_text: goalTextDraft.trim() || null,
-        icp_attachment_url: icpAttachmentPath,
-        goal_attachment_url: goalAttachmentPath,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'vertical' }
-    )
-    setSavingConfig(false)
-    if (error) {
-      showToast('Could not save ICP configuration.', 'error')
-      return
-    }
-    setSavedFlash(true)
-    setTimeout(() => setSavedFlash(false), 2000)
-    await loadIcpConfigs()
-  }
-
-  function handleScreenshotSelect(files: FileList | null) {
-    if (!files) return
-    const next = Array.from(files)
-      .filter((f) => ['image/jpeg', 'image/png', 'image/webp'].includes(f.type))
-      .map((file) => ({ file, previewUrl: URL.createObjectURL(file) }))
-    setScreenshotStaged((prev) => [...prev, ...next])
-  }
-
-  function removeScreenshot(index: number) {
-    setScreenshotStaged((prev) => prev.filter((_, i) => i !== index))
-  }
-
   async function loadCandidatesForRun(runId: string) {
     const { data } = await supabase
       .from('shortlist_candidates')
       .select('*')
       .eq('run_id', runId)
       .order('icp_score', { ascending: false })
-    setCandidates((data ?? []) as ShortlistCandidate[])
+    setReviewCandidates((data ?? []) as ShortlistCandidate[])
   }
 
-  const stagedBytes = screenshotStaged.reduce((sum, s) => sum + s.file.size, 0)
-  const showLargeUploadWarning = stagedBytes > LARGE_UPLOAD_WARNING_BYTES
-
-  const hasIcpForRunVertical = Boolean(icpConfigs[runVertical]?.icp_text)
-  const runDisabledReason =
-    screenshotStaged.length === 0
-      ? 'Upload at least one screenshot to run a shortlist.'
-      : !hasIcpForRunVertical
-      ? `Save an ICP profile for ${VERTICAL_LABELS[runVertical]} before running a shortlist.`
-      : null
-
-  async function handleRunShortlist() {
-    if (runDisabledReason) return
-    setRunning(true)
-    setRunError(null)
-    try {
-      setOptimising(true)
-      const compressed = await Promise.all(screenshotStaged.map((staged) => compressScreenshot(staged.file)))
-      setOptimising(false)
-
-      const { data: runRow, error: runErr } = await supabase
-        .from('shortlist_runs')
-        .insert({
-          vertical: runVertical,
-          volume_email: volumeEmail,
-          volume_linkedin: volumeLinkedin,
-          status: 'processing',
-        })
-        .select('*')
-        .single()
-      if (runErr || !runRow) throw new Error('run_create_failed')
-
-      for (const file of compressed) {
-        const path = `shortlist-runs/${runRow.id}/${Date.now()}-${file.name}`
-        const { error: upErr } = await supabase.storage.from('stage-attachments').upload(path, file)
-        if (upErr) continue
-        await supabase.from('shortlist_run_screenshots').insert({ run_id: runRow.id, storage_path: path })
-      }
-
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData?.session?.access_token ?? ''
-      const { data: fnData, error: fnErr } = await supabase.functions.invoke('process-shortlist-run', {
-        body: { run_id: runRow.id, vertical: runVertical },
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      })
-
-      if (fnErr || !fnData || fnData.error) {
-        setRunError(
-          fnData?.error === 'anthropic_timeout'
-            ? 'Processing took too long. Try uploading fewer or smaller screenshots.'
-            : 'Could not analyse these screenshots. Please try again.'
-        )
-        setRunning(false)
-        await loadHistory()
-        return
-      }
-
-      setCurrentRun(runRow as ShortlistRun)
-      await loadCandidatesForRun(runRow.id)
-      setScreenshotStaged([])
-      setShowEmailReview(false)
-      setShowLinkedinReview(false)
-      await loadHistory()
-      setRunning(false)
-      setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-    } catch {
-      setRunError('Could not start this run. Please try again.')
-      setOptimising(false)
-      setRunning(false)
-    }
+  async function openReview(run: ShortlistRun) {
+    setReviewRun(run)
+    await loadCandidatesForRun(run.id)
+    setReviewOpen(true)
   }
 
-  async function handleViewRun(runId: string) {
-    const run = historyRuns.find((r) => r.id === runId)
-    if (!run) return
-    setCurrentRun(run)
-    setShowEmailReview(false)
-    setShowLinkedinReview(false)
-    await loadCandidatesForRun(runId)
-    setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+  async function handleRunComplete(run: ShortlistRun) {
+    setShowNewShortlist(false)
+    await loadHistory()
+    await openReview(run)
   }
 
   async function handleArchiveRun(runId: string, archive: boolean) {
@@ -314,15 +105,16 @@ export function SmartShortlistTab() {
   async function handleDeleteRun(runId: string) {
     await supabase.from('shortlist_runs').delete().eq('id', runId)
     setConfirmDeleteId(null)
-    if (currentRun?.id === runId) {
-      setCurrentRun(null)
-      setCandidates([])
+    if (reviewRun?.id === runId) {
+      setReviewOpen(false)
+      setReviewRun(null)
+      setReviewCandidates([])
     }
     await loadHistory()
   }
 
   function updateCandidate(updated: ShortlistCandidate) {
-    setCandidates((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+    setReviewCandidates((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
     setHistoryCounts((prev) => {
       const runId = updated.run_id
       const existing = prev[runId] ?? { screenshots: 0, candidates: 0, added: 0 }
@@ -333,233 +125,80 @@ export function SmartShortlistTab() {
     })
   }
 
-  const pendingCandidates = candidates.filter((c) => c.decision === 'pending')
-  const emailAll = pendingCandidates.filter((c) => c.channel === 'email').sort((a, b) => (b.icp_score ?? 0) - (a.icp_score ?? 0))
-  const linkedinAll = pendingCandidates.filter((c) => c.channel === 'linkedin').sort((a, b) => (b.icp_score ?? 0) - (a.icp_score ?? 0))
-
-  const emailHigh = emailAll.filter((c) => c.confidence === 'high')
-  const emailLow = emailAll.filter((c) => c.confidence === 'low')
-  const linkedinHigh = linkedinAll.filter((c) => c.confidence === 'high')
-  const linkedinLow = linkedinAll.filter((c) => c.confidence === 'low')
-
-  const emailMain = emailHigh.slice(0, currentRun?.volume_email ?? volumeEmail)
-  const linkedinMain = linkedinHigh.slice(0, currentRun?.volume_linkedin ?? volumeLinkedin)
-
   const visibleHistory = showArchived ? historyRuns : historyRuns.filter((r) => r.status !== 'archived')
   const archivedCount = historyRuns.filter((r) => r.status === 'archived').length
 
+  const activeCfg = icpConfigs[summaryVertical]
+  const icpPreview = activeCfg?.icp_text ? truncate(activeCfg.icp_text, 80) : null
+
   return (
     <div style={s.root}>
-      {/* ── Section A: ICP + Goal config ────────────────────────────────── */}
-      <div style={s.card}>
-        <button
-          type="button"
-          style={s.configHeader}
-          onClick={() => setConfigExpanded((v) => !v)}
-        >
-          <span style={s.cardTitle}>ICP configuration</span>
-          <span style={s.headerRight}>
-            <span style={s.editLink}>Edit</span>
-            {configExpanded ? <ChevronUp size={16} color={t.text.muted} /> : <ChevronDown size={16} color={t.text.muted} />}
-          </span>
-        </button>
-
-        {configExpanded && (
-          <div style={s.configBody}>
-            <div style={s.vertTabs}>
-              {VERTICALS.map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  style={{ ...s.vertTab, ...(configVertical === v ? s.vertTabActive : null) }}
-                  onClick={() => setConfigVertical(v)}
-                >
-                  {VERTICAL_LABELS[v]}
-                </button>
-              ))}
-            </div>
-
-            <label style={s.fieldLabel}>
-              ICP profile
-              <textarea
-                style={s.textareaBig}
-                value={icpTextDraft}
-                onChange={(e) => setIcpTextDraft(e.target.value)}
-                rows={5}
-                placeholder="Describe your ideal client profile for this vertical. Include company stage, team size, product type, verticals, and buyer titles."
-              />
-            </label>
-
-            <AttachmentField
-              label="Attachment"
-              path={icpAttachmentPath}
-              uploading={icpUploading}
-              onUpload={(f) => uploadAttachment('icp', f)}
-              onRemove={() => setIcpAttachmentPath(null)}
-              onView={viewAttachment}
-            />
-
-            <label style={s.fieldLabel}>
-              Acquisition goal
-              <input
-                style={s.input}
-                value={goalTextDraft}
-                onChange={(e) => setGoalTextDraft(e.target.value)}
-                placeholder="Example: 2 qualified discovery calls in 2 weeks."
-              />
-            </label>
-
-            <AttachmentField
-              label="Attachment"
-              path={goalAttachmentPath}
-              uploading={goalUploading}
-              onUpload={(f) => uploadAttachment('goal', f)}
-              onRemove={() => setGoalAttachmentPath(null)}
-              onView={viewAttachment}
-            />
-
-            <div style={s.saveRow}>
-              <button
-                type="button"
-                style={{ ...s.primaryBtn, opacity: savingConfig ? 0.6 : 1 }}
-                onClick={handleSaveIcp}
-                disabled={savingConfig}
-              >
-                {savingConfig ? 'Saving...' : 'Save ICP'}
-              </button>
-              {savedFlash && <span style={s.savedFlash}>Saved</span>}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Section B: new shortlist run ────────────────────────────────── */}
-      <div style={s.card}>
-        <h2 style={s.cardTitle}>Run new shortlist</h2>
-
-        <div style={{ ...s.runControls, ...(isMobile ? s.runControlsMobile : null) }}>
-          <label style={s.fieldLabel}>
-            Vertical
-            <div style={s.vertTabs}>
-              {VERTICALS.map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  style={{ ...s.vertTab, ...(runVertical === v ? s.vertTabActive : null) }}
-                  onClick={() => setRunVertical(v)}
-                >
-                  {VERTICAL_LABELS[v]}
-                </button>
-              ))}
-            </div>
-          </label>
-          <label style={s.fieldLabel}>
-            Email outreach
-            <select style={s.select} value={volumeEmail} onChange={(e) => setVolumeEmail(Number(e.target.value))}>
-              {VOLUME_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
-          <label style={s.fieldLabel}>
-            LinkedIn DM
-            <select style={s.select} value={volumeLinkedin} onChange={(e) => setVolumeLinkedin(Number(e.target.value))}>
-              {VOLUME_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
-        </div>
-
-        <label style={{ ...s.fieldLabel, marginTop: 16 }}>
-          Upload LinkedIn screenshots
-          <span style={s.subLabel}>Waiting list, recently connected, recently viewed — upload as many as needed.</span>
-        </label>
-        <ScreenshotDropZone onSelect={handleScreenshotSelect} />
-
-        {screenshotStaged.length > 0 && (
-          <div style={s.thumbGrid}>
-            {screenshotStaged.map((shot, i) => (
-              <div key={i} style={s.thumbWrap}>
-                <img src={shot.previewUrl} style={s.thumb} alt="" />
-                <button
-                  type="button"
-                  style={s.thumbRemove}
-                  onClick={() => removeScreenshot(i)}
-                  aria-label="Remove screenshot"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {showLargeUploadWarning && (
-          <p style={s.warningBanner}>
-            Large files detected. Images will be optimised automatically before processing.
-          </p>
-        )}
-
-        {runError && <p style={s.errorText}>{runError}</p>}
-        {!runError && runDisabledReason && !running && <p style={s.hintText}>{runDisabledReason}</p>}
-
-        <button
-          type="button"
-          style={{
-            ...s.primaryBtn,
-            ...(isMobile ? s.fullWidth : null),
-            marginTop: 16,
-            opacity: running || Boolean(runDisabledReason) ? 0.5 : 1,
-          }}
-          onClick={handleRunShortlist}
-          disabled={running || Boolean(runDisabledReason)}
-        >
-          {optimising
-            ? 'Optimising images...'
-            : running
-            ? 'Analysing screenshots against your ICP...'
-            : 'Run shortlist'}
-        </button>
-      </div>
-
-      {/* ── Section C: review stage ─────────────────────────────────────── */}
-      {currentRun && (
-        <div ref={reviewRef} style={s.card}>
-          <h2 style={s.cardTitle}>Review shortlist</h2>
-          <p style={s.runMeta}>
-            {VERTICAL_LABELS[currentRun.vertical]} · {formatDate(currentRun.created_at)} · {candidates.length} candidates
-          </p>
-
-          <div style={{ ...s.reviewCols, ...(isMobile ? s.reviewColsMobile : null) }}>
-            <ReviewColumn
-              title="Email outreach"
-              vertical={currentRun.vertical}
-              main={emailMain}
-              lowConfidence={emailLow}
-              volume={currentRun.volume_email}
-              highTotal={emailHigh.length}
-              reviewOpen={showEmailReview}
-              onToggleReview={() => setShowEmailReview((v) => !v)}
-              onUpdated={updateCandidate}
-            />
-            <ReviewColumn
-              title="LinkedIn DM"
-              vertical={currentRun.vertical}
-              main={linkedinMain}
-              lowConfidence={linkedinLow}
-              volume={currentRun.volume_linkedin}
-              highTotal={linkedinHigh.length}
-              reviewOpen={showLinkedinReview}
-              onToggleReview={() => setShowLinkedinReview((v) => !v)}
-              onUpdated={updateCandidate}
-            />
-          </div>
-        </div>
+      {showNewShortlist && (
+        <NewShortlistModal
+          hasIcpForVertical={(v) => Boolean(icpConfigs[v]?.icp_text)}
+          onClose={() => setShowNewShortlist(false)}
+          onRunComplete={handleRunComplete}
+        />
       )}
 
-      {/* ── Section D: history ──────────────────────────────────────────── */}
+      {reviewOpen && reviewRun && (
+        <SidePanel
+          title="Review shortlist"
+          subtitle={`${VERTICAL_LABELS[reviewRun.vertical]} · ${formatDate(reviewRun.created_at)} · ${reviewCandidates.length} candidates`}
+          onClose={() => setReviewOpen(false)}
+        >
+          <ReviewPanelContent run={reviewRun} candidates={reviewCandidates} onUpdated={updateCandidate} />
+        </SidePanel>
+      )}
+
+      {/* ── Page header ──────────────────────────────────────────────────── */}
+      <div style={s.pageHeaderRow}>
+        <h1 style={s.pageTitle}>Smart Shortlist</h1>
+        <button type="button" style={s.newRunBtn} onClick={() => setShowNewShortlist(true)}>
+          <Sparkles size={15} />
+          New shortlist
+        </button>
+      </div>
+
+      {/* ── ICP summary card (Fix 1) ────────────────────────────────────── */}
+      <div style={s.card}>
+        <div style={s.summaryHead}>
+          <span style={s.summaryTitle}>ICP</span>
+          <div style={s.vertTabs}>
+            {(['design_systems', 'branding'] as Vertical[]).map((v) => (
+              <button
+                key={v}
+                type="button"
+                style={{ ...s.vertTab, ...(summaryVertical === v ? s.vertTabActive : null) }}
+                onClick={() => setSummaryVertical(v)}
+              >
+                {VERTICAL_LABELS[v]}
+              </button>
+            ))}
+          </div>
+        </div>
+        {icpPreview ? (
+          <p style={s.summaryText}>{icpPreview}</p>
+        ) : (
+          <p style={s.warningBanner}>
+            No ICP configured for this vertical. Add one in Settings before running.
+          </p>
+        )}
+        <button type="button" style={s.editLink} onClick={() => navigate('/portal/admin/settings')}>
+          Edit in Settings
+        </button>
+      </div>
+
+      {/* ── Previous runs (Fix 2: now the main content) ─────────────────── */}
       <div style={s.card}>
         <h2 style={s.cardTitle}>Previous runs</h2>
 
         {visibleHistory.length === 0 ? (
-          <p style={s.hintText}>No shortlist runs yet.</p>
+          <EmptyState
+            icon={<Sparkles size={32} />}
+            heading="No shortlists yet"
+            body="Run your first one to find your next clients."
+          />
         ) : isMobile ? (
           <div style={s.histCardStack}>
             {visibleHistory.map((run) => (
@@ -568,7 +207,7 @@ export function SmartShortlistTab() {
                 run={run}
                 counts={historyCounts[run.id]}
                 confirmDeleteId={confirmDeleteId}
-                onView={() => handleViewRun(run.id)}
+                onView={() => openReview(run)}
                 onArchive={() => handleArchiveRun(run.id, run.status !== 'archived')}
                 onDeleteRequest={() => setConfirmDeleteId(run.id)}
                 onDeleteCancel={() => setConfirmDeleteId(null)}
@@ -583,6 +222,7 @@ export function SmartShortlistTab() {
                 <tr>
                   <th style={s.th}>Date</th>
                   <th style={s.th}>Vertical</th>
+                  <th style={s.th}>Channel</th>
                   <th style={s.th}>Screenshots</th>
                   <th style={s.th}>Candidates</th>
                   <th style={s.th}>Added</th>
@@ -597,6 +237,7 @@ export function SmartShortlistTab() {
                     <tr key={run.id}>
                       <td style={s.td}><span style={s.monoCell}>{formatDate(run.created_at)}</span></td>
                       <td style={s.td}><VerticalPill vertical={run.vertical} /></td>
+                      <td style={s.td}>{run.channel === 'both' ? 'Email + LinkedIn' : CHANNEL_LABELS[run.channel]}</td>
                       <td style={s.td}>{counts.screenshots}</td>
                       <td style={s.td}>{counts.candidates}</td>
                       <td style={s.td}>{counts.added}</td>
@@ -609,7 +250,7 @@ export function SmartShortlistTab() {
                           </span>
                         ) : (
                           <div style={s.rowActions}>
-                            <button type="button" style={s.iconBtn} title="View" onClick={() => handleViewRun(run.id)}>
+                            <button type="button" style={s.iconBtn} title="View" onClick={() => openReview(run)}>
                               <Eye size={14} color={t.text.secondary} />
                             </button>
                             <button
@@ -646,146 +287,53 @@ export function SmartShortlistTab() {
   )
 }
 
-// ── Sub-components local to this tab ─────────────────────────────────────
-
-function AttachmentField({
-  label,
-  path,
-  uploading,
-  onUpload,
-  onRemove,
-  onView,
-}: {
-  label: string
-  path: string | null
-  uploading: boolean
-  onUpload: (file: File) => void
-  onRemove: () => void
-  onView: (path: string) => void
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const filename = path?.split('/').pop() ?? ''
-
-  return (
-    <div style={s.fieldLabel}>
-      <span>{label}</span>
-      {path ? (
-        <div style={s.attachmentRow}>
-          <button type="button" style={s.attachmentName} onClick={() => onView(path)}>{filename}</button>
-          <button type="button" style={s.removeLink} onClick={onRemove}>Remove</button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          style={s.uploadZone}
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-        >
-          <Upload size={13} color={t.text.tertiary} />
-          {uploading ? 'Uploading...' : 'Drop PDF or image, or click to browse'}
-        </button>
-      )}
-      <input
-        ref={inputRef}
-        type="file"
-        accept={ATTACHMENT_ACCEPT}
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) onUpload(file)
-          if (inputRef.current) inputRef.current.value = ''
-        }}
-      />
-    </div>
-  )
+function truncate(text: string, max: number): string {
+  const trimmed = text.trim()
+  return trimmed.length > max ? trimmed.slice(0, max).trimEnd() + '...' : trimmed
 }
 
-function ScreenshotDropZone({ onSelect }: { onSelect: (files: FileList | null) => void }) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [dragging, setDragging] = useState(false)
-
-  return (
-    <>
-      <button
-        type="button"
-        style={{ ...s.uploadZone, ...(dragging ? s.uploadZoneDragging : null), marginTop: 8 }}
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-        onDragEnter={(e) => { e.preventDefault(); setDragging(true) }}
-        onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false)
-        }}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDragging(false)
-          onSelect(e.dataTransfer.files)
-        }}
-      >
-        <Upload size={13} color={t.text.tertiary} />
-        {dragging ? 'Drop to upload' : 'Drop screenshots here, or click to browse'}
-      </button>
-      <input
-        ref={inputRef}
-        type="file"
-        accept={SCREENSHOT_ACCEPT}
-        multiple
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          onSelect(e.target.files)
-          if (inputRef.current) inputRef.current.value = ''
-        }}
-      />
-    </>
-  )
-}
-
-function ReviewColumn({
-  title,
-  vertical,
-  main,
-  lowConfidence,
-  volume,
-  highTotal,
-  reviewOpen,
-  onToggleReview,
+// ── Review panel content (Fix 2: SidePanel instead of inline Section C) ────
+function ReviewPanelContent({
+  run,
+  candidates,
   onUpdated,
 }: {
-  title: string
-  vertical: Vertical
-  main: ShortlistCandidate[]
-  lowConfidence: ShortlistCandidate[]
-  volume: number
-  highTotal: number
-  reviewOpen: boolean
-  onToggleReview: () => void
+  run: ShortlistRun
+  candidates: ShortlistCandidate[]
   onUpdated: (updated: ShortlistCandidate) => void
 }) {
-  return (
-    <div style={s.reviewCol}>
-      <h3 style={s.colHeading}>{title}</h3>
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const activeChannel = run.channel === 'linkedin' ? 'linkedin' : 'email'
 
-      {main.length === 0 && (
-        <p style={s.hintText}>No candidates in this list yet.</p>
-      )}
+  const pendingCandidates = candidates.filter((c) => c.decision === 'pending' && c.channel === activeChannel)
+  const all = pendingCandidates.slice().sort((a, b) => (b.icp_score ?? 0) - (a.icp_score ?? 0))
+  const high = all.filter((c) => c.confidence === 'high')
+  const low = all.filter((c) => c.confidence === 'low')
+  const volume = runVolume(run)
+  const main = high.slice(0, volume)
+
+  return (
+    <div>
+      {main.length === 0 && <p style={s.hintText}>No candidates in this list yet.</p>}
 
       {main.map((c) => (
-        <CandidateCard key={c.id} candidate={c} vertical={vertical} onUpdated={onUpdated} />
+        <CandidateCard key={c.id} candidate={c} vertical={run.vertical} onUpdated={onUpdated} />
       ))}
 
-      {highTotal < volume && (
+      {high.length < volume && (
         <div style={s.slotBanner}>
-          Only {highTotal} of {volume} slots filled — remaining profiles didn't meet the ICP threshold.
+          Only {high.length} of {volume} slots filled — remaining profiles didn't meet the ICP threshold.
         </div>
       )}
 
-      {lowConfidence.length > 0 && (
+      {low.length > 0 && (
         <div style={s.manualReview}>
-          <button type="button" style={s.manualReviewToggle} onClick={onToggleReview}>
-            <span>Needs manual review ({lowConfidence.length})</span>
+          <button type="button" style={s.manualReviewToggle} onClick={() => setReviewOpen((v) => !v)}>
+            <span>Needs manual review ({low.length})</span>
             {reviewOpen ? <ChevronUp size={14} color={t.text.muted} /> : <ChevronDown size={14} color={t.text.muted} />}
           </button>
-          {reviewOpen && lowConfidence.map((c) => (
-            <CandidateCard key={c.id} candidate={c} vertical={vertical} onUpdated={onUpdated} />
+          {reviewOpen && low.map((c) => (
+            <CandidateCard key={c.id} candidate={c} vertical={run.vertical} onUpdated={onUpdated} />
           ))}
         </div>
       )}
@@ -852,7 +400,9 @@ function HistoryCard({
         <RunStatusPill status={run.status} />
       </div>
       <span style={s.monoCell}>{formatDate(run.created_at)}</span>
-      <span style={s.hintText}>{c.screenshots} screenshots · {c.candidates} candidates · {c.added} added</span>
+      <span style={s.hintText}>
+        {run.channel === 'both' ? 'Email + LinkedIn' : CHANNEL_LABELS[run.channel]} · {c.screenshots} screenshots · {c.candidates} candidates · {c.added} added
+      </span>
       {confirmDeleteId === run.id ? (
         <div style={s.confirmRow}>
           <button type="button" style={s.confirmYes} onClick={onDeleteConfirm}>Delete</button>
@@ -873,36 +423,43 @@ function HistoryCard({
 
 const s: Record<string, CSSProperties> = {
   root: { display: 'flex', flexDirection: 'column', gap: 20 },
+  pageHeaderRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  pageTitle: { fontFamily: fonts.heading, fontSize: 22, fontWeight: 600, color: t.text.primary, margin: 0 },
+  newRunBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    border: 'none',
+    borderRadius: 8,
+    padding: '9px 16px',
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
   card: {
     background: t.background.surface,
     border: `1px solid ${t.border.default}`,
     borderRadius: 12,
     padding: 20,
   },
-  cardTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary, margin: 0 },
-  configHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    background: 'none',
-    border: 'none',
-    padding: 0,
-    cursor: 'pointer',
-  },
-  headerRight: { display: 'flex', alignItems: 'center', gap: 10 },
-  editLink: { fontFamily: fonts.body, fontSize: 12, color: t.text.urlLink },
-  configBody: { display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 },
-  vertTabs: { display: 'flex', gap: 6, marginTop: 6 },
+  cardTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary, margin: '0 0 16px' },
+  summaryHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 },
+  summaryTitle: { fontFamily: fonts.heading, fontSize: 14, fontWeight: 600, color: t.text.primary },
+  summaryText: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary, margin: '0 0 10px', lineHeight: 1.5 },
+  vertTabs: { display: 'flex', gap: 6 },
   vertTab: {
     fontFamily: fonts.body,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 500,
     color: t.text.secondary,
     background: t.background.subtle,
     border: `1px solid ${t.border.default}`,
     borderRadius: 999,
-    padding: '5px 14px',
+    padding: '4px 12px',
     cursor: 'pointer',
   },
   vertTabActive: {
@@ -911,146 +468,6 @@ const s: Record<string, CSSProperties> = {
     borderColor: tokens.accent,
     fontWeight: 600,
   },
-  fieldLabel: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    fontFamily: mono,
-    fontSize: 12,
-    fontWeight: 600,
-    color: t.text.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  subLabel: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: 400,
-    color: t.text.muted,
-    textTransform: 'none',
-    letterSpacing: 0,
-  },
-  textareaBig: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: 400,
-    color: t.text.primary,
-    background: tokens.inputBg,
-    border: `1px solid ${t.border.default}`,
-    borderRadius: 8,
-    padding: '10px 12px',
-    minHeight: 120,
-    outline: 'none',
-    resize: 'vertical' as const,
-    boxSizing: 'border-box' as const,
-    textTransform: 'none',
-    letterSpacing: 0,
-  },
-  input: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: 400,
-    color: t.text.primary,
-    background: tokens.inputBg,
-    border: `1px solid ${t.border.default}`,
-    borderRadius: 8,
-    padding: '9px 12px',
-    outline: 'none',
-    boxSizing: 'border-box' as const,
-    textTransform: 'none',
-    letterSpacing: 0,
-  },
-  select: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: 400,
-    color: t.text.primary,
-    background: tokens.inputBg,
-    border: `1px solid ${t.border.default}`,
-    borderRadius: 8,
-    padding: '8px 10px',
-    outline: 'none',
-    textTransform: 'none',
-    letterSpacing: 0,
-  },
-  uploadZone: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    background: t.background.subtle,
-    border: `1px dashed ${t.border.default}`,
-    borderRadius: 8,
-    padding: '14px 16px',
-    width: '100%',
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: 400,
-    color: t.text.tertiary,
-    cursor: 'pointer',
-    textTransform: 'none',
-    letterSpacing: 0,
-    boxSizing: 'border-box' as const,
-  },
-  uploadZoneDragging: { borderColor: t.border.brand, background: t.background.tint1 },
-  attachmentRow: { display: 'flex', alignItems: 'center', gap: 10 },
-  attachmentName: {
-    background: 'none',
-    border: 'none',
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: 500,
-    color: t.text.urlLink,
-    cursor: 'pointer',
-    padding: 0,
-    textTransform: 'none',
-    textDecoration: 'underline',
-  },
-  removeLink: {
-    background: 'none',
-    border: 'none',
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: tokens.ruby,
-    cursor: 'pointer',
-    padding: 0,
-    textTransform: 'none',
-  },
-  saveRow: { display: 'flex', alignItems: 'center', gap: 12 },
-  savedFlash: { fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: t.border.success },
-  primaryBtn: {
-    background: tokens.primary,
-    color: t.text.onPrimary,
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: 600,
-    border: 'none',
-    borderRadius: 8,
-    padding: '10px 18px',
-    cursor: 'pointer',
-  },
-  fullWidth: { width: '100%', textAlign: 'center' as const },
-  runControls: { display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 16 },
-  runControlsMobile: { flexDirection: 'column', gap: 14 },
-  thumbGrid: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  thumbWrap: { position: 'relative', width: 64, height: 64 },
-  thumb: { width: 64, height: 64, borderRadius: 4, objectFit: 'cover' as const },
-  thumbRemove: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 20,
-    height: 20,
-    borderRadius: '50%',
-    background: tokens.ruby,
-    color: '#fff',
-    border: `2px solid ${tokens.surface}`,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-  },
-  errorText: { fontFamily: fonts.body, fontSize: 13, color: tokens.ruby, marginTop: 12 },
   warningBanner: {
     background: tokens.goldLight,
     color: tokens.goldDark,
@@ -1060,14 +477,19 @@ const s: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 13,
     lineHeight: 1.5,
-    marginTop: 12,
+    margin: '0 0 10px',
+  },
+  editLink: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.urlLink,
+    cursor: 'pointer',
+    textDecoration: 'underline',
   },
   hintText: { fontFamily: fonts.body, fontSize: 13, color: t.text.muted, marginTop: 12 },
-  runMeta: { fontFamily: mono, fontSize: 12, color: t.text.muted, margin: '4px 0 20px' },
-  reviewCols: { display: 'flex', gap: 24 },
-  reviewColsMobile: { flexDirection: 'column', gap: 20 },
-  reviewCol: { flex: 1, minWidth: 0 },
-  colHeading: { fontFamily: fonts.heading, fontSize: 16, fontWeight: 600, color: t.text.primary, margin: '0 0 12px' },
   slotBanner: {
     fontFamily: fonts.body,
     fontSize: 12,
@@ -1094,7 +516,7 @@ const s: Record<string, CSSProperties> = {
     padding: '8px 0',
     borderTop: `1px solid ${t.border.subtle}`,
   },
-  table: { width: '100%', borderCollapse: 'collapse', minWidth: 640 },
+  table: { width: '100%', borderCollapse: 'collapse', minWidth: 700 },
   th: {
     fontFamily: fonts.body,
     fontSize: 11,

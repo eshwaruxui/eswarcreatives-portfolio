@@ -88,7 +88,7 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
               onClick={() => setSettingsOpen(true)}
               aria-label="Settings"
             >
-              <Settings size={18} />
+              <Settings size={20} />
             </button>
           </>
         ) : (
@@ -173,7 +173,7 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
               onClick={() => setSettingsOpen(true)}
               aria-label="Settings"
             >
-              <Settings size={18} />
+              <Settings size={20} />
             </button>
           </>
         )}
@@ -185,6 +185,10 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
           onManageClients={() => {
             setSettingsOpen(false)
             navigate('/portal/admin/clients')
+          }}
+          onOpenSettingsPage={() => {
+            setSettingsOpen(false)
+            navigate('/portal/admin/settings')
           }}
           onSignOut={signOut}
           signingOut={signingOut}
@@ -231,12 +235,14 @@ function SelectorItem({
 function SettingsPanel({
   onClose,
   onManageClients,
+  onOpenSettingsPage,
   onSignOut,
   signingOut,
   signOutError,
 }: {
   onClose: () => void
   onManageClients: () => void
+  onOpenSettingsPage: () => void
   onSignOut: () => void
   signingOut: boolean
   signOutError: string | null
@@ -257,6 +263,15 @@ function SettingsPanel({
           <h3 style={styles.sectionLabel}>Clients</h3>
           <button type="button" style={styles.panelLink} onClick={onManageClients}>
             Manage Clients
+          </button>
+        </section>
+
+        <div style={styles.divider} />
+
+        <section style={styles.section}>
+          <h3 style={styles.sectionLabel}>Smart Shortlist</h3>
+          <button type="button" style={styles.panelLink} onClick={onOpenSettingsPage}>
+            ICP configuration
           </button>
         </section>
 

@@ -3,7 +3,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Extracts LinkedIn screenshot candidates and scores them against a saved ICP.
 // Auth: admin JWT required. Input: { run_id, vertical }.
-// Returns { success: true, candidate_count } on success, { error: code } on soft failure.
+//
+// Fix 7: validation (auth, run status, ICP, screenshots) stays synchronous and
+// returns a clear error immediately. Once validation passes, the Anthropic
+// call + candidate insert + status update run inside EdgeRuntime.waitUntil so
+// the HTTP response ({ queued: true }) returns immediately instead of the
+// caller blocking on the full analysis, which otherwise exceeds Supabase's
+// free-tier synchronous execution window. The frontend polls shortlist_runs.
+// status instead of awaiting this call's result.
 //
 // NOTE: the icp-attachments bucket is created by migration 0079 via SQL, not
 // the Supabase dashboard (see migration comment) — nothing manual to do here.
@@ -71,6 +78,17 @@ function norm(v: string | null | undefined): string {
   return (v ?? "").trim().toLowerCase();
 }
 
+async function markFailed(
+  client: ReturnType<typeof createClient>,
+  runId: string,
+  errorCode: string,
+) {
+  await client
+    .from("shortlist_runs")
+    .update({ status: "failed", error_code: errorCode })
+    .eq("id", runId);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return fail("method_not_allowed", 405);
@@ -108,20 +126,27 @@ Deno.serve(async (req: Request) => {
   // 1. Fetch the run, confirm status = 'processing'
   const { data: run } = await callerClient
     .from("shortlist_runs")
-    .select("id, status")
+    .select("id, status, channel")
     .eq("id", run_id)
     .single();
   if (!run) return fail("run_not_found", 404);
   if (run.status !== "processing") return fail("run_not_processing");
 
-  // 2. Fetch the ICP config for this vertical
+  const runChannel = run.channel as "email" | "linkedin" | "both" | null;
+
+  // 2. Fetch the ICP config for this vertical — required before queuing.
   const { data: icpConfig } = await callerClient
     .from("icp_configs")
     .select("icp_text, goal_text")
     .eq("vertical", vertical)
     .maybeSingle();
 
-  // 3. Fetch screenshots for this run and download each as base64
+  if (!icpConfig?.icp_text) {
+    await markFailed(callerClient, run_id, "no_icp");
+    return ok({ error: "no_icp" });
+  }
+
+  // 3. Fetch screenshots for this run — required before queuing.
   const { data: screenshots } = await callerClient
     .from("shortlist_run_screenshots")
     .select("storage_path")
@@ -132,48 +157,54 @@ Deno.serve(async (req: Request) => {
     return ok({ success: true, candidate_count: 0 });
   }
 
-  const imageBlocks: { type: "image"; source: { type: "base64"; media_type: string; data: string } }[] = [];
-  for (const shot of screenshots) {
-    const mediaType = mediaTypeFor(shot.storage_path);
-    if (!mediaType) continue;
-    const { data: blob, error: dlErr } = await callerClient.storage
-      .from("stage-attachments")
-      .download(shot.storage_path);
-    if (dlErr || !blob) continue;
-    imageBlocks.push({
-      type: "image",
-      source: { type: "base64", media_type: mediaType, data: await blobToBase64(blob) },
-    });
-  }
-  if (imageBlocks.length === 0) return fail("no_screenshots_readable");
+  // Validation passed — kick off the heavy work in the background and return
+  // immediately. Everything below this line used to run synchronously.
+  const responseBody = JSON.stringify({ queued: true });
 
-  // 4. Existing leads (name + company) for fuzzy dedup
-  const { data: existingLeads } = await callerClient
-    .from("leads")
-    .select("first_name, last_name, company");
-  const existingLeadsForPrompt = (existingLeads ?? []).map((l) => ({
-    name: [l.first_name, l.last_name].filter(Boolean).join(" "),
-    company: l.company,
-  }));
+  const backgroundTask = (async () => {
+    try {
+      const imageBlocks: { type: "image"; source: { type: "base64"; media_type: string; data: string } }[] = [];
+      for (const shot of screenshots) {
+        const mediaType = mediaTypeFor(shot.storage_path);
+        if (!mediaType) continue;
+        const { data: blob, error: dlErr } = await callerClient.storage
+          .from("stage-attachments")
+          .download(shot.storage_path);
+        if (dlErr || !blob) continue;
+        imageBlocks.push({
+          type: "image",
+          source: { type: "base64", media_type: mediaType, data: await blobToBase64(blob) },
+        });
+      }
+      if (imageBlocks.length === 0) {
+        await markFailed(callerClient, run_id, "upload_failed");
+        return;
+      }
 
-  // 5 + 6. Not-interested leads, used for post-filtering by linkedin_url / name+company.
-  // suppression_list is email-keyed, but the extraction schema below never produces an
-  // email (Apollo fills that in later at the "Add to leads" step), so there is nothing
-  // to compare it against here — fetched leads are the only usable exclusion signal.
-  const { data: notInterestedLeads } = await callerClient
-    .from("leads")
-    .select("first_name, last_name, company, linkedin_url")
-    .eq("status", "not_interested");
-  const notInterestedKeys = new Set(
-    (notInterestedLeads ?? []).map((l) => `${norm([l.first_name, l.last_name].filter(Boolean).join(" "))}|${norm(l.company)}`)
-  );
-  const notInterestedUrls = new Set(
-    (notInterestedLeads ?? []).map((l) => norm(l.linkedin_url)).filter(Boolean)
-  );
+      // 4. Existing leads (name + company) for fuzzy dedup
+      const { data: existingLeads } = await callerClient
+        .from("leads")
+        .select("first_name, last_name, company");
+      const existingLeadsForPrompt = (existingLeads ?? []).map((l) => ({
+        name: [l.first_name, l.last_name].filter(Boolean).join(" "),
+        company: l.company,
+      }));
 
-  const verticalLabel = vertical === "design_systems" ? "Design Systems" : "Branding";
+      // 5 + 6. Not-interested leads, used for post-filtering by linkedin_url / name+company.
+      const { data: notInterestedLeads } = await callerClient
+        .from("leads")
+        .select("first_name, last_name, company, linkedin_url")
+        .eq("status", "not_interested");
+      const notInterestedKeys = new Set(
+        (notInterestedLeads ?? []).map((l) => `${norm([l.first_name, l.last_name].filter(Boolean).join(" "))}|${norm(l.company)}`)
+      );
+      const notInterestedUrls = new Set(
+        (notInterestedLeads ?? []).map((l) => norm(l.linkedin_url)).filter(Boolean)
+      );
 
-  const userPromptText = `ICP Profile for ${verticalLabel}:
+      const verticalLabel = vertical === "design_systems" ? "Design Systems" : "Branding";
+
+      const userPromptText = `ICP Profile for ${verticalLabel}:
 ${icpConfig?.icp_text ?? "(none provided)"}
 
 Acquisition goal: ${icpConfig?.goal_text ?? "(none provided)"}
@@ -203,106 +234,123 @@ Return JSON array:
 }]
 Sorted by icp_score descending.`;
 
-  // 7. Call Anthropic, bounded by a 25s timeout so the function returns a clear
-  // error instead of the run silently timing out on the edge runtime's own limit.
-  const ANTHROPIC_TIMEOUT_MS = 25_000;
-  let anthropicRes: Response;
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
-    try {
-      anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 4000,
-          system:
-            "You are an expert B2B outreach analyst. You will be given screenshots from LinkedIn and an ICP profile. Extract every visible person from the screenshots and score each against the ICP. Return only JSON, no preamble, no markdown.",
-          messages: [
-            {
-              role: "user",
-              content: [...imageBlocks, { type: "text", text: userPromptText }],
+      // 7. Call Anthropic, bounded by a 25s timeout so a hung request still
+      // resolves the background task and marks the run failed with a clear
+      // reason instead of leaving it stuck at 'processing' forever.
+      const ANTHROPIC_TIMEOUT_MS = 25_000;
+      let anthropicRes: Response;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
+        try {
+          anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "x-api-key": ANTHROPIC_API_KEY,
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json",
             },
-          ],
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
+            body: JSON.stringify({
+              model: "claude-sonnet-4-6",
+              max_tokens: 4000,
+              system:
+                "You are an expert B2B outreach analyst. You will be given screenshots from LinkedIn and an ICP profile. Extract every visible person from the screenshots and score each against the ICP. Return only JSON, no preamble, no markdown.",
+              messages: [
+                {
+                  role: "user",
+                  content: [...imageBlocks, { type: "text", text: userPromptText }],
+                },
+              ],
+            }),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          await markFailed(callerClient, run_id, "anthropic_timeout");
+        } else {
+          await markFailed(callerClient, run_id, "parse_failed");
+        }
+        return;
+      }
+
+      if (!anthropicRes.ok) {
+        await markFailed(callerClient, run_id, "parse_failed");
+        return;
+      }
+
+      let anthropicJson: { content?: { type: string; text: string }[] };
+      try {
+        anthropicJson = await anthropicRes.json();
+      } catch {
+        await markFailed(callerClient, run_id, "parse_failed");
+        return;
+      }
+
+      const text = anthropicJson?.content?.[0]?.text ?? "";
+      let candidates: Candidate[];
+      try {
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) throw new Error("not_an_array");
+        candidates = parsed;
+      } catch {
+        await markFailed(callerClient, run_id, "parse_failed");
+        return;
+      }
+
+      // 9-10. Filter excluded + suppressed/not-interested + channel (Fix 3:
+      // one channel per run — only insert candidates matching it).
+      const rows = candidates
+        .filter((c) => !c.excluded)
+        .filter((c) => {
+          const key = `${norm(c.extracted_name)}|${norm(c.extracted_company)}`;
+          const url = norm(c.extracted_linkedin_url);
+          if (notInterestedKeys.has(key)) return false;
+          if (url && notInterestedUrls.has(url)) return false;
+          return true;
+        })
+        .filter((c) => {
+          if (!runChannel || runChannel === "both") return true;
+          return c.channel === runChannel;
+        })
+        .map((c) => ({
+          run_id,
+          extracted_name: c.extracted_name ?? null,
+          extracted_title: c.extracted_title ?? null,
+          extracted_company: c.extracted_company ?? null,
+          extracted_linkedin_url: c.extracted_linkedin_url ?? null,
+          channel: c.channel ?? null,
+          icp_score: typeof c.icp_score === "number" ? c.icp_score : null,
+          confidence: c.confidence === "low" ? "low" : "high",
+          connection_status: c.connection_status ?? null,
+          icp_match_reason: c.icp_match_reason ?? null,
+          channel_reason: c.channel_reason ?? null,
+          decision: "pending" as const,
+        }));
+
+      if (rows.length === 0) {
+        await callerClient.from("shortlist_runs").update({ status: "complete" }).eq("id", run_id);
+        return;
+      }
+
+      const { error: insertErr } = await callerClient.from("shortlist_candidates").insert(rows);
+      if (insertErr) {
+        await markFailed(callerClient, run_id, "parse_failed");
+        return;
+      }
+
+      await callerClient.from("shortlist_runs").update({ status: "complete" }).eq("id", run_id);
+    } catch {
+      await markFailed(callerClient, run_id, "parse_failed");
     }
-  } catch (err) {
-    await callerClient.from("shortlist_runs").update({ status: "failed" }).eq("id", run_id);
-    if (err instanceof DOMException && err.name === "AbortError") {
-      return ok({ error: "anthropic_timeout" });
-    }
-    return ok({ error: "parse_failed" });
-  }
+  })();
 
-  if (!anthropicRes.ok) {
-    await callerClient.from("shortlist_runs").update({ status: "failed" }).eq("id", run_id);
-    return ok({ error: "parse_failed" });
-  }
+  EdgeRuntime.waitUntil(backgroundTask);
 
-  let anthropicJson: { content?: { type: string; text: string }[] };
-  try {
-    anthropicJson = await anthropicRes.json();
-  } catch {
-    await callerClient.from("shortlist_runs").update({ status: "failed" }).eq("id", run_id);
-    return ok({ error: "parse_failed" });
-  }
-
-  const text = anthropicJson?.content?.[0]?.text ?? "";
-  let candidates: Candidate[];
-  try {
-    const parsed = JSON.parse(text);
-    if (!Array.isArray(parsed)) throw new Error("not_an_array");
-    candidates = parsed;
-  } catch {
-    await callerClient.from("shortlist_runs").update({ status: "failed" }).eq("id", run_id);
-    return ok({ error: "parse_failed" });
-  }
-
-  // 9-10. Filter excluded + suppressed/not-interested
-  const rows = candidates
-    .filter((c) => !c.excluded)
-    .filter((c) => {
-      const key = `${norm(c.extracted_name)}|${norm(c.extracted_company)}`;
-      const url = norm(c.extracted_linkedin_url);
-      if (notInterestedKeys.has(key)) return false;
-      if (url && notInterestedUrls.has(url)) return false;
-      return true;
-    })
-    .map((c) => ({
-      run_id,
-      extracted_name: c.extracted_name ?? null,
-      extracted_title: c.extracted_title ?? null,
-      extracted_company: c.extracted_company ?? null,
-      extracted_linkedin_url: c.extracted_linkedin_url ?? null,
-      channel: c.channel ?? null,
-      icp_score: typeof c.icp_score === "number" ? c.icp_score : null,
-      confidence: c.confidence === "low" ? "low" : "high",
-      connection_status: c.connection_status ?? null,
-      icp_match_reason: c.icp_match_reason ?? null,
-      channel_reason: c.channel_reason ?? null,
-      decision: "pending" as const,
-    }));
-
-  if (rows.length === 0) {
-    await callerClient.from("shortlist_runs").update({ status: "complete" }).eq("id", run_id);
-    return ok({ success: true, candidate_count: 0 });
-  }
-
-  const { error: insertErr } = await callerClient.from("shortlist_candidates").insert(rows);
-  if (insertErr) {
-    await callerClient.from("shortlist_runs").update({ status: "failed" }).eq("id", run_id);
-    return ok({ error: "parse_failed" });
-  }
-
-  await callerClient.from("shortlist_runs").update({ status: "complete" }).eq("id", run_id);
-  return ok({ success: true, candidate_count: rows.length });
+  return new Response(responseBody, {
+    status: 200,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
 });
