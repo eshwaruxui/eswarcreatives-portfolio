@@ -139,7 +139,7 @@ export function InvoiceDocument({
           <div style={styles.sectionLabel}>Details</div>
           <DetailLine k="Issued" v={formatDate(invoice.issuedDate)} />
           <DetailLine k="Due" v={formatDate(invoice.dueDate)} />
-          {invoice.billingTitle && <DetailLine k="For" v={invoice.billingTitle} />}
+          {invoice.billingTitle && <DetailLine k="For" v={invoice.billingTitle} prose />}
           {invoice.paidDate && <DetailLine k="Paid" v={formatDate(invoice.paidDate)} />}
           {invoice.paymentMethod && <DetailLine k="Method" v={invoice.paymentMethod} />}
           <DetailLine k="Currency" v={invoice.currency} />
@@ -229,11 +229,15 @@ export function InvoiceDocument({
   )
 }
 
-function DetailLine({ k, v }: { k: string; v: string }) {
+// prose=true renders the value in the body font, right-aligned but wrapping
+// like text rather than a mono data token — used for free-text values (e.g.
+// billing title) that run longer than the short dates/codes this row usually
+// holds, so a wrap doesn't read like a broken code snippet.
+function DetailLine({ k, v, prose }: { k: string; v: string; prose?: boolean }) {
   return (
     <div style={styles.detailRow}>
       <span style={styles.detailKey}>{k}</span>
-      <span style={styles.detailVal}>{v}</span>
+      <span style={prose ? styles.detailValProse : styles.detailVal}>{v}</span>
     </div>
   )
 }
@@ -278,6 +282,14 @@ const styles: Record<string, CSSProperties> = {
   detailRow: { display: 'flex', justifyContent: 'space-between', gap: 16, padding: '3px 0' },
   detailKey: { fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary },
   detailVal: { fontFamily: mono, fontSize: 13, color: t.text.primary },
+  detailValProse: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    color: t.text.primary,
+    textAlign: 'right' as const,
+    maxWidth: 200,
+  },
   rule: { height: 2, background: tokens.primary, margin: '24px 0' },
   table: { width: '100%', borderCollapse: 'collapse' },
   thLeft: {
