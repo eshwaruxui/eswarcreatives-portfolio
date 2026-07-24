@@ -211,7 +211,8 @@ export function NewShortlistModal({
         const path = `shortlist-runs/${runRow.id}/${Date.now()}-${file.name}`
         const { error: upErr } = await supabase.storage.from('stage-attachments').upload(path, file)
         if (upErr) { uploadFailed = true; continue }
-        await supabase.from('shortlist_run_screenshots').insert({ run_id: runRow.id, storage_path: path })
+        const { error: rowErr } = await supabase.from('shortlist_run_screenshots').insert({ run_id: runRow.id, storage_path: path })
+        if (rowErr) uploadFailed = true
       }
       if (uploadFailed) {
         setRunError(errorMessageFor('upload_failed'))
