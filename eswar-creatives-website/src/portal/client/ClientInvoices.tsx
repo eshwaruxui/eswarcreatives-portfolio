@@ -4,7 +4,7 @@
 // Theme tokens only; no raw hex; no em dashes; plain-language errors only.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
-import { Download, X } from 'lucide-react'
+import { Download, X, Paperclip } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { type PortalProfile } from '../PortalGuard'
@@ -324,6 +324,8 @@ function InvoicePanel({
   const [lines, setLines] = useState<InvoiceLine[]>([])
   const [payments, setPayments] = useState<InvoicePaymentRow[]>([])
   const closingRef = useRef(false)
+  const [proofBusyId, setProofBusyId] = useState<string | null>(null)
+  const [proofError, setProofError] = useState<string | null>(null)
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setShown(true))
@@ -359,21 +361,59 @@ function InvoicePanel({
     ;(async () => {
       const { data } = await supabase
         .from('invoice_payments')
-        .select('paid_on, method, amount, reference_note')
+        .select('id, paid_on, method, amount, reference_note, proof_url')
         .eq('invoice_id', invoice.id)
         .order('paid_on', { ascending: true })
       if (cancelled || !data) return
       setPayments(
         data.map((r) => ({
+          id: r.id as string,
           paid_on: r.paid_on as string,
           method: r.method as string | null,
           amount: Number(r.amount),
           reference_note: r.reference_note as string | null,
+          proof_url: r.proof_url as string | null,
         }))
       )
     })()
     return () => { cancelled = true }
   }, [invoice.id])
+
+  // View-only proof control (client_read_own_payment_proofs RLS scopes this
+  // to the client's own invoices). No upload here; admin-only.
+  async function handleViewProof(payment: InvoicePaymentRow) {
+    if (!payment.id || !payment.proof_url) return
+    setProofError(null)
+    setProofBusyId(payment.id)
+    try {
+      const { data, error } = await supabase.storage
+        .from('payment_proofs')
+        .createSignedUrl(payment.proof_url, 3600)
+      if (error || !data?.signedUrl) {
+        setProofError('Could not open the proof file. Try again.')
+        return
+      }
+      window.open(data.signedUrl, '_blank', 'noopener')
+    } finally {
+      setProofBusyId(null)
+    }
+  }
+
+  function renderPaymentProof(payment: InvoicePaymentRow) {
+    if (!payment.proof_url) return null
+    return (
+      <button
+        type="button"
+        style={styles.proofBtn}
+        onClick={() => void handleViewProof(payment)}
+        disabled={proofBusyId === payment.id}
+        aria-label="View payment proof"
+        title="View payment proof"
+      >
+        <Paperclip size={13} />
+      </button>
+    )
+  }
 
   const content = (
     <InvoiceDocument
@@ -393,6 +433,7 @@ function InvoicePanel({
       billedTo={billedTo}
       lines={lines}
       payments={payments.length > 0 ? payments : undefined}
+      renderPaymentProof={renderPaymentProof}
     />
   )
 
@@ -427,6 +468,7 @@ function InvoicePanel({
           </div>
           <div style={styles.fullscreenBody}>
             {content}
+            {proofError && <p style={styles.proofError}>{proofError}</p>}
             <div style={styles.downloadWrap}>
               <button type="button" style={styles.downloadBtn} onClick={handleDownloadPDF}>
                 <Download size={15} />
@@ -452,6 +494,7 @@ function InvoicePanel({
           <X size={18} />
         </button>
         {content}
+        {proofError && <p style={styles.proofError}>{proofError}</p>}
         <div style={styles.downloadWrap}>
           <button type="button" style={styles.downloadBtn} onClick={handleDownloadPDF}>
             <Download size={15} />
@@ -646,6 +689,26 @@ const styles: Record<string, CSSProperties> = {
   },
   downloadWrap: {
     padding: '0 32px 28px',
+  },
+  proofBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+    height: 24,
+    background: 'transparent',
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 6,
+    color: t.text.secondary,
+    cursor: 'pointer',
+    padding: 0,
+    flexShrink: 0,
+  },
+  proofError: {
+    margin: '0 32px 16px',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: tokens.ruby,
   },
   downloadBtn: {
     display: 'flex',
