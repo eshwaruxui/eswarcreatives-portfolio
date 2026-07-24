@@ -6,7 +6,7 @@ Last updated: 24 July 2026 (Smart Shortlist + Outreach fixes merged). Keep this 
 
 ## 1. Current branch state
 
-**Active branch:** `main`
+**Active branch:** `main` (stable) + `feature/invoice-billing-title-and-proof-attachments` (in progress, not yet merged — see entry below)
 **Status:** Stable. `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
 
 **Shipped and merged to main (chronological):**
@@ -198,9 +198,18 @@ _Ten Outreach + Smart Shortlist fixes (`feature/outreach-shortlist-fixes` — me
 - Add Project button restored in ProjectsList.tsx: `AddProjectModal` (client picker + project name), desktop top-right + mobile sticky footer button
 - Docs updated in PORTAL_ARCHITECTURE.md post-merge
 
+_Invoice billing title + payment proof attachments (`feature/invoice-billing-title-and-proof-attachments` — in progress, not yet merged):_
+- Migration 0081 applied: `invoices.billing_title` (text, nullable). Note: `invoices.project_id` already existed live (from an earlier, undocumented change) — verified via `list_tables` before writing the migration rather than assuming, so the migration only added the missing column.
+- Admin invoice create form: "Billing for" dropdown directly after Client (that client's `projects.title` values + "Custom"); selecting a project autofills an editable "Billing title" input with the project title, "Custom" clears it for manual entry; both `project_id` and `billing_title` are written on save
+- `billing_title` surfaced as a muted subtext line (above the existing item-description line) in `InvoicesAdmin.tsx` list (desktop table + mobile card), as a "For" row in the shared `InvoiceDocument` Details box (alongside Issued/Due/Currency) — covers the admin preview drawer, the public `/invoice/:token` page, and the print/PDF output, since all three render the same component. `get_invoice_by_token` needed no RPC change: it returns `to_jsonb(invoices row)`, which picks up new columns automatically.
+- `payment_proofs` bucket (private, 5MB limit) and its `admin_all_payment_proofs` + `client_read_own_payment_proofs` RLS policies already existed live (shipped quietly with PR #2 but never wired into any UI) — confirmed via direct bucket + `pg_policies` inspection before building on top of them, per the stage-attachments-bucket lesson (Section 1, PR #12). No storage migration needed.
+- `InvoiceDocument` gained an optional `renderPaymentProof(payment, index)` render-prop so it stays role-agnostic; each surface supplies its own control. Admin (`InvoicePreview.tsx`): paperclip icon opens a signed URL for rows with `proof_url`, "+ Attach proof" ghost link uploads to `payment_proofs/{invoice_id}/{timestamp}-{sanitized}.{ext}` and writes the path back to `invoice_payments.proof_url` for rows without. Client (`ClientInvoices.tsx`): same paperclip/view treatment, no upload control. Public invoice page: no proof control (out of scope).
+- `sanitizeFilename` extracted from `NewShortlistModal.tsx` into a shared `src/lib/sanitizeFilename.ts` helper (was duplicated logic in the making); both the Smart Shortlist screenshot upload and the new payment-proof attach path now import it.
+- Not yet merged to main — pending Cloudflare preview + incognito smoke test (admin session + client session) per Section 13.
+
 **Supabase plan:** Pro ($25/month, upgraded 24 Jul 2026). Project ref: `urrinqwcrpivmvenupiu` (Mumbai, ap-south-1).
 
-**Next migration number: 0081**
+**Next migration number: 0082**
 
 ---
 
@@ -246,10 +255,11 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 `client_notifications` (type, reference_id, is_read), `timeline_extensions`
 
 **Invoice tables:**
-- `invoice_payments` (migration 0065): id, invoice_id, amount, paid_on, method, reference_note, proof_url, created_at, created_by
+- `invoice_payments` (migration 0065): id, invoice_id, amount, paid_on, method, reference_note, proof_url, created_at, created_by. `proof_url` view/attach UI added on `feature/invoice-billing-title-and-proof-attachments` (column existed since 0065, unused in UI until then).
 - `invoice_line_items`: id, invoice_id, label, amount, sort_order, proposal_item_id
 - `nudge_log` (migration 0069): id, invoice_id, sent_at, channel, message_preview, sent_by
 - `proposal_nudge_log` (migration 0071): id, proposal_id, sent_at, channel, message_preview, sent_by
+- `invoices.project_id` (undocumented, present live) + `invoices.billing_title` (migration 0081): optional link to the billed project + an editable label for what the invoice is for; see Section 1
 
 **Sales Cadence tables (migrations 0072-0073):**
 - `leads`: phone_business, phone_personal, unsubscribe_token, linkedin_visitor source
@@ -308,7 +318,7 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 | Bucket | Access | Path pattern |
 |---|---|---|
 | `stage-attachments` | Private; admin upload + client read own | Stage: `{project_id}/{stage_number}/{category}/{filename}` / Project: `{project_id}/project-level/{category}/{filename}` / Shortlist: `shortlist-runs/{run_id}/{timestamp}-{filename}` |
-| `payment_proofs` | Private, admin only | `{invoice_id}/{filename}` |
+| `payment_proofs` | Private; admin upload + client read own | `{invoice_id}/{filename}` |
 | `proposal-documents` | Private, admin + client read own | `{proposal_id}/{filename}` |
 | `icp-attachments` | Private, admin only | `icp/{vertical}/icp-{timestamp}.{ext}` / `icp/{vertical}/goal-{timestamp}.{ext}` |
 
@@ -542,7 +552,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 |---|---|
 | Smart Shortlist AI run — queue-based async architecture refactor (pg_net or dedicated worker) to fix edge function timeout; currently disabled in UI | High |
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
-| Invoice nudge automation (migration 0081): scheduled reminders at due date, +3d, +7d with PDF attachment | High |
+| Invoice nudge automation (next available migration, 0081 now used by billing_title): scheduled reminders at due date, +3d, +7d with PDF attachment | High |
 | pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) — standing gap across Proposals, Invoices admin, and all portal error states | Medium |
@@ -559,7 +569,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 **Smart Shortlist AI run fix:** Queue-based async processing via pg_net or dedicated worker to bypass edge function execution limits. Replaces current disabled synchronous flow.
 
-**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Migration 0081.
+**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration (0082+; 0081 now used by billing_title).
 
 **Project status share button:** One-click sends visual progress brief (stage stepper + summary) to client email and WhatsApp.
 
@@ -591,4 +601,4 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 ## 14. One-line summary
 
-Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, Smart Shortlist AI run disabled pending queue-based architecture fix, next migration 0081.
+Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, Smart Shortlist AI run disabled pending queue-based architecture fix, next migration 0082.
