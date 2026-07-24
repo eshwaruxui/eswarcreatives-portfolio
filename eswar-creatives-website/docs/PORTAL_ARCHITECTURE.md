@@ -1,15 +1,13 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 24 July 2026. Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 24 July 2026 (Smart Shortlist + Outreach fixes merged). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
 **Active branch:** `main`
-**Status:** Stable. `feature/smart-shortlist` merged to main on 24 July 2026 (commit 9f8c1642), then `feature/outreach-shortlist-fixes` merged to main on 24 July 2026 (commit 807bd460), both after Cloudflare preview + incognito test. Migration 0080 (`outreach_fixes`) confirmed applied live. PR #13 (`feature/admin-mobile-responsive`) squash-merged to main on 16 July 2026. PR #12 (`fix/stage-attachments-bucket-and-notes-schema`) merged to main on 15 July 2026. PR #11 (`feature/outreach-improvements`) merged to main on 14 July 2026.
-
-**Smart Shortlist run is temporarily disabled:** the "Run shortlist" button in `NewShortlistModal.tsx` shows "AI processing coming soon" and is disabled pending an architecture fix; a "Beta" pill was added next to the tab label in `OutreachAdmin.tsx`. Upload zone, vertical/channel/volume selectors stay visible and functional. Full detail at the bottom of Section 1.
+**Status:** Stable. `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -31,7 +29,7 @@ _Phase 6 mobile-responsive client portal (PR #3 — `feature/phase6-mobile-respo
 - `/portal/mockups`: 1/2/3 col grid; ConceptSetPanel 100dvh overlay with swipe-down-to-close; lightbox buttons 44px
 - Mobile polish: skeleton loaders, transitions, overlay coverage, bottom nav height
 - Admin iPad pass: sidebar 180px icon-only at 768px; overflowX hidden on layout root
-- **Full admin mobile pass shipped in PR #13** — see PR #13 entry in Section 1 for complete details
+- **Full admin mobile pass shipped in PR #13** — see PR #13 entry below for complete details
 
 _Invoice nudge system (PR #4 — `feature/invoice-nudge-system`):_
 - `InvoiceDocument` header: SVG logo, `EswarCreatives`, `Branding Solution`
@@ -79,7 +77,7 @@ _Invoice OG meta tags (direct commits to main — 12 Jul 2026):_
 - Cloudflare Pages Function at functions/invoice/[token].js — intercepts GET /invoice/:token for 13 crawler user-agents
 - For crawlers: fetches invoice via RPC, injects 9 OG/Twitter meta tags; og:title = "Invoice {number} · {client_company}"
 - ?og_debug=1 param bypasses UA check for testing
-- Cloudflare env vars required: SUPABASE_URL, SUPABASE_ANON_KEY (Production)
+- Cloudflare env vars required: SUPABASE_URL, SUPABASE_ANON_KEY (Production AND Preview — see PR #16 note below)
 
 _Static OG pages (direct commits to main — 12-13 Jul 2026):_
 - scripts/generate-og-pages.mjs: postbuild script generating static HTML at dist/branding/, dist/design-systems/, dist/portal/, dist/portal/login/
@@ -145,7 +143,7 @@ _Stage-attachments bucket + notes schema-cache fix (PR #12 — `fix/stage-attach
 - Migration 0077: creates `stage-attachments` bucket (private, 10MB limit, matches AttachmentSection's accepted file types) + admin-all and client-read-own RLS policies on `storage.objects`; adds `project_client_notes.author_name` defensively (`ADD COLUMN IF NOT EXISTS`); forces a schema-cache reload via `COMMENT ON COLUMN` + `NOTIFY pgrst, 'reload schema'`
 - Both fixes confirmed live post-merge: upload now returns the same MIME-validation signature as working buckets; notes insert now reaches the same downstream permission check as any other working table (no more `PGRST204`)
 
-_Outreach preview polish + follow-up system (`feature/outreach-preview-polish` — merged today 17 Jul 2026):_
+_Outreach preview polish + follow-up system (`feature/outreach-preview-polish` — merged 17 Jul 2026):_
 - `LeadDrawer.tsx` moved from `admin/outreach/` to `src/portal/components/LeadDrawer.tsx` — single shared component, wired into TodayTab, ActivityTab, LeadsTab
 - TodayTab: "Pending Confirmation" lead name/avatar now opens LeadDrawer (was not clickable before)
 - ActivityTab: mobile and desktop both open LeadDrawer locally (was inconsistent — mobile navigated away)
@@ -164,16 +162,43 @@ _Outreach preview polish + follow-up system (`feature/outreach-preview-polish` �
 - Login page (`LoginPage.tsx`): password show/hide toggle added — Eye/EyeOff from lucide-react, absolute right 12px, 44x44px tap target, aria-label toggling, type="button"
 - `AddClientModal.tsx`: password toggle brought to same 44x44px spec (was already present but undersized)
 - Modal component (`ui.tsx`): `closeOnBackdrop` prop confirmed already existed — no change needed
+- Add Project button restored in `ProjectsList.tsx`: `AddProjectModal` (client picker + project name), desktop top-right + mobile sticky footer button — a follow-up commit the same day (`fix/projects`) added the mobile sticky-footer entry point after the desktop-only version shipped first
 
-_Outreach + Smart Shortlist fixes (`feature/outreach-shortlist-fixes`, stacked on the still-unmerged `feature/smart-shortlist` — not yet merged to main):_
-- Migration 0080: `shortlist_runs.channel` (`email`/`linkedin`/`both`, default `both`) + `shortlist_runs.error_code`; `outreach_touches` status constraint extended with `held`; `enroll_lead` replaced to gate `requires_connected` steps behind `held` instead of `scheduled`; new `mark_lead_connected(p_lead_id)` RPC
-- New Settings page (`/portal/admin/settings`, `src/portal/admin/settings/SettingsPage.tsx`): sub-nav pattern, one section "ICP configuration" — the ICP panel moved here wholesale from `SmartShortlistTab.tsx`'s old Section A. Reachable via a new "ICP configuration" link inside the existing TopBar gear's slide-in Settings panel (that panel and its Manage Clients / Sign out sections are unchanged)
-- `SmartShortlistTab.tsx` restructured as a runs-listing page: page header + "New shortlist" button, ICP summary card (active vertical + first-80-chars preview + "Edit in Settings" link + no-ICP warning banner), Previous runs table as the main content, empty state
-- `NewShortlistModal.tsx` (new, `src/portal/admin/outreach/`): vertical selector, single channel selector (Email outreach / LinkedIn DM — replaces the old dual email/LinkedIn volume selects), one volume selector (5/10/15), screenshot drop zone (drag-and-drop now also added to the ICP/goal attachment upload zones in Settings, which previously had none), large-upload warning (>15MB, gold-15%-opacity banner), 4-stage progress indicator with pulsing active icon, and a red error banner mapping edge-function error codes to specific copy (`anthropic_timeout`, `parse_failed`, `no_icp`, `upload_failed`, generic fallback)
-- Review UI moved from an inline Section C into a `SidePanel`, opened from a run's "View" action or automatically when a new run completes; single-column now (was two, Email + LinkedIn side by side) since a run only ever has one channel
-- `process-shortlist-run` edge function: validation (auth, run status, ICP present, screenshots present) stays synchronous and returns a clear error immediately (including a new `no_icp` check that used to silently proceed with "(none provided)"); once validation passes, the Anthropic call + candidate insert + status update run inside `EdgeRuntime.waitUntil` (first use of this pattern in the codebase) and the function returns `{ queued: true }` immediately — this is the actual fix for the Supabase free-tier synchronous timeout. Candidates are now filtered to the run's single channel before insert. Failures write a specific `error_code` onto the run row instead of just flipping status to `failed`
-- Frontend no longer awaits the edge function's result: it polls `shortlist_runs.status` every 4s (3-minute timeout, with a "taking longer than expected" message that leaves the run visible in Previous runs) instead of blocking on the synchronous response
-- LinkedIn sequence pileup fix: `enroll_lead` still creates every step's touch up front (unchanged eager-insert model — see Section 10), but `requires_connected` steps now start as `held` instead of `scheduled`, so they never show as actionable. `TodayTab.tsx`'s queue query fetches `scheduled` + `held`, then dedupes to the earliest unresolved step per enrollment (`dedupeByEnrollment`) so steps 2/3/4 of the LinkedIn sequence can never all surface as separate "Waiting on connection" cards for the same lead at once. `held` touches always land in Due Today, never Overdue. "Mark connected" now calls `mark_lead_connected` (promotes all of that lead's `held` touches to `scheduled` atomically) instead of a raw `leads` table update
+_Invoice OG meta tag precedence fix (PR #16 — `fix/invoice-og-precedence` — merged 22 Jul 2026):_
+- Root cause: `functions/invoice/[token].js` injected invoice-specific OG tags but the homepage `og:url`, `og:title`, `og:description` tags from index.html were already present before the injected tags; Facebook and WhatsApp use the first occurrence of each OG tag, so the homepage card always showed regardless of injection
+- Fix: function now strips all existing `og:*` and `twitter:*` meta tags from index.html content before injecting invoice-specific tags, using regex replace on the raw HTML string
+- Confirmed via Facebook Sharing Debugger post-merge: `og:title` = "Invoice EC-I-2026-108 · Newgen Event Studio", `og:url` = invoice URL (not homepage), single occurrence of each — no duplicates
+- Cloudflare env var fix: `SUPABASE_URL` and `SUPABASE_ANON_KEY` were scoped to Production environment only in Cloudflare Pages Settings; the invoice Cloudflare Pages Function was silently falling back to the SPA shell on all preview URLs (function could not reach Supabase); both vars added to Preview environment on 22 Jul 2026
+- **Important distinction:** `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` are React app build-time vars (Vite prefix required). `SUPABASE_URL` / `SUPABASE_ANON_KEY` (no prefix) are Cloudflare Pages Function runtime vars. Both sets must be present in both Production and Preview environments.
+- No migration required — Cloudflare Function change only
+
+_Smart Shortlist tab (`feature/smart-shortlist` — merged 24 Jul 2026):_
+- Migration 0079 applied: `icp_configs`, `shortlist_runs`, `shortlist_run_screenshots`, `shortlist_candidates` tables; all admin-only RLS via `is_admin()`
+- `icp-attachments` private storage bucket created (10MB limit); blanket admin RLS policy
+- `leads.vertical` column added (nullable text, CHECK IN ('design_systems','branding')) — separate from `leads.segment`; avoids taxonomy conflict
+- `leads.source` CHECK constraint extended to include `'smart_shortlist'`
+- `stage-attachments` bucket allow-list extended to include `image/webp`
+- `process-shortlist-run` edge function: downloads screenshots from storage as base64, calls claude-sonnet-4-6 (max_tokens 4000) with ICP/goal text + existing-leads fuzzy-dedup list; parses candidate JSON; filters excluded + not_interested matches; inserts shortlist_candidates; sets shortlist_runs.status to complete/failed; async background processing via `EdgeRuntime.waitUntil`
+- `SmartShortlistTab.tsx` (`src/portal/admin/outreach/SmartShortlistTab.tsx`): 6th tab in OutreachAdmin (Sparkles icon); sections: ICP summary card (read-only, links to Settings), runs listing as main content, "New shortlist" modal CTA
+- `NewShortlistModal.tsx`: vertical selector (Design Systems/Branding), channel selector (Email outreach/LinkedIn DM — one per run), volume selector (5/10/15), screenshot upload with client-side compression (1200px longest side, JPEG 0.85), filename sanitization (strips U+202F and all non-ASCII/special chars), async polling for run completion
+- `CandidateCard.tsx` + `src/portal/components/shortlist/types.ts`: reusable candidate card with ICP score bar, confidence indicator, Add to leads inline form, Ignore action
+- Settings page (`src/portal/admin/settings/SettingsPage.tsx`): ICP configuration moved here from SmartShortlistTab; accessible via gear panel "ICP configuration" link; two vertical tabs (Design Systems/Branding); ICP text, attachment upload, goal text, goal attachment, Save ICP button with toast confirmation
+- **AI run button currently disabled** ("AI processing coming soon") pending queue-based async architecture refactor. All other tab functionality (ICP config, history, channel selector, review panel) is live and working.
+- "Beta" pill added to Smart Shortlist tab label in OutreachAdmin
+
+_Ten Outreach + Smart Shortlist fixes (`feature/outreach-shortlist-fixes` — merged 24 Jul 2026):_
+- Migration 0080 applied: `shortlist_runs.channel` column (email/linkedin/both, default both); `shortlist_runs.error_code` column (carries the async task's specific failure reason back to the polling client); `outreach_touches` status constraint extended to include `'held'`; `enroll_lead` replaced to gate `requires_connected` steps behind `held` (not `scheduled`) at enrollment time; new `mark_lead_connected(p_lead_id)` RPC promotes a lead's held touches to scheduled atomically
+- LinkedIn "waiting on connection" pileup fix: touches for `requires_connected` steps created as `held` at enrollment time; `mark_lead_connected` RPC promotes held→scheduled for that lead; TodayTab shows only earliest unresolved touch per enrollment (dedup)
+- Drag and drop fixed on all upload zones (ICP attachments in Settings, screenshots in New Shortlist modal)
+- Progress indicator with 4 stages (Uploading, Optimising, Analysing, Scoring) + % completion bar in New Shortlist modal during processing
+- Specific error messages per error type: `anthropic_timeout`, `parse_failed`, `no_icp`, `upload_failed` — shown as banner inside modal, never raw strings
+- File size warning banner (gold) when total upload exceeds 15MB
+- Screenshot filename sanitization: strips extension, folds accents, collapses all non-word/whitespace (including U+00A0, U+202F, U+2009, U+200B) to hyphens, lowercases — fixes macOS default screenshot filenames causing Supabase Storage 400
+- `shortlist_run_screenshots` insert error now surfaces correctly (was silently swallowed)
+- Add Project button restored in ProjectsList.tsx: `AddProjectModal` (client picker + project name), desktop top-right + mobile sticky footer button
+- Docs updated in PORTAL_ARCHITECTURE.md post-merge
+
+**Supabase plan:** Pro ($25/month, upgraded 24 Jul 2026). Project ref: `urrinqwcrpivmvenupiu` (Mumbai, ap-south-1).
 
 **Next migration number: 0081**
 
@@ -231,12 +256,28 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 - `sequences`, `sequence_steps`, `lead_enrollments` (statuses: active/paused/completed/cancelled), `outreach_touches`, `suppression_list`, `reply_messages`
 
 **Outreach scheduling tables (migration 0076):**
-- `outreach_touches` — 3 new columns: `recipient_timezone text`, `draft_confirmed_at timestamptz`, `draft_confirmed_by uuid → auth.users`; status constraint extended: `('pending','sent','failed','skipped','scheduled','cancelled')`
+- `outreach_touches` — 3 new columns: `recipient_timezone text`, `draft_confirmed_at timestamptz`, `draft_confirmed_by uuid → auth.users`; status constraint extended: `('pending','sent','failed','skipped','scheduled','cancelled')` (further extended to add `'held'` in migration 0080, see below)
 - `linkedin_posts`: id, content, scheduled_for (timestamptz at 09:00+05:30 for Mon/Wed/Fri), status (`pending`/`published`/`failed`), published_at, reminder_sent_at, created_at, updated_at. RLS: admin-only via `is_admin()`.
 
 **Migration 0078 — leads table additions:**
 - `follow_up_date` date (nullable): powers Follow-ups today section in TodayTab and date input in LeadDrawer
 - `draft_message` text (nullable): staged message shown as preview in Follow-ups today, edited in LeadDrawer
+
+**Migration 0079 — Smart Shortlist tables:**
+- `icp_configs`: id, vertical (design_systems/branding, one row per vertical, upserted), icp_text, goal_text, icp_attachment_url, goal_attachment_url, updated_at. Admin-only RLS.
+- `shortlist_runs`: id, vertical (CHECK design_systems/branding), volume_email, volume_linkedin, channel (email/linkedin/both), status (CHECK processing/complete/archived/failed), created_at. Admin-only RLS.
+- `shortlist_run_screenshots`: id, run_id (FK→shortlist_runs CASCADE), storage_path, created_at. Admin-only RLS.
+- `shortlist_candidates`: id, run_id (FK→shortlist_runs CASCADE), extracted_name, extracted_title, extracted_company, extracted_linkedin_url, channel (email/linkedin), icp_score (0-100), confidence (high/low, NOT NULL), connection_status, icp_match_reason, channel_reason, decision (pending/added/ignored, NOT NULL), lead_id (nullable FK→leads), created_at. Admin-only RLS.
+- `leads.vertical` column added (nullable text, CHECK IN ('design_systems','branding'))
+- `leads.source` CHECK extended to include 'smart_shortlist'
+- `stage-attachments` bucket allow-list extended to include image/webp
+
+**Migration 0080 — Outreach fixes:**
+- `shortlist_runs.channel` column (text, CHECK IN ('email','linkedin','both'), DEFAULT 'both')
+- `shortlist_runs.error_code` column (text, nullable) — carries the async background task's specific failure reason back to the polling client, since the frontend no longer awaits `process-shortlist-run`'s direct response
+- `outreach_touches` status constraint extended to include 'held' (for LinkedIn touches waiting on connection acceptance)
+- `enroll_lead(p_lead_id, p_sequence_id, p_start_date)` replaced: same body as migration 0072's version, except touches for any step with `sequence_steps.requires_connected = true` are now inserted with `status = 'held'` instead of the column default `'scheduled'`
+- `mark_lead_connected(p_lead_id uuid)` RPC added (admin-only SECURITY DEFINER) — sets `leads.linkedin_status = 'connected'` and promotes that lead's `held` touches to `scheduled` in one call
 
 **Key proposal columns:**
 - `proposal_phases`: solution_title, timeline, key_note
@@ -266,9 +307,10 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 
 | Bucket | Access | Path pattern |
 |---|---|---|
-| `stage-attachments` | Private; admin upload + client read own | Stage: `{project_id}/{stage_number}/{category}/{filename}` / Project: `{project_id}/project-level/{category}/{filename}` |
+| `stage-attachments` | Private; admin upload + client read own | Stage: `{project_id}/{stage_number}/{category}/{filename}` / Project: `{project_id}/project-level/{category}/{filename}` / Shortlist: `shortlist-runs/{run_id}/{timestamp}-{filename}` |
 | `payment_proofs` | Private, admin only | `{invoice_id}/{filename}` |
 | `proposal-documents` | Private, admin + client read own | `{proposal_id}/{filename}` |
+| `icp-attachments` | Private, admin only | `icp/{vertical}/icp-{timestamp}.{ext}` / `icp/{vertical}/goal-{timestamp}.{ext}` |
 
 ---
 
@@ -277,6 +319,7 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 | Surface | Routes | Guard |
 |---|---|---|
 | Admin portal | `/portal/admin/*` | is_admin() SECURITY DEFINER |
+| Settings page | `/portal/admin/settings` | is_admin() — ICP configuration for Smart Shortlist verticals |
 | Client portal | `/portal/projects`, `/portal/proposals`, `/portal/invoices`, `/portal/mockups`, `/portal/campaigns`, `/portal/account` | role = client |
 | Reviewer portal | `/portal/review/:campaignId` | role = reviewer |
 | Public vote | `/portal/vote/:token` | No auth |
@@ -310,11 +353,14 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 | `ProposalLinkPicker` | `src/portal/components/ProposalLinkPicker.tsx` | 3-step picker: proposal → phase → solution. Read-only insight card for client |
 | `InvoiceDocument` | `src/portal/components/shared/InvoiceDocument.tsx` | Read-only invoice template; readOnly prop; shared by admin/client/public |
 | `ClientNav` | `src/portal/client/ClientNav.tsx` | Desktop top bar + mobile 64px bottom tab bar, safe-area-inset, ruby badges |
+| `LeadDrawer` | `src/portal/components/LeadDrawer.tsx` | Shared drawer used by TodayTab, ActivityTab, LeadsTab. Shows name, company, title, email, LinkedIn, status, observation, sequence, follow-up date, draft message, notes. |
 | `NudgeModal` | `src/portal/admin/NudgeModal.tsx` | WhatsApp + email nudge; rotates public_token; inserts nudge_log row |
 | `ConfirmPaymentModal` | `src/portal/admin/ConfirmPaymentModal.tsx` | Mark paid + record partial payment; proof upload |
 | `ProgressiveImage` | `src/portal/components/shared/ProgressiveImage.tsx` | All remote image rendering; shimmer placeholder. Never use raw `<img>` for remote URLs |
-| `SidePanel` | `src/portal/admin/SidePanel.tsx` | z-201, motionTokens slide-in, shared by all drawers |
+| `SidePanel` | `src/portal/admin/SidePanel.tsx` | z-201, motionTokens slide-in, 100vw x 100dvh on mobile, shared by all drawers |
 | `useBreakpoint` | `src/portal/hooks/useBreakpoint.ts` | Sole breakpoint authority |
+| `CandidateCard` | `src/portal/components/shortlist/CandidateCard.tsx` | Smart Shortlist candidate card; ICP score bar, confidence badge, Add to leads inline form, Ignore action |
+| `AddProjectModal` | `src/portal/admin/AddProjectModal.tsx` | Client picker + project name field; inserts into projects; desktop top-right + mobile sticky footer button |
 
 ### Admin ProjectPanel — 4-tab layout
 
@@ -340,23 +386,24 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 
 | Function | Version | jwt_verify | Purpose |
 |---|---|---|---|
-| admin-create-client | v3 | true | Creates auth user + profile + client row + sends welcome email |
-| admin-delete-client | v1 | true | FK-safe atomic delete |
-| confirm-proposal | v2 | true | Accepts proposal, creates per-phase advance invoices |
-| send-welcome-email | v3 | true | Branded welcome email via Resend |
-| send-invoice-nudge | v1 | true | Invoice nudge via Resend/WhatsApp |
-| send-proposal-nudge | v1 | true | Proposal nudge; guards status='sent'; always regenerates token |
-| decline-proposal | v1 | true | SECURITY DEFINER, captures decline reason |
-| respond-to-timeline-extension | v1 | true | Client approve/deny |
-| update-own-full-name | v1 | true | SECURITY DEFINER |
-| create-razorpay-order | v1 | false | Creates Razorpay order; verifies invoice token server-side |
-| verify-razorpay-payment | v1 | false | Verifies HMAC-SHA256 signature; inserts invoice_payments; syncs status |
-| send-outreach-email | v2 | true | Sends cold email via Resend; guards: suppression, daily cap (25), missing_observation, unresolved variables; business hours check — defers to next Mon-Fri 09:00-18:00 in recipient timezone; returns `{ scheduled: true }` if deferred |
-| resend-outreach-webhook | v1 | false | Verifies RESEND_WEBHOOK_SECRET; handles email.bounced + email.opened events |
-| extract-lead-from-image | v2 | true | Calls claude-sonnet-4-6; extracts 13 fields: name, company, title, email, phone_business, phone_personal, website, location, source, linkedin_url, instagram_url, twitter_handle, notes; max_tokens 800; client infers website from business email domain |
+| admin-create-client | v13 | true | Creates auth user + profile + client row + sends welcome email |
+| admin-delete-client | v10 | true | FK-safe atomic delete |
+| admin-delete-proposal | v10 | true | FK-safe atomic delete for a proposal and its dependent invoices |
+| admin-delete-invoice | v10 | true | Hard-deletes a standalone invoice via service role; rejects with 400 if the invoice is linked to a proposal (delete the proposal instead, via admin-delete-proposal, to keep them consistent) |
+| confirm-proposal | v12 | true | Accepts proposal, creates per-phase advance invoices |
+| send-welcome-email | v13 | true | Branded welcome email via Resend |
+| send-invoice-nudge | v10 | true | Invoice nudge via Resend/WhatsApp |
+| send-proposal-nudge | v6 | true | Proposal nudge; guards status='sent'; always regenerates token |
+| create-razorpay-order | v6 | false | Creates Razorpay order; verifies invoice token server-side |
+| verify-razorpay-payment | v6 | false | Verifies HMAC-SHA256 signature; inserts invoice_payments; syncs status |
+| send-outreach-email | v6 | true | Sends cold email via Resend; guards: suppression, daily cap (25), missing_observation, unresolved variables; business hours check — defers to next Mon-Fri 09:00-18:00 in recipient timezone; returns `{ scheduled: true }` if deferred |
+| resend-outreach-webhook | v5 | true | Verifies RESEND_WEBHOOK_SECRET; handles email.bounced + email.opened events |
+| extract-lead-from-image | v6 | true | Calls claude-sonnet-4-6; extracts 13 fields: name, company, title, email, phone_business, phone_personal, website, location, source, linkedin_url, instagram_url, twitter_handle, notes; max_tokens 800; client infers website from business email domain |
 | confirm-scheduled-touch | v1 | true | Admin verifies touch status='scheduled', sends immediately via Resend, sets draft_confirmed_at/by, updates status to 'sent'/'failed' |
-| send-linkedin-reminder | v1 | false | Calls get_upcoming_linkedin_week() RPC; counts pending posts for Mon/Wed/Fri; sends reminder to eswar@eswarcreatives.in via Resend if any slot unfilled; triggered by pg_cron Sunday 12:30 UTC |
-| process-shortlist-run | v1 | true | Admin JWT + explicit profiles.role check; downloads run screenshots from stage-attachments as base64; calls claude-sonnet-4-6 (max_tokens 4000) with ICP/goal text + existing-leads fuzzy-dedup list; parses candidate JSON array; filters excluded + not_interested matches; inserts shortlist_candidates; sets shortlist_runs.status to complete/failed |
+| send-linkedin-reminder | v1 | true | Calls get_upcoming_linkedin_week() RPC; counts pending posts for Mon/Wed/Fri; sends reminder to eswar@eswarcreatives.in via Resend if any slot unfilled; triggered by pg_cron Sunday 12:30 UTC |
+| process-shortlist-run | v4 | true | Admin JWT + explicit profiles.role check; downloads run screenshots from stage-attachments as base64; calls claude-sonnet-4-6 (max_tokens 4000) with ICP/goal text + existing-leads fuzzy-dedup list; parses candidate JSON array; filters excluded + not_interested matches; inserts shortlist_candidates; sets shortlist_runs.status to complete/failed, writing error_code on failure. Async via EdgeRuntime.waitUntil. **AI run currently disabled in UI pending queue-based architecture refactor.** |
+
+Edge function versions confirmed live via Supabase on 24 Jul 2026 — check `list_edge_functions` before citing a version number elsewhere, they increment on every deploy.
 
 **Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `ANTHROPIC_API_KEY`
 **Secrets pending:** `RESEND_WEBHOOK_SECRET` (required before resend-outreach-webhook goes live)
@@ -394,7 +441,7 @@ Token collections: teal (20), gold (20), neutral (21), ruby (20), success (20), 
 | Client | Email | Company | Currency | Status |
 |---|---|---|---|---|
 | Mohan | newgeneventtn@gmail.com | Newgen Event Makers | INR | Active — Newgen Branding 2026 |
-| Moorthy | (re-add via Add Client modal) | 123 Adsprint | INR | Needs re-adding |
+| Moorthy | (re-add via Add Client modal) | 123 Adsprint | INR | Active — proposal EC-P-2026-006, status accepted |
 | Eswar (test) | eswarcreatives@gmail.com | Eswar Creatives Test | INR | Internal test account |
 
 **Reviewers (in reviewers table):** keerthigc24, darshanraphal, sajhith, krithik6607, paavansai032012, bewithmehmm
@@ -454,7 +501,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - TodayTab shows "Pending Confirmation" section for future scheduled email touches
 - `confirm-scheduled-touch` edge function sends immediately and marks `draft_confirmed_at/by`
 
-**Frontend tabs:** Today (daily motion tracker), Leads (search + filter chips + sortable table + drawer), Sequences (step rail + inline editor), Activity (last 200 touches; includes scheduled status), LinkedIn (Mon/Wed/Fri week planner, post history, reminder trigger)
+**Frontend tabs (6, OutreachAdmin.tsx):** Today (daily motion tracker), Leads (search + filter chips + sortable table + drawer), Sequences (step rail + inline editor), Activity (last 200 touches; includes scheduled status), LinkedIn (Mon/Wed/Fri week planner, post history, reminder trigger), Smart Shortlist (Beta pill — ICP summary, runs listing, New shortlist modal; AI run disabled pending architecture fix, see Section 1)
 
 **LeadDrawer (`src/portal/components/LeadDrawer.tsx`):** shared drawer used by TodayTab, ActivityTab, LeadsTab. Shows: name, company, title, email (mailto), LinkedIn URL, status pill, specific observation, enrolled sequence + current step, last touch date (IST SF Mono), Notes (auto-save on blur), Follow-up date (explicit save + toast), Draft message (auto-save on blur).
 
@@ -479,6 +526,8 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - Weekend reminder banner when today is Sat/Sun; "Send Test Reminder" ghost button calls edge function directly
 - pg_cron job: `linkedin-weekly-reminder` schedule `'30 12 * * 0'` (Sunday 12:30 UTC) — requires pg_cron + pg_net extensions enabled
 
+**Smart Shortlist tab:** see Section 1's `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` entries for full detail (tables, edge function, frontend, current disabled-AI-run state). Admin-only, 6th tab, Sparkles icon.
+
 **Public route:** `/unsubscribe/:token` — confirmation step before RPC fires (prevents pre-fetcher unsubscribes)
 
 **Secrets pending:** `RESEND_WEBHOOK_SECRET` before resend-outreach-webhook goes live. Register in Resend dashboard for email.bounced + email.opened events.
@@ -487,62 +536,40 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 ---
 
-## 11. Smart Shortlist module
-
-**Admin-only. 6th tab in OutreachAdmin (Sparkles icon).** AI-powered lead prioritization: extracts LinkedIn profiles from screenshots, scores them against a saved ICP, produces a reviewed shortlist for outreach.
-
-**Tables (migration 0079):**
-- `icp_configs`: one row per vertical (`design_systems` | `branding`), upserted. `icp_text`, `goal_text`, `icp_attachment_url`/`goal_attachment_url` (storage paths in the private `icp-attachments` bucket, not public URLs — signed URL generated on view, same pattern as `stage-attachments`)
-- `shortlist_runs`: `vertical`, `volume_email`, `volume_linkedin`, `status` (`processing`/`complete`/`archived`/`failed` — `failed` added beyond spec for the edge function's parse-failure path)
-- `shortlist_run_screenshots`: screenshots per run, stored in the existing `stage-attachments` bucket at `shortlist-runs/{run_id}/{timestamp}-{filename}` (not a new bucket — reuses the bucket per spec)
-- `shortlist_candidates`: extracted + scored people. `decision` (`pending`/`added`/`ignored`), `lead_id` back-reference once added
-
-**Schema gaps closed in migration 0079 (not in the original spec):**
-- `leads.vertical` (nullable, `design_systems`/`branding`) added as a separate column — `leads.segment` (`security_ai`/`saas_product`, NOT NULL) is a different, pre-existing taxonomy and was not touched. Shortlist-added leads get `segment: 'saas_product'` (same fallback `CsvImportModal` already uses) plus their real `vertical`.
-- `leads.source` CHECK extended to include `'smart_shortlist'`, same mechanical pattern as `0072c`'s `linkedin_visitor` addition.
-- `stage-attachments` bucket's `allowed_mime_types` extended with `image/webp` (was jpeg/png only) since Section B screenshots need webp support.
-- `icp-attachments` bucket created via SQL `insert into storage.buckets` in the migration itself, not the Supabase dashboard — the dashboard-creation step for `stage-attachments` was skipped during the project-stage-module rollout and silently broke every upload until migration 0077 fixed it; doing it in SQL here avoids repeating that failure.
-
-**Edge function:** `process-shortlist-run` (`supabase/functions/process-shortlist-run/index.ts`) — admin JWT required (same auth pattern as `extract-lead-from-image`: caller-scoped client + explicit `profiles.role` check). Downloads run screenshots as base64, calls `claude-sonnet-4-6` (max_tokens 4000) with the ICP text/goal and existing-leads list for fuzzy dedup, parses the JSON candidate array, filters excluded/not-interested matches, inserts `shortlist_candidates`, sets run status to `complete` (or `failed` on any parse/insert error — raw errors never surface to the client).
-
-**Frontend (`SmartShortlistTab.tsx` + `src/portal/components/shortlist/`):**
-- Section A: collapsible ICP config, per-vertical tabs, textarea + file upload (PDF/image) for both ICP and goal, upsert on "Save ICP"
-- Section B: vertical selector, email/LinkedIn volume selects (5/10/15), multi-screenshot drop zone with thumbnail grid, "Run shortlist" disabled until screenshots exist and the selected vertical has a saved ICP
-- Section C: two-column review (Email outreach / LinkedIn DM), sorted by `icp_score` desc, sliced to the run's volume; low-confidence candidates pulled into a collapsed "Needs manual review" section per column instead of the ranked list; "Only N of volume slots filled" banner when the high-confidence pool is short
-- `CandidateCard` (`src/portal/components/shortlist/CandidateCard.tsx`, reused in both columns): score bar, reasons, low-confidence border/badge, inline (non-modal) "Add to leads" expansion — email input + mandatory `specific_observation` (100-200 chars, "Confirm and add" disabled outside that range) — and "Ignore" (200ms fade, sets `decision: 'ignored'`)
-- Section D: history table (desktop) / card list (mobile) of runs with aggregated screenshot/candidate/added counts; View reopens Section C for that run; Archive/Delete per row; archived hidden by default behind "Show archived (N)"
-
-**Status:** migration 0079 applied and `process-shortlist-run` deployed (v1, verify_jwt true) directly against the live project on 17 Jul 2026. **Pending before this ships:** Cloudflare preview + incognito test.
-
----
-
-## 12. Pending work
+## 11. Pending work
 
 | Item | Priority |
 |---|---|
+| Smart Shortlist AI run — queue-based async architecture refactor (pg_net or dedicated worker) to fix edge function timeout; currently disabled in UI | High |
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
-| Smart Shortlist tab + outreach fixes (`feature/outreach-shortlist-fixes`) — migration 0080 written but not yet applied; code complete (Settings page, runs listing + modal, async processing, LinkedIn held-status fix); pending: apply migration 0080, deploy updated process-shortlist-run, Cloudflare preview + incognito test | High |
+| Invoice nudge automation (migration 0081): scheduled reminders at due date, +3d, +7d with PDF attachment | High |
 | pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) — standing gap across Proposals, Invoices admin, and all portal error states | Medium |
 | Reviewers / clients architecture separation — six logo review users currently added as clients with dummy projects; needs dedicated `reviewers` table separation | Medium |
+| Project status share button — one-click visual progress brief (stage stepper + summary) to client via email and WhatsApp | Medium |
 | Consolidate duplicate `ProjectPanel` implementations — one via ClientPanel+SidePanel, one hand-rolled in ProjectsList.tsx; deferred from PR #13 | Low |
 | Three admin modals desktop-only (DeleteProposalModal, DeleteInvoiceModal, OutreachSendModal) — not using shared Modal component; mobile treatment deferred | Low |
 | Public campaign responses pagination + filters | Low |
+| /branding landing page gallery/case showcase section — Vim Events and Newgen projects; `/branding/work` route, card grid + per-project case view | Low |
 
 ---
 
-## 13. Roadmap in pipeline
+## 12. Roadmap in pipeline
 
-**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered.
+**Smart Shortlist AI run fix:** Queue-based async processing via pg_net or dedicated worker to bypass edge function execution limits. Replaces current disabled synchronous flow.
+
+**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Migration 0081.
 
 **Project status share button:** One-click sends visual progress brief (stage stepper + summary) to client email and WhatsApp.
 
 **Razorpay/Stripe for client portal:** Replace manual "Mark paid" with gateway. Client-facing pay button.
 
+**Multi-tenant architecture:** Single codebase + per-tenant `tenant.config.ts` + separate Supabase project per client + separate Cloudflare Pages deployment per client on custom domain. Implement before client 3. See architecture decision doc for full plan (not yet located/verified in this repo — confirm location before relying on it).
+
 ---
 
-## 14. Execution rules
+## 13. Execution rules
 
 - One branch per feature. One commit per logical layer.
 - Never merge to main without Cloudflare preview + incognito test.
@@ -551,15 +578,17 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - RLS admin policies use `is_admin()` SECURITY DEFINER only. Never inline subqueries on profiles.
 - Never surface raw err.message to client.
 - Test every login flow in incognito before marking complete.
-- Cloudflare preview needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- Cloudflare preview needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (React app vars) AND `SUPABASE_URL` + `SUPABASE_ANON_KEY` (Cloudflare Pages Function vars). Both sets required in both environments.
 - FK delete order must be followed (see Section 3).
 - Stage status labels: always "Upcoming", "In progress", "Done" — never "Pending".
 - Reusable components in `src/portal/components/` only — never duplicated per screen.
 - `useBreakpoint` is the only breakpoint authority — no ad-hoc resize listeners, no `window.matchMedia`, no `window.innerWidth`.
 - Admin mobile patterns: hamburger drawer (z-300) + scrim (z-299) for nav; SidePanel full-screen (z-201) on mobile; shared Modal scrim at z-400. Never use `position: fixed` inside SidePanel (breaks iOS).
+- All migrations use `apply_migration`, not `execute_sql`. Always preview SQL before applying.
+- For long agent runs (25+ minutes without committing): open a separate terminal tab and run `git add src/ && git commit -m "wip(...): checkpoint"` manually.
 
 ---
 
-## 15. One-line summary
+## 14. One-line summary
 
-Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending".
+Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, Smart Shortlist AI run disabled pending queue-based architecture fix, next migration 0081.
