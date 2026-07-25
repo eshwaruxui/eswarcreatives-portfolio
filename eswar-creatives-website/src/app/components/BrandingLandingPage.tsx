@@ -148,6 +148,8 @@ export function BrandingLandingPage() {
                 </PortfolioButton>
                 <PortfolioButton
                   href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   style={{
                     background: "transparent",
                     color: t.text.primary,
@@ -161,6 +163,13 @@ export function BrandingLandingPage() {
                   Let's talk
                 </PortfolioButton>
               </div>
+              <p style={{ fontFamily: BODY, fontSize: 12, color: t.text.muted, marginTop: 12 }}>
+                Prefer async?{" "}
+                <a href="/branding/brand-identity-discovery" style={{ color: tokens.primary, textDecoration: "underline" }}>
+                  Fill a brand brief
+                </a>{" "}
+                instead.
+              </p>
             </motion.div>
           </div>
         </section>
@@ -209,7 +218,7 @@ export function BrandingLandingPage() {
               <ServiceCard number="01" title="Brand Identity Design">
                 <ScopeList
                   items={[
-                    "NG abstract monogram + wordmark logo system",
+                    "Abstract monogram + wordmark logo system",
                     "Full colour system: Gold, Teal, Cream, Ochre, Ruby",
                     "Premium typography pair",
                     "Application proofs: business card, quotation, WhatsApp, signboard",
@@ -217,11 +226,7 @@ export function BrandingLandingPage() {
                     "All master files: AI, EPS, SVG, PNG, PDF",
                   ]}
                 />
-                <CardFooter timeline="2 - 3 weeks" market="₹85K - 1.2L" />
-                <div style={{ background: t.background.subtle, borderRadius: 6, padding: "8px 12px", marginTop: 12 }}>
-                  <p style={{ fontFamily: MONO, fontSize: 10, color: t.text.muted, marginBottom: 2 }}>KEY NOTE</p>
-                  <p style={{ fontFamily: BODY, fontSize: 12, color: t.text.secondary, margin: 0 }}>Wife (co-owner) present at concept presentation.</p>
-                </div>
+                <CardFooter timeline="2 - 3 weeks" />
               </ServiceCard>
 
               <ServiceCard number="02" title="Brand Guidelines Document">
@@ -236,7 +241,7 @@ export function BrandingLandingPage() {
                     "1-page quick reference for field team",
                   ]}
                 />
-                <CardFooter timeline="1 week" market="₹55K - 80K" />
+                <CardFooter timeline="1 week" />
               </ServiceCard>
 
               <ServiceCard number="03" title="Business Profile PDF">
@@ -253,7 +258,7 @@ export function BrandingLandingPage() {
                     "Client testimonials + Google review QR",
                   ]}
                 />
-                <CardFooter timeline="3 weeks" market="₹45K - 65K" />
+                <CardFooter timeline="3 weeks" />
               </ServiceCard>
             </div>
           </div>
@@ -279,17 +284,16 @@ export function BrandingLandingPage() {
                   ))}
                 </div>
                 <div style={{ background: tokens.primary, color: t.text.onPrimary, borderRadius: 8, padding: "16px 20px", marginTop: 16 }}>
-                  <p style={{ fontFamily: MONO, fontSize: 10, color: tokens.gold, marginBottom: 6 }}>Mohan's only new habit:</p>
+                  <p style={{ fontFamily: MONO, fontSize: 10, color: tokens.gold, marginBottom: 6 }}>Your only new habit:</p>
                   <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.onPrimary, margin: 0, lineHeight: 1.6 }}>
-                    15 minutes of photo triage each evening. Everything else is handled by Eswar Creatives.
+                    15 minutes of photo review each evening. Everything else (design, scheduling, captions, Google profile) is handled by us.
                   </p>
                 </div>
-                <CardFooter timeline="" market="₹90K - 1.3L" />
               </ServiceCard>
 
               <ServiceCard number="05" title="Website Design">
                 <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginBottom: 20 }}>
-                  A lead-generation site, not a brochure. Built so Google sends you clients while you are at a mandapam.
+                  A lead-generation site, not a brochure. Built so Google sends you clients while you are at a venue partner.
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 12, marginBottom: 16 }}>
                   {WEBSITE_PAGES.map((page) => (
@@ -304,7 +308,6 @@ export function BrandingLandingPage() {
                     SEO built-in, not bolted on. Each service page targets one search term. No paid ads needed to start.
                   </p>
                 </div>
-                <CardFooter timeline="" market="₹1.2L - 1.8L" />
               </ServiceCard>
             </div>
           </div>
@@ -325,7 +328,6 @@ export function BrandingLandingPage() {
                     <p key={label} style={{ ...sectionLabel, margin: 0 }}>{label.toUpperCase()}</p>
                   ))}
                 </div>
-                <CardFooter timeline="" market="₹65K - 95K" />
               </ServiceCard>
 
               <ServiceCard number="07" title="CRM + Lead Automation">
@@ -341,12 +343,11 @@ export function BrandingLandingPage() {
                 <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginBottom: 4 }}>
                   Auto follow-up: Day 1, 3, 7 post-enquiry
                 </p>
-                <CardFooter timeline="" market="₹75K - 1.1L" />
               </ServiceCard>
 
               <ServiceCard number="08" title="Personal Brand: Founder as Brand">
                 <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginBottom: 16 }}>
-                  Your hand-sketch approach and your story since 2008 is Newgen's biggest untapped asset.
+                  Your hand-sketch approach and your founder story is your biggest untapped asset.
                 </p>
                 <ScopeList
                   items={[
@@ -355,8 +356,69 @@ export function BrandingLandingPage() {
                     "BNI profile + one-to-one pitch deck",
                   ]}
                 />
-                <CardFooter timeline="" market="₹60K - 90K" />
               </ServiceCard>
+            </div>
+          </div>
+        </section>
+
+        {/* ON INVESTMENT */}
+        <section style={{ padding: isMobile ? "0 20px" : "0 24px" }}>
+          <div style={{ maxWidth: 1152, margin: "0 auto" }}>
+            <div
+              style={{
+                background: t.background.subtle,
+                border: `1px solid ${t.border.subtle}`,
+                borderRadius: 12,
+                padding: isMobile ? "28px 20px" : "36px 40px",
+                margin: "0 0 64px",
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                gap: isMobile ? 20 : 48,
+                alignItems: isMobile ? "flex-start" : "center",
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".12em", textTransform: "uppercase", color: tokens.gold, marginBottom: 10 }}>
+                  On investment
+                </p>
+                <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 20 : 24, fontWeight: 600, color: t.text.primary, marginBottom: 10 }}>
+                  Price is proposed after we understand your business.
+                </h2>
+                <p style={{ fontFamily: BODY, fontSize: 14, color: t.text.secondary, lineHeight: 1.8, margin: 0 }}>
+                  Every engagement is scoped to your specific situation, not a fixed package. We start with a short discovery conversation. If there is a fit, we propose an investment with a clear return on it.
+                </p>
+              </div>
+
+              <div style={{ flexShrink: 0, textAlign: "center" }}>
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-block",
+                    padding: "14px 28px",
+                    background: tokens.primary,
+                    color: t.text.onPrimary,
+                    fontFamily: "Inter, sans-serif",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    textDecoration: "none",
+                  }}
+                >
+                  Book a discovery call &rarr;
+                </a>
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: t.text.muted, marginTop: 8 }}>
+                  30 minutes. No commitment.
+                </p>
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: t.text.muted, marginTop: 12 }}>
+                  or{" "}
+                  <a href="/branding/brand-identity-discovery" style={{ color: tokens.primary, textDecoration: "underline", fontWeight: 500 }}>
+                    start with a brand brief
+                  </a>
+                  , we follow up within 3 days
+                </p>
+              </div>
             </div>
           </div>
         </section>
@@ -404,9 +466,11 @@ export function BrandingLandingPage() {
             <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 24 : 32, fontWeight: 600, color: t.text.primary, marginBottom: 32, lineHeight: 1.3 }}>
               The most authentic event business in Chennai deserves the most authentic brand.
             </h2>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", justifyContent: "center" }}>
               <PortfolioButton
-                href="/branding/work"
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{
                   background: tokens.primary,
                   color: t.text.onPrimary,
@@ -417,24 +481,17 @@ export function BrandingLandingPage() {
                   fontWeight: 600,
                 }}
               >
-                See our work
+                Book a discovery call
                 <ArrowRight className="w-4 h-4" />
               </PortfolioButton>
-              <PortfolioButton
-                href={WHATSAPP_URL}
-                style={{
-                  background: "transparent",
-                  color: t.text.primary,
-                  border: `1px solid ${t.border.medium}`,
-                  padding: "12px 24px",
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 600,
-                }}
-              >
-                Start with a conversation
-              </PortfolioButton>
             </div>
+            <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginTop: 12 }}>
+              or{" "}
+              <a href="/branding/brand-identity-discovery" style={{ color: tokens.primary, textDecoration: "underline" }}>
+                start with a written brief
+              </a>{" "}
+              at your own pace
+            </p>
           </div>
         </section>
       </div>
@@ -482,11 +539,11 @@ function ScopeList({ items }: { items: string[] }) {
   );
 }
 
-function CardFooter({ timeline, market }: { timeline: string; market: string }) {
+function CardFooter({ timeline }: { timeline: string }) {
+  if (!timeline) return null;
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 12, borderTop: `1px solid ${t.border.subtle}` }}>
-      {timeline ? <p style={{ fontFamily: MONO, fontSize: 12, color: t.text.muted, margin: 0 }}>{timeline}</p> : <span />}
-      <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, margin: 0 }}>{market}</p>
+    <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${t.border.subtle}` }}>
+      <p style={{ fontFamily: MONO, fontSize: 12, color: t.text.muted, margin: 0 }}>{timeline}</p>
     </div>
   );
 }
