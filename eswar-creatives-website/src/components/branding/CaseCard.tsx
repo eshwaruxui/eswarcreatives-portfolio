@@ -1,8 +1,6 @@
 import { useState } from 'react'
-import { t, motionTokens } from '../../portal/theme'
+import { t, tokens, motionTokens } from '../../portal/theme'
 import type { BrandingCase } from '../../types/brandingCase'
-
-const GOLD = '#D5B067'
 
 interface CaseCardProps {
   case: BrandingCase
@@ -23,7 +21,7 @@ export function CaseCard({ case: brandCase, onClick }: CaseCardProps) {
         borderRadius: '12px',
         overflow: 'hidden',
         cursor: 'pointer',
-        borderBottom: hovered ? `3px solid ${GOLD}` : '3px solid transparent',
+        borderBottom: hovered ? `3px solid ${tokens.gold}` : '3px solid transparent',
         boxShadow: hovered ? '0 4px 16px rgba(0,0,0,0.08)' : 'none',
         transition: `border-color ${motionTokens.durationFast} ${motionTokens.easeDefault}, box-shadow ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
       }}
@@ -74,7 +72,7 @@ export function CaseCard({ case: brandCase, onClick }: CaseCardProps) {
             fontSize: 10,
             letterSpacing: '.12em',
             textTransform: 'uppercase',
-            color: GOLD,
+            color: tokens.gold,
             marginBottom: 8,
           }}
         >

@@ -6,13 +6,16 @@ import { t, tokens, motionTokens } from '../../portal/theme'
 import { useBreakpoint } from '../../portal/hooks/useBreakpoint'
 import type { BrandingCase } from '../../types/brandingCase'
 
-const GOLD = '#D5B067'
-
+// Lightbox chrome is intentionally a dark photo-viewer theme, independent of
+// the site's teal/cream palette. background/accentForeground/surface/border
+// have no theme.ts equivalent (there's no "near-black" or "white-alpha on
+// black" token), so those stay literal; text and accent do have exact token
+// matches and use them.
 const LIGHTBOX_THEME = {
   background: '#0F0F0F',
-  text: '#FFFFFF',
+  text: t.text.onPrimary,
   textMuted: 'rgba(255,255,255,0.6)',
-  accent: GOLD,
+  accent: tokens.gold,
   accentForeground: '#000000',
   surface: 'rgba(255,255,255,0.1)',
   border: 'rgba(255,255,255,0.15)',
@@ -154,7 +157,7 @@ export function CaseDetailOverlay({ case: brandCase, onClose }: CaseDetailOverla
             </button>
           </div>
 
-          <p style={{ fontFamily: 'SF Mono, monospace', fontSize: 10, color: GOLD, textTransform: 'uppercase', letterSpacing: '.1em', margin: 0 }}>
+          <p style={{ fontFamily: 'SF Mono, monospace', fontSize: 10, color: tokens.gold, textTransform: 'uppercase', letterSpacing: '.1em', margin: 0 }}>
             {brandCase.client}
           </p>
           <h2
@@ -178,7 +181,7 @@ export function CaseDetailOverlay({ case: brandCase, onClose }: CaseDetailOverla
               fontStyle: 'italic',
               fontSize: 16,
               color: t.text.secondary,
-              borderLeft: `3px solid ${GOLD}`,
+              borderLeft: `3px solid ${tokens.gold}`,
               paddingLeft: 14,
               margin: '16px 0 0',
             }}
@@ -363,7 +366,7 @@ function SectionThumbnail({
           transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
         }}
       >
-        <ZoomIn size={20} color="#FFFFFF" />
+        <ZoomIn size={20} color={t.text.onPrimary} />
       </div>
     </div>
   )

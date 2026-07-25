@@ -7,8 +7,6 @@ import { PortfolioButton } from "./ui/portfolio-button";
 import { useBreakpoint } from "../../portal/hooks/useBreakpoint";
 import { t, tokens, motionTokens } from "../../portal/theme";
 
-const GOLD = "#D5B067";
-const RUBY = "#C0392B";
 const WHATSAPP_URL = "https://wa.me/919841085484";
 
 const SERIF = "'Fraunces', Georgia, 'Times New Roman', serif";
@@ -20,7 +18,7 @@ const eyebrow: React.CSSProperties = {
   fontSize: 10,
   letterSpacing: ".12em",
   textTransform: "uppercase",
-  color: GOLD,
+  color: tokens.gold,
 };
 
 const sectionLabel: React.CSSProperties = {
@@ -42,7 +40,7 @@ const PHASES = [
   },
   {
     id: "visibility",
-    color: GOLD,
+    color: tokens.gold,
     label: "PHASE 2",
     title: "Visibility",
     timeline: "Month 2 - 4",
@@ -50,7 +48,7 @@ const PHASES = [
   },
   {
     id: "scale",
-    color: RUBY,
+    color: t.border.danger,
     label: "PHASE 3",
     title: "Scale",
     timeline: "Month 4 - 6",
@@ -137,7 +135,7 @@ export function BrandingLandingPage() {
                   href="/branding/work"
                   style={{
                     background: tokens.primary,
-                    color: "#FFFFFF",
+                    color: t.text.onPrimary,
                     borderColor: tokens.primary,
                     padding: "12px 24px",
                     borderRadius: 6,
@@ -264,7 +262,7 @@ export function BrandingLandingPage() {
         {/* SECTION 4 — PHASE 2 VISIBILITY */}
         <section style={{ padding: isMobile ? "0 20px 56px" : "0 24px 80px" }}>
           <div style={{ maxWidth: 1152, margin: "0 auto" }}>
-            <PhaseHeader color={GOLD} eyebrow="PHASE 2 &middot; VISIBILITY" title="The brand exists. Now it needs to be seen." isMobile={isMobile} />
+            <PhaseHeader color={tokens.gold} eyebrow="PHASE 2 &middot; VISIBILITY" title="The brand exists. Now it needs to be seen." isMobile={isMobile} />
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 20 }}>
               <ServiceCard number="04" title="Social Media Branding + Workflow">
@@ -280,9 +278,9 @@ export function BrandingLandingPage() {
                     </div>
                   ))}
                 </div>
-                <div style={{ background: tokens.primary, color: "#FFFFFF", borderRadius: 8, padding: "16px 20px", marginTop: 16 }}>
-                  <p style={{ fontFamily: MONO, fontSize: 10, color: GOLD, marginBottom: 6 }}>Mohan's only new habit:</p>
-                  <p style={{ fontFamily: BODY, fontSize: 13, color: "#FFFFFF", margin: 0, lineHeight: 1.6 }}>
+                <div style={{ background: tokens.primary, color: t.text.onPrimary, borderRadius: 8, padding: "16px 20px", marginTop: 16 }}>
+                  <p style={{ fontFamily: MONO, fontSize: 10, color: tokens.gold, marginBottom: 6 }}>Mohan's only new habit:</p>
+                  <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.onPrimary, margin: 0, lineHeight: 1.6 }}>
                     15 minutes of photo triage each evening. Everything else is handled by Eswar Creatives.
                   </p>
                 </div>
@@ -315,7 +313,7 @@ export function BrandingLandingPage() {
         {/* SECTION 5 — PHASE 3 SCALE */}
         <section style={{ padding: isMobile ? "0 20px 56px" : "0 24px 80px" }}>
           <div style={{ maxWidth: 1152, margin: "0 auto" }}>
-            <PhaseHeader color={RUBY} eyebrow="PHASE 3 &middot; SCALE" title="Build the engine so it runs without you." isMobile={isMobile} />
+            <PhaseHeader color={t.border.danger} eyebrow="PHASE 3 &middot; SCALE" title="Build the engine so it runs without you." isMobile={isMobile} />
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 20 }}>
               <ServiceCard number="06" title="SOP + Workflow Definition">
@@ -386,12 +384,12 @@ export function BrandingLandingPage() {
                     ]}
                   />
                 </div>
-                <div style={{ background: tokens.primary, padding: 24, borderRadius: 8, color: "#FFFFFF" }}>
-                  <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".1em", color: GOLD, marginBottom: 12 }}>THE INCENTIVE MODEL</p>
-                  <p style={{ fontFamily: BODY, fontSize: 13, color: "#FFFFFF", marginBottom: 8, lineHeight: 1.6 }}>
+                <div style={{ background: tokens.primary, padding: 24, borderRadius: 8, color: t.text.onPrimary }}>
+                  <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".1em", color: tokens.gold, marginBottom: 12 }}>THE INCENTIVE MODEL</p>
+                  <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.onPrimary, marginBottom: 8, lineHeight: 1.6 }}>
                     Minimal fixed monthly retainer (keeps overhead low)
                   </p>
-                  <p style={{ fontFamily: BODY, fontSize: 13, color: "#FFFFFF", margin: 0, lineHeight: 1.6 }}>
+                  <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.onPrimary, margin: 0, lineHeight: 1.6 }}>
                     Performance incentive per confirmed booking
                   </p>
                 </div>
@@ -411,7 +409,7 @@ export function BrandingLandingPage() {
                 href="/branding/work"
                 style={{
                   background: tokens.primary,
-                  color: "#FFFFFF",
+                  color: t.text.onPrimary,
                   borderColor: tokens.primary,
                   padding: "12px 24px",
                   borderRadius: 6,

@@ -6,8 +6,6 @@ import { useBreakpoint } from '../portal/hooks/useBreakpoint'
 import { t, tokens } from '../portal/theme'
 import type { BrandingCase } from '../types/brandingCase'
 
-const GOLD = '#D5B067'
-
 export function BrandingWorkPage() {
   const [selectedCase, setSelectedCase] = useState<BrandingCase | null>(null)
   const [activeFilter, setActiveFilter] = useState<string>('All')
@@ -34,7 +32,7 @@ export function BrandingWorkPage() {
             fontSize: 11,
             letterSpacing: '.14em',
             textTransform: 'uppercase',
-            color: GOLD,
+            color: tokens.gold,
             marginBottom: 14,
           }}
         >
@@ -78,7 +76,7 @@ export function BrandingWorkPage() {
                 borderRadius: 20,
                 border: `1px solid ${activeFilter === client ? tokens.primary : t.border.default}`,
                 background: activeFilter === client ? tokens.primary : 'transparent',
-                color: activeFilter === client ? '#ffffff' : t.text.secondary,
+                color: activeFilter === client ? t.text.onPrimary : t.text.secondary,
                 fontFamily: 'Inter, sans-serif',
                 fontSize: 13,
                 fontWeight: 500,
