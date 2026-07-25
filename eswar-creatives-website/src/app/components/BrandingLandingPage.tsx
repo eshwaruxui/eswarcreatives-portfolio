@@ -1,59 +1,86 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
-import { ArrowRight, PenLine, BookOpen, Layers } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { PortfolioButton } from "./ui/portfolio-button";
+import { useBreakpoint } from "../../portal/hooks/useBreakpoint";
+import { t, tokens, motionTokens } from "../../portal/theme";
 
-const C = {
-  pageBg:      "#FAF8F4",
-  gold:        "#D5B067",
-  border:      "#E5E5E4",
-  surface:     "var(--card)",
-  inverse:     "var(--surface-inverse)",
-  teal:        "var(--text-brand)",
-  text:        "var(--text-primary)",
-  textSec:     "var(--text-secondary)",
-  textMuted:   "var(--text-tertiary)",
-  textInv:     "var(--text-inverse)",
-  textInvSec:  "var(--text-inverse-secondary)",
-  textInvTert: "var(--text-inverse-tertiary)",
-} as const;
+const GOLD = "#D5B067";
+const RUBY = "#C0392B";
+const WHATSAPP_URL = "https://wa.me/919841085484";
 
-const SERIF       = "'Fraunces', Georgia, 'Times New Roman', serif";
-const CARD_SHADOW = "0px 4px 6px -1px rgba(2,4,4,0.07)";
+const SERIF = "'Fraunces', Georgia, 'Times New Roman', serif";
+const BODY = "'Inter', system-ui, -apple-system, sans-serif";
+const MONO = "'SF Mono', monospace";
 
-const overline = {
-  fontSize:      "var(--typo-ol-overline-bold-size)",
-  fontWeight:    "var(--typo-ol-overline-bold-weight)",
-  lineHeight:    "var(--typo-ol-overline-bold-line-height)",
-  letterSpacing: "var(--typo-ol-overline-bold-letter-spacing)",
-  textTransform: "uppercase" as const,
-  color:         C.textMuted,
+const eyebrow: React.CSSProperties = {
+  fontFamily: MONO,
+  fontSize: 10,
+  letterSpacing: ".12em",
+  textTransform: "uppercase",
+  color: GOLD,
 };
 
-const WHAT_WE_BUILD = [
+const sectionLabel: React.CSSProperties = {
+  fontFamily: MONO,
+  fontSize: 10,
+  letterSpacing: ".12em",
+  textTransform: "uppercase",
+  color: t.text.muted,
+};
+
+const PHASES = [
   {
-    Icon:  PenLine,
-    title: "Logo and Mark System",
-    desc:  "Primary mark, wordmark, sub-marks, and usage rules built for print and digital.",
+    id: "foundation",
+    color: tokens.primary,
+    label: "PHASE 1",
+    title: "Foundation",
+    timeline: "Month 1 - 2",
+    description: "Before anything goes public, build an identity that carries the brand for the next 10 years.",
   },
   {
-    Icon:  BookOpen,
-    title: "Brand Guidelines",
-    desc:  "Colour palette, typography, spacing, tone of voice, and do/don't examples in a ready-to-share PDF.",
+    id: "visibility",
+    color: GOLD,
+    label: "PHASE 2",
+    title: "Visibility",
+    timeline: "Month 2 - 4",
+    description: "The brand exists. Now it needs to be seen on every screen where your clients are looking.",
   },
   {
-    Icon:  Layers,
-    title: "Collateral and Social Kit",
-    desc:  "Business cards, letterhead, social media templates, and pitch deck covers formatted to your new identity.",
+    id: "scale",
+    color: RUBY,
+    label: "PHASE 3",
+    title: "Scale",
+    timeline: "Month 4 - 6",
+    description: "Build the engine underneath so the business grows whether you are at the event or not.",
   },
+] as const;
+
+const WORKFLOW_STEPS = [
+  { number: "01", label: "Capture", description: "Every event photographed and logged." },
+  { number: "02", label: "Triage", description: "15 minutes to sort the keepers each evening." },
+  { number: "03", label: "Produce", description: "Reels, posts, and stories cut to the brand template." },
+  { number: "04", label: "Publish", description: "Scheduled across Instagram and WhatsApp Status." },
+  { number: "05", label: "Amplify", description: "Best performers repurposed into paid and BNI content." },
+];
+
+const WEBSITE_PAGES = [
+  { name: "Home", description: "The pitch in 10 seconds." },
+  { name: "About", description: "Founder story and credibility." },
+  { name: "Services", description: "Every offering, clearly scoped." },
+  { name: "Portfolio", description: "Weddings, corporate, destination." },
+  { name: "Testimonials", description: "Social proof that converts." },
+  { name: "Contact", description: "One form, one WhatsApp link." },
 ];
 
 export function BrandingLandingPage() {
+  const { isMobile } = useBreakpoint();
+
   useEffect(() => {
-    document.title = "Brand Identity Design — Eswar Creatives";
-    document.documentElement.style.background = C.pageBg;
+    document.title = "Brand Identity Design · Eswar Creatives";
+    document.documentElement.style.background = t.background.page;
     document.body.style.background = "transparent";
     return () => {
       document.documentElement.style.background = "";
@@ -64,377 +91,404 @@ export function BrandingLandingPage() {
   return (
     <>
       <Helmet>
-        <title>Brand Identity Design — Eswar Creatives</title>
-        <meta property="og:title" content="Brand Identity Design — Eswar Creatives" />
+        <title>Brand Identity Design &middot; Eswar Creatives</title>
+        <meta property="og:title" content="Brand Identity Design &middot; Eswar Creatives" />
         <meta property="og:description" content="Visual identity systems for growing businesses. Logo, colour, typography, and collateral that works everywhere your brand shows up. Three packages from Rs 25,000." />
         <meta property="og:image" content="https://www.eswarcreatives.in/og-branding.png" />
         <meta property="og:url" content="https://www.eswarcreatives.in/branding/" />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Eswar Creatives" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Brand Identity Design — Eswar Creatives" />
+        <meta name="twitter:title" content="Brand Identity Design &middot; Eswar Creatives" />
         <meta name="twitter:description" content="Visual identity systems for growing businesses. Logo, colour, typography, and collateral that works everywhere your brand shows up. Three packages from Rs 25,000." />
         <meta name="twitter:image" content="https://www.eswarcreatives.in/og-branding.png" />
       </Helmet>
-      <div
-        style={{
-          minHeight: "100vh",
-          background: C.pageBg,
-        fontFamily: "var(--font-family-primary)",
-        color: C.text,
-      }}
-    >
-      <Navbar />
 
-      {/* ── 1. HERO ────────────────────────────────────────────── */}
-      <section style={{ paddingTop: "80px" }}>
-        <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "72px 24px 64px" }}>
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, ease: [0.25, 0.46, 0.45, 0.94] }}
-          >
-            <p style={{ ...overline, marginBottom: "16px" }}>
-              Eswar Creatives · Brand Identity
-            </p>
-            <h1
-              style={{
-                fontFamily:     SERIF,
-                fontWeight:     600,
-                fontStyle:      "italic",
-                fontSize:       "clamp(36px, 5.5vw, 52px)",
-                lineHeight:     1.08,
-                letterSpacing:  "-0.02em",
-                color:          C.text,
-                maxWidth:       "680px",
-                marginBottom:   "20px",
-              }}
-            >
-              Your brand is the first thing they judge.
-            </h1>
-            <p
-              style={{
-                fontSize:     "var(--typo-ol-body-size)",
-                fontWeight:   "var(--typo-ol-body-weight)",
-                lineHeight:   1.65,
-                color:        C.textSec,
-                maxWidth:     "560px",
-                marginBottom: "36px",
-              }}
-            >
-              We build visual identities for businesses that want to look as good as they perform: logo, colour, typography, and the collateral that makes it stick.
-            </p>
-            <PortfolioButton
-              href="/services/branding"
-              variant="primary"
-              size="lg"
-              style={{
-                background:   C.inverse,
-                color:        C.textInv,
-                borderColor:  C.inverse,
-                borderRadius: "8px",
-                fontSize:     "var(--typo-p-sm-size)",
-              }}
-            >
-              See pricing and packages
-              <ArrowRight className="w-4 h-4" />
-            </PortfolioButton>
-          </motion.div>
-        </div>
-      </section>
+      <div style={{ minHeight: "100vh", background: t.background.page, fontFamily: BODY, color: t.text.primary }}>
+        <Navbar />
 
-      {/* ── 2. WHAT WE BUILD ────────────────────────────────────── */}
-      <section style={{ paddingBottom: "80px" }}>
-        <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.5 }}
-          >
-            <p style={{ ...overline, marginBottom: "12px" }}>What we build</p>
-            <h2
-              style={{
-                fontFamily:    SERIF,
-                fontWeight:    600,
-                fontSize:      "clamp(24px, 3vw, 34px)",
-                lineHeight:    1.2,
-                letterSpacing: "-0.02em",
-                color:         C.text,
-                marginBottom:  "40px",
-                maxWidth:      "560px",
-              }}
-            >
-              Everything your brand needs to show up consistently.
-            </h2>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {WHAT_WE_BUILD.map(({ Icon, title, desc }, i) => (
-              <motion.div
-                key={title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, delay: i * 0.08 }}
+        {/* SECTION 1 — HERO */}
+        <section style={{ paddingTop: 80 }}>
+          <div style={{ maxWidth: 1152, margin: "0 auto", padding: isMobile ? "48px 20px 56px" : "72px 24px 64px" }}>
+            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.25, 0.46, 0.45, 0.94] }}>
+              <p style={{ ...eyebrow, marginBottom: 16 }}>Branding for event businesses</p>
+              <h1
                 style={{
-                  background:   C.surface,
-                  border:       `1px solid ${C.border}`,
-                  borderRadius: "16px",
-                  boxShadow:    CARD_SHADOW,
-                  padding:      "28px",
+                  fontFamily: SERIF,
+                  fontWeight: 600,
+                  fontSize: isMobile ? 30 : 44,
+                  lineHeight: 1.15,
+                  letterSpacing: "-0.02em",
+                  color: t.text.primary,
+                  maxWidth: 680,
+                  marginBottom: 20,
                 }}
               >
+                Your brand should feel like your business, not your designer.
+              </h1>
+              <p style={{ fontFamily: BODY, fontSize: 16, lineHeight: 1.65, color: t.text.secondary, maxWidth: 500, marginBottom: 8 }}>
+                Most businesses look like they were designed by someone who had never attended one of their events. We fix that.
+              </p>
+              <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 14, color: t.text.muted, marginBottom: 32 }}>
+                Every month without a consistent brand is a missed first impression.
+              </p>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <PortfolioButton
+                  href="/branding/work"
+                  style={{
+                    background: tokens.primary,
+                    color: "#FFFFFF",
+                    borderColor: tokens.primary,
+                    padding: "12px 24px",
+                    borderRadius: 6,
+                    fontSize: 14,
+                    fontWeight: 600,
+                  }}
+                >
+                  See our work
+                  <ArrowRight className="w-4 h-4" />
+                </PortfolioButton>
+                <PortfolioButton
+                  href={WHATSAPP_URL}
+                  style={{
+                    background: "transparent",
+                    color: t.text.primary,
+                    border: `1px solid ${t.border.medium}`,
+                    padding: "12px 24px",
+                    borderRadius: 6,
+                    fontSize: 14,
+                    fontWeight: 600,
+                  }}
+                >
+                  Let's talk
+                </PortfolioButton>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* SECTION 2 — THREE PHASE INTRO */}
+        <section style={{ padding: isMobile ? "0 20px 56px" : "0 24px 80px" }}>
+          <div style={{ maxWidth: 1152, margin: "0 auto" }}>
+            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-80px" }} transition={{ duration: 0.5 }}>
+              <p style={{ ...eyebrow, marginBottom: 12 }}>How it works</p>
+              <h2 style={{ fontFamily: SERIF, fontWeight: 600, fontSize: isMobile ? 26 : 32, color: t.text.primary, marginBottom: 12 }}>
+                3 phases. 8 solutions. 6 months.
+              </h2>
+              <p style={{ fontFamily: BODY, fontSize: 15, color: t.text.secondary, marginBottom: 40, maxWidth: 560, lineHeight: 1.7 }}>
+                Every business is different. Every engagement starts with Foundation and grows at your pace.
+              </p>
+            </motion.div>
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 20 }}>
+              {PHASES.map((phase) => (
                 <div
+                  key={phase.id}
                   style={{
-                    width:           "40px",
-                    height:          "40px",
-                    borderRadius:    "10px",
-                    background:      "#FBF5E8",
-                    border:          `1px solid ${C.border}`,
-                    display:         "flex",
-                    alignItems:      "center",
-                    justifyContent:  "center",
-                    marginBottom:    "16px",
-                    flexShrink:      0,
+                    background: t.background.surface,
+                    border: `1px solid ${t.border.subtle}`,
+                    borderTop: `4px solid ${phase.color}`,
+                    borderRadius: 12,
+                    padding: 24,
                   }}
                 >
-                  <Icon style={{ width: "18px", height: "18px", color: C.gold }} />
+                  <p style={{ fontFamily: MONO, fontSize: 10, color: phase.color, letterSpacing: ".1em", marginBottom: 8 }}>{phase.label}</p>
+                  <h3 style={{ fontFamily: SERIF, fontSize: 20, fontWeight: 600, color: t.text.primary, marginBottom: 6 }}>{phase.title}</h3>
+                  <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginBottom: 14 }}>{phase.timeline}</p>
+                  <p style={{ fontFamily: BODY, fontSize: 14, color: t.text.secondary, lineHeight: 1.6 }}>{phase.description}</p>
                 </div>
-                <p
-                  style={{
-                    fontFamily:    SERIF,
-                    fontWeight:    600,
-                    fontSize:      "18px",
-                    lineHeight:    1.3,
-                    color:         C.text,
-                    marginBottom:  "10px",
-                  }}
-                >
-                  {title}
-                </p>
-                <p
-                  style={{
-                    fontSize:   "var(--typo-p-sm-size)",
-                    fontWeight: "var(--typo-p-sm-weight)",
-                    lineHeight: "var(--typo-p-sm-line-height)",
-                    color:      C.textSec,
-                  }}
-                >
-                  {desc}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── 3. WHO THIS IS FOR ──────────────────────────────────── */}
-      <section style={{ background: C.inverse, padding: "80px 0" }}>
-        <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.5 }}
-          >
-            <p style={{ ...overline, color: C.textInvTert, marginBottom: "36px" }}>
-              Who this is for
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.5, delay: 0.05 }}
-            >
-              <h3
-                style={{
-                  fontFamily:    SERIF,
-                  fontWeight:    600,
-                  fontStyle:     "italic",
-                  fontSize:      "clamp(20px, 2.5vw, 26px)",
-                  lineHeight:    1.35,
-                  color:         C.textInvSec,
-                  marginBottom:  "16px",
-                }}
-              >
-                You're serious about growth but your brand doesn't show it.
-              </h3>
-              <p
-                style={{
-                  fontSize:   "var(--typo-ol-body-size)",
-                  lineHeight: 1.7,
-                  color:      C.textInvTert,
-                }}
-              >
-                Your product or service is strong. The business is growing. But your logo was done in a hurry, your colours aren't consistent, and your Instagram looks nothing like your visiting card.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.5, delay: 0.12 }}
-            >
-              <h3
-                style={{
-                  fontFamily:    SERIF,
-                  fontWeight:    600,
-                  fontSize:      "clamp(20px, 2.5vw, 26px)",
-                  lineHeight:    1.35,
-                  color:         C.textInv,
-                  marginBottom:  "16px",
-                }}
-              >
-                You need a visual identity that works on a pitch deck, a visiting card, and Instagram. Consistently.
-              </h3>
-              <p
-                style={{
-                  fontSize:   "var(--typo-ol-body-size)",
-                  lineHeight: 1.7,
-                  color:      C.textInvSec,
-                }}
-              >
-                That's exactly what we build: a complete brand system with logo, colour, typography, and collateral ready to work everywhere your business shows up.
-              </p>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 4. FEATURED RESULT ──────────────────────────────────── */}
-      <section style={{ padding: "80px 0" }}>
-        <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "0 24px" }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.5 }}
-          >
-            <p style={{ ...overline, marginBottom: "32px" }}>Client result</p>
-            <div
-              style={{
-                background:   C.surface,
-                border:       `1px solid ${C.border}`,
-                borderLeft:   `4px solid ${C.gold}`,
-                borderRadius: "16px",
-                boxShadow:    CARD_SHADOW,
-                padding:      "40px 48px",
-                maxWidth:     "720px",
-              }}
-            >
-              <p
-                style={{
-                  fontFamily:    SERIF,
-                  fontWeight:    600,
-                  fontStyle:     "italic",
-                  fontSize:      "clamp(18px, 2vw, 22px)",
-                  lineHeight:    1.4,
-                  color:         C.text,
-                  marginBottom:  "16px",
-                }}
-              >
-                Newgen Event Makers: logo identity, brand guidelines, and social kit delivered in 3 weeks.
-              </p>
-              <p
-                style={{
-                  fontSize:   "var(--typo-p-sm-size)",
-                  fontWeight: "var(--typo-p-sm-weight)",
-                  lineHeight: "var(--typo-p-sm-line-height)",
-                  color:      C.textMuted,
-                }}
-              >
-                Full brand identity from brief to final files, including a primary mark, wordmark, brand colour system, typography guide, and a set of Instagram and WhatsApp story templates.
-              </p>
+              ))}
             </div>
-          </motion.div>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      {/* ── 5. CTA STRIP ────────────────────────────────────────── */}
-      <section
-        style={{
-          background:  C.pageBg,
-          borderTop:   `3px solid ${C.gold}`,
-          padding:     "72px 0",
-        }}
-      >
-        <div
-          style={{
-            maxWidth:   "1152px",
-            margin:     "0 auto",
-            padding:    "0 24px",
-            textAlign:  "center",
-          }}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.5 }}
-          >
-            <h2
-              style={{
-                fontFamily:    SERIF,
-                fontWeight:    600,
-                fontSize:      "28px",
-                lineHeight:    1.25,
-                letterSpacing: "-0.02em",
-                color:         C.text,
-                marginBottom:  "12px",
-              }}
-            >
-              Ready to build a brand that lasts?
+        {/* SECTION 3 — PHASE 1 FOUNDATION */}
+        <section style={{ padding: isMobile ? "0 20px 56px" : "0 24px 80px" }}>
+          <div style={{ maxWidth: 1152, margin: "0 auto" }}>
+            <PhaseHeader color={tokens.primary} eyebrow="PHASE 1 &middot; FOUNDATION" title="Before anything goes public" isMobile={isMobile} />
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 20 }}>
+              <ServiceCard number="01" title="Brand Identity Design">
+                <ScopeList
+                  items={[
+                    "NG abstract monogram + wordmark logo system",
+                    "Full colour system: Gold, Teal, Cream, Ochre, Ruby",
+                    "Premium typography pair",
+                    "Application proofs: business card, quotation, WhatsApp, signboard",
+                    "Photo watermark",
+                    "All master files: AI, EPS, SVG, PNG, PDF",
+                  ]}
+                />
+                <CardFooter timeline="2 - 3 weeks" market="₹85K - 1.2L" />
+                <div style={{ background: t.background.subtle, borderRadius: 6, padding: "8px 12px", marginTop: 12 }}>
+                  <p style={{ fontFamily: MONO, fontSize: 10, color: t.text.muted, marginBottom: 2 }}>KEY NOTE</p>
+                  <p style={{ fontFamily: BODY, fontSize: 12, color: t.text.secondary, margin: 0 }}>Wife (co-owner) present at concept presentation.</p>
+                </div>
+              </ServiceCard>
+
+              <ServiceCard number="02" title="Brand Guidelines Document">
+                <ScopeList
+                  items={[
+                    "Brand story, mission, vision, personality",
+                    "Logo usage rules + visual violations guide",
+                    "Colour codes: HEX, RGB, CMYK, Pantone",
+                    "Typography hierarchy + approved fonts",
+                    "Photography style guide + mandatory shots",
+                    "Tone of voice + Tamil/English caption framework",
+                    "1-page quick reference for field team",
+                  ]}
+                />
+                <CardFooter timeline="1 week" market="₹55K - 80K" />
+              </ServiceCard>
+
+              <ServiceCard number="03" title="Business Profile PDF">
+                <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: t.text.muted, marginBottom: 12 }}>
+                  10 pages. Replaces the 1-hour verbal pitch.
+                </p>
+                <ScopeList
+                  items={[
+                    "Cover + founder story",
+                    "Services overview (icon grid, no paragraphs)",
+                    "3 differentiators: guest-first, sketch-led, end-to-end",
+                    "Credibility stats",
+                    "Portfolio: weddings, corporate, destination",
+                    "Client testimonials + Google review QR",
+                  ]}
+                />
+                <CardFooter timeline="3 weeks" market="₹45K - 65K" />
+              </ServiceCard>
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION 4 — PHASE 2 VISIBILITY */}
+        <section style={{ padding: isMobile ? "0 20px 56px" : "0 24px 80px" }}>
+          <div style={{ maxWidth: 1152, margin: "0 auto" }}>
+            <PhaseHeader color={GOLD} eyebrow="PHASE 2 &middot; VISIBILITY" title="The brand exists. Now it needs to be seen." isMobile={isMobile} />
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 20 }}>
+              <ServiceCard number="04" title="Social Media Branding + Workflow">
+                <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginBottom: 20 }}>
+                  Turn 1,500 events of invisible proof into a content machine that works while you sleep.
+                </p>
+                <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 8, marginBottom: 16 }}>
+                  {WORKFLOW_STEPS.map((step) => (
+                    <div key={step.number} style={{ flex: 1 }}>
+                      <p style={{ fontFamily: MONO, fontSize: 12, color: tokens.primary, marginBottom: 4 }}>{step.number}</p>
+                      <p style={{ fontFamily: BODY, fontSize: 13, fontWeight: 700, color: t.text.primary, marginBottom: 2 }}>{step.label}</p>
+                      <p style={{ fontFamily: BODY, fontSize: 12, color: t.text.muted, lineHeight: 1.5 }}>{step.description}</p>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ background: tokens.primary, color: "#FFFFFF", borderRadius: 8, padding: "16px 20px", marginTop: 16 }}>
+                  <p style={{ fontFamily: MONO, fontSize: 10, color: GOLD, marginBottom: 6 }}>Mohan's only new habit:</p>
+                  <p style={{ fontFamily: BODY, fontSize: 13, color: "#FFFFFF", margin: 0, lineHeight: 1.6 }}>
+                    15 minutes of photo triage each evening. Everything else is handled by Eswar Creatives.
+                  </p>
+                </div>
+                <CardFooter timeline="" market="₹90K - 1.3L" />
+              </ServiceCard>
+
+              <ServiceCard number="05" title="Website Design">
+                <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginBottom: 20 }}>
+                  A lead-generation site, not a brochure. Built so Google sends you clients while you are at a mandapam.
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 12, marginBottom: 16 }}>
+                  {WEBSITE_PAGES.map((page) => (
+                    <div key={page.name}>
+                      <p style={{ fontFamily: BODY, fontSize: 13, fontWeight: 500, color: t.text.primary, marginBottom: 2 }}>{page.name}</p>
+                      <p style={{ fontFamily: BODY, fontSize: 12, color: t.text.muted }}>{page.description}</p>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ border: `1px solid ${t.border.subtle}`, borderRadius: 6, padding: "12px 16px", marginTop: 4, marginBottom: 16 }}>
+                  <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.secondary, margin: 0, lineHeight: 1.6 }}>
+                    SEO built-in, not bolted on. Each service page targets one search term. No paid ads needed to start.
+                  </p>
+                </div>
+                <CardFooter timeline="" market="₹1.2L - 1.8L" />
+              </ServiceCard>
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION 5 — PHASE 3 SCALE */}
+        <section style={{ padding: isMobile ? "0 20px 56px" : "0 24px 80px" }}>
+          <div style={{ maxWidth: 1152, margin: "0 auto" }}>
+            <PhaseHeader color={RUBY} eyebrow="PHASE 3 &middot; SCALE" title="Build the engine so it runs without you." isMobile={isMobile} />
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 20 }}>
+              <ServiceCard number="06" title="SOP + Workflow Definition">
+                <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginBottom: 16 }}>
+                  Document the system that currently exists only in your head so Bengaluru and Tiruchi can run the same playbook.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 4 }}>
+                  {["Field execution", "Customer relationship", "Business operations"].map((label) => (
+                    <p key={label} style={{ ...sectionLabel, margin: 0 }}>{label.toUpperCase()}</p>
+                  ))}
+                </div>
+                <CardFooter timeline="" market="₹65K - 95K" />
+              </ServiceCard>
+
+              <ServiceCard number="07" title="CRM + Lead Automation">
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontFamily: SERIF, fontSize: 32, fontWeight: 600, color: tokens.primary, margin: 0 }}>300</p>
+                  <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.secondary, margin: 0 }}>leads per season never followed up</p>
+                </div>
+                <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.secondary, marginBottom: 12 }}>
+                  Enquiry <ArrowRight className="w-3 h-3" style={{ display: "inline", verticalAlign: "middle" }} /> Quote{" "}
+                  <ArrowRight className="w-3 h-3" style={{ display: "inline", verticalAlign: "middle" }} /> Confirmed{" "}
+                  <ArrowRight className="w-3 h-3" style={{ display: "inline", verticalAlign: "middle" }} /> Delivered
+                </p>
+                <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginBottom: 4 }}>
+                  Auto follow-up: Day 1, 3, 7 post-enquiry
+                </p>
+                <CardFooter timeline="" market="₹75K - 1.1L" />
+              </ServiceCard>
+
+              <ServiceCard number="08" title="Personal Brand: Founder as Brand">
+                <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginBottom: 16 }}>
+                  Your hand-sketch approach and your story since 2008 is Newgen's biggest untapped asset.
+                </p>
+                <ScopeList
+                  items={[
+                    "Founder story content series (Reels + posts)",
+                    "Sketch to setup, behind the scenes format",
+                    "BNI profile + one-to-one pitch deck",
+                  ]}
+                />
+                <CardFooter timeline="" market="₹60K - 90K" />
+              </ServiceCard>
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION 6 — ONGOING RETAINER */}
+        <section style={{ padding: isMobile ? "0 20px 56px" : "0 24px 80px" }}>
+          <div style={{ maxWidth: 1152, margin: "0 auto" }}>
+            <div style={{ background: t.background.subtle, padding: isMobile ? "32px 24px" : "48px 40px", borderRadius: 12 }}>
+              <p style={{ ...eyebrow, marginBottom: 12 }}>Ongoing partnership</p>
+              <h2 style={{ fontFamily: SERIF, fontSize: 26, fontWeight: 600, color: t.text.primary, marginBottom: 10 }}>Performance Growth Retainer</h2>
+              <p style={{ fontFamily: BODY, fontSize: 15, color: t.text.secondary, marginBottom: 32, maxWidth: 560, lineHeight: 1.7 }}>
+                Organic client acquisition through search. You pay more only when revenue comes from the website.
+              </p>
+
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 24 }}>
+                <div>
+                  <p style={{ ...sectionLabel, marginBottom: 12 }}>What is covered</p>
+                  <ScopeList
+                    items={[
+                      "SEO",
+                      "Google Business optimisation",
+                      "Local search rankings",
+                      "Performance reporting",
+                      "Conversion tracking",
+                    ]}
+                  />
+                </div>
+                <div style={{ background: tokens.primary, padding: 24, borderRadius: 8, color: "#FFFFFF" }}>
+                  <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".1em", color: GOLD, marginBottom: 12 }}>THE INCENTIVE MODEL</p>
+                  <p style={{ fontFamily: BODY, fontSize: 13, color: "#FFFFFF", marginBottom: 8, lineHeight: 1.6 }}>
+                    Minimal fixed monthly retainer (keeps overhead low)
+                  </p>
+                  <p style={{ fontFamily: BODY, fontSize: 13, color: "#FFFFFF", margin: 0, lineHeight: 1.6 }}>
+                    Performance incentive per confirmed booking
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION 7 — CTA */}
+        <section style={{ padding: isMobile ? "48px 20px" : "64px 24px", textAlign: "center" }}>
+          <div style={{ maxWidth: 720, margin: "0 auto" }}>
+            <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 24 : 32, fontWeight: 600, color: t.text.primary, marginBottom: 32, lineHeight: 1.3 }}>
+              The most authentic event business in Chennai deserves the most authentic brand.
             </h2>
-            <p
-              style={{
-                fontSize:     "var(--typo-ol-body-size)",
-                color:        C.textSec,
-                marginBottom: "32px",
-              }}
-            >
-              Three tiers. Fixed scope. Delivered in weeks.
-            </p>
-            <div
-              className="flex flex-wrap gap-4 justify-center items-center"
-            >
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
               <PortfolioButton
-                href="/services/branding"
-                variant="primary"
-                size="lg"
+                href="/branding/work"
                 style={{
-                  background:   C.gold,
-                  color:        C.text,
-                  borderColor:  C.gold,
-                  borderRadius: "12px",
-                  fontSize:     "var(--typo-ol-body-semi-size)",
-                  fontWeight:   "var(--typo-ol-body-semi-weight)",
+                  background: tokens.primary,
+                  color: "#FFFFFF",
+                  borderColor: tokens.primary,
+                  padding: "12px 24px",
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
                 }}
               >
-                See packages and pricing
+                See our work
                 <ArrowRight className="w-4 h-4" />
               </PortfolioButton>
-              {/* Replace 91XXXXXXXXXX with the real WhatsApp number */}
-              <a
-                href="https://wa.me/91XXXXXXXXXX"
+              <PortfolioButton
+                href={WHATSAPP_URL}
                 style={{
-                  fontSize:       "var(--typo-ol-body-size)",
-                  fontWeight:     "var(--typo-ol-body-semi-weight)",
-                  color:          C.teal,
-                  textDecoration: "none",
+                  background: "transparent",
+                  color: t.text.primary,
+                  border: `1px solid ${t.border.medium}`,
+                  padding: "12px 24px",
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
                 }}
               >
-                Or WhatsApp us directly →
-              </a>
+                Start with a conversation
+              </PortfolioButton>
             </div>
-          </motion.div>
-        </div>
-      </section>
-    </div>
+          </div>
+        </section>
+      </div>
     </>
+  );
+}
+
+function PhaseHeader({ color, eyebrow: label, title, isMobile }: { color: string; eyebrow: string; title: string; isMobile: boolean }) {
+  return (
+    <div style={{ borderLeft: `4px solid ${color}`, paddingLeft: 16, marginBottom: 32 }}>
+      <p style={{ fontFamily: MONO, fontSize: 11, letterSpacing: ".1em", color: tokens.primary, marginBottom: 6 }}>{label}</p>
+      <h2 style={{ fontFamily: SERIF, fontSize: isMobile ? 22 : 26, fontWeight: 600, color: t.text.primary, margin: 0 }}>{title}</h2>
+    </div>
+  );
+}
+
+function ServiceCard({ number, title, children }: { number: string; title: string; children: ReactNode }) {
+  return (
+    <div
+      style={{
+        background: t.background.surface,
+        border: `1px solid ${t.border.subtle}`,
+        borderRadius: 12,
+        padding: 24,
+        transition: `border-color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+      }}
+    >
+      <p style={{ fontFamily: MONO, fontSize: 11, color: t.text.muted, marginBottom: 8 }}>{number}</p>
+      <h3 style={{ fontFamily: BODY, fontSize: 16, fontWeight: 600, color: t.text.primary, marginBottom: 14 }}>{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function ScopeList({ items }: { items: string[] }) {
+  return (
+    <ul style={{ listStyle: "none", margin: 0, padding: 0, marginBottom: 4 }}>
+      {items.map((item) => (
+        <li key={item} style={{ fontFamily: BODY, fontSize: 13, color: t.text.secondary, padding: "4px 0", lineHeight: 1.5 }}>
+          <span style={{ color: tokens.primary, marginRight: 6 }}>&middot;</span>
+          {item}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CardFooter({ timeline, market }: { timeline: string; market: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 12, borderTop: `1px solid ${t.border.subtle}` }}>
+      {timeline ? <p style={{ fontFamily: MONO, fontSize: 12, color: t.text.muted, margin: 0 }}>{timeline}</p> : <span />}
+      <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, margin: 0 }}>{market}</p>
+    </div>
   );
 }
