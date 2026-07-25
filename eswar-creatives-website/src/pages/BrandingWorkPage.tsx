@@ -118,6 +118,84 @@ export function BrandingWorkPage() {
         )}
       </section>
 
+      <section
+        style={{
+          maxWidth: 680,
+          margin: '80px auto 0',
+          padding: isMobile ? '0 20px 80px' : '0 0 80px',
+          textAlign: 'center',
+        }}
+      >
+        <p
+          style={{
+            fontFamily: 'SF Mono, monospace',
+            fontSize: 10,
+            letterSpacing: '.14em',
+            textTransform: 'uppercase',
+            color: tokens.gold,
+            marginBottom: 14,
+          }}
+        >
+          Next step
+        </p>
+
+        <h2
+          style={{
+            fontFamily: 'Fraunces, serif',
+            fontSize: isMobile ? 26 : 32,
+            fontWeight: 600,
+            color: t.text.primary,
+            lineHeight: 1.25,
+            marginBottom: 14,
+          }}
+        >
+          Ready to build a brand like this?
+        </h2>
+
+        <p
+          style={{
+            fontFamily: 'Inter, sans-serif',
+            fontSize: 15,
+            color: t.text.secondary,
+            lineHeight: 1.7,
+            maxWidth: 480,
+            margin: '0 auto 32px',
+          }}
+        >
+          Tell us about your business. It takes about 10 minutes. We review it and follow up within three working days.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <a
+            href="/branding/brand-identity-discovery"
+            style={{
+              padding: '14px 32px',
+              background: tokens.primary,
+              color: t.text.onPrimary,
+              fontFamily: 'Inter, sans-serif',
+              fontSize: 14,
+              fontWeight: 600,
+              borderRadius: 8,
+              textDecoration: 'none',
+            }}
+          >
+            Start your brand brief &rarr;
+          </a>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: t.text.muted, margin: 0 }}>
+            or{' '}
+            <a
+              href="https://wa.me/919841085484"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: tokens.primary, textDecoration: 'underline' }}
+            >
+              message on WhatsApp
+            </a>{' '}
+            if you prefer a conversation first
+          </p>
+        </div>
+      </section>
+
       <CaseDetailOverlay case={selectedCase} onClose={() => setSelectedCase(null)} />
     </div>
   )
