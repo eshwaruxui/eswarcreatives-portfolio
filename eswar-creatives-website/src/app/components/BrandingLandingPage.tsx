@@ -289,6 +289,7 @@ export function BrandingLandingPage() {
                     15 minutes of photo review each evening. Everything else (design, scheduling, captions, Google profile) is handled by us.
                   </p>
                 </div>
+                <CardFooter timeline="Ongoing from Month 1" />
               </ServiceCard>
 
               <ServiceCard number="05" title="Website Design">
@@ -308,6 +309,7 @@ export function BrandingLandingPage() {
                     SEO built-in, not bolted on. Each service page targets one search term. No paid ads needed to start.
                   </p>
                 </div>
+                <CardFooter timeline="4 - 6 weeks" />
               </ServiceCard>
             </div>
           </div>
@@ -328,6 +330,7 @@ export function BrandingLandingPage() {
                     <p key={label} style={{ ...sectionLabel, margin: 0 }}>{label.toUpperCase()}</p>
                   ))}
                 </div>
+                <CardFooter timeline="2 - 3 weeks" />
               </ServiceCard>
 
               <ServiceCard number="07" title="CRM + Lead Automation">
@@ -343,6 +346,7 @@ export function BrandingLandingPage() {
                 <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.muted, marginBottom: 4 }}>
                   Auto follow-up: Day 1, 3, 7 post-enquiry
                 </p>
+                <CardFooter timeline="4 weeks" />
               </ServiceCard>
 
               <ServiceCard number="08" title="Personal Brand: Founder as Brand">
@@ -356,6 +360,7 @@ export function BrandingLandingPage() {
                     "BNI profile + one-to-one pitch deck",
                   ]}
                 />
+                <CardFooter timeline="Ongoing" />
               </ServiceCard>
             </div>
           </div>
