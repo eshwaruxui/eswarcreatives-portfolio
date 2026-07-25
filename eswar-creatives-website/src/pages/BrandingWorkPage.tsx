@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CaseCard } from '../components/branding/CaseCard'
 import { CaseDetailOverlay } from '../components/branding/CaseDetailOverlay'
+import { LandingNav } from '../components/LandingNav'
 import { BRANDING_CASES } from '../data/brandingCases'
 import { useBreakpoint } from '../portal/hooks/useBreakpoint'
 import { t, tokens } from '../portal/theme'
@@ -19,6 +20,7 @@ export function BrandingWorkPage() {
 
   return (
     <div style={{ background: t.background.page, minHeight: '100vh' }}>
+      <LandingNav />
       <section
         style={{
           maxWidth: 1100,

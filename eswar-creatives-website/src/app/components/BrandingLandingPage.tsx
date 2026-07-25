@@ -2,8 +2,8 @@ import { useEffect, type ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
 import { ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
-import { Navbar } from "./Navbar";
 import { PortfolioButton } from "./ui/portfolio-button";
+import { LandingNav } from "../../components/LandingNav";
 import { useBreakpoint } from "../../portal/hooks/useBreakpoint";
 import { t, tokens, motionTokens } from "../../portal/theme";
 
@@ -103,7 +103,7 @@ export function BrandingLandingPage() {
       </Helmet>
 
       <div style={{ minHeight: "100vh", background: t.background.page, fontFamily: BODY, color: t.text.primary }}>
-        <Navbar />
+        <LandingNav />
 
         {/* SECTION 1 — HERO */}
         <section style={{ paddingTop: 80 }}>
