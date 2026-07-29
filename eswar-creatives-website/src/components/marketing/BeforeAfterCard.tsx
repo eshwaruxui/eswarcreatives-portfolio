@@ -4,7 +4,7 @@ import { t, tokens } from "../../portal/theme";
 export type BeforeAfterCardType = "redesign" | "new-build";
 
 interface BeforeAfterCardProps {
-  beforeContent: ReactNode;
+  beforeContent?: ReactNode;
   afterContent: ReactNode;
   categoryLabel: string;
   proofCaption?: string;
@@ -20,47 +20,96 @@ const BODY = "'Inter', system-ui, -apple-system, sans-serif";
 // returned for node 4379:1453, named after their Figma token, rather than
 // inventing new hex — flagged per COMPONENT LOCATION instructions.
 const FIGMA_ONLY = {
-  cardDarkBg: "#222222", // background/dark-3 — BEFORE panel
+  cardDarkBg: "#222222", // background/dark-3 — BEFORE / STARTING POINT panel
   borderOnDark: "rgba(210,212,217,0.24)", // border/on-dark — proof caption border
   textOnDarkMuted: "rgba(234,235,238,0.74)", // text/on-dark-muted — proof caption body
 } as const;
 
-function StageLabelPill({ stage }: { stage: "Before" | "After" }) {
-  const isBefore = stage === "Before";
+// ProcessStageLabel (node 4422:5901) ships 4 variants keyed by project type:
+// Before/After for a redesign, Starting Point/Output for a from-scratch
+// build. The proof box's label follows the same split (Cost vs Proof). Do
+// not hardcode "Before"/"After" per call site — resolve through this map so
+// cardType is the single source of truth for wording.
+const VARIANT_LABELS: Record<BeforeAfterCardType, { before: string; after: string; proof: string }> = {
+  redesign: { before: "BEFORE", after: "AFTER", proof: "COST" },
+  "new-build": { before: "STARTING POINT", after: "OUTPUT", proof: "PROOF" },
+};
+
+function StageLabelPill({ label, tone }: { label: string; tone: "on-dark" | "on-light" }) {
+  const isOnDark = tone === "on-dark";
   return (
     <div
       style={{
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "6px 16px",
+        padding: "10px 18px",
         borderRadius: 9999, // radius/component-full
-        border: `1px solid ${isBefore ? FIGMA_ONLY.borderOnDark : t.border.default}`,
-        background: isBefore ? "rgba(255,255,255,0.04)" : "transparent",
+        // border-width has no literal Figma token — the source badge is a
+        // vector asset, not a CSS border. 1.5px chosen so the outline reads
+        // with visible weight per design QA, up from the earlier 1px.
+        border: `1.5px solid ${isOnDark ? FIGMA_ONLY.borderOnDark : t.border.medium}`,
+        background: isOnDark ? "rgba(255,255,255,0.04)" : "transparent",
       }}
     >
       <p
         style={{
           margin: 0,
-          fontFamily: "'Jost', 'Inter', sans-serif",
-          fontWeight: 500,
-          fontSize: 12,
-          letterSpacing: "1.5px",
+          fontFamily: BODY,
+          fontWeight: 600,
+          fontSize: 14, // matches Figma text-[14px]
+          letterSpacing: "2px", // matches Figma tracking-[2px]
           textTransform: "uppercase",
-          color: isBefore ? t.text.inverse : t.text.primary,
+          whiteSpace: "nowrap",
+          color: isOnDark ? t.text.inverse : t.text.primary,
         }}
       >
-        {stage}
+        {label}
       </p>
     </div>
   );
 }
 
+function ProofBox({ label, caption }: { label: string; caption: string }) {
+  return (
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 220,
+        border: `1px solid ${FIGMA_ONLY.borderOnDark}`,
+        borderRadius: 8,
+        padding: "11px 13px",
+      }}
+    >
+      <p
+        style={{
+          margin: "0 0 6px",
+          fontFamily: MONO,
+          fontSize: 11,
+          letterSpacing: "0.76px",
+          textTransform: "uppercase",
+          color: tokens.gold,
+          opacity: 0.7,
+        }}
+      >
+        {label}
+      </p>
+      <p style={{ margin: 0, fontFamily: BODY, fontSize: 13, lineHeight: "18px", color: FIGMA_ONLY.textOnDarkMuted }}>{caption}</p>
+    </div>
+  );
+}
+
 export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, proofCaption, cardType }: BeforeAfterCardProps) {
+  const labels = VARIANT_LABELS[cardType];
+  const hasBeforePanel = cardType === "redesign" && Boolean(beforeContent);
+
   return (
     <div style={{ width: "100%" }}>
       <div style={{ position: "relative" }}>
-        {/* Stacked-deck backdrop, matches the fanned card stack in the Figma comp */}
+        {/* Stacked-deck backdrop: two layers offset down-right with reduced
+            opacity, approximating the fanned photo stack in the Figma comp
+            (Rectangle13/14/15, node 4424:6945) without pulling in 3 large
+            rotated photo assets for a purely decorative backdrop. */}
         <div
           aria-hidden
           style={{
@@ -69,7 +118,8 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
             borderRadius: 16,
             background: t.background.surface,
             border: `1px solid ${t.border.subtle}`,
-            transform: "rotate(-4deg)",
+            opacity: 0.35,
+            transform: "translate(14px, 14px)",
           }}
         />
         <div
@@ -80,7 +130,8 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
             borderRadius: 16,
             background: t.background.surface,
             border: `1px solid ${t.border.subtle}`,
-            transform: "rotate(2deg)",
+            opacity: 0.6,
+            transform: "translate(7px, 7px)",
           }}
         />
 
@@ -88,7 +139,7 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
           style={{
             position: "relative",
             display: "grid",
-            gridTemplateColumns: cardType === "redesign" ? "minmax(0,0.43fr) minmax(0,0.57fr)" : "1fr",
+            gridTemplateColumns: hasBeforePanel ? "minmax(0,0.43fr) minmax(0,0.57fr)" : "1fr",
             minHeight: 360,
             borderRadius: 16,
             overflow: "hidden",
@@ -96,7 +147,7 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
             boxShadow: "-2px -2px 4px 0px rgba(178,170,149,0.12)",
           }}
         >
-          {cardType === "redesign" && (
+          {hasBeforePanel && (
             <div
               style={{
                 background: FIGMA_ONLY.cardDarkBg,
@@ -107,45 +158,18 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
                 gap: 16,
               }}
             >
-              <StageLabelPill stage="Before" />
+              <StageLabelPill label={labels.before} tone="on-dark" />
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, width: "100%" }}>
                 {beforeContent}
               </div>
-              {proofCaption && (
-                <div
-                  style={{
-                    width: "100%",
-                    maxWidth: 220,
-                    border: `1px solid ${FIGMA_ONLY.borderOnDark}`,
-                    borderRadius: 8,
-                    padding: "11px 13px",
-                  }}
-                >
-                  <p
-                    style={{
-                      margin: "0 0 6px",
-                      fontFamily: MONO,
-                      fontSize: 11,
-                      letterSpacing: "0.76px",
-                      textTransform: "uppercase",
-                      color: tokens.gold,
-                      opacity: 0.7,
-                    }}
-                  >
-                    Cost
-                  </p>
-                  <p style={{ margin: 0, fontFamily: BODY, fontSize: 13, lineHeight: "18px", color: FIGMA_ONLY.textOnDarkMuted }}>
-                    {proofCaption}
-                  </p>
-                </div>
-              )}
+              {proofCaption && <ProofBox label={labels.proof} caption={proofCaption} />}
             </div>
           )}
 
           <div
             style={{
               position: "relative",
-              background: cardType === "redesign" ? t.background.page : t.background.subtle,
+              background: hasBeforePanel ? t.background.page : t.background.subtle,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
@@ -153,13 +177,14 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
               gap: 16,
             }}
           >
-            {cardType === "redesign" && <StageLabelPill stage="After" />}
+            <StageLabelPill label={labels.after} tone="on-light" />
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, width: "100%" }}>
               {afterContent}
             </div>
+            {!hasBeforePanel && proofCaption && <ProofBox label={labels.proof} caption={proofCaption} />}
           </div>
 
-          {cardType === "redesign" && (
+          {hasBeforePanel && (
             <div
               style={{
                 position: "absolute",
@@ -184,19 +209,25 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
         </div>
       </div>
 
-      <p
-        style={{
-          marginTop: 16,
-          textAlign: "center",
-          fontFamily: MONO,
-          fontSize: 10,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: t.text.muted,
-        }}
-      >
-        {categoryLabel}
-      </p>
+      {/* Per-card category chip only makes sense for placeholder/new-build
+          slides that have nothing else identifying them — the real Newgen
+          redesign slide already carries its category via the hero caption
+          below the dots, so showing it twice reads as redundant. */}
+      {cardType === "new-build" && (
+        <p
+          style={{
+            marginTop: 16,
+            textAlign: "center",
+            fontFamily: MONO,
+            fontSize: 10,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: t.text.muted,
+          }}
+        >
+          {categoryLabel}
+        </p>
+      )}
     </div>
   );
 }

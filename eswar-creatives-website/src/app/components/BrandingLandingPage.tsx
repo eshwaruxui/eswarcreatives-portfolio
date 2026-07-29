@@ -22,6 +22,11 @@ const LETS_TALK_MAILTO = "mailto:eswar@eswarcreatives.in?subject=Let%27s%20talk%
 // role), bound directly from the Figma variable per node 4379:1453.
 const VERTICAL_TAB_BG = "#e8dcc4";
 
+// state/danger-text (#ee98a8) — Before-panel annotation under the Newgen
+// crest. No equivalent in theme.ts (t.border.danger is a different, more
+// saturated red used for error states, not this light on-dark caption tone).
+const BEFORE_ANNOTATION_COLOR = "#ee98a8";
+
 type CarouselSlide = {
   id: string;
   cardType: BeforeAfterCardType;
@@ -113,11 +118,26 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     categoryLabel: "Events",
     proofCaption: "Looks dated. Feels untrustworthy. Blends in.",
     before: (
-      <img
-        src="/img/branding/hero/newgen-before-crest.png"
-        alt="New Gen Event's original ornate crest logo"
-        style={{ width: 130, height: 130, objectFit: "contain" }}
-      />
+      <>
+        <img
+          src="/img/branding/hero/newgen-before-crest.png"
+          alt="New Gen Event's original ornate crest logo"
+          style={{ width: 130, height: 130, objectFit: "contain" }}
+        />
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 500,
+            fontSize: 11,
+            lineHeight: "14px",
+            letterSpacing: "0.06px",
+            color: BEFORE_ANNOTATION_COLOR,
+          }}
+        >
+          Too ornamental &bull; Hard to scale
+        </p>
+      </>
     ),
     after: (
       <>
