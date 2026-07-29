@@ -672,8 +672,12 @@ export function BrandingLandingPage() {
                   <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.onPrimary, marginBottom: 8, lineHeight: 1.6 }}>
                     Minimal fixed monthly retainer (keeps overhead low)
                   </p>
-                  <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.onPrimary, margin: 0, lineHeight: 1.6 }}>
+                  <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.onPrimary, marginBottom: 20, lineHeight: 1.6 }}>
                     Performance incentive per confirmed booking
+                  </p>
+                  <CTAButton variant="primary" label="Chat on WhatsApp →" href={RETAINER_WHATSAPP_URL} target="_blank" />
+                  <p style={{ fontFamily: BODY, fontSize: 12, color: t.text.onPrimary, opacity: 0.75, marginTop: 10, marginBottom: 0 }}>
+                    Opens WhatsApp. We reply personally, usually same day.
                   </p>
                 </div>
               </div>
