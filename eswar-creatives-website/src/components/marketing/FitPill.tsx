@@ -8,8 +8,10 @@ interface FitPillProps {
 }
 
 // Layout matches the Figma Badge Card component (node 4429:8808): radius/lg
-// (12px), component/padding-lg (24px), component/gap-sm (8px) — used as raw
-// pixel values since theme.ts has no radius/spacing scale to bind through.
+// (12px), component/padding-lg (24px) — used as raw pixel values since
+// theme.ts has no radius/spacing scale to bind through. Icon-to-title and
+// title-to-description gaps are uneven (8px, then 6px) per hi-fi spec, so
+// they're set as explicit margins rather than a single flex `gap`.
 export function FitPill({ icon, title, description }: FitPillProps) {
   return (
     <div
@@ -18,7 +20,6 @@ export function FitPill({ icon, title, description }: FitPillProps) {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 8,
         padding: 24,
         borderRadius: 12,
         width: 320,
@@ -26,7 +27,7 @@ export function FitPill({ icon, title, description }: FitPillProps) {
         textAlign: "center",
       }}
     >
-      <div style={{ marginBottom: 4, color: tokens.gold }}>{icon}</div>
+      <div style={{ marginBottom: 8, color: tokens.gold }}>{icon}</div>
       <p
         style={{
           fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
@@ -35,7 +36,7 @@ export function FitPill({ icon, title, description }: FitPillProps) {
           lineHeight: "22px",
           letterSpacing: "-0.43px",
           color: t.text.primary,
-          margin: 0,
+          margin: "0 0 6px",
         }}
       >
         {title}

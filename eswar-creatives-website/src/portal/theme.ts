@@ -50,7 +50,7 @@ export const t = {
     inverse:      '#FFFFFF',  // text on dark backgrounds
     onPrimary:    '#FFFFFF',  // text on teal primary buttons
     onAccent:     '#4A2A00',  // text on gold accent fills — Figma text/on-accent (gold.800); was #FFFFFF (unused, low contrast on gold)
-    urlLink:      '#024C4F',  // hyperlinks only — deliberate teal-not-blue override (design-system decision); Figma text/url-link is Blue.500 #0a66c2
+    urlLink:      '#0A66C2',  // hyperlinks only — Figma text/url-link (Blue.500). Reverses an earlier deliberate teal-not-blue override; now intentionally matches Figma exactly per explicit request.
     // "On-dark" text roles: for content on permanently-dark surfaces (e.g. the
     // BeforeAfterCard Before panel) within an otherwise light-mode app.
     onDarkPrimary:   'rgba(244,245,247,0.90)',  // Figma text/on-dark-primary

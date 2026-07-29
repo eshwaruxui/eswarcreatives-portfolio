@@ -1,6 +1,7 @@
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { createStaticHandler, createStaticRouter, StaticRouterProvider } from 'react-router';
+import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'sonner';
 import { routeConfig } from './app/route-config';
 
@@ -16,7 +17,7 @@ export async function render(url: string): Promise<string> {
   const router = createStaticRouter(handler.dataRoutes, context);
 
   return renderToString(
-    <>
+    <HelmetProvider>
       <StaticRouterProvider router={router} context={context} />
       <Toaster
         position="bottom-center"
@@ -28,6 +29,6 @@ export async function render(url: string): Promise<string> {
           },
         }}
       />
-    </>
+    </HelmetProvider>
   );
 }

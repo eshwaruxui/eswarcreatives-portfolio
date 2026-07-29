@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
-import { ArrowRight, Check, ExternalLink, TrendingUp } from "lucide-react";
-import { motion } from "motion/react";
+import { ArrowRight, ExternalLink } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { PortfolioButton } from "./ui/portfolio-button";
 import { LandingNav } from "../../components/LandingNav";
 import { useBreakpoint } from "../../portal/hooks/useBreakpoint";
@@ -20,55 +20,61 @@ const LETS_TALK_MAILTO = "mailto:eswar@eswarcreatives.in?subject=Let%27s%20talk%
 type CarouselSlide = {
   id: string;
   cardType: BeforeAfterCardType;
-  categoryLabel: string;
+  categoryLabel: string; // dot/badge aria-label only — BeforeAfterCard itself no longer shows a category chip
   proofCaption?: string;
   before?: ReactNode;
   after: ReactNode;
   // Exact Figma "Footer section" (node 4424:6945): brand name + category +
-  // an Instagram social-proof link. Only slides with a real, shipped case
-  // study carry this — placeholders fall back to the generic caption below.
-  footer?: { brandName: string; category: string; socialProofUrl?: string };
+  // a social-proof link. socialProofLabel renders as plain (non-clickable)
+  // text when no real URL is on hand yet — never fabricate an href.
+  footer?: { brandName: string; category: string; socialProofLabel?: string; socialProofUrl?: string };
 };
+
+// Exact icon from "assets and visuals/icons/check-mark.svg" — a filled circle
+// with the checkmark cut out as negative space (single path, not a lucide
+// glyph + separate background). stroke swapped for fill="currentColor" so it
+// still follows t.text.primary ("icon/primary" in the Figma selection panel)
+// instead of shipping the fixed #111111 as a static asset.
+function CheckMarkIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0, marginTop: 3 }}>
+      <path
+        d="M8 1.5C6.71442 1.5 5.45772 1.88122 4.3888 2.59545C3.31988 3.30968 2.48676 4.32484 1.99479 5.51256C1.50282 6.70028 1.37409 8.00721 1.6249 9.26809C1.8757 10.529 2.49477 11.6872 3.40381 12.5962C4.31285 13.5052 5.47104 14.1243 6.73192 14.3751C7.99279 14.6259 9.29973 14.4972 10.4874 14.0052C11.6752 13.5132 12.6903 12.6801 13.4046 11.6112C14.1188 10.5423 14.5 9.28558 14.5 8C14.4982 6.27665 13.8128 4.62441 12.5942 3.40582C11.3756 2.18722 9.72335 1.50182 8 1.5ZM10.8538 6.85375L7.35375 10.3538C7.30732 10.4002 7.25217 10.4371 7.19147 10.4623C7.13077 10.4874 7.06571 10.5004 7 10.5004C6.9343 10.5004 6.86923 10.4874 6.80853 10.4623C6.74783 10.4371 6.69269 10.4002 6.64625 10.3538L5.14625 8.85375C5.05243 8.75993 4.99972 8.63268 4.99972 8.5C4.99972 8.36732 5.05243 8.24007 5.14625 8.14625C5.24007 8.05243 5.36732 7.99972 5.5 7.99972C5.63268 7.99972 5.75993 8.05243 5.85375 8.14625L7 9.29313L10.1463 6.14625C10.1927 6.09979 10.2479 6.06294 10.3086 6.0378C10.3693 6.01266 10.4343 5.99972 10.5 5.99972C10.5657 5.99972 10.6308 6.01266 10.6915 6.0378C10.7521 6.06294 10.8073 6.09979 10.8538 6.14625C10.9002 6.1927 10.9371 6.24786 10.9622 6.30855C10.9873 6.36925 11.0003 6.4343 11.0003 6.5C11.0003 6.5657 10.9873 6.63075 10.9622 6.69145C10.9371 6.75214 10.9002 6.8073 10.8538 6.85375Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 function ChecklistItem({ text }: { text: string }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%" }}>
-      <Check size={14} style={{ color: tokens.accent, marginTop: 3, flexShrink: 0 }} />
+      <span style={{ color: t.text.primary }}>
+        <CheckMarkIcon />
+      </span>
       <p style={{ margin: 0, fontFamily: "'Inter', sans-serif", fontSize: 13, color: t.text.secondary, lineHeight: 1.5 }}>{text}</p>
     </div>
   );
 }
 
-function VerticalTab({ label }: { label: string }) {
+// Figma's Pagination component (variants Page 1..6): a numbered badge with
+// up to 4 satellite dots, split before/after the badge. The dot immediately
+// adjacent to the badge is large or "near" (7x7); anything one step further
+// is small/"far" (4x4) — not one uniform dot per page.
+function PaginationDot({ near }: { near: boolean }) {
+  const size = near ? 7 : 4;
   return (
-    <div
+    <span
       aria-hidden
       style={{
-        position: "absolute",
-        right: 0,
-        top: "50%",
-        transform: "translateY(-50%)",
-        background: t.background.subtleWarm,
-        borderRadius: "8px 0 0 8px",
-        padding: "12px 4px",
+        display: "inline-block",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: near ? t.border.strong : t.border.medium,
+        flexShrink: 0,
       }}
-    >
-      <p
-        style={{
-          margin: 0,
-          fontFamily: "'SF Mono', monospace",
-          fontWeight: 700,
-          fontSize: 9,
-          letterSpacing: "1.5px",
-          color: t.text.secondary,
-          writingMode: "vertical-rl",
-          transform: "rotate(180deg)",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {label}
-      </p>
-    </div>
+    />
   );
 }
 
@@ -119,36 +125,65 @@ function TrophyIcon() {
   );
 }
 
-function PlaceholderSlideContent({ label }: { label: string }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: t.text.muted }}>
-      <IconWrapper size={32} color={t.text.muted}>
-        <TrendingUp size={32} strokeWidth={1.5} />
-      </IconWrapper>
-      <p style={{ margin: 0, fontFamily: "'Inter', sans-serif", fontSize: 13, textAlign: "center" }}>
-        {label} case study coming soon
-      </p>
-    </div>
-  );
+// "We build from scratch" — the Starting Point copy shared by every
+// new-build slide that isn't Elite (which has its own real founding story).
+// A single static element is safe to reuse across multiple slide entries:
+// it's stateless, and React only ever renders whichever slide is active.
+const BUILD_FROM_SCRATCH = (
+  <p style={{ margin: 0, fontFamily: "'Inter', sans-serif", fontSize: 14, lineHeight: 1.5, textAlign: "center", color: t.text.onDarkSecondary }}>
+    We build from scratch
+  </p>
+);
+
+// Real client logos ("assets and visuals/img/branding/before after section/
+// brand logos"), all sharing the same 270x178 source viewBox — rendered at a
+// consistent display width so the Output panel reads evenly slide to slide.
+function ClientLogo({ src, alt }: { src: string; alt: string }) {
+  return <img src={src} alt={alt} style={{ width: 180, height: "auto" }} />;
 }
 
+// 12 real case studies ("assets and visuals/img/branding/before after
+// section" — copy and order match the reference sheet exactly). Social-proof
+// links (Instagram/Website) render as plain, non-clickable labels for now —
+// no real URLs were supplied for those two, and a fabricated href is worse
+// than no link at all.
 const CAROUSEL_SLIDES: CarouselSlide[] = [
+  {
+    id: "elite",
+    cardType: "new-build",
+    categoryLabel: "Jewellery",
+    proofCaption: "Designed in 2012. Still the brand's identity today, 14 years and counting.",
+    footer: { brandName: "Elite, Gold & Diamonds Jewellery", category: "category", socialProofLabel: "Instagram" },
+    before: (
+      <p style={{ margin: 0, fontFamily: "'Inter', sans-serif", fontSize: 14, lineHeight: 1.5, textAlign: "center", color: t.text.onDarkSecondary }}>
+        No identity. Built from the ground up in 2012.
+      </p>
+    ),
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/elite.svg" alt="Elite jewellery logo" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Premium. Feminine. Jewellery-ready." />
+          <ChecklistItem text="Bold enough to own the counter." />
+          <ChecklistItem text="Still their identity, 14 years on." />
+        </div>
+      </>
+    ),
+  },
   {
     id: "newgen-redesign",
     cardType: "redesign",
     categoryLabel: "Events",
     proofCaption: "Looks dated. Feels untrustworthy. Blends in.",
-    footer: {
-      brandName: "Newgen Event Studio",
-      category: "Corporate Events category",
-      socialProofUrl: "https://www.instagram.com/p/DbC4-mUS_DB/",
-    },
+    footer: { brandName: "Newgen Event Studio", category: "Corporate Events category" },
     before: (
       <>
         <img
           src="/img/branding/hero/newgen-before-crest.png"
           alt="New Gen Event's original ornate crest logo"
-          style={{ width: 130, height: 130, objectFit: "contain" }}
+          style={{ width: 183, height: 114.26, objectFit: "contain", opacity: 0.9 }}
         />
         <p
           style={{
@@ -167,33 +202,243 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     ),
     after: (
       <>
-        <img
-          src="/img/branding/hero/newgen-after-wordmark.svg"
-          alt="Redesigned NEWGEN EVENT STUDIO wordmark with N monogram"
-          style={{ width: 150, height: "auto" }}
-        />
+        {/* Figma's "Frame 2610418" wraps the wordmark in its own flex:1 zone
+            (270x392 in the reference frame) that grows to fill the available
+            height, pushing the checklist down to the bottom of the content
+            area — not a fixed gap between the two. */}
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <img
+            src="/img/branding/hero/newgen-after-wordmark.svg"
+            alt="Redesigned NEWGEN EVENT STUDIO wordmark with N monogram"
+            style={{ width: 189.56, height: 147.89 }}
+          />
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Clean. Confident. Memorable." />
           <ChecklistItem text="Built for scale across every touchpoint." />
           <ChecklistItem text="Instantly communicates trust." />
         </div>
-        <VerticalTab label="STRATEGY  ·  DESIGN  ·  IMPACT" />
       </>
     ),
   },
   {
-    // TODO: replace with real retail case study asset
-    id: "retail-placeholder",
+    id: "humane",
     cardType: "new-build",
-    categoryLabel: "Retail",
-    after: <PlaceholderSlideContent label="Retail" />,
+    categoryLabel: "Vegan wallets",
+    footer: { brandName: "Vegan wallets", category: "category" },
+    before: BUILD_FROM_SCRATCH,
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/humane.svg" alt="Vegan wallets brand mark" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Cruelty-free, without looking crunchy." />
+          <ChecklistItem text="Bold enough to stand out on a shelf." />
+          <ChecklistItem text="Built for D2C and marketplace alike." />
+        </div>
+      </>
+    ),
   },
   {
-    // TODO: replace with real clinic/services case study asset
-    id: "clinic-placeholder",
+    id: "adsprint",
     cardType: "new-build",
-    categoryLabel: "Clinic",
-    after: <PlaceholderSlideContent label="Clinic/services" />,
+    categoryLabel: "Signage Printing",
+    footer: { brandName: "Signage Printing", category: "category" },
+    before: BUILD_FROM_SCRATCH,
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/adsprint.svg" alt="123 Adsprint logo" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Looks like the finished product they sell." />
+          <ChecklistItem text="Credible enough for corporate contracts." />
+          <ChecklistItem text="One mark, every signage type." />
+        </div>
+      </>
+    ),
+  },
+  {
+    id: "vim-redesign",
+    cardType: "redesign",
+    categoryLabel: "Wedding Events",
+    proofCaption: "Looks like any other vendor. Nothing to remember after the meeting.",
+    footer: { brandName: "VIM Events & Décor, Wedding Events", category: "category", socialProofLabel: "Website" },
+    before: (
+      <>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 600,
+            fontSize: 32,
+            letterSpacing: "2px",
+            color: t.text.onDarkSecondary,
+          }}
+        >
+          V.I.M.
+        </p>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 500,
+            fontSize: 11,
+            lineHeight: "14px",
+            letterSpacing: "0.06px",
+            color: tokens.dangerText,
+          }}
+        >
+          Generic &bull; No personality
+        </p>
+      </>
+    ),
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/vim.svg" alt="VIM Events & Décor logo" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Founder-led. Instantly recognisable." />
+          <ChecklistItem text="Heritage feel with modern scalability." />
+          <ChecklistItem text="Built to carry 30+ years of trust forward." />
+        </div>
+      </>
+    ),
+  },
+  {
+    id: "artemis",
+    cardType: "new-build",
+    categoryLabel: "Fintech Software",
+    footer: { brandName: "Fintech Software", category: "category" },
+    before: BUILD_FROM_SCRATCH,
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/artemis.svg" alt="Artemis fintech logo" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Enterprise-credible from the first pitch." />
+          <ChecklistItem text="Built for investor decks and dashboards." />
+          <ChecklistItem text="Trustworthy enough to hold money." />
+        </div>
+      </>
+    ),
+  },
+  {
+    id: "ngn-india",
+    cardType: "new-build",
+    categoryLabel: "Oil & Gas shipping",
+    footer: { brandName: "Oil & Gas shipping", category: "category" },
+    before: BUILD_FROM_SCRATCH,
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/ngn-india.svg" alt="NGN India shipping logo" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Corporate enough for contracts and ports." />
+          <ChecklistItem text="Works on a hull as well as a letterhead." />
+          <ChecklistItem text="No promoter name required to be credible." />
+        </div>
+      </>
+    ),
+  },
+  {
+    id: "mothicrafts",
+    cardType: "new-build",
+    categoryLabel: "Food Commodity",
+    footer: { brandName: "Food Commodity", category: "category" },
+    before: BUILD_FROM_SCRATCH,
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/mothicrafts.svg" alt="MothiCrafts logo" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Warm enough for a wellness brand." />
+          <ChecklistItem text="Shelf-ready across every SKU." />
+          <ChecklistItem text="Distinct from every generic supplier." />
+        </div>
+      </>
+    ),
+  },
+  {
+    id: "wild-cashew",
+    cardType: "new-build",
+    categoryLabel: "Food Exports",
+    footer: { brandName: "Food Exports", category: "category" },
+    before: BUILD_FROM_SCRATCH,
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/wild-cashew.svg" alt="Wild Cashew logo" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Export-ready packaging identity." />
+          <ChecklistItem text="Builds equity with every shipment." />
+          <ChecklistItem text="Stands out on a crowded pallet." />
+        </div>
+      </>
+    ),
+  },
+  {
+    id: "rivaa",
+    cardType: "new-build",
+    categoryLabel: "Healthcare",
+    footer: { brandName: "Healthcare", category: "category" },
+    before: BUILD_FROM_SCRATCH,
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/rivaa.svg" alt="RIVAA Healthcare Products logo" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Clinical trust without feeling cold." />
+          <ChecklistItem text="Credible before the first appointment." />
+          <ChecklistItem text="Consistent from signage to prescription pad." />
+        </div>
+      </>
+    ),
+  },
+  {
+    id: "buddhabody",
+    cardType: "new-build",
+    categoryLabel: "Beauty Product",
+    footer: { brandName: "Beauty Product", category: "category" },
+    before: BUILD_FROM_SCRATCH,
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/buddhabody.svg" alt="Buddhabody conscious beauty logo" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Premium enough for retail shelf space." />
+          <ChecklistItem text="On-brand across every product line." />
+          <ChecklistItem text="No longer a white-label distributor mark." />
+        </div>
+      </>
+    ),
+  },
+  {
+    id: "medking",
+    cardType: "new-build",
+    categoryLabel: "Medical",
+    footer: { brandName: "Medical", category: "category" },
+    before: BUILD_FROM_SCRATCH,
+    after: (
+      <>
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ClientLogo src="/img/branding/logos/medking.svg" alt="Medking logo" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Distinct from every other local pharmacy." />
+          <ChecklistItem text="Reads as established, not improvised." />
+          <ChecklistItem text="Trustworthy at a glance." />
+        </div>
+      </>
+    ),
   },
 ];
 
@@ -264,7 +509,28 @@ const WEBSITE_PAGES = [
 export function BrandingLandingPage() {
   const { isMobile } = useBreakpoint();
   const [activeSlide, setActiveSlide] = useState(0);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const slide = CAROUSEL_SLIDES[activeSlide];
+  // Pagination sizing per Figma: the 2 dots nearest the active badge (by
+  // distance, combined across both sides) are "big"; any beyond that are
+  // "small" — not simply "immediate neighbor big, everything else small".
+  const bigDotIndices = new Set(
+    CAROUSEL_SLIDES.map((_, i) => i)
+      .filter((i) => i !== activeSlide)
+      .sort((a, b) => Math.abs(a - activeSlide) - Math.abs(b - activeSlide))
+      .slice(0, 2)
+  );
+
+  // Auto-advance, matching the reference recording's confirmed dwell time
+  // (content held steady for 4s+ per slide there) — 5s here, looping, paused
+  // on hover/focus so it doesn't fight a user who's actively browsing it.
+  useEffect(() => {
+    if (isCarouselPaused) return;
+    const id = window.setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % CAROUSEL_SLIDES.length);
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [isCarouselPaused]);
 
   useEffect(() => {
     document.title = "Brand Identity Design · Eswar Creatives";
@@ -296,8 +562,8 @@ export function BrandingLandingPage() {
         <LandingNav />
 
         {/* SECTION 1 — HERO */}
-        <section style={{ paddingTop: 80 }}>
-          <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "32px 20px 0" : "72px 24px 0" }}>
+        <section>
+          <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "24px 20px 0" : "72px 24px 0" }}>
             <div
               style={{
                 display: "grid",
@@ -308,7 +574,21 @@ export function BrandingLandingPage() {
             >
               <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.25, 0.46, 0.45, 0.94] }}>
                 <div style={{ position: "relative", display: "inline-block", marginBottom: 16 }}>
-                  <p style={{ ...eyebrow, color: tokens.goldDark, margin: 0 }}>Branding for growing Indian businesses</p>
+                  {/* Heading/SUBHEADLINE text style (text.styles.tokens.json) + uppercase */}
+                  <p
+                    style={{
+                      fontFamily: BODY,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      letterSpacing: "0.27px",
+                      lineHeight: "20px",
+                      textTransform: "uppercase",
+                      color: tokens.goldDark,
+                      margin: 0,
+                    }}
+                  >
+                    Branding for growing Indian businesses
+                  </p>
                   <div style={{ position: "absolute", left: 0, bottom: -7, height: 2, width: 78, background: tokens.gold, borderRadius: 9999 }} />
                 </div>
                 <h1
@@ -323,7 +603,7 @@ export function BrandingLandingPage() {
                   }}
                 >
                   You built a real business. Your brand should{" "}
-                  <span style={{ position: "relative", display: "inline-block", color: tokens.accent, fontStyle: "italic" }}>
+                  <span style={{ position: "relative", display: "inline-block", color: tokens.accent }}>
                     look like it.
                     <img
                       src="/img/branding/hero/headline-underline.svg"
@@ -346,27 +626,62 @@ export function BrandingLandingPage() {
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <CTAButton variant="primary" label="See our work →" href="/branding/work" />
-                  <CTAButton variant="outline" label="Let's talk" href={LETS_TALK_MAILTO} />
+                  <CTAButton variant="primary" size="xl" fullWidth label="See our work →" href="/branding/work" />
+                  <CTAButton variant="outline" size="xl" fullWidth label="Let's talk" href={LETS_TALK_MAILTO} />
                 </div>
-                <p style={{ fontFamily: BODY, fontSize: 12, color: t.text.muted, marginTop: 12 }}>
+                <p
+                  style={{
+                    fontFamily: BODY,
+                    fontSize: 15,
+                    fontWeight: 400,
+                    lineHeight: "20px",
+                    letterSpacing: "-0.23px",
+                    color: t.text.secondary,
+                    marginTop: 24,
+                    textAlign: "center",
+                  }}
+                >
                   Prefer async?{" "}
                   <a href={BRAND_BRIEF_MAILTO} style={{ color: t.text.urlLink, textDecoration: "underline" }}>
-                    Fill a brand brief
+                    Fill a brand brief →
                   </a>{" "}
                   instead.
                 </p>
               </motion.div>
 
-              <div>
-                <BeforeAfterCard
-                  beforeContent={slide.before}
-                  afterContent={slide.after}
-                  categoryLabel={slide.categoryLabel}
-                  proofCaption={slide.proofCaption}
-                  cardType={slide.cardType}
-                />
+              <div onMouseEnter={() => setIsCarouselPaused(true)} onMouseLeave={() => setIsCarouselPaused(false)}>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={slide.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    // framer-motion needs the raw bezier control points, not the
+                    // CSS cubic-bezier(...) string — mirrors motionTokens.easeDefault.
+                    transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+                  >
+                    <BeforeAfterCard
+                      beforeContent={slide.before}
+                      afterContent={slide.after}
+                      proofCaption={slide.proofCaption}
+                      cardType={slide.cardType}
+                    />
+                  </motion.div>
+                </AnimatePresence>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", marginTop: 16 }}>
+                  {CAROUSEL_SLIDES.map((s, index) =>
+                    index < activeSlide ? (
+                      <button
+                        key={s.id}
+                        type="button"
+                        aria-label={`Show ${s.categoryLabel} case`}
+                        onClick={() => setActiveSlide(index)}
+                        style={{ border: "none", padding: 4, margin: -4, background: "transparent", cursor: "pointer" }}
+                      >
+                        <PaginationDot near={bigDotIndices.has(index)} />
+                      </button>
+                    ) : null
+                  )}
                   <span
                     aria-hidden
                     style={{
@@ -380,30 +695,23 @@ export function BrandingLandingPage() {
                       fontWeight: 600,
                       fontSize: 12,
                       lineHeight: "14px",
-                      marginRight: 2,
                     }}
                   >
                     {activeSlide + 1}/{CAROUSEL_SLIDES.length}
                   </span>
-                  {CAROUSEL_SLIDES.map((s, index) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      aria-label={`Show ${s.categoryLabel} case`}
-                      aria-current={index === activeSlide}
-                      onClick={() => setActiveSlide(index)}
-                      style={{
-                        width: index === activeSlide ? 20 : 7,
-                        height: 7,
-                        borderRadius: 9999,
-                        border: "none",
-                        padding: 0,
-                        cursor: "pointer",
-                        background: index === activeSlide ? t.text.primary : t.border.medium,
-                        transition: `width ${motionTokens.durationFast} ${motionTokens.easeDefault}, background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
-                      }}
-                    />
-                  ))}
+                  {CAROUSEL_SLIDES.map((s, index) =>
+                    index > activeSlide ? (
+                      <button
+                        key={s.id}
+                        type="button"
+                        aria-label={`Show ${s.categoryLabel} case`}
+                        onClick={() => setActiveSlide(index)}
+                        style={{ border: "none", padding: 4, margin: -4, background: "transparent", cursor: "pointer" }}
+                      >
+                        <PaginationDot near={bigDotIndices.has(index)} />
+                      </button>
+                    ) : null
+                  )}
                 </div>
                 {slide.footer ? (
                   <div style={{ marginTop: 16, textAlign: "center" }}>
@@ -431,6 +739,20 @@ export function BrandingLandingPage() {
                         social proof <ExternalLink size={13} />
                       </a>
                     )}
+                    {!slide.footer.socialProofUrl && slide.footer.socialProofLabel && (
+                      <p
+                        style={{
+                          margin: "6px 0 0",
+                          fontFamily: BODY,
+                          fontStyle: "italic",
+                          fontSize: 15,
+                          letterSpacing: "-0.23px",
+                          color: t.text.tertiary,
+                        }}
+                      >
+                        {slide.footer.socialProofLabel}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: t.text.tertiary, textAlign: "center", marginTop: 16 }}>
@@ -452,7 +774,7 @@ export function BrandingLandingPage() {
             >
               <FitPill
                 icon={
-                  <IconWrapper size={56} color={tokens.gold}>
+                  <IconWrapper size={80} color={tokens.gold}>
                     <GrowthIcon />
                   </IconWrapper>
                 }
@@ -462,7 +784,7 @@ export function BrandingLandingPage() {
               {!isMobile && <div style={{ width: 1, height: 109, background: t.border.default }} />}
               <FitPill
                 icon={
-                  <IconWrapper size={56} color={tokens.gold}>
+                  <IconWrapper size={80} color={tokens.gold}>
                     <TeamIcon />
                   </IconWrapper>
                 }
@@ -472,7 +794,7 @@ export function BrandingLandingPage() {
               {!isMobile && <div style={{ width: 1, height: 109, background: t.border.default }} />}
               <FitPill
                 icon={
-                  <IconWrapper size={56} color={tokens.gold}>
+                  <IconWrapper size={80} color={tokens.gold}>
                     <TrophyIcon />
                   </IconWrapper>
                 }

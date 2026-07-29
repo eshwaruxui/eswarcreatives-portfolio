@@ -6,7 +6,6 @@ export type BeforeAfterCardType = "redesign" | "new-build";
 interface BeforeAfterCardProps {
   beforeContent?: ReactNode;
   afterContent: ReactNode;
-  categoryLabel: string;
   proofCaption?: string;
   cardType: BeforeAfterCardType;
 }
@@ -19,9 +18,17 @@ const BODY = "'Inter', system-ui, -apple-system, sans-serif";
 // build. The proof box's label follows the same split (Cost vs Proof). Do
 // not hardcode "Before"/"After" per call site — resolve through this map so
 // cardType is the single source of truth for wording.
-const VARIANT_LABELS: Record<BeforeAfterCardType, { before: string; after: string; proof: string }> = {
-  redesign: { before: "BEFORE", after: "AFTER", proof: "COST" },
-  "new-build": { before: "STARTING POINT", after: "OUTPUT", proof: "PROOF" },
+const VARIANT_LABELS: Record<BeforeAfterCardType, { proof: string }> = {
+  redesign: { proof: "COST" },
+  "new-build": { proof: "PROOF" },
+};
+
+// Starting Point / Output labels ship as pre-baked SVGs (bracket + text as
+// vector paths — "STARTING POINT" is too long to fit the short Before/After
+// bracket at a fixed size) — real assets, not a dynamically drawn pill.
+const LABEL_ASSETS: Record<"on-dark" | "on-light", string> = {
+  "on-dark": "/img/branding/hero/label-starting-point.svg",
+  "on-light": "/img/branding/hero/label-output.svg",
 };
 
 // Exact path from node 4422:5901's ProcessStageLabel background vector — a
@@ -50,10 +57,26 @@ function LabelBracket({ color }: { color: string }) {
   );
 }
 
-function StageLabelPill({ label, tone }: { label: string; tone: "on-dark" | "on-light" }) {
+function StageLabelPill({ label, tone, cardType }: { label: string; tone: "on-dark" | "on-light"; cardType: BeforeAfterCardType }) {
   const isOnDark = tone === "on-dark";
+
+  if (cardType === "new-build") {
+    return <img src={LABEL_ASSETS[tone]} alt="" aria-hidden style={{ display: "block" }} />;
+  }
+
+  // Exact per-variant box sizes from ProcessStageLabel (node 4422:5901):
+  // Before (on-dark) 98x36, After (on-light) 97.4x34.9.
   return (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 18px" }}>
+    <div
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: isOnDark ? 98 : 97.4,
+        height: isOnDark ? 36 : 34.9,
+      }}
+    >
       <LabelBracket color={isOnDark ? t.border.onDark : t.border.overlayExtraStrong} />
       <p
         style={{
@@ -103,6 +126,43 @@ function ProofBox({ label, caption }: { label: string; caption: string }) {
   );
 }
 
+// Vertical "STRATEGY · DESIGN · IMPACT" tab, node 4424:6945's "Navigation
+// container" — structural chrome on every card (all 12 reference slides
+// carry it), not slide-specific content, so it lives here rather than being
+// composed per-slide by the page.
+function VerticalTab() {
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        right: 0,
+        top: "50%",
+        transform: "translateY(-50%)",
+        background: t.background.subtleWarm,
+        borderRadius: "8px 0 0 8px",
+        padding: "12px 4px",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          fontFamily: MONO,
+          fontWeight: 700,
+          fontSize: 9,
+          letterSpacing: "1.5px",
+          color: t.text.secondary,
+          writingMode: "vertical-rl",
+          transform: "rotate(180deg)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        STRATEGY  ·  DESIGN  ·  IMPACT
+      </p>
+    </div>
+  );
+}
+
 // Exact backdrop layers from node 4424:6945 (Rectangle15/14/13) — soft blurred
 // card silhouettes fanned out behind the main card. Positions/rotations are
 // ported directly from Figma's outer wrapper transforms (measured against its
@@ -122,9 +182,9 @@ const STACK_LAYERS: { src: string; style: CSSProperties }[] = [
   },
 ];
 
-export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, proofCaption, cardType }: BeforeAfterCardProps) {
+export function BeforeAfterCard({ beforeContent, afterContent, proofCaption, cardType }: BeforeAfterCardProps) {
   const labels = VARIANT_LABELS[cardType];
-  const hasBeforePanel = cardType === "redesign" && Boolean(beforeContent);
+  const hasBeforePanel = Boolean(beforeContent);
 
   return (
     <div style={{ width: "100%" }}>
@@ -138,7 +198,7 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
             position: "relative",
             display: "grid",
             gridTemplateColumns: hasBeforePanel ? "minmax(0,0.43fr) minmax(0,0.57fr)" : "1fr",
-            minHeight: 360,
+            minHeight: 440,
             borderRadius: 16,
             overflow: "hidden",
             border: `1px solid ${t.border.overlayExtraStrong}`,
@@ -156,9 +216,11 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
                 gap: 16,
               }}
             >
-              <StageLabelPill label={labels.before} tone="on-dark" />
+              <div style={{ height: 60, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <StageLabelPill label="BEFORE" tone="on-dark" cardType={cardType} />
+              </div>
               <div style={{ flex: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
                   {beforeContent}
                 </div>
                 {proofCaption && <ProofBox label={labels.proof} caption={proofCaption} />}
@@ -169,7 +231,7 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
           <div
             style={{
               position: "relative",
-              background: hasBeforePanel ? t.background.page : t.background.subtle,
+              background: hasBeforePanel ? t.background.cardWarm : t.background.subtle,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
@@ -177,13 +239,16 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
               gap: 16,
             }}
           >
-            <StageLabelPill label={labels.after} tone="on-light" />
+            <div style={{ height: 60, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <StageLabelPill label="AFTER" tone="on-light" cardType={cardType} />
+            </div>
             <div style={{ flex: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24 }}>
                 {afterContent}
               </div>
               {!hasBeforePanel && proofCaption && <ProofBox label={labels.proof} caption={proofCaption} />}
             </div>
+            {hasBeforePanel && <VerticalTab />}
           </div>
 
           {hasBeforePanel && (
@@ -192,9 +257,10 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
                 position: "absolute",
                 left: "calc(50% - 36px)",
                 top: "calc(50% - 41px)",
+                transform: "translate(-50%, -50%)",
                 width: 34,
                 height: 34,
-                borderRadius: 16,
+                borderRadius: "50%",
                 background: tokens.gold,
                 display: "flex",
                 alignItems: "center",
@@ -209,26 +275,6 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
           )}
         </div>
       </div>
-
-      {/* Per-card category chip only makes sense for placeholder/new-build
-          slides that have nothing else identifying them — the real Newgen
-          redesign slide carries its category via the Figma-matched
-          category/social-proof footer the page renders alongside it. */}
-      {cardType === "new-build" && (
-        <p
-          style={{
-            marginTop: 16,
-            textAlign: "center",
-            fontFamily: MONO,
-            fontSize: 10,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: t.text.muted,
-          }}
-        >
-          {categoryLabel}
-        </p>
-      )}
     </div>
   );
 }
