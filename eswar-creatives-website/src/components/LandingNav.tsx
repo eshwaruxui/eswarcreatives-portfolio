@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useBreakpoint } from '../portal/hooks/useBreakpoint'
 import { t, tokens } from '../portal/theme'
+import { CTAButton } from './marketing/CTAButton'
 
 export function LandingNav() {
   const { isMobile } = useBreakpoint()
@@ -57,13 +58,26 @@ export function LandingNav() {
                 marginTop: -2,
               }}
             >
-              Branding for event businesses
+              Brand design studio
             </span>
           )}
         </a>
 
         {!isMobile && (
           <nav style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
+            <a
+              href="/branding/work"
+              style={{
+                fontFamily: 'Inter, sans-serif',
+                fontSize: 14,
+                fontWeight: pathname.startsWith('/branding/work') ? 600 : 500,
+                color: pathname.startsWith('/branding/work') ? tokens.primary : t.text.secondary,
+                textDecoration: 'none',
+                transition: `color 120ms cubic-bezier(0.4,0,0.2,1)`,
+              }}
+            >
+              Work
+            </a>
             <a
               href="/branding"
               style={{
@@ -78,43 +92,22 @@ export function LandingNav() {
               Services
             </a>
             <a
-              href="/branding/work"
+              href="/about"
               style={{
                 fontFamily: 'Inter, sans-serif',
                 fontSize: 14,
-                fontWeight: pathname.startsWith('/branding/work') ? 600 : 500,
-                color: pathname.startsWith('/branding/work') ? tokens.primary : t.text.secondary,
+                fontWeight: pathname === '/about' ? 600 : 500,
+                color: pathname === '/about' ? tokens.primary : t.text.secondary,
                 textDecoration: 'none',
                 transition: `color 120ms cubic-bezier(0.4,0,0.2,1)`,
               }}
             >
-              Work
+              About
             </a>
           </nav>
         )}
 
-        <a
-          href="https://wa.me/919841085484"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: isMobile ? '8px 16px' : '10px 20px',
-            background: tokens.primary,
-            color: t.text.onPrimary,
-            fontFamily: 'Inter, sans-serif',
-            fontSize: 13,
-            fontWeight: 600,
-            borderRadius: 6,
-            textDecoration: 'none',
-            whiteSpace: 'nowrap',
-            transition: `opacity 120ms cubic-bezier(0.4,0,0.2,1)`,
-          }}
-        >
-          Let's talk <span style={{ fontSize: 14 }}>&rarr;</span>
-        </a>
+        <CTAButton variant="primary" label="Let's talk" href="https://wa.me/919841085484" target="_blank" />
       </div>
     </div>
   )

@@ -1,13 +1,155 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check, TrendingUp, UserCog, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 import { PortfolioButton } from "./ui/portfolio-button";
 import { LandingNav } from "../../components/LandingNav";
 import { useBreakpoint } from "../../portal/hooks/useBreakpoint";
 import { t, tokens, motionTokens } from "../../portal/theme";
+import { CTAButton } from "../../components/marketing/CTAButton";
+import { FitPill } from "../../components/marketing/FitPill";
+import { BeforeAfterCard, type BeforeAfterCardType } from "../../components/marketing/BeforeAfterCard";
+import { IconWrapper } from "../../components/marketing/IconWrapper";
 
 const WHATSAPP_URL = "https://wa.me/919841085484";
+const RETAINER_WHATSAPP_URL =
+  "https://wa.me/919841085484?text=Hi%2C%20I%27m%20interested%20in%20the%20Performance%20Growth%20Retainer%20on%20eswarcreatives.in";
+const BRAND_BRIEF_MAILTO = "mailto:eswar@eswarcreatives.in?subject=Brand%20brief";
+const LETS_TALK_MAILTO = "mailto:eswar@eswarcreatives.in?subject=Let%27s%20talk%20about%20my%20brand";
+
+// background/subtle-warm (#e8dcc4) — vertical tab strip on the Newgen AFTER
+// panel. No equivalent in theme.ts (portal tokens don't cover this warm-tab
+// role), bound directly from the Figma variable per node 4379:1453.
+const VERTICAL_TAB_BG = "#e8dcc4";
+
+type CarouselSlide = {
+  id: string;
+  cardType: BeforeAfterCardType;
+  categoryLabel: string;
+  proofCaption?: string;
+  before?: ReactNode;
+  after: ReactNode;
+};
+
+function ChecklistItem({ text }: { text: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%" }}>
+      <Check size={14} style={{ color: tokens.accent, marginTop: 3, flexShrink: 0 }} />
+      <p style={{ margin: 0, fontFamily: "'Inter', sans-serif", fontSize: 13, color: t.text.secondary, lineHeight: 1.5 }}>{text}</p>
+    </div>
+  );
+}
+
+function VerticalTab({ label }: { label: string }) {
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        right: 0,
+        top: "50%",
+        transform: "translateY(-50%)",
+        background: VERTICAL_TAB_BG,
+        borderRadius: "8px 0 0 8px",
+        padding: "12px 4px",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          fontFamily: "'SF Mono', monospace",
+          fontWeight: 700,
+          fontSize: 9,
+          letterSpacing: "1.5px",
+          color: t.text.secondary,
+          writingMode: "vertical-rl",
+          transform: "rotate(180deg)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function ChartRupeeIcon() {
+  return (
+    <span style={{ position: "relative", display: "inline-flex" }}>
+      <TrendingUp size={30} strokeWidth={1.75} />
+      <span
+        style={{
+          position: "absolute",
+          bottom: -4,
+          right: -6,
+          fontSize: 12,
+          fontWeight: 700,
+          lineHeight: 1,
+        }}
+      >
+        &#8377;
+      </span>
+    </span>
+  );
+}
+
+function PlaceholderSlideContent({ label }: { label: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: t.text.muted }}>
+      <IconWrapper size={32} color={t.text.muted}>
+        <TrendingUp size={32} strokeWidth={1.5} />
+      </IconWrapper>
+      <p style={{ margin: 0, fontFamily: "'Inter', sans-serif", fontSize: 13, textAlign: "center" }}>
+        {label} case study coming soon
+      </p>
+    </div>
+  );
+}
+
+const CAROUSEL_SLIDES: CarouselSlide[] = [
+  {
+    id: "newgen-redesign",
+    cardType: "redesign",
+    categoryLabel: "Events",
+    proofCaption: "Looks dated. Feels untrustworthy. Blends in.",
+    before: (
+      <img
+        src="/img/branding/hero/newgen-before-crest.png"
+        alt="New Gen Event's original ornate crest logo"
+        style={{ width: 130, height: 130, objectFit: "contain" }}
+      />
+    ),
+    after: (
+      <>
+        <img
+          src="/img/branding/hero/newgen-after-wordmark.svg"
+          alt="Redesigned NEWGEN EVENT STUDIO wordmark with N monogram"
+          style={{ width: 150, height: "auto" }}
+        />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+          <ChecklistItem text="Clean. Confident. Memorable." />
+          <ChecklistItem text="Built for scale across every touchpoint." />
+          <ChecklistItem text="Instantly communicates trust." />
+        </div>
+        <VerticalTab label="STRATEGY · DESIGN · IMPACT" />
+      </>
+    ),
+  },
+  {
+    // TODO: replace with real retail case study asset
+    id: "retail-placeholder",
+    cardType: "new-build",
+    categoryLabel: "Retail",
+    after: <PlaceholderSlideContent label="Retail" />,
+  },
+  {
+    // TODO: replace with real clinic/services case study asset
+    id: "clinic-placeholder",
+    cardType: "new-build",
+    categoryLabel: "Clinic",
+    after: <PlaceholderSlideContent label="Clinic/services" />,
+  },
+];
 
 const SERIF = "'Fraunces', Georgia, 'Times New Roman', serif";
 const BODY = "'Inter', system-ui, -apple-system, sans-serif";
@@ -75,6 +217,8 @@ const WEBSITE_PAGES = [
 
 export function BrandingLandingPage() {
   const { isMobile } = useBreakpoint();
+  const [activeSlide, setActiveSlide] = useState(0);
+  const slide = CAROUSEL_SLIDES[activeSlide];
 
   useEffect(() => {
     document.title = "Brand Identity Design · Eswar Creatives";
@@ -107,70 +251,142 @@ export function BrandingLandingPage() {
 
         {/* SECTION 1 — HERO */}
         <section style={{ paddingTop: 80 }}>
-          <div style={{ maxWidth: 1152, margin: "0 auto", padding: isMobile ? "48px 20px 56px" : "72px 24px 64px" }}>
-            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.25, 0.46, 0.45, 0.94] }}>
-              <p style={{ ...eyebrow, marginBottom: 16 }}>Branding for event businesses</p>
-              <h1
-                style={{
-                  fontFamily: SERIF,
-                  fontWeight: 600,
-                  fontSize: isMobile ? 30 : 44,
-                  lineHeight: 1.15,
-                  letterSpacing: "-0.02em",
-                  color: t.text.primary,
-                  maxWidth: 680,
-                  marginBottom: 20,
-                }}
-              >
-                Your brand should feel like your business, not your designer.
-              </h1>
-              <p style={{ fontFamily: BODY, fontSize: 16, lineHeight: 1.65, color: t.text.secondary, maxWidth: 500, marginBottom: 8 }}>
-                Most businesses look like they were designed by someone who had never attended one of their events. We fix that.
-              </p>
-              <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 14, color: t.text.muted, marginBottom: 32 }}>
-                Every month without a consistent brand is a missed first impression.
-              </p>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <PortfolioButton
-                  href="/branding/work"
+          <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "32px 20px 0" : "72px 24px 0" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) 560px",
+                gap: isMobile ? 40 : 42,
+                alignItems: "center",
+              }}
+            >
+              <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.25, 0.46, 0.45, 0.94] }}>
+                <div style={{ position: "relative", display: "inline-block", marginBottom: 16 }}>
+                  <p style={{ ...eyebrow, color: tokens.goldDark, margin: 0 }}>Branding for established Indian businesses</p>
+                  <div style={{ position: "absolute", left: 0, bottom: -7, height: 2, width: 78, background: tokens.gold, borderRadius: 9999 }} />
+                </div>
+                <h1
                   style={{
-                    background: tokens.primary,
-                    color: t.text.onPrimary,
-                    borderColor: tokens.primary,
-                    padding: "12px 24px",
-                    borderRadius: 6,
-                    fontSize: 14,
+                    fontFamily: SERIF,
                     fontWeight: 600,
-                  }}
-                >
-                  See our work
-                  <ArrowRight className="w-4 h-4" />
-                </PortfolioButton>
-                <PortfolioButton
-                  href={WHATSAPP_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    background: "transparent",
+                    fontSize: isMobile ? 30 : 44,
+                    lineHeight: 1.15,
+                    letterSpacing: "-0.02em",
                     color: t.text.primary,
-                    border: `1px solid ${t.border.medium}`,
-                    padding: "12px 24px",
-                    borderRadius: 6,
-                    fontSize: 14,
-                    fontWeight: 600,
+                    marginBottom: 20,
                   }}
                 >
-                  Let's talk
-                </PortfolioButton>
+                  You built a real business. Your brand should{" "}
+                  <span style={{ position: "relative", display: "inline-block", color: tokens.accent, fontStyle: "italic" }}>
+                    look like it.
+                    <img
+                      src="/img/branding/hero/headline-underline.svg"
+                      alt=""
+                      aria-hidden
+                      style={{ position: "absolute", left: 0, bottom: -6, width: "100%", height: "auto", pointerEvents: "none" }}
+                    />
+                  </span>
+                </h1>
+                <p style={{ fontFamily: BODY, fontSize: 15, lineHeight: 1.6, color: t.text.primary, maxWidth: 500, marginBottom: 20 }}>
+                  Somewhere between your first customer and your fortieth lakh a month, the business changed. The{" "}
+                  <strong style={{ fontWeight: 700 }}>logo</strong>, the <strong style={{ fontWeight: 700 }}>website</strong>, and the{" "}
+                  <strong style={{ fontWeight: 700 }}>pitch</strong> never did. <strong style={{ fontWeight: 700 }}>We close that gap,</strong> so
+                  your brand finally looks like what you actually built.
+                </p>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start", borderLeft: `3px solid ${tokens.gold}`, padding: "2px 0 2px 12px", marginBottom: 32, maxWidth: 520 }}>
+                  <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 15, color: t.text.primary, margin: 0, lineHeight: 1.55 }}>
+                    Every customer who <strong style={{ fontWeight: 700 }}>checks you out online</strong> before they call is quietly deciding
+                    if you're the real thing.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <CTAButton variant="primary" label="See our work →" href="/branding/work" />
+                  <CTAButton variant="outline" label="Let's talk" href={LETS_TALK_MAILTO} />
+                </div>
+                <p style={{ fontFamily: BODY, fontSize: 12, color: t.text.muted, marginTop: 12 }}>
+                  Prefer async?{" "}
+                  <a href={BRAND_BRIEF_MAILTO} style={{ color: t.text.urlLink, textDecoration: "underline" }}>
+                    Fill a brand brief
+                  </a>{" "}
+                  instead.
+                </p>
+              </motion.div>
+
+              <div>
+                <BeforeAfterCard
+                  beforeContent={slide.before}
+                  afterContent={slide.after}
+                  categoryLabel={slide.categoryLabel}
+                  proofCaption={slide.proofCaption}
+                  cardType={slide.cardType}
+                />
+                <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 16 }}>
+                  {CAROUSEL_SLIDES.map((s, index) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      aria-label={`Show ${s.categoryLabel} case`}
+                      aria-current={index === activeSlide}
+                      onClick={() => setActiveSlide(index)}
+                      style={{
+                        width: index === activeSlide ? 20 : 7,
+                        height: 7,
+                        borderRadius: 9999,
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                        background: index === activeSlide ? t.text.primary : t.border.medium,
+                        transition: `width ${motionTokens.durationFast} ${motionTokens.easeDefault}, background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+                      }}
+                    />
+                  ))}
+                </div>
+                <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: t.text.tertiary, textAlign: "center", marginTop: 8 }}>
+                  Real client work across categories, not just one vertical
+                </p>
               </div>
-              <p style={{ fontFamily: BODY, fontSize: 12, color: t.text.muted, marginTop: 12 }}>
-                Prefer async?{" "}
-                <a href="/branding/brand-identity-discovery" style={{ color: tokens.primary, textDecoration: "underline" }}>
-                  Fill a brand brief
-                </a>{" "}
-                instead.
-              </p>
-            </motion.div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 20,
+                padding: isMobile ? "32px 0" : "26px 0 36px",
+              }}
+            >
+              <FitPill
+                icon={
+                  <IconWrapper size={40} color={tokens.gold}>
+                    <ChartRupeeIcon />
+                  </IconWrapper>
+                }
+                title="Already scaling"
+                description="Built for owners doing ₹30L to ₹1Cr a month"
+              />
+              {!isMobile && <div style={{ width: 1, height: 109, background: t.border.default }} />}
+              <FitPill
+                icon={
+                  <IconWrapper size={40} color={tokens.gold}>
+                    <UserCog size={32} strokeWidth={1.5} />
+                  </IconWrapper>
+                }
+                title="Owner-run, any category"
+                description="Retail, clinics, events, real estate, services"
+              />
+              {!isMobile && <div style={{ width: 1, height: 109, background: t.border.default }} />}
+              <FitPill
+                icon={
+                  <IconWrapper size={40} color={tokens.gold}>
+                    <Trophy size={32} strokeWidth={1.5} />
+                  </IconWrapper>
+                }
+                title="The credibility gap"
+                description="Real revenue, not yet a real brand"
+              />
+            </div>
           </div>
         </section>
 
