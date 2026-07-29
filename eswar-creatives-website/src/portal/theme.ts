@@ -19,6 +19,7 @@ export const tokens = {
   tealLight:  '#EAF3F3',
   ruby:       '#B00D2D',
   rubyLight:  '#FCE9EE',
+  dangerText: '#ee98a8',  // Figma: state/danger-text (teal primitive scale equivalent to be confirmed)
   green:      '#1B5E20',
   greenLight: '#E6F4EA',
   inputBg:    '#FAF8F4',
