@@ -13,15 +13,21 @@ export const tokens = {
   accent:     '#007872',  // teal-mid
   gold:       '#D5B067',
   goldDark:   '#8B6200',
-  goldLight:  '#FDF6E8',
+  goldLight:  '#FAF4EA',  // Figma: brand/accent-subtle, status/sent-bg (gold.50)
   text:       '#0A1A1B',
   textMuted:  '#3D6163',
-  tealLight:  '#EAF3F3',
+  tealLight:  '#E0F7F6',  // Figma: brand/primary-tint-subtle, status/viewed-bg, phase/1-bg (teal.50)
   ruby:       '#B00D2D',
-  rubyLight:  '#FCE9EE',
-  dangerText: '#ee98a8',  // Figma: state/danger-text (teal primitive scale equivalent to be confirmed)
-  green:      '#1B5E20',
-  greenLight: '#E6F4EA',
+  rubyLight:  '#FCEEF1',  // Figma: state/danger-subtle, status/declined-bg, phase/3-bg (ruby.50)
+  // Figma's state/danger-text switches by mode: Light = {ruby.700} #820026 (dark
+  // maroon, meant for on-light error copy), Dark = {ruby.300} #ee98a8 (this
+  // value). Our actual usage is a caption on a permanently-dark card panel, so
+  // the Dark-mode value is correct here — the Light value would be unreadable
+  // on that panel. Figma has no mode-independent "on-dark danger text" token;
+  // flagged for Eswar to add one if this role recurs.
+  dangerText: '#ee98a8',  // Figma: state/danger-text (Dark mode) / ruby.300
+  green:      '#1B6B4A',  // Figma: state/success, border/success, status/accepted-text (success.600)
+  greenLight: '#E8F8F0',  // Figma: state/success-subtle, status/accepted-bg, status/paid-bg (success.50)
   inputBg:    '#FAF8F4',
 } as const
 
@@ -35,16 +41,22 @@ export const tokens = {
 //     elements: CTAs, links, active nav, selected states, focus rings.
 export const t = {
   text: {
-    primary:      '#1A1A1A',  // body text, headings, labels
+    primary:      '#111111',  // body text, headings, labels — Figma text/primary (neutral.900)
     primaryBrand: '#024C4F',  // interactive only: CTAs, links, active nav
-    secondary:    '#4B5563',  // supporting text, subtitles
-    tertiary:     '#6B7280',  // placeholder text, hints
-    muted:        '#9CA3AF',  // timestamps, helper text, captions
-    disabled:     '#D1D5DB',  // disabled state text
+    secondary:    '#555555',  // supporting text, subtitles — Figma text/secondary (neutral.600)
+    tertiary:     '#717171',  // placeholder text, hints — Figma text/tertiary (neutral.500)
+    muted:        '#888888',  // timestamps, helper text, captions — Figma text/muted (neutral.450)
+    disabled:     '#AAAAAA',  // disabled state text — Figma text/disabled (neutral.350)
     inverse:      '#FFFFFF',  // text on dark backgrounds
     onPrimary:    '#FFFFFF',  // text on teal primary buttons
-    onAccent:     '#FFFFFF',  // text on accent fills
-    urlLink:      '#024C4F',  // hyperlinks only
+    onAccent:     '#4A2A00',  // text on gold accent fills — Figma text/on-accent (gold.800); was #FFFFFF (unused, low contrast on gold)
+    urlLink:      '#024C4F',  // hyperlinks only — deliberate teal-not-blue override (design-system decision); Figma text/url-link is Blue.500 #0a66c2
+    // "On-dark" text roles: for content on permanently-dark surfaces (e.g. the
+    // BeforeAfterCard Before panel) within an otherwise light-mode app.
+    onDarkPrimary:   'rgba(244,245,247,0.90)',  // Figma text/on-dark-primary
+    onDarkSecondary: 'rgba(223,225,228,0.65)',  // Figma text/on-dark-secondary
+    onDarkTertiary:  'rgba(220,221,224,0.60)',  // Figma text/on-dark-tertiary
+    onDarkMuted:     'rgba(234,235,238,0.74)',  // Figma text/on-dark-muted
   },
   border: {
     // Overlay-based neutral scale: semi-transparent near-black so borders keep
@@ -61,17 +73,25 @@ export const t = {
     overlay:            'rgba(10,10,23,0.20)',  // standard overlay border
     overlayExtraStrong: 'rgba(10,10,23,0.30)',  // high contrast overlay edge
     brand:              '#024C4F',              // active/selected states only
-    danger:             '#C0392B',              // error states
-    success:            '#1B5E20',              // success states
+    danger:             '#B00D2D',              // error states — Figma border/danger (ruby.600)
+    success:            '#1B6B4A',              // success states — Figma border/success (success.600)
+    // Warning still reuses the gold/accent hue rather than Figma's dedicated
+    // warning primitive scale (border/warning = warning.500 = #C45C00, a
+    // saturated orange). This app has never had a distinct warning colour
+    // family; flagged for Eswar to confirm before repointing the 3 live
+    // usages (DeleteProposalModal, DeleteInvoiceModal, CandidateCard).
     warning:            '#D5B067',              // warning states
+    // "On-dark" border roles: for content on permanently-dark surfaces.
+    onDark:             'rgba(210,212,217,0.24)',  // Figma border/on-dark
+    onDarkSubtle:       'rgba(210,212,217,0.30)',  // Figma border/on-dark-subtle
   },
   background: {
     page:           '#FAF8F4',              // page background
-    subtle:         '#F9FAFB',              // subtle section bg
-    muted:          '#F3F4F6',              // muted fills
+    subtle:         '#FAFAF9',              // subtle section bg — Figma background/subtle (neutral.10)
+    muted:          '#F5F5F4',              // muted fills — Figma background/muted (neutral.50)
     surface:        '#FFFFFF',              // card/panel surfaces
-    raised:         '#FFFFFF',              // elevated cards
-    sunken:         '#F3F4F6',              // inset areas
+    raised:         '#FAFAF9',              // elevated cards — Figma background/raised (neutral.10)
+    sunken:         '#F5F5F4',              // inset areas — Figma background/sunken (neutral.50)
     tint1:          'rgba(2,76,79,0.04)',   // tinted fills
     tint2:          'rgba(2,76,79,0.08)',
     tint3:          'rgba(2,76,79,0.12)',
@@ -86,6 +106,14 @@ export const t = {
     // a near-black stage, so these read as a soft grey instead.
     overlayLight:       'rgba(255,255,255,0.06)',
     overlayLightStrong: 'rgba(255,255,255,0.12)',
+    // Permanently-dark surfaces (cards, panels) within an otherwise light-mode
+    // app — e.g. the BeforeAfterCard Before panel.
+    dark1:      '#555555',  // Figma background/dark-1 (neutral.600)
+    dark2:      '#3A3A3A',  // Figma background/dark-2 (neutral.700)
+    dark3:      '#222222',  // Figma background/dark-3 (neutral.800)
+    // Warm-cream card surfaces, distinct from the page's own cream (page/inputBg).
+    cardWarm:   '#F5F0E6',  // Figma background/card-warm (warm.50)
+    subtleWarm: '#E8DCC4',  // Figma background/subtle-warm (warm.200)
   },
 } as const
 
@@ -116,7 +144,7 @@ export const statusPalette: Record<
   'draft' | 'sent' | 'viewed' | 'accepted' | 'declined',
   { bg: string; fg: string; label: string }
 > = {
-  draft:    { bg: '#F0EEEA',         fg: tokens.textMuted, label: 'Draft' },
+  draft:    { bg: '#F5F5F4',         fg: tokens.textMuted, label: 'Draft' },  // bg: Figma status/draft-bg (neutral.50)
   sent:     { bg: tokens.goldLight,  fg: tokens.goldDark,  label: 'New' },
   viewed:   { bg: tokens.tealLight,  fg: tokens.primary,   label: 'Reviewing' },
   accepted: { bg: tokens.greenLight, fg: tokens.green,     label: 'Accepted' },

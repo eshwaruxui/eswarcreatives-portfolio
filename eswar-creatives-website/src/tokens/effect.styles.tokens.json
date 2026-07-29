@@ -1,0 +1,307 @@
+{
+  "Elevation Dark": {
+    "light600": {
+      "$type": "shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "0px",
+          "spread": "1px",
+          "color": "#0000001f",
+          "inset": true
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "8px",
+          "blur": "12px",
+          "spread": "0px",
+          "color": "#1b1c1e1a"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "20px",
+          "blur": "40px",
+          "spread": "0px",
+          "color": "#1b1c1e33"
+        }
+      ]
+    },
+    "light500": {
+      "$type": "shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "0px",
+          "spread": "1px",
+          "color": "#0000001f",
+          "inset": true
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "4px",
+          "blur": "8px",
+          "spread": "0px",
+          "color": "#1b1c1e17"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "12px",
+          "blur": "24px",
+          "spread": "0px",
+          "color": "#1b1c1e29"
+        }
+      ]
+    },
+    "light400": {
+      "$type": "shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "0px",
+          "spread": "1px",
+          "color": "#0000001f",
+          "inset": true
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "2px",
+          "blur": "4px",
+          "spread": "0px",
+          "color": "#1b1c1e14"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "8px",
+          "blur": "16px",
+          "spread": "0px",
+          "color": "#1b1c1e24"
+        }
+      ]
+    },
+    "light300": {
+      "$type": "shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "0px",
+          "spread": "1px",
+          "color": "#0000001f",
+          "inset": true
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "1px",
+          "blur": "2px",
+          "spread": "0px",
+          "color": "#1b1c1e12"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "4px",
+          "blur": "8px",
+          "spread": "0px",
+          "color": "#1b1c1e1f"
+        }
+      ]
+    },
+    "light200": {
+      "$type": "shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "0px",
+          "spread": "1px",
+          "color": "#0000001f",
+          "inset": true
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "2px",
+          "spread": "0px",
+          "color": "#1b1c1e12"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "2px",
+          "blur": "4px",
+          "spread": "0px",
+          "color": "#1b1c1e1a"
+        }
+      ]
+    },
+    "light100": {
+      "$type": "shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "0px",
+          "spread": "1px",
+          "color": "#0000001f",
+          "inset": true
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "1px",
+          "spread": "0px",
+          "color": "#1b1c1e0f"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "1px",
+          "blur": "2px",
+          "spread": "0px",
+          "color": "#1b1c1e14"
+        }
+      ]
+    }
+  },
+  "Elevation Light": {
+    "shadow-sm": {
+      "$type": "shadow",
+      "$description": "Light mode · Tailwind-scale · brand-tinted teal shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "1px",
+          "blur": "2px",
+          "spread": "0px",
+          "color": "#0204040d"
+        }
+      ]
+    },
+    "Shadow": {
+      "$type": "shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "1px",
+          "blur": "2px",
+          "spread": "-1px",
+          "color": "#0204041a"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "1px",
+          "blur": "3px",
+          "spread": "0px",
+          "color": "#0000001a"
+        }
+      ]
+    },
+    "shadow-md": {
+      "$type": "shadow",
+      "$description": "Light mode · Tailwind-scale · brand-tinted teal shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "4px",
+          "blur": "6px",
+          "spread": "-1px",
+          "color": "#02040412"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "2px",
+          "blur": "4px",
+          "spread": "-1px",
+          "color": "#0204040f"
+        }
+      ]
+    },
+    "shadow-lg": {
+      "$type": "shadow",
+      "$description": "Light mode · Tailwind-scale · brand-tinted teal shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "4px",
+          "blur": "6px",
+          "spread": "-4px",
+          "color": "#0204041a"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "10px",
+          "blur": "15px",
+          "spread": "-3px",
+          "color": "#0204041a"
+        }
+      ]
+    },
+    "shadow-xl": {
+      "$type": "shadow",
+      "$description": "Light mode · Tailwind-scale · brand-tinted teal shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "8px",
+          "blur": "10px",
+          "spread": "-6px",
+          "color": "#0204041f"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "20px",
+          "blur": "25px",
+          "spread": "-5px",
+          "color": "#0204041a"
+        }
+      ]
+    },
+    "shadow-2xl": {
+      "$type": "shadow",
+      "$description": "Light mode · Tailwind-scale · brand-tinted teal shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "25px",
+          "blur": "50px",
+          "spread": "-12px",
+          "color": "#02040440"
+        }
+      ]
+    },
+    "shadow-inner": {
+      "$type": "shadow",
+      "$description": "Light mode · Tailwind-scale · brand-tinted teal shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "2px",
+          "blur": "4px",
+          "spread": "0px",
+          "color": "#0204040f",
+          "inset": true
+        }
+      ]
+    },
+    "focus-ring": {
+      "$type": "shadow",
+      "$description": "Light mode · Tailwind-scale · brand-tinted teal shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "0px",
+          "spread": "2px",
+          "color": "#005f5859"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "6px",
+          "spread": "3px",
+          "color": "#005f5833"
+        }
+      ]
+    }
+  }
+}
