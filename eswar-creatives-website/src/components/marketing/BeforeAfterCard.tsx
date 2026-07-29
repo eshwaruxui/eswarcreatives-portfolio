@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { t, tokens } from "../../portal/theme";
 
 export type BeforeAfterCardType = "redesign" | "new-build";
@@ -14,17 +14,6 @@ interface BeforeAfterCardProps {
 const MONO = "'SF Mono', monospace";
 const BODY = "'Inter', system-ui, -apple-system, sans-serif";
 
-// A handful of roles in this card have no equivalent in src/portal/theme.ts
-// (which only covers portal light-surface UI, not a dark before/after
-// showcase panel). These are bound directly to the values get_design_context
-// returned for node 4379:1453, named after their Figma token, rather than
-// inventing new hex — flagged per COMPONENT LOCATION instructions.
-const FIGMA_ONLY = {
-  cardDarkBg: "#222222", // background/dark-3 — BEFORE / STARTING POINT panel
-  borderOnDark: "rgba(210,212,217,0.24)", // border/on-dark — proof caption border
-  textOnDarkMuted: "rgba(234,235,238,0.74)", // text/on-dark-muted — proof caption body
-} as const;
-
 // ProcessStageLabel (node 4422:5901) ships 4 variants keyed by project type:
 // Before/After for a redesign, Starting Point/Output for a from-scratch
 // build. The proof box's label follows the same split (Cost vs Proof). Do
@@ -35,25 +24,40 @@ const VARIANT_LABELS: Record<BeforeAfterCardType, { before: string; after: strin
   "new-build": { before: "STARTING POINT", after: "OUTPUT", proof: "PROOF" },
 };
 
+// Exact path from node 4422:5901's ProcessStageLabel background vector — a
+// hand-drawn corner-bracket frame, not a solid rounded pill. preserveAspectRatio
+// "none" matches Figma's own non-uniform stretch so the brackets always reach
+// the pill's actual rendered edges regardless of label text length.
+function LabelBracket({ color }: { color: string }) {
+  return (
+    <svg
+      aria-hidden
+      width="100%"
+      height="100%"
+      viewBox="0 0 97.387 34.8992"
+      preserveAspectRatio="none"
+      fill="none"
+      style={{ position: "absolute", inset: 0 }}
+    >
+      <path
+        d="M97.0064 3.28325H0.38M97.007 31.6237H1.74859M4.65203 0.38V34.5192M94.1034 0.38V34.5192"
+        stroke={color}
+        strokeWidth={0.76}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function StageLabelPill({ label, tone }: { label: string; tone: "on-dark" | "on-light" }) {
   const isOnDark = tone === "on-dark";
   return (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "10px 18px",
-        borderRadius: 9999, // radius/component-full
-        // border-width has no literal Figma token — the source badge is a
-        // vector asset, not a CSS border. 1.5px chosen so the outline reads
-        // with visible weight per design QA, up from the earlier 1px.
-        border: `1.5px solid ${isOnDark ? FIGMA_ONLY.borderOnDark : t.border.medium}`,
-        background: isOnDark ? "rgba(255,255,255,0.04)" : "transparent",
-      }}
-    >
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 18px" }}>
+      <LabelBracket color={isOnDark ? t.border.onDark : t.border.overlayExtraStrong} />
       <p
         style={{
+          position: "relative",
           margin: 0,
           fontFamily: BODY,
           fontWeight: 600,
@@ -76,7 +80,7 @@ function ProofBox({ label, caption }: { label: string; caption: string }) {
       style={{
         width: "100%",
         maxWidth: 220,
-        border: `1px solid ${FIGMA_ONLY.borderOnDark}`,
+        border: `1px solid ${t.border.onDark}`,
         borderRadius: 8,
         padding: "11px 13px",
       }}
@@ -94,10 +98,29 @@ function ProofBox({ label, caption }: { label: string; caption: string }) {
       >
         {label}
       </p>
-      <p style={{ margin: 0, fontFamily: BODY, fontSize: 13, lineHeight: "18px", color: FIGMA_ONLY.textOnDarkMuted }}>{caption}</p>
+      <p style={{ margin: 0, fontFamily: BODY, fontSize: 13, lineHeight: "18px", color: t.text.onDarkMuted }}>{caption}</p>
     </div>
   );
 }
+
+// Exact backdrop layers from node 4424:6945 (Rectangle15/14/13) — soft blurred
+// card silhouettes fanned out behind the main card. Positions/rotations are
+// ported directly from Figma's outer wrapper transforms (measured against its
+// 560px-wide reference card); they read as a subtle bleed at any card width.
+const STACK_LAYERS: { src: string; style: CSSProperties }[] = [
+  {
+    src: "/img/branding/hero/stack-rect-15.svg",
+    style: { position: "absolute", left: -44.86, top: -27.85, width: 613.679, height: 479.542, transform: "rotate(-7.19deg) skewX(-0.13deg)" },
+  },
+  {
+    src: "/img/branding/hero/stack-rect-14.svg",
+    style: { position: "absolute", left: -31.59, top: -30, width: 571.922, height: 424.795, transform: "rotate(-7.19deg) skewX(-0.13deg)" },
+  },
+  {
+    src: "/img/branding/hero/stack-rect-13.svg",
+    style: { position: "absolute", left: -18.18, top: -22.06, width: 573.626, height: 442.316, transform: "rotate(-4.29deg) skewX(-0.08deg)" },
+  },
+];
 
 export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, proofCaption, cardType }: BeforeAfterCardProps) {
   const labels = VARIANT_LABELS[cardType];
@@ -106,34 +129,9 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
   return (
     <div style={{ width: "100%" }}>
       <div style={{ position: "relative" }}>
-        {/* Stacked-deck backdrop: two layers offset down-right with reduced
-            opacity, approximating the fanned photo stack in the Figma comp
-            (Rectangle13/14/15, node 4424:6945) without pulling in 3 large
-            rotated photo assets for a purely decorative backdrop. */}
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: 16,
-            background: t.background.surface,
-            border: `1px solid ${t.border.subtle}`,
-            opacity: 0.35,
-            transform: "translate(14px, 14px)",
-          }}
-        />
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: 16,
-            background: t.background.surface,
-            border: `1px solid ${t.border.subtle}`,
-            opacity: 0.6,
-            transform: "translate(7px, 7px)",
-          }}
-        />
+        {STACK_LAYERS.map((layer) => (
+          <img key={layer.src} src={layer.src} alt="" aria-hidden style={layer.style} />
+        ))}
 
         <div
           style={{
@@ -150,7 +148,7 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
           {hasBeforePanel && (
             <div
               style={{
-                background: FIGMA_ONLY.cardDarkBg,
+                background: t.background.dark3,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -159,10 +157,12 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
               }}
             >
               <StageLabelPill label={labels.before} tone="on-dark" />
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, width: "100%" }}>
-                {beforeContent}
+              <div style={{ flex: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+                  {beforeContent}
+                </div>
+                {proofCaption && <ProofBox label={labels.proof} caption={proofCaption} />}
               </div>
-              {proofCaption && <ProofBox label={labels.proof} caption={proofCaption} />}
             </div>
           )}
 
@@ -178,19 +178,20 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
             }}
           >
             <StageLabelPill label={labels.after} tone="on-light" />
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, width: "100%" }}>
-              {afterContent}
+            <div style={{ flex: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+                {afterContent}
+              </div>
+              {!hasBeforePanel && proofCaption && <ProofBox label={labels.proof} caption={proofCaption} />}
             </div>
-            {!hasBeforePanel && proofCaption && <ProofBox label={labels.proof} caption={proofCaption} />}
           </div>
 
           {hasBeforePanel && (
             <div
               style={{
                 position: "absolute",
-                left: "43%",
-                top: "50%",
-                transform: "translate(-50%, -50%)",
+                left: "calc(50% - 36px)",
+                top: "calc(50% - 41px)",
                 width: 34,
                 height: 34,
                 borderRadius: 16,
@@ -211,8 +212,8 @@ export function BeforeAfterCard({ beforeContent, afterContent, categoryLabel, pr
 
       {/* Per-card category chip only makes sense for placeholder/new-build
           slides that have nothing else identifying them — the real Newgen
-          redesign slide already carries its category via the hero caption
-          below the dots, so showing it twice reads as redundant. */}
+          redesign slide carries its category via the Figma-matched
+          category/social-proof footer the page renders alongside it. */}
       {cardType === "new-build" && (
         <p
           style={{

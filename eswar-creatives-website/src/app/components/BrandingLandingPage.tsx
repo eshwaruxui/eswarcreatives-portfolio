@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
-import { ArrowRight, Check, TrendingUp, UserCog, Trophy } from "lucide-react";
+import { ArrowRight, Check, ExternalLink, TrendingUp, UserCog, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 import { PortfolioButton } from "./ui/portfolio-button";
 import { LandingNav } from "../../components/LandingNav";
@@ -17,11 +17,6 @@ const RETAINER_WHATSAPP_URL =
 const BRAND_BRIEF_MAILTO = "mailto:eswar@eswarcreatives.in?subject=Brand%20brief";
 const LETS_TALK_MAILTO = "mailto:eswar@eswarcreatives.in?subject=Let%27s%20talk%20about%20my%20brand";
 
-// background/subtle-warm (#e8dcc4) — vertical tab strip on the Newgen AFTER
-// panel. No equivalent in theme.ts (portal tokens don't cover this warm-tab
-// role), bound directly from the Figma variable per node 4379:1453.
-const VERTICAL_TAB_BG = "#e8dcc4";
-
 type CarouselSlide = {
   id: string;
   cardType: BeforeAfterCardType;
@@ -29,6 +24,10 @@ type CarouselSlide = {
   proofCaption?: string;
   before?: ReactNode;
   after: ReactNode;
+  // Exact Figma "Footer section" (node 4424:6945): brand name + category +
+  // an Instagram social-proof link. Only slides with a real, shipped case
+  // study carry this — placeholders fall back to the generic caption below.
+  footer?: { brandName: string; category: string; socialProofUrl?: string };
 };
 
 function ChecklistItem({ text }: { text: string }) {
@@ -49,7 +48,7 @@ function VerticalTab({ label }: { label: string }) {
         right: 0,
         top: "50%",
         transform: "translateY(-50%)",
-        background: VERTICAL_TAB_BG,
+        background: t.background.subtleWarm,
         borderRadius: "8px 0 0 8px",
         padding: "12px 4px",
       }}
@@ -112,6 +111,11 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     cardType: "redesign",
     categoryLabel: "Events",
     proofCaption: "Looks dated. Feels untrustworthy. Blends in.",
+    footer: {
+      brandName: "Newgen Event Studio",
+      category: "Corporate Events category",
+      socialProofUrl: "https://www.instagram.com/p/DbC4-mUS_DB/",
+    },
     before: (
       <>
         <img
@@ -146,7 +150,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
           <ChecklistItem text="Built for scale across every touchpoint." />
           <ChecklistItem text="Instantly communicates trust." />
         </div>
-        <VerticalTab label="STRATEGY · DESIGN · IMPACT" />
+        <VerticalTab label="STRATEGY  ·  DESIGN  ·  IMPACT" />
       </>
     ),
   },
@@ -277,7 +281,7 @@ export function BrandingLandingPage() {
             >
               <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.25, 0.46, 0.45, 0.94] }}>
                 <div style={{ position: "relative", display: "inline-block", marginBottom: 16 }}>
-                  <p style={{ ...eyebrow, color: tokens.goldDark, margin: 0 }}>Branding for established Indian businesses</p>
+                  <p style={{ ...eyebrow, color: tokens.goldDark, margin: 0 }}>Branding for growing Indian businesses</p>
                   <div style={{ position: "absolute", left: 0, bottom: -7, height: 2, width: 78, background: tokens.gold, borderRadius: 9999 }} />
                 </div>
                 <h1
@@ -335,7 +339,25 @@ export function BrandingLandingPage() {
                   proofCaption={slide.proofCaption}
                   cardType={slide.cardType}
                 />
-                <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 16 }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", marginTop: 16 }}>
+                  <span
+                    aria-hidden
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      background: t.text.primary,
+                      color: t.text.inverse,
+                      borderRadius: 9999,
+                      padding: "4px 8px",
+                      fontFamily: BODY,
+                      fontWeight: 600,
+                      fontSize: 12,
+                      lineHeight: "14px",
+                      marginRight: 2,
+                    }}
+                  >
+                    {activeSlide + 1}/{CAROUSEL_SLIDES.length}
+                  </span>
                   {CAROUSEL_SLIDES.map((s, index) => (
                     <button
                       key={s.id}
@@ -356,9 +378,38 @@ export function BrandingLandingPage() {
                     />
                   ))}
                 </div>
-                <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: t.text.tertiary, textAlign: "center", marginTop: 8 }}>
-                  Real client work across categories, not just one vertical
-                </p>
+                {slide.footer ? (
+                  <div style={{ marginTop: 16, textAlign: "center" }}>
+                    <p style={{ margin: 0, fontFamily: BODY, fontStyle: "italic", fontSize: 15, letterSpacing: "-0.23px", color: t.text.tertiary }}>
+                      Real client logo for <strong style={{ fontWeight: 700 }}>{slide.footer.brandName}</strong> {slide.footer.category}
+                    </p>
+                    {slide.footer.socialProofUrl && (
+                      <a
+                        href={slide.footer.socialProofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          marginTop: 6,
+                          fontFamily: BODY,
+                          fontStyle: "italic",
+                          fontSize: 15,
+                          letterSpacing: "-0.23px",
+                          color: t.text.tertiary,
+                          textDecoration: "underline",
+                        }}
+                      >
+                        social proof <ExternalLink size={13} />
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: t.text.tertiary, textAlign: "center", marginTop: 16 }}>
+                    Real client work across categories, not just one vertical
+                  </p>
+                )}
               </div>
             </div>
 
