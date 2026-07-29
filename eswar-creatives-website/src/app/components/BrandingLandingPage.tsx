@@ -440,53 +440,45 @@ export function BrandingLandingPage() {
               </div>
             </div>
 
-            <div style={{ padding: isMobile ? "32px 0 40px" : "26px 0 48px" }}>
-              <div
-                style={{
-                  background: t.background.surface,
-                  border: `1px solid ${t.border.subtle}`,
-                  borderRadius: 20,
-                  // Neutral drop shadow — same rgb base as the t.border.* overlay
-                  // scale (rgba(10,10,23,X)), no dedicated shadow token exists yet.
-                  boxShadow: "0 4px 16px rgba(10,10,23,0.06)",
-                  padding: isMobile ? "32px 20px" : "44px 40px",
-                  display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 20,
-                }}
-              >
-                <FitPill
-                  icon={
-                    <IconWrapper size={56} color={tokens.gold}>
-                      <GrowthIcon />
-                    </IconWrapper>
-                  }
-                  title="Already scaling"
-                  description="Built for owners doing ₹30L to ₹1Cr a month"
-                />
-                {!isMobile && <div style={{ width: 1, height: 109, background: t.border.default }} />}
-                <FitPill
-                  icon={
-                    <IconWrapper size={56} color={tokens.gold}>
-                      <TeamIcon />
-                    </IconWrapper>
-                  }
-                  title="Owner-run, any category"
-                  description="Retail, clinics, events, real estate, services"
-                />
-                {!isMobile && <div style={{ width: 1, height: 109, background: t.border.default }} />}
-                <FitPill
-                  icon={
-                    <IconWrapper size={56} color={tokens.gold}>
-                      <TrophyIcon />
-                    </IconWrapper>
-                  }
-                  title="The credibility gap"
-                  description="Real revenue, not yet a real brand"
-                />
-              </div>
+            <div
+              style={{
+                padding: isMobile ? "32px 0 40px" : "26px 0 48px",
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 20,
+              }}
+            >
+              <FitPill
+                icon={
+                  <IconWrapper size={56} color={tokens.gold}>
+                    <GrowthIcon />
+                  </IconWrapper>
+                }
+                title="Already scaling"
+                description="Built for owners doing ₹30L to ₹1Cr a month"
+              />
+              {!isMobile && <div style={{ width: 1, height: 109, background: t.border.default }} />}
+              <FitPill
+                icon={
+                  <IconWrapper size={56} color={tokens.gold}>
+                    <TeamIcon />
+                  </IconWrapper>
+                }
+                title="Owner-run, any category"
+                description="Retail, clinics, events, real estate, services"
+              />
+              {!isMobile && <div style={{ width: 1, height: 109, background: t.border.default }} />}
+              <FitPill
+                icon={
+                  <IconWrapper size={56} color={tokens.gold}>
+                    <TrophyIcon />
+                  </IconWrapper>
+                }
+                title="The credibility gap"
+                description="Real revenue, not yet a real brand"
+              />
             </div>
           </div>
         </section>
