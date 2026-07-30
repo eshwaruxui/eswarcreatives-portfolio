@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
 import { ArrowRight, ExternalLink } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { PortfolioButton } from "./ui/portfolio-button";
 import { LandingNav } from "../../components/LandingNav";
 import { useBreakpoint } from "../../portal/hooks/useBreakpoint";
@@ -57,12 +57,36 @@ function ChecklistItem({ text }: { text: string }) {
   );
 }
 
-// Figma's Pagination component (variants Page 1..6): a numbered badge with
-// up to 4 satellite dots, split before/after the badge. The dot immediately
-// adjacent to the badge is large or "near" (7x7); anything one step further
-// is small/"far" (4x4) — not one uniform dot per page.
-function PaginationDot({ near }: { near: boolean }) {
-  const size = near ? 7 : 4;
+// Sliding-window pagination row: 5 fixed slots (4 dots + 1 badge), badge
+// slides between them via getBadgeSlot(). Dot sizes are the Figma Pagination
+// dot group's md/lg tiers (file 0SGbENUggpj9Fe6NebJ9QM, node 4306:13020) —
+// "small" = md (8px), "big" = lg (10px) — not arbitrary px guesses.
+const DOT_SIZE_BIG = 10;
+const DOT_SIZE_SMALL = 8;
+
+// framer-motion's `transition` prop needs raw seconds + bezier control
+// points, not the CSS ms/cubic-bezier() strings theme.ts exports. These
+// mirror motionTokens.durationBase (200ms) and motionTokens.easeEnter (the
+// standard Material "decelerate/ease-out" curve) exactly — do not introduce
+// a new duration or easing constant.
+const PAGINATION_DURATION_S = 0.2; // motionTokens.durationBase
+const PAGINATION_EASE_OUT: [number, number, number, number] = [0, 0, 0.2, 1]; // motionTokens.easeEnter
+
+// current is 0-indexed. Badge sits at slot 0/1 for the first two slides,
+// mirrors to slot 3/4 for the last two, and holds steady at slot 2 for
+// everything in between. Never hardcode the slide count here — total is
+// always the live slides array length.
+function getBadgeSlot(current: number, total: number): number {
+  if (current === 0) return 0;
+  if (current === 1) return 1;
+  if (current === total - 2) return 3;
+  if (current === total - 1) return 4;
+  return 2;
+}
+
+function PaginationDot({ big, reducedMotion }: { big: boolean; reducedMotion: boolean }) {
+  const size = big ? DOT_SIZE_BIG : DOT_SIZE_SMALL;
+  const transitionCss = `width ${motionTokens.durationBase} ${motionTokens.easeEnter}, height ${motionTokens.durationBase} ${motionTokens.easeEnter}, background ${motionTokens.durationBase} ${motionTokens.easeEnter}`;
   return (
     <span
       aria-hidden
@@ -71,8 +95,9 @@ function PaginationDot({ near }: { near: boolean }) {
         width: size,
         height: size,
         borderRadius: "50%",
-        background: near ? t.border.strong : t.border.medium,
+        background: big ? t.border.strong : t.border.medium,
         flexShrink: 0,
+        transition: reducedMotion ? "none" : transitionCss,
       }}
     />
   );
@@ -511,15 +536,11 @@ export function BrandingLandingPage() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const slide = CAROUSEL_SLIDES[activeSlide];
-  // Pagination sizing per Figma: the 2 dots nearest the active badge (by
-  // distance, combined across both sides) are "big"; any beyond that are
-  // "small" — not simply "immediate neighbor big, everything else small".
-  const bigDotIndices = new Set(
-    CAROUSEL_SLIDES.map((_, i) => i)
-      .filter((i) => i !== activeSlide)
-      .sort((a, b) => Math.abs(a - activeSlide) - Math.abs(b - activeSlide))
-      .slice(0, 2)
-  );
+  const reducedMotion = !!useReducedMotion();
+  // Sliding-window pagination: 5 fixed slots (4 dots + badge). badgeSlot is
+  // 0/1 for the first two slides, 3/4 mirrored for the last two, and 2
+  // (steady middle) everywhere else — see getBadgeSlot.
+  const badgeSlot = getBadgeSlot(activeSlide, CAROUSEL_SLIDES.length);
 
   // Auto-advance, matching the reference recording's confirmed dwell time
   // (content held steady for 4s+ per slide there) — 5s here, looping, paused
@@ -668,50 +689,53 @@ export function BrandingLandingPage() {
                     />
                   </motion.div>
                 </AnimatePresence>
-                <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", marginTop: 16 }}>
-                  {CAROUSEL_SLIDES.map((s, index) =>
-                    index < activeSlide ? (
+                <div style={{ position: "relative", display: "flex", gap: 6, alignItems: "center", justifyContent: "center", marginTop: 16 }}>
+                  {[0, 1, 2, 3, 4].map((slot) => {
+                    if (slot === badgeSlot) {
+                      return (
+                        <motion.span
+                          key="pagination-badge"
+                          layout
+                          aria-label={`${activeSlide + 1} of ${CAROUSEL_SLIDES.length}`}
+                          transition={reducedMotion ? { duration: 0 } : { duration: PAGINATION_DURATION_S, ease: PAGINATION_EASE_OUT }}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            background: t.text.primary,
+                            color: t.text.inverse,
+                            borderRadius: 9999,
+                            padding: "4px 8px",
+                            fontFamily: BODY,
+                            fontWeight: 600,
+                            fontSize: 12,
+                            lineHeight: "14px",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {activeSlide + 1}/{CAROUSEL_SLIDES.length}
+                        </motion.span>
+                      );
+                    }
+                    // Distance from the badge slot drives size: immediate
+                    // neighbours are always big; the far side of an edge
+                    // badge (slot 0 or 4) is also big, matching the fixed
+                    // "2 big + 2 small" read at every position.
+                    const distance = Math.abs(slot - badgeSlot);
+                    const big = distance === 1 || (distance === 2 && (badgeSlot === 0 || badgeSlot === 4));
+                    const index = activeSlide + (slot - badgeSlot);
+                    return (
                       <button
-                        key={s.id}
+                        key={`slot-${slot}`}
                         type="button"
-                        aria-label={`Show ${s.categoryLabel} case`}
+                        aria-hidden="true"
+                        tabIndex={-1}
                         onClick={() => setActiveSlide(index)}
                         style={{ border: "none", padding: 4, margin: -4, background: "transparent", cursor: "pointer" }}
                       >
-                        <PaginationDot near={bigDotIndices.has(index)} />
+                        <PaginationDot big={big} reducedMotion={reducedMotion} />
                       </button>
-                    ) : null
-                  )}
-                  <span
-                    aria-hidden
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      background: t.text.primary,
-                      color: t.text.inverse,
-                      borderRadius: 9999,
-                      padding: "4px 8px",
-                      fontFamily: BODY,
-                      fontWeight: 600,
-                      fontSize: 12,
-                      lineHeight: "14px",
-                    }}
-                  >
-                    {activeSlide + 1}/{CAROUSEL_SLIDES.length}
-                  </span>
-                  {CAROUSEL_SLIDES.map((s, index) =>
-                    index > activeSlide ? (
-                      <button
-                        key={s.id}
-                        type="button"
-                        aria-label={`Show ${s.categoryLabel} case`}
-                        onClick={() => setActiveSlide(index)}
-                        style={{ border: "none", padding: 4, margin: -4, background: "transparent", cursor: "pointer" }}
-                      >
-                        <PaginationDot near={bigDotIndices.has(index)} />
-                      </button>
-                    ) : null
-                  )}
+                    );
+                  })}
                 </div>
                 {slide.footer ? (
                   <div style={{ marginTop: 16, textAlign: "center" }}>
