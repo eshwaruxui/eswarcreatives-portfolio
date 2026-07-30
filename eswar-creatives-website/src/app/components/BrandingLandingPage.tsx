@@ -161,10 +161,12 @@ const BUILD_FROM_SCRATCH = (
 );
 
 // Real client logos ("assets and visuals/img/branding/before after section/
-// brand logos"), all sharing the same 270x178 source viewBox — rendered at a
-// consistent display width so the Output panel reads evenly slide to slide.
-function ClientLogo({ src, alt }: { src: string; alt: string }) {
-  return <img src={src} alt={alt} style={{ width: 180, height: "auto" }} />;
+// brand logos"). Each logo is rendered at the exact width/height measured
+// from the Figma "Logo Card" frames (Inspect panel), since the source marks
+// vary widely in aspect ratio — a single shared display width made wordmarks
+// like RIVAA look tiny and squashed icon marks like Humane too large.
+function ClientLogo({ src, alt, width, height }: { src: string; alt: string; width: number; height: number }) {
+  return <img src={src} alt={alt} style={{ width, height, objectFit: "contain" }} />;
 }
 
 // 12 real case studies ("assets and visuals/img/branding/before after
@@ -187,7 +189,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/elite.svg" alt="Elite jewellery logo" />
+          <ClientLogo src="/img/branding/logos/elite.svg" alt="Elite jewellery logo" width={161.7} height={120.5} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Premium. Feminine. Jewellery-ready." />
@@ -255,7 +257,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/humane.svg" alt="Vegan wallets brand mark" />
+          <ClientLogo src="/img/branding/logos/humane.svg" alt="Vegan wallets brand mark" width={130.2} height={123} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Cruelty-free, without looking crunchy." />
@@ -274,7 +276,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/adsprint.svg" alt="123 Adsprint logo" />
+          <ClientLogo src="/img/branding/logos/adsprint.svg" alt="123 Adsprint logo" width={172.9} height={141.2} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Looks like the finished product they sell." />
@@ -322,7 +324,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/vim.svg" alt="VIM Events & Décor logo" />
+          <ClientLogo src="/img/branding/logos/vim.svg" alt="VIM Events & Décor logo" width={226.8} height={124.7} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Founder-led. Instantly recognisable." />
@@ -341,7 +343,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/artemis.svg" alt="Artemis fintech logo" />
+          <ClientLogo src="/img/branding/logos/artemis.svg" alt="Artemis fintech logo" width={164.8} height={152.8} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Enterprise-credible from the first pitch." />
@@ -360,7 +362,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/ngn-india.svg" alt="NGN India shipping logo" />
+          <ClientLogo src="/img/branding/logos/ngn-india.svg" alt="NGN India shipping logo" width={124.1} height={124} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Corporate enough for contracts and ports." />
@@ -379,7 +381,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/mothicrafts.svg" alt="MothiCrafts logo" />
+          <ClientLogo src="/img/branding/logos/mothicrafts.svg" alt="MothiCrafts logo" width={193.1} height={155} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Warm enough for a wellness brand." />
@@ -398,7 +400,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/wild-cashew.svg" alt="Wild Cashew logo" />
+          <ClientLogo src="/img/branding/logos/wild-cashew.svg" alt="Wild Cashew logo" width={145.6} height={154} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Export-ready packaging identity." />
@@ -417,7 +419,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/rivaa.svg" alt="RIVAA Healthcare Products logo" />
+          <ClientLogo src="/img/branding/logos/rivaa.svg" alt="RIVAA Healthcare Products logo" width={202.5} height={68.5} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Clinical trust without feeling cold." />
@@ -436,7 +438,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/buddhabody.svg" alt="Buddhabody conscious beauty logo" />
+          <ClientLogo src="/img/branding/logos/buddhabody.svg" alt="Buddhabody conscious beauty logo" width={197.7} height={160} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Premium enough for retail shelf space." />
@@ -455,7 +457,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
     after: (
       <>
         <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ClientLogo src="/img/branding/logos/medking.svg" alt="Medking logo" />
+          <ClientLogo src="/img/branding/logos/medking.svg" alt="Medking logo" width={176.7} height={150} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
           <ChecklistItem text="Distinct from every other local pharmacy." />
