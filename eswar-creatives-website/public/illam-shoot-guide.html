@@ -170,7 +170,14 @@
   .shot-thumb:active { transform: scale(0.97); }
   .shot-thumb--empty { cursor: default; }
   .shot-thumb--empty:hover { transform: none; box-shadow: none; }
-  .shot-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .shot-thumb img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    filter: blur(8px);
+    transform: scale(1.05);
+    transition: filter 300ms cubic-bezier(0.4,0,0.2,1),
+                transform 300ms cubic-bezier(0.4,0,0.2,1);
+  }
+  .shot-thumb img.loaded { filter: blur(0); transform: scale(1); }
   .shot-thumb-fallback {
     display: none; width: 100%; height: 100%;
     align-items: center; justify-content: center;
@@ -199,7 +206,7 @@
     position: relative; width: 100%; height: 100%;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    padding: 60px 16px 120px;
+    padding: 60px 16px 220px;
   }
   #sg-lb-img-wrap { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; }
   #sg-lb-img {
@@ -207,7 +214,10 @@
     width: auto; height: auto;
     object-fit: contain; border-radius: 16px;
     animation: sg-img-fade 140ms cubic-bezier(0.4,0,0.2,1);
+    transition: filter 250ms cubic-bezier(0.4,0,0.2,1);
   }
+  #sg-lb-img.loading { filter: blur(12px); transform: scale(1.02); }
+  #sg-lb-img.loaded-sharp { filter: blur(0); transform: scale(1); }
   @keyframes sg-fade-in { from { opacity: 0; } to { opacity: 1; } }
   @keyframes sg-img-fade { from { opacity: 0; } to { opacity: 1; } }
 
@@ -237,8 +247,18 @@
   #sg-lb-prev:active, #sg-lb-next:active { transform: translateY(-50%) scale(0.95); }
 
   #sg-lb-caption {
-    position: absolute; bottom: 72px; left: 0; right: 0;
+    position: absolute; bottom: 136px; left: 0; right: 0;
     text-align: center; padding: 0 60px; z-index: 2;
+  }
+  #sg-lb-section {
+    font-family: 'Jost', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 6px;
+    opacity: 0.85;
   }
   #sg-lb-title {
     font-family: 'Cormorant Garamond', serif; font-style: italic;
@@ -252,7 +272,7 @@
   #sg-lb-counter .tot { font-weight: 600; color: var(--gold); }
 
   #sg-lb-strip-wrap {
-    position: absolute; bottom: 0; left: 0; right: 0;
+    position: absolute; bottom: 60px; left: 0; right: 0;
     overflow-x: auto; scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x;
@@ -268,7 +288,40 @@
     transition: opacity 150ms, border-color 150ms;
   }
   .sg-thumb-strip.active { border-color: var(--gold); opacity: 1; }
-  .sg-thumb-strip img { width: 100%; height: 100%; object-fit: cover; }
+  .sg-thumb-strip img {
+    width: 100%; height: 100%; object-fit: cover;
+    filter: blur(8px);
+    transform: scale(1.05);
+    transition: filter 300ms cubic-bezier(0.4,0,0.2,1),
+                transform 300ms cubic-bezier(0.4,0,0.2,1);
+  }
+  .sg-thumb-strip img.loaded { filter: blur(0); transform: scale(1); }
+
+  #sg-lb-section-nav {
+    position: absolute;
+    bottom: env(safe-area-inset-bottom, 0px);
+    left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px 12px;
+    z-index: 3;
+  }
+  .sg-sec-btn {
+    font-family: 'Jost', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    padding: 8px 16px;
+    border-radius: 20px;
+    color: rgba(250,248,244,0.85);
+    white-space: nowrap;
+  }
+  .sg-sec-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+    pointer-events: none;
+  }
 
   /* Hidden when only 1 image */
   #sg-lb-strip-wrap.single { display: none; }
@@ -278,6 +331,7 @@
   @media (prefers-reduced-motion: reduce) {
     #sg-lightbox, #sg-lb-img { animation: none; }
     .sg-glass, .shot-thumb { transition: none; }
+    .shot-thumb img, #sg-lb-img, .sg-thumb-strip img { transition: none; filter: none; transform: none; }
   }
 
   .tag {
@@ -378,8 +432,8 @@
       </div>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="02" data-images='["/images/illam-shoot-guide/02/2-setup-30-40.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/02/2-setup-30-40.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="02" data-images='["/images/illam-shoot-guide/02/2-setup-30-40.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/02/2-setup-30-40.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Same angle, setup around 30-40% done
@@ -387,8 +441,8 @@
       </div>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="02" data-images='["/images/illam-shoot-guide/02/3-setup-80.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/02/3-setup-80.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="02" data-images='["/images/illam-shoot-guide/02/3-setup-80.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/02/3-setup-80.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Same angle, setup almost complete
@@ -403,8 +457,8 @@
       <span class="section-title">Hands-On Craft<span class="tamil">Hands-On Craft</span></span>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/1-draping.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/03/1-draping.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/1-draping.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/03/1-draping.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Close-up of draping/fabric work, hands adjusting a detail
@@ -412,8 +466,8 @@
       </div>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/2-chair-cover.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/03/2-chair-cover.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/2-chair-cover.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/03/2-chair-cover.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Chair cover and sash being placed
@@ -421,8 +475,8 @@
       </div>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/3-stage-backdrop.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/03/3-stage-backdrop.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/3-stage-backdrop.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/03/3-stage-backdrop.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Stage backdrop assembly and lighting rig
@@ -430,8 +484,8 @@
       </div>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/4-measuring.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/03/4-measuring.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/4-measuring.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/03/4-measuring.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Close-up of measuring/aligning - shows precision
@@ -446,8 +500,8 @@
       <span class="section-title">Material &amp; Logistics<span class="tamil">Material &amp; Logistics</span></span>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="04" data-images='["/images/illam-shoot-guide/04/1-crates-unloaded.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/04/1-crates-unloaded.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="04" data-images='["/images/illam-shoot-guide/04/1-crates-unloaded.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/04/1-crates-unloaded.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Crates/material being unloaded from the branded vehicle
@@ -455,8 +509,8 @@
       </div>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="04" data-images='["/images/illam-shoot-guide/04/2-staging-area.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/04/2-staging-area.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="04" data-images='["/images/illam-shoot-guide/04/2-staging-area.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/04/2-staging-area.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Organized staging area for materials
@@ -471,8 +525,8 @@
       <span class="section-title">Team<span class="tamil">Team</span></span>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="05" data-images='["/images/illam-shoot-guide/05/1a-candid.png","/images/illam-shoot-guide/05/1b-candid.png","/images/illam-shoot-guide/05/1c-candid.png","/images/illam-shoot-guide/05/1d-candid.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/05/1a-candid.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="05" data-images='["/images/illam-shoot-guide/05/1a-candid.jpg","/images/illam-shoot-guide/05/1b-candid.jpg","/images/illam-shoot-guide/05/1c-candid.jpg","/images/illam-shoot-guide/05/1d-candid.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/05/1a-candid.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Candid team shots - not posed, natural work moments
@@ -480,8 +534,8 @@
       </div>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="05" data-images='["/images/illam-shoot-guide/05/2a-mohan.png","/images/illam-shoot-guide/05/2b-mohan.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/05/2a-mohan.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="05" data-images='["/images/illam-shoot-guide/05/2a-mohan.jpg","/images/illam-shoot-guide/05/2b-mohan.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/05/2a-mohan.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Mohan anna directing on-site - 1 or 2 shots
@@ -496,8 +550,8 @@
       <span class="section-title">Venue Itself<span class="tag">Careful</span><span class="tamil">Venue Itself</span></span>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="06" data-images='["/images/illam-shoot-guide/06/1a-wood-panels.png","/images/illam-shoot-guide/06/1b-wood-panels.png","/images/illam-shoot-guide/06/1c-marble-flooring.png","/images/illam-shoot-guide/06/1d-marble-flooring.png","/images/illam-shoot-guide/06/1e-marble-architecture.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/06/1a-wood-panels.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="06" data-images='["/images/illam-shoot-guide/06/1a-wood-panels.jpg","/images/illam-shoot-guide/06/1b-wood-panels.jpg","/images/illam-shoot-guide/06/1c-marble-flooring.jpg","/images/illam-shoot-guide/06/1d-marble-flooring.jpg","/images/illam-shoot-guide/06/1e-marble-architecture.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/06/1a-wood-panels.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Priyam's wood panels, marble flooring, architecture - unbranded shots
@@ -520,8 +574,8 @@
       <span class="section-title">Final Reveal<span class="tamil">Final Reveal</span></span>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="07" data-images='["/images/illam-shoot-guide/07/01-completed-stage.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/07/01-completed-stage.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="07" data-images='["/images/illam-shoot-guide/07/01-completed-stage.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/07/01-completed-stage.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Completed stage/hall, full view - golden hour if possible
@@ -529,8 +583,8 @@
       </div>
     </div>
     <div class="shot">
-      <div class="shot-thumb" data-section="07" data-images='["/images/illam-shoot-guide/07/02a-detail.png","/images/illam-shoot-guide/07/02b-detail.png","/images/illam-shoot-guide/07/02c-detail.png","/images/illam-shoot-guide/07/02d-detail.png","/images/illam-shoot-guide/07/02e-detail.png","/images/illam-shoot-guide/07/02f-detail.png","/images/illam-shoot-guide/07/02g-detail.png","/images/illam-shoot-guide/07/02h-detail.png","/images/illam-shoot-guide/07/02i-detail.png"]' data-index="0" onclick="openLightbox(this)">
-        <img src="/images/illam-shoot-guide/07/02a-detail.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="shot-thumb" data-section="07" data-images='["/images/illam-shoot-guide/07/02a-detail.jpg","/images/illam-shoot-guide/07/02b-detail.jpg","/images/illam-shoot-guide/07/02c-detail.jpg","/images/illam-shoot-guide/07/02d-detail.jpg","/images/illam-shoot-guide/07/02e-detail.jpg","/images/illam-shoot-guide/07/02f-detail.jpg","/images/illam-shoot-guide/07/02g-detail.jpg","/images/illam-shoot-guide/07/02h-detail.jpg","/images/illam-shoot-guide/07/02i-detail.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/07/02a-detail.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="shot-thumb-fallback">📷</div>
       </div>
       <div class="shot-text">Detail shots: table settings, name boards, floral close-ups
@@ -561,11 +615,16 @@
       <img id="sg-lb-img" src="" alt="">
     </div>
     <div id="sg-lb-caption">
+      <div id="sg-lb-section"></div>
       <div id="sg-lb-title"></div>
       <div id="sg-lb-counter"></div>
     </div>
     <div id="sg-lb-strip-wrap">
       <div id="sg-lb-strip"></div>
+    </div>
+    <div id="sg-lb-section-nav">
+      <button id="sg-lb-sec-prev" class="sg-glass sg-sec-btn"></button>
+      <button id="sg-lb-sec-next" class="sg-glass sg-sec-btn"></button>
     </div>
   </div>
 </div>
@@ -575,18 +634,37 @@ const _lb = {
   images: [], index: 0, title: '', trigger: null,
   el: null, img: null, prev: null, next: null,
   close: null, strip: null, stripWrap: null,
-  counter: null, titleEl: null
+  counter: null, titleEl: null,
+  sectionLabel: '', sectionIndex: -1, sectionEl: null,
+  secPrevBtn: null, secNextBtn: null
 };
+
+function _getSectionLabel(section) {
+  const head = section?.querySelector('.section-head');
+  const num = head?.querySelector('.section-num')?.textContent?.trim() || '';
+  const title = head?.querySelector('.section-title')?.childNodes[0]?.textContent?.trim() || '';
+  return [num, title].filter(Boolean).join(' ');
+}
+
+// Flat ordered list of sections that have at least one photo thumbnail
+const _sections = Array.from(document.querySelectorAll('.section')).reduce((acc, section) => {
+  const thumbs = Array.from(section.querySelectorAll('.shot-thumb[data-images]'));
+  if (thumbs.length) acc.push({ label: _getSectionLabel(section), thumbs });
+  return acc;
+}, []);
 
 function openLightbox(el) {
   const images = JSON.parse(el.dataset.images || '[]');
   const index = parseInt(el.dataset.index || '0', 10);
   const title = el.closest('.shot')?.querySelector('.shot-text')?.childNodes[0]?.textContent?.trim() || '';
+  const section = el.closest('.section');
 
   _lb.images = images;
   _lb.index = index;
   _lb.title = title;
   _lb.trigger = el;
+  _lb.sectionLabel = _getSectionLabel(section);
+  _lb.sectionIndex = _sections.findIndex(s => s.thumbs.includes(el));
 
   const lb = document.getElementById('sg-lightbox');
   lb.style.display = 'flex';
@@ -601,6 +679,9 @@ function openLightbox(el) {
   _lb.stripWrap = document.getElementById('sg-lb-strip-wrap');
   _lb.counter = document.getElementById('sg-lb-counter');
   _lb.titleEl = document.getElementById('sg-lb-title');
+  _lb.sectionEl = document.getElementById('sg-lb-section');
+  _lb.secPrevBtn = document.getElementById('sg-lb-sec-prev');
+  _lb.secNextBtn = document.getElementById('sg-lb-sec-next');
 
   // Add glass class to buttons
   [_lb.close, _lb.prev, _lb.next].forEach(b => b.classList.add('sg-glass'));
@@ -609,18 +690,38 @@ function openLightbox(el) {
   _lb.close.focus();
 }
 
+function _updateSectionNav() {
+  const prev = _sections[_lb.sectionIndex - 1];
+  const next = _sections[_lb.sectionIndex + 1];
+
+  _lb.secPrevBtn.textContent = prev ? `← ${prev.label}` : '';
+  _lb.secNextBtn.textContent = next ? `${next.label} →` : '';
+  _lb.secPrevBtn.disabled = !prev;
+  _lb.secNextBtn.disabled = !next;
+}
+
 function _lbRender() {
   const { images, index } = _lb;
-  const src = images[index];
+  const newSrc = images[index];
 
-  // Image
+  // Image (blur-up: swap src only once the full-res image has preloaded)
+  _lb.img.classList.remove('loaded-sharp');
+  _lb.img.classList.add('loading');
   _lb.img.style.animation = 'none';
   _lb.img.offsetHeight; // reflow
   _lb.img.style.animation = '';
-  _lb.img.src = src;
   _lb.img.alt = _lb.title;
 
-  // Title
+  const preloader = new Image();
+  preloader.onload = () => {
+    _lb.img.src = newSrc;
+    _lb.img.classList.remove('loading');
+    _lb.img.classList.add('loaded-sharp');
+  };
+  preloader.src = newSrc;
+
+  // Section label + title
+  _lb.sectionEl.textContent = _lb.sectionLabel;
   _lb.titleEl.textContent = _lb.title;
 
   // Counter
@@ -651,7 +752,15 @@ function _lbRender() {
     images.forEach((src, i) => {
       const t = document.createElement('div');
       t.className = 'sg-thumb-strip' + (i === index ? ' active' : '');
-      t.innerHTML = `<img src="${src}" loading="lazy">`;
+      const img = document.createElement('img');
+      img.src = src;
+      img.loading = 'lazy';
+      if (img.complete && img.naturalWidth > 0) {
+        img.classList.add('loaded');
+      } else {
+        img.addEventListener('load', () => img.classList.add('loaded'), { once: true });
+      }
+      t.appendChild(img);
       t.onclick = () => { _lb.index = i; _lbRender(); };
       _lb.strip.appendChild(t);
     });
@@ -661,6 +770,9 @@ function _lbRender() {
       if (active) active.scrollIntoView({ block: 'nearest', inline: 'center' });
     });
   }
+
+  // Section nav
+  _updateSectionNav();
 }
 
 function _lbClose() {
@@ -683,6 +795,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('sg-lb-next').onclick = () => {
     if (_lb.index < _lb.images.length - 1) { _lb.index++; _lbRender(); }
   };
+  document.getElementById('sg-lb-sec-prev').onclick = () => {
+    const target = _sections[_lb.sectionIndex - 1];
+    if (target) openLightbox(target.thumbs[0]);
+  };
+  document.getElementById('sg-lb-sec-next').onclick = () => {
+    const target = _sections[_lb.sectionIndex + 1];
+    if (target) openLightbox(target.thumbs[0]);
+  };
 
   // Keyboard
   document.addEventListener('keydown', e => {
@@ -696,6 +816,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.shot-thumb[data-images]').forEach(el => {
     const images = JSON.parse(el.dataset.images || '[]');
     if (images.length > 1) el.dataset.count = `+${images.length}`;
+  });
+
+  // Blur-up: sharpen each thumbnail once its image has loaded
+  document.querySelectorAll('.shot-thumb img').forEach(img => {
+    if (img.complete && img.naturalWidth > 0) {
+      img.classList.add('loaded');
+    } else {
+      img.addEventListener('load', () => img.classList.add('loaded'), { once: true });
+    }
   });
 
   // Focus trap
