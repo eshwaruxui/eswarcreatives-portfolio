@@ -159,6 +159,10 @@
     color: #1A1A1A;
     margin-top: 3px;
   }
+  .shot-text ol {
+    padding-left: 20px;
+    margin-top: 4px;
+  }
 
   .shot-thumb {
     width: 88px; height: 66px; border-radius: 6px; overflow: hidden;
@@ -327,6 +331,10 @@
     border-radius: 20px;
     color: rgba(250,248,244,0.85);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    max-width: 46%;
   }
   .sg-sec-btn:disabled {
     opacity: 0.3;
@@ -561,7 +569,7 @@
   <div class="section">
     <div class="section-head">
       <span class="section-num">06</span>
-      <span class="section-title">Venue Itself<span class="tag">Careful</span><span class="tamil">Venue Itself</span></span>
+      <span class="section-title">Venue Itself<span class="tamil">Venue Itself</span></span>
     </div>
     <div class="shot">
       <div class="shot-thumb" data-section="06" data-images='["/images/illam-shoot-guide/06/1a-wood-panels.jpg","/images/illam-shoot-guide/06/1b-wood-panels.jpg","/images/illam-shoot-guide/06/1c-marble-flooring.jpg","/images/illam-shoot-guide/06/1d-marble-flooring.jpg","/images/illam-shoot-guide/06/1e-marble-architecture.jpg"]' data-index="0" onclick="openLightbox(this)">
@@ -815,15 +823,16 @@ function _lbRender() {
     _lb.counter.classList.add('hidden');
   }
 
-  // Prev/Next image buttons walk across ALL shots in the section
+  // Prev/Next image buttons walk across ALL shots in the section, then
+  // spill into the adjacent section instead of dead-ending at the edges
   if (sectionImages.length <= 1) {
     _lb.prev.classList.add('hidden');
     _lb.next.classList.add('hidden');
   } else {
     _lb.prev.classList.remove('hidden');
     _lb.next.classList.remove('hidden');
-    _lb.prev.disabled = flatIndex === 0;
-    _lb.next.disabled = flatIndex === sectionImages.length - 1;
+    _lb.prev.disabled = flatIndex === 0 && _lb.sectionIndex === 0;
+    _lb.next.disabled = flatIndex === sectionImages.length - 1 && _lb.sectionIndex === _sections.length - 1;
   }
 
   // Strip shows ALL images in the section
@@ -865,6 +874,31 @@ function _lbClose() {
   if (_lb.trigger) _lb.trigger.focus();
 }
 
+// Prev/next image, spilling into the adjacent section at either edge
+function _goToPrevImage() {
+  if (_lb.flatIndex > 0) {
+    _lb.flatIndex--;
+    _lbRender();
+  } else if (_lb.sectionIndex > 0) {
+    _lb.sectionIndex--;
+    _lb.sectionImages = _sections[_lb.sectionIndex].allImages;
+    _lb.flatIndex = _lb.sectionImages.length - 1;
+    _lbRender();
+  }
+}
+
+function _goToNextImage() {
+  if (_lb.flatIndex < _lb.sectionImages.length - 1) {
+    _lb.flatIndex++;
+    _lbRender();
+  } else if (_lb.sectionIndex < _sections.length - 1) {
+    _lb.sectionIndex++;
+    _lb.sectionImages = _sections[_lb.sectionIndex].allImages;
+    _lb.flatIndex = 0;
+    _lbRender();
+  }
+}
+
 // Wire up once DOM ready
 document.addEventListener('DOMContentLoaded', () => {
   const lb = document.getElementById('sg-lightbox');
@@ -872,12 +906,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('sg-lb-close').onclick = _lbClose;
   document.getElementById('sg-lb-backdrop').onclick = _lbClose;
-  document.getElementById('sg-lb-prev').onclick = () => {
-    if (_lb.flatIndex > 0) { _lb.flatIndex--; _lbRender(); }
-  };
-  document.getElementById('sg-lb-next').onclick = () => {
-    if (_lb.flatIndex < _lb.sectionImages.length - 1) { _lb.flatIndex++; _lbRender(); }
-  };
+  document.getElementById('sg-lb-prev').onclick = _goToPrevImage;
+  document.getElementById('sg-lb-next').onclick = _goToNextImage;
   document.getElementById('sg-lb-sec-prev').onclick = () => {
     if (_lb.sectionIndex > 0) {
       _lb.sectionIndex--;
@@ -899,8 +929,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', e => {
     if (lb.style.display === 'none') return;
     if (e.key === 'Escape') _lbClose();
-    if (e.key === 'ArrowLeft' && _lb.flatIndex > 0) { _lb.flatIndex--; _lbRender(); }
-    if (e.key === 'ArrowRight' && _lb.flatIndex < _lb.sectionImages.length - 1) { _lb.flatIndex++; _lbRender(); }
+    if (e.key === 'ArrowLeft') _goToPrevImage();
+    if (e.key === 'ArrowRight') _goToNextImage();
   });
 
   // Set data-count badge on multi-image thumbnails
