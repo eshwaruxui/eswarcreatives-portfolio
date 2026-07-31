@@ -24,6 +24,8 @@
     font-weight: 300;
     line-height: 1.5;
     padding: 0 0 40px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   .tamil { font-family: 'Noto Sans Tamil', sans-serif; }
 
@@ -207,6 +209,8 @@
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     padding: 60px 16px 220px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   #sg-lb-img-wrap { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; }
   #sg-lb-img {
@@ -252,13 +256,15 @@
   }
   #sg-lb-section {
     font-family: 'Jost', sans-serif;
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.12em;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--gold);
     margin-bottom: 8px;
-    opacity: 0.85;
+    line-height: 1.2;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   #sg-lb-title {
     font-family: 'Jost', sans-serif;
@@ -639,11 +645,11 @@
 
 <script>
 const _lb = {
-  images: [], index: 0, title: '', trigger: null,
+  sectionImages: [], flatIndex: 0, trigger: null,
   el: null, img: null, prev: null, next: null,
   close: null, strip: null, stripWrap: null,
   counter: null, titleEl: null,
-  sectionLabel: '', sectionIndex: -1, sectionEl: null,
+  sectionIndex: -1, sectionEl: null,
   secPrevBtn: null, secNextBtn: null
 };
 
@@ -654,25 +660,31 @@ function _getSectionLabel(section) {
   return [num, title].filter(Boolean).join(' ');
 }
 
-// Flat ordered list of sections that have at least one photo thumbnail
+function _getShotTitle(thumb) {
+  return thumb.closest('.shot')?.querySelector('.shot-text')?.childNodes[0]?.textContent?.trim() || '';
+}
+
+// Flat ordered list of sections that have at least one photo thumbnail.
+// Each section also carries a flattened image manifest (allImages) so
+// prev/next can walk across shot boundaries within the same section.
 const _sections = Array.from(document.querySelectorAll('.section')).reduce((acc, section) => {
   const thumbs = Array.from(section.querySelectorAll('.shot-thumb[data-images]'));
-  if (thumbs.length) acc.push({ label: _getSectionLabel(section), thumbs });
+  if (!thumbs.length) return acc;
+  const allImages = [];
+  thumbs.forEach(thumb => {
+    const images = JSON.parse(thumb.dataset.images || '[]');
+    const shotTitle = _getShotTitle(thumb);
+    images.forEach(src => allImages.push({ src, shotTitle, thumbEl: thumb }));
+  });
+  acc.push({ label: _getSectionLabel(section), thumbs, allImages });
   return acc;
 }, []);
 
 function openLightbox(el) {
-  const images = JSON.parse(el.dataset.images || '[]');
-  const index = parseInt(el.dataset.index || '0', 10);
-  const title = el.closest('.shot')?.querySelector('.shot-text')?.childNodes[0]?.textContent?.trim() || '';
-  const section = el.closest('.section');
-
-  _lb.images = images;
-  _lb.index = index;
-  _lb.title = title;
-  _lb.trigger = el;
-  _lb.sectionLabel = _getSectionLabel(section);
   _lb.sectionIndex = _sections.findIndex(s => s.thumbs.includes(el));
+  _lb.sectionImages = _sections[_lb.sectionIndex].allImages;
+  _lb.flatIndex = _lb.sectionImages.findIndex(entry => entry.thumbEl === el);
+  _lb.trigger = el;
 
   const lb = document.getElementById('sg-lightbox');
   lb.style.display = 'flex';
@@ -709,8 +721,9 @@ function _updateSectionNav() {
 }
 
 function _lbRender() {
-  const { images, index } = _lb;
-  const newSrc = images[index];
+  const { sectionImages, flatIndex } = _lb;
+  const entry = sectionImages[flatIndex];
+  const newSrc = entry.src;
 
   // Image (blur-up: swap src only once the full-res image has preloaded)
   _lb.img.classList.remove('loaded-sharp');
@@ -718,7 +731,7 @@ function _lbRender() {
   _lb.img.style.animation = 'none';
   _lb.img.offsetHeight; // reflow
   _lb.img.style.animation = '';
-  _lb.img.alt = _lb.title;
+  _lb.img.alt = entry.shotTitle;
 
   const preloader = new Image();
   preloader.onload = () => {
@@ -728,40 +741,40 @@ function _lbRender() {
   };
   preloader.src = newSrc;
 
-  // Section label + title
-  _lb.sectionEl.textContent = _lb.sectionLabel;
-  _lb.titleEl.textContent = _lb.title;
+  // Section label + shot title
+  _lb.sectionEl.textContent = _sections[_lb.sectionIndex].label;
+  _lb.titleEl.textContent = entry.shotTitle;
 
-  // Counter
-  if (images.length > 1) {
+  // Counter shows position across ALL images in the section
+  if (sectionImages.length > 1) {
     _lb.counter.classList.remove('hidden');
-    _lb.counter.innerHTML = `<span class="cur">${index + 1}</span><span class="sep">/</span><span class="tot">${images.length}</span>`;
+    _lb.counter.innerHTML = `<span class="cur">${flatIndex + 1}</span><span class="sep">/</span><span class="tot">${sectionImages.length}</span>`;
   } else {
     _lb.counter.classList.add('hidden');
   }
 
-  // Prev/Next
-  if (images.length <= 1) {
+  // Prev/Next image buttons walk across ALL shots in the section
+  if (sectionImages.length <= 1) {
     _lb.prev.classList.add('hidden');
     _lb.next.classList.add('hidden');
   } else {
     _lb.prev.classList.remove('hidden');
     _lb.next.classList.remove('hidden');
-    _lb.prev.disabled = index === 0;
-    _lb.next.disabled = index === images.length - 1;
+    _lb.prev.disabled = flatIndex === 0;
+    _lb.next.disabled = flatIndex === sectionImages.length - 1;
   }
 
-  // Strip
+  // Strip shows ALL images in the section
   _lb.strip.innerHTML = '';
-  if (images.length <= 1) {
+  if (sectionImages.length <= 1) {
     _lb.stripWrap.classList.add('single');
   } else {
     _lb.stripWrap.classList.remove('single');
-    images.forEach((src, i) => {
+    sectionImages.forEach((imgEntry, i) => {
       const t = document.createElement('div');
-      t.className = 'sg-thumb-strip' + (i === index ? ' active' : '');
+      t.className = 'sg-thumb-strip' + (i === flatIndex ? ' active' : '');
       const img = document.createElement('img');
-      img.src = src;
+      img.src = imgEntry.src;
       img.loading = 'lazy';
       if (img.complete && img.naturalWidth > 0) {
         img.classList.add('loaded');
@@ -769,7 +782,7 @@ function _lbRender() {
         img.addEventListener('load', () => img.classList.add('loaded'), { once: true });
       }
       t.appendChild(img);
-      t.onclick = () => { _lb.index = i; _lbRender(); };
+      t.onclick = () => { _lb.flatIndex = i; _lbRender(); };
       _lb.strip.appendChild(t);
     });
     // Auto-scroll strip to active
@@ -798,26 +811,34 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('sg-lb-close').onclick = _lbClose;
   document.getElementById('sg-lb-backdrop').onclick = _lbClose;
   document.getElementById('sg-lb-prev').onclick = () => {
-    if (_lb.index > 0) { _lb.index--; _lbRender(); }
+    if (_lb.flatIndex > 0) { _lb.flatIndex--; _lbRender(); }
   };
   document.getElementById('sg-lb-next').onclick = () => {
-    if (_lb.index < _lb.images.length - 1) { _lb.index++; _lbRender(); }
+    if (_lb.flatIndex < _lb.sectionImages.length - 1) { _lb.flatIndex++; _lbRender(); }
   };
   document.getElementById('sg-lb-sec-prev').onclick = () => {
-    const target = _sections[_lb.sectionIndex - 1];
-    if (target) openLightbox(target.thumbs[0]);
+    if (_lb.sectionIndex > 0) {
+      _lb.sectionIndex--;
+      _lb.sectionImages = _sections[_lb.sectionIndex].allImages;
+      _lb.flatIndex = 0;
+      _lbRender();
+    }
   };
   document.getElementById('sg-lb-sec-next').onclick = () => {
-    const target = _sections[_lb.sectionIndex + 1];
-    if (target) openLightbox(target.thumbs[0]);
+    if (_lb.sectionIndex < _sections.length - 1) {
+      _lb.sectionIndex++;
+      _lb.sectionImages = _sections[_lb.sectionIndex].allImages;
+      _lb.flatIndex = 0;
+      _lbRender();
+    }
   };
 
   // Keyboard
   document.addEventListener('keydown', e => {
     if (lb.style.display === 'none') return;
     if (e.key === 'Escape') _lbClose();
-    if (e.key === 'ArrowLeft' && _lb.index > 0) { _lb.index--; _lbRender(); }
-    if (e.key === 'ArrowRight' && _lb.index < _lb.images.length - 1) { _lb.index++; _lbRender(); }
+    if (e.key === 'ArrowLeft' && _lb.flatIndex > 0) { _lb.flatIndex--; _lbRender(); }
+    if (e.key === 'ArrowRight' && _lb.flatIndex < _lb.sectionImages.length - 1) { _lb.flatIndex++; _lbRender(); }
   });
 
   // Set data-count badge on multi-image thumbnails
