@@ -1,0 +1,30 @@
+{
+  "name": "Design Tokens",
+  "collections": {
+    "🎨 Primitives": {
+      "modes": {
+        "Mode 1": [
+          "🎨 Primitives.Mode 1.tokens.json"
+        ]
+      }
+    },
+    "🔗 Semantic Tokens": {
+      "modes": {
+        "Light": [
+          "🔗 Semantic Tokens.Light.tokens.json"
+        ],
+        "Dark": [
+          "🔗 Semantic Tokens.Dark.tokens.json"
+        ]
+      }
+    }
+  },
+  "styles": {
+    "text": [
+      "text.styles.tokens.json"
+    ],
+    "effect": [
+      "effect.styles.tokens.json"
+    ]
+  }
+}

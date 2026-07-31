@@ -441,7 +441,7 @@
   /* ── Palette · Ruby (danger) · anchor 600 ── */
   --ruby-50:  #fce9ed;
   --ruby-100: #f7cad3;
-  --ruby-200: #ee99a8;
+  --ruby-200: #ee98a8;  /* corrected 1-digit transcription typo (was ee99a8); matches Figma ruby.300 exactly */
   --ruby-300: #e16077;
   --ruby-400: #d12f4e;
   --ruby-500: #c01a39;

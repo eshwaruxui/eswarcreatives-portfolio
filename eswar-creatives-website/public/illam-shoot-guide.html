@@ -24,6 +24,8 @@
     font-weight: 300;
     line-height: 1.5;
     padding: 0 0 40px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   .tamil { font-family: 'Noto Sans Tamil', sans-serif; }
 
@@ -158,6 +160,191 @@
     margin-top: 3px;
   }
 
+  .shot-thumb {
+    width: 88px; height: 66px; border-radius: 6px; overflow: hidden;
+    flex-shrink: 0; cursor: pointer;
+    border: 1px solid var(--line);
+    position: relative;
+    transition: transform 150ms cubic-bezier(0.4,0,0.2,1),
+                box-shadow 150ms cubic-bezier(0.4,0,0.2,1);
+  }
+  .shot-thumb:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+  .shot-thumb:active { transform: scale(0.97); }
+  .shot-thumb--empty { cursor: default; }
+  .shot-thumb--empty:hover { transform: none; box-shadow: none; }
+  .shot-thumb img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    filter: blur(8px);
+    transform: scale(1.05);
+    transition: filter 300ms cubic-bezier(0.4,0,0.2,1),
+                transform 300ms cubic-bezier(0.4,0,0.2,1);
+  }
+  .shot-thumb img.loaded { filter: blur(0); transform: scale(1); }
+  .shot-thumb-fallback {
+    display: none; width: 100%; height: 100%;
+    align-items: center; justify-content: center;
+    background: #E8EAE9; font-size: 20px; color: var(--muted);
+  }
+  .shot-thumb--empty .shot-thumb-fallback { display: flex; }
+  /* Multi-image indicator badge */
+  .shot-thumb[data-images*=","]::after {
+    content: attr(data-count);
+    position: absolute; bottom: 4px; right: 4px;
+    background: rgba(0,0,0,0.65); color: #fff;
+    font-size: 10px; font-family: 'Jost', sans-serif;
+    padding: 1px 5px; border-radius: 3px; line-height: 1.4;
+  }
+
+  #sg-lightbox {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    animation: sg-fade-in 200ms cubic-bezier(0.4,0,0.2,1);
+  }
+  #sg-lb-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.90);
+    cursor: pointer;
+  }
+  #sg-lb-inner {
+    position: relative; width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 60px 16px 220px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  #sg-lb-img-wrap { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; }
+  #sg-lb-img {
+    max-width: 90vw; max-height: 60vh;
+    width: auto; height: auto;
+    object-fit: contain; border-radius: 16px;
+    animation: sg-img-fade 140ms cubic-bezier(0.4,0,0.2,1);
+    transition: filter 250ms cubic-bezier(0.4,0,0.2,1);
+  }
+  #sg-lb-img.loading { filter: blur(12px); transform: scale(1.02); }
+  #sg-lb-img.loaded-sharp { filter: blur(0); transform: scale(1); }
+  @keyframes sg-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes sg-img-fade { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Glass button base */
+  .sg-glass {
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.25);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.20);
+    color: #fff; cursor: pointer; border-radius: 50%;
+    transition: background 150ms cubic-bezier(0.4,0,0.2,1), transform 150ms cubic-bezier(0.4,0,0.2,1);
+  }
+  .sg-glass:hover { background: rgba(255,255,255,0.22); transform: scale(1.05); }
+  .sg-glass:active { transform: scale(0.95); }
+  #sg-lb-close {
+    position: absolute; top: 16px; right: 16px;
+    width: 40px; height: 40px; font-size: 18px; z-index: 2;
+  }
+  #sg-lb-prev, #sg-lb-next {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 48px; height: 48px; font-size: 28px; z-index: 2;
+  }
+  #sg-lb-prev { left: 12px; }
+  #sg-lb-next { right: 12px; }
+  #sg-lb-prev:hover, #sg-lb-next:hover { transform: translateY(-50%) scale(1.05); }
+  #sg-lb-prev:active, #sg-lb-next:active { transform: translateY(-50%) scale(0.95); }
+
+  #sg-lb-caption {
+    position: absolute; bottom: 136px; left: 0; right: 0;
+    text-align: center; padding: 0 60px; z-index: 2;
+  }
+  #sg-lb-section {
+    font-family: 'Jost', sans-serif;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 8px;
+    line-height: 1.2;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  #sg-lb-title {
+    font-family: 'Jost', sans-serif;
+    font-style: normal;
+    font-size: 15px;
+    font-weight: 500;
+    color: rgba(250,248,244,0.95);
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  #sg-lb-counter {
+    font-family: 'Jost', sans-serif; font-size: 13px;
+  }
+  #sg-lb-counter .cur { font-weight: 600; color: var(--gold); }
+  #sg-lb-counter .sep { color: rgba(201,169,110,0.5); margin: 0 4px; }
+  #sg-lb-counter .tot { font-weight: 600; color: var(--gold); }
+
+  #sg-lb-strip-wrap {
+    position: absolute; bottom: 60px; left: 0; right: 0;
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    padding: 10px 16px 16px;
+    scrollbar-width: none;
+  }
+  #sg-lb-strip-wrap::-webkit-scrollbar { display: none; }
+  #sg-lb-strip { display: flex; gap: 8px; justify-content: center; min-width: min-content; }
+  .sg-thumb-strip {
+    width: 56px; height: 42px; border-radius: 4px; overflow: hidden;
+    flex-shrink: 0; scroll-snap-align: center; cursor: pointer;
+    border: 2px solid transparent; opacity: 0.45;
+    transition: opacity 150ms, border-color 150ms;
+  }
+  .sg-thumb-strip.active { border-color: var(--gold); opacity: 1; }
+  .sg-thumb-strip img {
+    width: 100%; height: 100%; object-fit: cover;
+    filter: blur(8px);
+    transform: scale(1.05);
+    transition: filter 300ms cubic-bezier(0.4,0,0.2,1),
+                transform 300ms cubic-bezier(0.4,0,0.2,1);
+  }
+  .sg-thumb-strip img.loaded { filter: blur(0); transform: scale(1); }
+
+  #sg-lb-section-nav {
+    position: absolute;
+    bottom: env(safe-area-inset-bottom, 0px);
+    left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px 12px;
+    z-index: 3;
+  }
+  .sg-sec-btn {
+    font-family: 'Jost', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    padding: 8px 16px;
+    border-radius: 20px;
+    color: rgba(250,248,244,0.85);
+    white-space: nowrap;
+  }
+  .sg-sec-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  /* Hidden when only 1 image */
+  #sg-lb-strip-wrap.single { display: none; }
+  #sg-lb-prev.hidden, #sg-lb-next.hidden { display: none; }
+  #sg-lb-counter.hidden { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #sg-lightbox, #sg-lb-img { animation: none; }
+    .sg-glass, .shot-thumb { transition: none; }
+    .shot-thumb img, #sg-lb-img, .sg-thumb-strip img { transition: none; filter: none; transform: none; }
+  }
+
   .tag {
     display: inline-block;
     font-size: 10px;
@@ -216,19 +403,28 @@
       <span class="section-title">Arrival &amp; Briefing<span class="tamil">Arrival &amp; Briefing</span></span>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="01" data-images='["/images/illam-shoot-guide/01/1-team-gathering.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/01/1-team-gathering.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Team gathering and briefing before setup starts
         <span class="tamil">Setup start பண்றதுக்கு முன்னாடி team எல்லாரும் ஒண்ணா இருக்கிறதையும், briefing நடக்கிறதையும் shoot பண்ணுங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="01" data-images='["/images/illam-shoot-guide/01/2-concept-sketch.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/01/2-concept-sketch.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Concept sketch being checked against the empty hall
         <span class="tamil">Concept sketch-ஐ empty hall-ஓட வெச்சு check பண்றதை shoot பண்ணுங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="01" data-images='["/images/illam-shoot-guide/01/3-material-list.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/01/3-material-list.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Material list being checked and ticked off
         <span class="tamil">Material list-ஐ venue-ல வெச்சு tick பண்றதை frame பண்ணுங்க</span>
       </div>
@@ -241,19 +437,28 @@
       <span class="section-title">Empty → Transformation<span class="tag">Priority</span><span class="tamil">Empty-ல இருந்து Transformation</span></span>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="02" data-images='["/images/illam-shoot-guide/02/1-wide-empty.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/02/1-wide-empty.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Wide shot of the hall completely empty - remember this exact angle
         <span class="tamil">Hall முழுக்க empty-யா இருக்கும்போது ஒரு wide shot எடுங்க - இந்த angle-ஐ நினைவு வெச்சுக்கோங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="02" data-images='["/images/illam-shoot-guide/02/2-setup-30-40.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/02/2-setup-30-40.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Same angle, setup around 30-40% done
         <span class="tamil">அதே angle-ல, setup 30-40% ஆனப்போ ஒரு shot எடுங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="02" data-images='["/images/illam-shoot-guide/02/3-setup-80.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/02/3-setup-80.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Same angle, setup almost complete
         <span class="tamil">அதே angle-ல, setup almost complete ஆனப்போ ஒரு shot எடுங்க</span>
       </div>
@@ -266,25 +471,37 @@
       <span class="section-title">Hands-On Craft<span class="tamil">Hands-On Craft</span></span>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/1-draping.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/03/1-draping.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Close-up of draping/fabric work, hands adjusting a detail
         <span class="tamil">Draping/fabric work-ஓட close-up, கை adjust பண்றதை shoot பண்ணுங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/2-chair-cover.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/03/2-chair-cover.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Chair cover and sash being placed
         <span class="tamil">Chair cover, sash வெக்கிறதை shoot பண்ணுங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/3-stage-backdrop.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/03/3-stage-backdrop.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Stage backdrop assembly and lighting rig
         <span class="tamil">Stage backdrop கட்டுறது, lighting rig பண்றதை shoot பண்ணுங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="03" data-images='["/images/illam-shoot-guide/03/4-measuring.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/03/4-measuring.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Close-up of measuring/aligning - shows precision
         <span class="tamil">Measure பண்றது, align பண்றது - precision தெரியற மாதிரி close-up shots எடுங்க</span>
       </div>
@@ -297,13 +514,19 @@
       <span class="section-title">Material &amp; Logistics<span class="tamil">Material &amp; Logistics</span></span>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="04" data-images='["/images/illam-shoot-guide/04/1-crates-unloaded.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/04/1-crates-unloaded.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Crates/material being unloaded from the branded vehicle
         <span class="tamil">Branded vehicle-ல இருந்து crates/material unload பண்றதை shoot பண்ணுங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="04" data-images='["/images/illam-shoot-guide/04/2-staging-area.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/04/2-staging-area.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Organized staging area for materials
         <span class="tamil">Material எல்லாம் organized-ஆ வெச்ச staging area-வையும் shoot பண்ணுங்க</span>
       </div>
@@ -316,13 +539,19 @@
       <span class="section-title">Team<span class="tamil">Team</span></span>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="05" data-images='["/images/illam-shoot-guide/05/1a-candid.jpg","/images/illam-shoot-guide/05/1b-candid.jpg","/images/illam-shoot-guide/05/1c-candid.jpg","/images/illam-shoot-guide/05/1d-candid.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/05/1a-candid.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Candid team shots - not posed, natural work moments
         <span class="tamil">Team-ஓட candid shots - pose பண்ணாம natural-ஆ இருக்கும்போதே எடுங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="05" data-images='["/images/illam-shoot-guide/05/2a-mohan.jpg","/images/illam-shoot-guide/05/2b-mohan.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/05/2a-mohan.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Mohan anna directing on-site - 1 or 2 shots
         <span class="tamil">Mohan anna site-ல direct பண்றப்போ 1-2 shots எடுங்க</span>
       </div>
@@ -335,13 +564,18 @@
       <span class="section-title">Venue Itself<span class="tag">Careful</span><span class="tamil">Venue Itself</span></span>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="06" data-images='["/images/illam-shoot-guide/06/1a-wood-panels.jpg","/images/illam-shoot-guide/06/1b-wood-panels.jpg","/images/illam-shoot-guide/06/1c-marble-flooring.jpg","/images/illam-shoot-guide/06/1d-marble-flooring.jpg","/images/illam-shoot-guide/06/1e-marble-architecture.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/06/1a-wood-panels.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Priyam's wood panels, marble flooring, architecture - unbranded shots
         <span class="tamil">Priyam-ஓட wood panels, marble flooring, architecture - venue-ஓட branding இல்லாம shoot பண்ணுங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb shot-thumb--empty">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Get verbal OK from Illam's on-site manager before shooting beyond NewGen's own work area
         <span class="tamil">NewGen work area தாண்டி shoot பண்றதுக்கு முன்னாடி Illam-ஓட on-site manager கிட்ட verbal OK வாங்குங்க</span>
       </div>
@@ -354,13 +588,19 @@
       <span class="section-title">Final Reveal<span class="tamil">Final Reveal</span></span>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="07" data-images='["/images/illam-shoot-guide/07/01-completed-stage.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/07/01-completed-stage.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Completed stage/hall, full view - golden hour if possible
         <span class="tamil">Complete ஆன stage/hall-ஓட full view, முடிஞ்சா golden hour-ல எடுங்க</span>
       </div>
     </div>
     <div class="shot">
-      <div class="box"></div>
+      <div class="shot-thumb" data-section="07" data-images='["/images/illam-shoot-guide/07/02a-detail.jpg","/images/illam-shoot-guide/07/02b-detail.jpg","/images/illam-shoot-guide/07/02c-detail.jpg","/images/illam-shoot-guide/07/02d-detail.jpg","/images/illam-shoot-guide/07/02e-detail.jpg","/images/illam-shoot-guide/07/02f-detail.jpg","/images/illam-shoot-guide/07/02g-detail.jpg","/images/illam-shoot-guide/07/02h-detail.jpg","/images/illam-shoot-guide/07/02i-detail.jpg"]' data-index="0" onclick="openLightbox(this)">
+        <img src="/images/illam-shoot-guide/07/02a-detail.jpg" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="shot-thumb-fallback">📷</div>
+      </div>
       <div class="shot-text">Detail shots: table settings, name boards, floral close-ups
         <span class="tamil">Detail shots: table setting, name board, flower work close-up</span>
       </div>
@@ -378,6 +618,254 @@
   NewGen Event Studio x Eswar Creatives &middot; Shot list for photographer reference only
   <span class="tamil">Photographer reference-க்கு மட்டும் - shot list</span>
 </footer>
+
+<div id="sg-lightbox" role="dialog" aria-modal="true" aria-label="Shot reference" style="display:none">
+  <div id="sg-lb-backdrop"></div>
+  <div id="sg-lb-inner">
+    <button id="sg-lb-close" aria-label="Close">✕</button>
+    <button id="sg-lb-prev" aria-label="Previous reference">‹</button>
+    <button id="sg-lb-next" aria-label="Next reference">›</button>
+    <div id="sg-lb-img-wrap">
+      <img id="sg-lb-img" src="" alt="">
+    </div>
+    <div id="sg-lb-caption">
+      <div id="sg-lb-section"></div>
+      <div id="sg-lb-title"></div>
+      <div id="sg-lb-counter"></div>
+    </div>
+    <div id="sg-lb-strip-wrap">
+      <div id="sg-lb-strip"></div>
+    </div>
+    <div id="sg-lb-section-nav">
+      <button id="sg-lb-sec-prev" class="sg-glass sg-sec-btn"></button>
+      <button id="sg-lb-sec-next" class="sg-glass sg-sec-btn"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+const _lb = {
+  sectionImages: [], flatIndex: 0, trigger: null,
+  el: null, img: null, prev: null, next: null,
+  close: null, strip: null, stripWrap: null,
+  counter: null, titleEl: null,
+  sectionIndex: -1, sectionEl: null,
+  secPrevBtn: null, secNextBtn: null
+};
+
+function _getSectionLabel(section) {
+  const head = section?.querySelector('.section-head');
+  const num = head?.querySelector('.section-num')?.textContent?.trim() || '';
+  const title = head?.querySelector('.section-title')?.childNodes[0]?.textContent?.trim() || '';
+  return [num, title].filter(Boolean).join(' ');
+}
+
+function _getShotTitle(thumb) {
+  return thumb.closest('.shot')?.querySelector('.shot-text')?.childNodes[0]?.textContent?.trim() || '';
+}
+
+// Flat ordered list of sections that have at least one photo thumbnail.
+// Each section also carries a flattened image manifest (allImages) so
+// prev/next can walk across shot boundaries within the same section.
+const _sections = Array.from(document.querySelectorAll('.section')).reduce((acc, section) => {
+  const thumbs = Array.from(section.querySelectorAll('.shot-thumb[data-images]'));
+  if (!thumbs.length) return acc;
+  const allImages = [];
+  thumbs.forEach(thumb => {
+    const images = JSON.parse(thumb.dataset.images || '[]');
+    const shotTitle = _getShotTitle(thumb);
+    images.forEach(src => allImages.push({ src, shotTitle, thumbEl: thumb }));
+  });
+  acc.push({ label: _getSectionLabel(section), thumbs, allImages });
+  return acc;
+}, []);
+
+function openLightbox(el) {
+  _lb.sectionIndex = _sections.findIndex(s => s.thumbs.includes(el));
+  _lb.sectionImages = _sections[_lb.sectionIndex].allImages;
+  _lb.flatIndex = _lb.sectionImages.findIndex(entry => entry.thumbEl === el);
+  _lb.trigger = el;
+
+  const lb = document.getElementById('sg-lightbox');
+  lb.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  _lb.el = lb;
+  _lb.img = document.getElementById('sg-lb-img');
+  _lb.prev = document.getElementById('sg-lb-prev');
+  _lb.next = document.getElementById('sg-lb-next');
+  _lb.close = document.getElementById('sg-lb-close');
+  _lb.strip = document.getElementById('sg-lb-strip');
+  _lb.stripWrap = document.getElementById('sg-lb-strip-wrap');
+  _lb.counter = document.getElementById('sg-lb-counter');
+  _lb.titleEl = document.getElementById('sg-lb-title');
+  _lb.sectionEl = document.getElementById('sg-lb-section');
+  _lb.secPrevBtn = document.getElementById('sg-lb-sec-prev');
+  _lb.secNextBtn = document.getElementById('sg-lb-sec-next');
+
+  // Add glass class to buttons
+  [_lb.close, _lb.prev, _lb.next].forEach(b => b.classList.add('sg-glass'));
+
+  _lbRender();
+  _lb.close.focus();
+}
+
+function _updateSectionNav() {
+  const prev = _sections[_lb.sectionIndex - 1];
+  const next = _sections[_lb.sectionIndex + 1];
+
+  _lb.secPrevBtn.textContent = prev ? `← ${prev.label}` : '';
+  _lb.secNextBtn.textContent = next ? `${next.label} →` : '';
+  _lb.secPrevBtn.disabled = !prev;
+  _lb.secNextBtn.disabled = !next;
+}
+
+function _lbRender() {
+  const { sectionImages, flatIndex } = _lb;
+  const entry = sectionImages[flatIndex];
+  const newSrc = entry.src;
+
+  // Image (blur-up: swap src only once the full-res image has preloaded)
+  _lb.img.classList.remove('loaded-sharp');
+  _lb.img.classList.add('loading');
+  _lb.img.style.animation = 'none';
+  _lb.img.offsetHeight; // reflow
+  _lb.img.style.animation = '';
+  _lb.img.alt = entry.shotTitle;
+
+  const preloader = new Image();
+  preloader.onload = () => {
+    _lb.img.src = newSrc;
+    _lb.img.classList.remove('loading');
+    _lb.img.classList.add('loaded-sharp');
+  };
+  preloader.src = newSrc;
+
+  // Section label + shot title
+  _lb.sectionEl.textContent = _sections[_lb.sectionIndex].label;
+  _lb.titleEl.textContent = entry.shotTitle;
+
+  // Counter shows position across ALL images in the section
+  if (sectionImages.length > 1) {
+    _lb.counter.classList.remove('hidden');
+    _lb.counter.innerHTML = `<span class="cur">${flatIndex + 1}</span><span class="sep">/</span><span class="tot">${sectionImages.length}</span>`;
+  } else {
+    _lb.counter.classList.add('hidden');
+  }
+
+  // Prev/Next image buttons walk across ALL shots in the section
+  if (sectionImages.length <= 1) {
+    _lb.prev.classList.add('hidden');
+    _lb.next.classList.add('hidden');
+  } else {
+    _lb.prev.classList.remove('hidden');
+    _lb.next.classList.remove('hidden');
+    _lb.prev.disabled = flatIndex === 0;
+    _lb.next.disabled = flatIndex === sectionImages.length - 1;
+  }
+
+  // Strip shows ALL images in the section
+  _lb.strip.innerHTML = '';
+  if (sectionImages.length <= 1) {
+    _lb.stripWrap.classList.add('single');
+  } else {
+    _lb.stripWrap.classList.remove('single');
+    sectionImages.forEach((imgEntry, i) => {
+      const t = document.createElement('div');
+      t.className = 'sg-thumb-strip' + (i === flatIndex ? ' active' : '');
+      const img = document.createElement('img');
+      img.src = imgEntry.src;
+      img.loading = 'lazy';
+      if (img.complete && img.naturalWidth > 0) {
+        img.classList.add('loaded');
+      } else {
+        img.addEventListener('load', () => img.classList.add('loaded'), { once: true });
+      }
+      t.appendChild(img);
+      t.onclick = () => { _lb.flatIndex = i; _lbRender(); };
+      _lb.strip.appendChild(t);
+    });
+    // Auto-scroll strip to active
+    requestAnimationFrame(() => {
+      const active = _lb.strip.querySelector('.active');
+      if (active) active.scrollIntoView({ block: 'nearest', inline: 'center' });
+    });
+  }
+
+  // Section nav
+  _updateSectionNav();
+}
+
+function _lbClose() {
+  const lb = document.getElementById('sg-lightbox');
+  lb.style.display = 'none';
+  document.body.style.overflow = '';
+  if (_lb.trigger) _lb.trigger.focus();
+}
+
+// Wire up once DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  const lb = document.getElementById('sg-lightbox');
+  if (!lb) return;
+
+  document.getElementById('sg-lb-close').onclick = _lbClose;
+  document.getElementById('sg-lb-backdrop').onclick = _lbClose;
+  document.getElementById('sg-lb-prev').onclick = () => {
+    if (_lb.flatIndex > 0) { _lb.flatIndex--; _lbRender(); }
+  };
+  document.getElementById('sg-lb-next').onclick = () => {
+    if (_lb.flatIndex < _lb.sectionImages.length - 1) { _lb.flatIndex++; _lbRender(); }
+  };
+  document.getElementById('sg-lb-sec-prev').onclick = () => {
+    if (_lb.sectionIndex > 0) {
+      _lb.sectionIndex--;
+      _lb.sectionImages = _sections[_lb.sectionIndex].allImages;
+      _lb.flatIndex = 0;
+      _lbRender();
+    }
+  };
+  document.getElementById('sg-lb-sec-next').onclick = () => {
+    if (_lb.sectionIndex < _sections.length - 1) {
+      _lb.sectionIndex++;
+      _lb.sectionImages = _sections[_lb.sectionIndex].allImages;
+      _lb.flatIndex = 0;
+      _lbRender();
+    }
+  };
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (lb.style.display === 'none') return;
+    if (e.key === 'Escape') _lbClose();
+    if (e.key === 'ArrowLeft' && _lb.flatIndex > 0) { _lb.flatIndex--; _lbRender(); }
+    if (e.key === 'ArrowRight' && _lb.flatIndex < _lb.sectionImages.length - 1) { _lb.flatIndex++; _lbRender(); }
+  });
+
+  // Set data-count badge on multi-image thumbnails
+  document.querySelectorAll('.shot-thumb[data-images]').forEach(el => {
+    const images = JSON.parse(el.dataset.images || '[]');
+    if (images.length > 1) el.dataset.count = `+${images.length}`;
+  });
+
+  // Blur-up: sharpen each thumbnail once its image has loaded
+  document.querySelectorAll('.shot-thumb img').forEach(img => {
+    if (img.complete && img.naturalWidth > 0) {
+      img.classList.add('loaded');
+    } else {
+      img.addEventListener('load', () => img.classList.add('loaded'), { once: true });
+    }
+  });
+
+  // Focus trap
+  lb.addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return;
+    const focusable = lb.querySelectorAll('button:not([disabled])');
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+});
+</script>
 
 </body>
 </html>

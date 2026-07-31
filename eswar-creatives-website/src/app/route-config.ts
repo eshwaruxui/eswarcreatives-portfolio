@@ -9,6 +9,7 @@ import { SecureVaultCaseStudy } from "./components/SecureVaultCaseStudy";
 import { DsAuditCaseStudy } from "./components/DsAuditCaseStudy";
 import { ServicesPage } from "./components/ServicesPage";
 import { BrandingLandingPage } from "./components/BrandingLandingPage";
+import { BrandingWorkPage } from "../pages/BrandingWorkPage";
 import { BrandingServicesPage } from "./components/BrandingServicesPage";
 import { DesignSystemsLandingPage } from "./components/DesignSystemsLandingPage";
 import { DesignSystemsServicesPage } from "./components/DesignSystemsServicesPage";
@@ -106,6 +107,7 @@ export const routeConfig = [
       { path: "/work/ds-audit-roadmap",             Component: DsAuditCaseStudy },
       { path: "/services",                          Component: ServicesPage },
       { path: "/branding",                          Component: BrandingLandingPage },
+      { path: "/branding/work",                     Component: BrandingWorkPage },
       { path: "/design-systems",                    Component: DesignSystemsLandingPage },
       { path: "/services/branding",                 Component: BrandingServicesPage },
       { path: "/services/design-systems",           Component: DesignSystemsServicesPage },

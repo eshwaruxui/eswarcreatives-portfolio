@@ -373,6 +373,19 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 | `CandidateCard` | `src/portal/components/shortlist/CandidateCard.tsx` | Smart Shortlist candidate card; ICP score bar, confidence badge, Add to leads inline form, Ignore action |
 | `AddProjectModal` | `src/portal/admin/AddProjectModal.tsx` | Client picker + project name field; inserts into projects; desktop top-right + mobile sticky footer button |
 
+### Marketing components (`src/components/marketing/`)
+
+Public marketing pages (`/branding` and future marketing surfaces) are a separate consumer of the design system from the portal — never put these in `src/portal/components/`. Introduced on `feature/branding-landing-redesign` for the branding landing hero rebuild.
+
+| Component | Location | Notes |
+|---|---|---|
+| `CTAButton` | `src/components/marketing/CTAButton.tsx` | primary/outline variants; used by `LandingNav` and the branding landing hero, retainer, and CTA sections |
+| `FitPill` | `src/components/marketing/FitPill.tsx` | icon + title + description card; used in the hero's 3-pill row |
+| `BeforeAfterCard` | `src/components/marketing/BeforeAfterCard.tsx` | redesign/new-build showcase card; drives the hero's 3-slide carousel |
+| `IconWrapper` | `src/components/marketing/IconWrapper.tsx` | sizes/recolors an inline SVG icon via currentColor; never wraps exported PNG/SVG assets |
+
+Candidates for Code Connect mapping once reuse across the Phase 2/3 marketing sections is confirmed (see Section 11/12 roadmap) — not yet wired up.
+
 ### Admin ProjectPanel — 4-tab layout
 
 | Tab | Contents |
