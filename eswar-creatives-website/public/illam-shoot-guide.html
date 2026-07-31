@@ -101,7 +101,7 @@
     padding: 14px 16px;
     margin-bottom: 24px;
     font-size: 13.5px;
-    color: var(--muted);
+    color: #1A1A1A;
   }
   .note-box .tamil { color: var(--ink); margin-top: 4px; display: block; }
 
@@ -133,7 +133,7 @@
     display: block;
     font-size: 13px;
     font-weight: 400;
-    color: var(--muted);
+    color: #1A1A1A;
     text-transform: none;
     margin-top: 1px;
   }
@@ -156,7 +156,7 @@
   .shot-text .tamil {
     display: block;
     font-size: 13.5px;
-    color: var(--muted);
+    color: #1A1A1A;
     margin-top: 3px;
   }
 
@@ -251,12 +251,12 @@
   #sg-lb-prev:active, #sg-lb-next:active { transform: translateY(-50%) scale(0.95); }
 
   #sg-lb-caption {
-    position: absolute; bottom: 136px; left: 0; right: 0;
     text-align: center; padding: 0 60px; z-index: 2;
+    margin-bottom: 12px;
   }
   #sg-lb-section {
     font-family: 'Jost', sans-serif;
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -625,13 +625,13 @@
     <button id="sg-lb-close" aria-label="Close">✕</button>
     <button id="sg-lb-prev" aria-label="Previous reference">‹</button>
     <button id="sg-lb-next" aria-label="Next reference">›</button>
-    <div id="sg-lb-img-wrap">
-      <img id="sg-lb-img" src="" alt="">
-    </div>
     <div id="sg-lb-caption">
       <div id="sg-lb-section"></div>
       <div id="sg-lb-title"></div>
       <div id="sg-lb-counter"></div>
+    </div>
+    <div id="sg-lb-img-wrap">
+      <img id="sg-lb-img" src="" alt="">
     </div>
     <div id="sg-lb-strip-wrap">
       <div id="sg-lb-strip"></div>
@@ -664,6 +664,10 @@ function _getShotTitle(thumb) {
   return thumb.closest('.shot')?.querySelector('.shot-text')?.childNodes[0]?.textContent?.trim() || '';
 }
 
+function _getShotTaglish(thumb) {
+  return thumb.closest('.shot')?.querySelector('.shot-text .tamil')?.textContent?.trim() || '';
+}
+
 // Flat ordered list of sections that have at least one photo thumbnail.
 // Each section also carries a flattened image manifest (allImages) so
 // prev/next can walk across shot boundaries within the same section.
@@ -674,7 +678,8 @@ const _sections = Array.from(document.querySelectorAll('.section')).reduce((acc,
   thumbs.forEach(thumb => {
     const images = JSON.parse(thumb.dataset.images || '[]');
     const shotTitle = _getShotTitle(thumb);
-    images.forEach(src => allImages.push({ src, shotTitle, thumbEl: thumb }));
+    const shotTaglish = _getShotTaglish(thumb);
+    images.forEach(src => allImages.push({ src, shotTitle, shotTaglish, thumbEl: thumb }));
   });
   acc.push({ label: _getSectionLabel(section), thumbs, allImages });
   return acc;
@@ -741,9 +746,10 @@ function _lbRender() {
   };
   preloader.src = newSrc;
 
-  // Section label + shot title
+  // Section label + shot description (taglish only in the lightbox display;
+  // the English line stays visible in the main shot list on the page)
   _lb.sectionEl.textContent = _sections[_lb.sectionIndex].label;
-  _lb.titleEl.textContent = entry.shotTitle;
+  _lb.titleEl.textContent = entry.shotTaglish;
 
   // Counter shows position across ALL images in the section
   if (sectionImages.length > 1) {
