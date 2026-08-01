@@ -3,10 +3,10 @@ import { Helmet } from "react-helmet-async";
 import { ArrowRight, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { PortfolioButton } from "./ui/portfolio-button";
-import { LandingNav } from "../../components/LandingNav";
+import { Navbar } from "./Navbar";
 import { useBreakpoint } from "../../portal/hooks/useBreakpoint";
 import { t, tokens, motionTokens } from "../../portal/theme";
-import { CTAButton } from "../../components/marketing/CTAButton";
+import { ECButton } from "../../components/marketing/ECButton";
 import { FitPill } from "../../components/marketing/FitPill";
 import { BeforeAfterCard, type BeforeAfterCardType } from "../../components/marketing/BeforeAfterCard";
 import { IconWrapper } from "../../components/marketing/IconWrapper";
@@ -581,8 +581,8 @@ export function BrandingLandingPage() {
         <meta name="twitter:image" content="https://www.eswarcreatives.in/og-branding.png" />
       </Helmet>
 
-      <div style={{ minHeight: "100vh", background: t.background.page, fontFamily: BODY, color: t.text.primary }}>
-        <LandingNav />
+      <div style={{ minHeight: "100vh", background: t.background.page, fontFamily: BODY, color: t.text.primary, paddingTop: 67 }}>
+        <Navbar />
 
         {/* SECTION 1 — HERO */}
         <section>
@@ -649,8 +649,8 @@ export function BrandingLandingPage() {
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <CTAButton variant="primary" size="xl" fullWidth label="See our work →" href="/branding/work" />
-                  <CTAButton variant="outline" size="xl" fullWidth label="Let's talk" href={LETS_TALK_MAILTO} />
+                  <ECButton hierarchy="primary" size="xl" fullWidth label="See our work →" href="/branding/work" />
+                  <ECButton hierarchy="secondary-gray" size="xl" fullWidth label="Let's talk" href={LETS_TALK_MAILTO} />
                 </div>
                 <p
                   style={{
@@ -1116,7 +1116,7 @@ export function BrandingLandingPage() {
                   <p style={{ fontFamily: BODY, fontSize: 13, color: t.text.onPrimary, marginBottom: 20, lineHeight: 1.6 }}>
                     Performance incentive per confirmed booking
                   </p>
-                  <CTAButton variant="primary" label="Chat on WhatsApp →" href={RETAINER_WHATSAPP_URL} target="_blank" />
+                  <ECButton hierarchy="primary" label="Chat on WhatsApp →" href={RETAINER_WHATSAPP_URL} target="_blank" />
                   <p style={{ fontFamily: BODY, fontSize: 12, color: t.text.onPrimary, opacity: 0.75, marginTop: 10, marginBottom: 0 }}>
                     Opens WhatsApp. We reply personally, usually same day.
                   </p>

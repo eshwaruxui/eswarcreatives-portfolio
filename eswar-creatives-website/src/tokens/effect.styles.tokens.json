@@ -303,5 +303,26 @@
         }
       ]
     }
+  },
+  "Shadows": {
+    "xs focused 4px brand-100": {
+      "$type": "shadow",
+      "$value": [
+        {
+          "offsetX": "0px",
+          "offsetY": "0px",
+          "blur": "0px",
+          "spread": "3px",
+          "color": "{teal.100}"
+        },
+        {
+          "offsetX": "0px",
+          "offsetY": "1px",
+          "blur": "2px",
+          "spread": "0px",
+          "color": "#0000000d"
+        }
+      ]
+    }
   }
 }

@@ -583,77 +583,6 @@
       "$value": "#0a66c2"
     }
   },
-  "radius": {
-    "none": {
-      "$type": "dimension",
-      "$value": "0px",
-      "$description": "Sharp corners"
-    },
-    "xs": {
-      "$type": "dimension",
-      "$value": "2px",
-      "$description": "84% smooth · micro elements"
-    },
-    "sm": {
-      "$type": "dimension",
-      "$value": "4px",
-      "$description": "84% smooth · chips, tags"
-    },
-    "md": {
-      "$type": "dimension",
-      "$value": "8px",
-      "$description": "84% smooth · buttons, inputs"
-    },
-    "lg": {
-      "$type": "dimension",
-      "$value": "12px",
-      "$description": "84% smooth · cards, panels"
-    },
-    "xl": {
-      "$type": "dimension",
-      "$value": "16px",
-      "$description": "84% smooth · modals"
-    },
-    "2xl": {
-      "$type": "dimension",
-      "$value": "20px",
-      "$description": "84% smooth · large cards"
-    },
-    "3xl": {
-      "$type": "dimension",
-      "$value": "28px",
-      "$description": "84% smooth · hero sections"
-    },
-    "full": {
-      "$type": "dimension",
-      "$value": "9999px",
-      "$description": "Pills · avatars · circular"
-    },
-    "4xl": {
-      "$type": "dimension",
-      "$value": "32px"
-    },
-    "5xl": {
-      "$type": "dimension",
-      "$value": "36px"
-    },
-    "6xl": {
-      "$type": "dimension",
-      "$value": "42px"
-    },
-    "7xl": {
-      "$type": "dimension",
-      "$value": "48px"
-    },
-    "8xl": {
-      "$type": "dimension",
-      "$value": "54px"
-    },
-    "9xl": {
-      "$type": "dimension",
-      "$value": "62px"
-    }
-  },
   "spacing": {
     "0": {
       "$type": "dimension",
@@ -786,6 +715,77 @@
     "px": {
       "$type": "dimension",
       "$value": "1px"
+    }
+  },
+  "radius": {
+    "none": {
+      "$type": "dimension",
+      "$value": "0px",
+      "$description": "Sharp corners"
+    },
+    "xs": {
+      "$type": "dimension",
+      "$value": "2px",
+      "$description": "84% smooth · micro elements"
+    },
+    "sm": {
+      "$type": "dimension",
+      "$value": "4px",
+      "$description": "84% smooth · chips, tags"
+    },
+    "md": {
+      "$type": "dimension",
+      "$value": "8px",
+      "$description": "84% smooth · buttons, inputs"
+    },
+    "lg": {
+      "$type": "dimension",
+      "$value": "12px",
+      "$description": "84% smooth · cards, panels"
+    },
+    "xl": {
+      "$type": "dimension",
+      "$value": "16px",
+      "$description": "84% smooth · modals"
+    },
+    "2xl": {
+      "$type": "dimension",
+      "$value": "20px",
+      "$description": "84% smooth · large cards"
+    },
+    "3xl": {
+      "$type": "dimension",
+      "$value": "28px",
+      "$description": "84% smooth · hero sections"
+    },
+    "full": {
+      "$type": "dimension",
+      "$value": "9999px",
+      "$description": "Pills · avatars · circular"
+    },
+    "4xl": {
+      "$type": "dimension",
+      "$value": "32px"
+    },
+    "5xl": {
+      "$type": "dimension",
+      "$value": "36px"
+    },
+    "6xl": {
+      "$type": "dimension",
+      "$value": "42px"
+    },
+    "7xl": {
+      "$type": "dimension",
+      "$value": "48px"
+    },
+    "8xl": {
+      "$type": "dimension",
+      "$value": "54px"
+    },
+    "9xl": {
+      "$type": "dimension",
+      "$value": "62px"
     }
   },
   "neutral-alpha": {

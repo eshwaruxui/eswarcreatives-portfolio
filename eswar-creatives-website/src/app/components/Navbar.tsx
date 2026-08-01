@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
-import { Link, useLocation } from "react-router";
-import eswarLogo from "../../imports/eswar-logo.svg";
-import { PortfolioButton } from "./ui/portfolio-button";
+import { Link, useLocation, useNavigate } from "react-router";
+import { ECButton } from "../../components/marketing/ECButton";
+import { BrandLogoNav } from "../../components/marketing/BrandLogoNav";
 import { ContactModal } from "./ContactModal"; // refreshed ref
 
 interface NavLink {
@@ -10,18 +10,49 @@ interface NavLink {
   href: string;
   isRoute?: boolean;
   isModal?: boolean;
-  active?: boolean;
 }
 
-export function Navbar() {
+// Figma component set "Navbar - Site & Landing pages" — Page=Brand Studio /
+// SaaS / Portfolio. One shared component for all three marketing surfaces
+// (previously split across this file and the now-retired LandingNav.tsx).
+export type NavPage = "brand-studio" | "saas" | "portfolio";
+
+function detectPage(pathname: string): NavPage {
+  if (pathname.startsWith("/branding")) return "brand-studio";
+  if (pathname.startsWith("/design-systems") || pathname.startsWith("/services/design-systems")) return "saas";
+  return "portfolio";
+}
+
+// CTA and logo destination differ per page — sourced from what each surface
+// already used before consolidation (LandingNav's WhatsApp CTA + /branding
+// logo link for Brand Studio; this file's Calendly CTA + home logo link for
+// SaaS/Portfolio). Not something to unify further without a content decision.
+const CTA_BY_PAGE: Record<NavPage, { label: string; href: string }> = {
+  "brand-studio": { label: "Let's talk →", href: "https://wa.me/919841085484" },
+  saas: { label: "Book a call →", href: "https://calendly.com/eswarcreatives/25-min-intro-call" },
+  portfolio: { label: "Book a call →", href: "https://calendly.com/eswarcreatives/25-min-intro-call" },
+};
+const LOGO_HREF_BY_PAGE: Record<NavPage, string> = {
+  "brand-studio": "/branding",
+  saas: "/design-systems",
+  portfolio: "/",
+};
+
+interface NavbarProps {
+  // Optional override — normally auto-detected from the route so existing
+  // `<Navbar />` call sites across the portfolio/design-systems pages don't
+  // need to change.
+  page?: NavPage;
+}
+
+export function Navbar({ page: pageProp }: NavbarProps = {}) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const page = pageProp ?? detectPage(location.pathname);
   const isHome = location.pathname === "/";
-  const isDesignSystems =
-    location.pathname.startsWith("/design-systems") ||
-    location.pathname.startsWith("/services/design-systems");
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -34,116 +65,93 @@ export function Navbar() {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  const navLinks: NavLink[] = isHome
-    ? [
-        { label: "Work", href: "#work" },
-        { label: "About", href: "/about", isRoute: true },
-        { label: "Contact", href: "#contact", isModal: true },
-      ]
-    : isDesignSystems
-    ? [
-        { label: "How it works", href: "/design-systems#how-it-works" },
-        {
-          label:   "Case study",
-          href:    "/design-systems/case-study",
-          isRoute: true,
-          active:  location.pathname === "/design-systems/case-study",
-        },
-        { label: "Pricing", href: "/services/design-systems", isRoute: true },
-      ]
-    : [
-        { label: "Work", href: "/#work", isRoute: true },
-        { label: "About", href: "/about", isRoute: true, active: true },
-        { label: "Contact", href: "#contact", isModal: true },
-      ];
+  // Same-page hash links (e.g. "How it works" → #how-it-works) default to an
+  // instant jump; intercept and scroll smoothly instead when the target
+  // section is already on the current page.
+  function handleAnchorClick(e: React.MouseEvent, href: string) {
+    const [path, hash] = href.split("#");
+    if (!hash || (path && path !== location.pathname)) return;
+    const target = document.getElementById(hash);
+    if (!target) return;
+    e.preventDefault();
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  const navLinks: NavLink[] =
+    page === "brand-studio"
+      ? [
+          { label: "Work", href: "/branding/work", isRoute: true },
+          { label: "Services", href: "/branding", isRoute: true },
+          { label: "About", href: "/about", isRoute: true },
+        ]
+      : page === "saas"
+      ? [
+          { label: "How it works", href: "/design-systems#how-it-works" },
+          { label: "Case study", href: "/design-systems/case-study", isRoute: true },
+          { label: "Pricing", href: "/services/design-systems", isRoute: true },
+        ]
+      : isHome
+      ? [
+          { label: "Work", href: "#work" },
+          { label: "About", href: "/about", isRoute: true },
+          { label: "Contact", href: "#contact", isModal: true },
+        ]
+      : [
+          { label: "Work", href: "/#work", isRoute: true },
+          { label: "About", href: "/about", isRoute: true },
+          { label: "Contact", href: "#contact", isModal: true },
+        ];
+
+  const cta = CTA_BY_PAGE[page];
 
   return (
     <>
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 w-full ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 w-full border-b border-[rgba(28,24,45,0.1)] ${
         scrolled
-          ? "bg-white/80 backdrop-blur-xl shadow-lg shadow-black/5 border-b border-black/[0.08]"
-          : "bg-white/60 backdrop-blur-md border-b border-black/[0.05]"
+          ? "bg-white/80 backdrop-blur-xl shadow-lg shadow-black/5"
+          : "bg-white/60 backdrop-blur-md"
       }`}
     >
       <div className="flex items-center justify-between px-6 py-3 max-w-6xl mx-auto">
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 group">
-          <img src={eswarLogo} alt="Eswar logo" className="w-8 h-8 group-hover:scale-105 transition-transform" />
-          <span
-            className="font-heading font-semibold italic text-text-primary"
-            style={{
-              fontSize: "var(--ds-text-lg)",
-              lineHeight: "26px",
-              letterSpacing: "-0.25px",
-              fontVariationSettings: '"SOFT" 0, "WONK" 1',
-            }}
-          >
-            EswarCreatives
-          </span>
+        {/* Logo — Figma EC Brand Logo - Top Nav (node 4448:13972) */}
+        <Link
+          to={LOGO_HREF_BY_PAGE[page]}
+          className="flex items-center"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        >
+          <BrandLogoNav variant={page} />
         </Link>
 
-        {/* Desktop Links */}
+        {/* Desktop Links — Figma Buttons/EC-Button, Size=md, Hierarchy=Tertiary gray */}
         <div className="hidden md:flex items-center gap-1">
-          {navLinks.map((link) =>
-            link.isModal ? (
-              <button
-                key={link.label}
-                onClick={() => setContactOpen(true)}
-                className="px-4 py-2 text-text-secondary hover:text-text-primary rounded-xl hover:bg-black/[0.04] transition-all duration-200 cursor-pointer"
-                style={{
-                  fontSize: "var(--ds-text-md)",
-                  lineHeight: "var(--typo-h7-line-height)",
-                  fontWeight: "var(--typo-h7-weight)",
-                }}
-              >
-                {link.label}
-              </button>
-            ) : link.isRoute ? (
-              <Link
-                key={link.label}
-                to={link.href}
-                className={`px-4 py-2 rounded-xl transition-all duration-200 ${
-                  link.active
-                    ? "text-text-primary bg-black/[0.04]"
-                    : "text-text-secondary hover:text-text-primary hover:bg-black/[0.04]"
-                }`}
-                style={{
-                  fontSize: "var(--ds-text-md)",
-                  lineHeight: "var(--typo-h7-line-height)",
-                  fontWeight: "var(--typo-h7-weight)",
-                }}
-              >
-                {link.label}
-              </Link>
-            ) : (
-              <a
-                key={link.label}
-                href={link.href}
-                className="px-4 py-2 text-text-secondary hover:text-text-primary rounded-xl hover:bg-black/[0.04] transition-all duration-200"
-                style={{
-                  fontSize: "var(--ds-text-md)",
-                  lineHeight: "var(--typo-h7-line-height)",
-                  fontWeight: "var(--typo-h7-weight)",
-                }}
-              >
-                {link.label}
-              </a>
-            )
-          )}
+          {navLinks.map((link) => (
+            <ECButton
+              key={link.label}
+              hierarchy="tertiary-gray"
+              size="md"
+              label={link.label}
+              href={link.href}
+              onClick={
+                link.isModal
+                  ? (e) => {
+                      e.preventDefault();
+                      setContactOpen(true);
+                    }
+                  : link.isRoute
+                  ? (e) => {
+                      e.preventDefault();
+                      navigate(link.href);
+                    }
+                  : (e) => handleAnchorClick(e, link.href)
+              }
+            />
+          ))}
         </div>
 
-        {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
-        <PortfolioButton
-          href="https://calendly.com/eswarcreatives/25-min-intro-call"
-          target="_blank"
-          rel="noopener noreferrer"
-          variant="brand"
-          size="md"
-          className="hidden md:flex px-4 py-2"
-        >
-          Book a call →
-        </PortfolioButton>
+        <div className="hidden md:flex">
+          <ECButton hierarchy="primary" size="md" label={cta.label} href={cta.href} target="_blank" />
+        </div>
 
         {/* Mobile Menu Button */}
         <button
@@ -188,11 +196,7 @@ export function Navbar() {
                 key={link.label}
                 to={link.href}
                 onClick={() => setMobileOpen(false)}
-                className={`block px-4 py-2.5 rounded-xl transition-all ${
-                  link.active
-                    ? "text-text-primary bg-black/[0.04]"
-                    : "text-text-secondary hover:text-text-primary hover:bg-black/[0.04]"
-                }`}
+                className="block px-4 py-2.5 rounded-xl transition-all text-text-secondary hover:text-text-primary hover:bg-black/[0.04]"
                 style={{
                   fontSize: "var(--ds-text-md)",
                   lineHeight: "var(--typo-h7-line-height)",
@@ -206,7 +210,10 @@ export function Navbar() {
               <a
                 key={link.label}
                 href={link.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={(e) => {
+                  handleAnchorClick(e, link.href);
+                  setMobileOpen(false);
+                }}
                 className="block px-4 py-2.5 text-text-secondary hover:text-text-primary rounded-xl hover:bg-black/[0.04] transition-all"
                 style={{
                   fontSize: "var(--ds-text-md)",
@@ -219,18 +226,9 @@ export function Navbar() {
               </a>
             )
           )}
-          {/* TODO: replace with real Calendly URL before sharing with outreach contacts */}
-          <PortfolioButton
-            href="https://calendly.com/eswarcreatives/25-min-intro-call"
-            target="_blank"
-            rel="noopener noreferrer"
-            variant="primary"
-            size="md"
-            className="mt-2 px-4 py-2.5"
-            role="menuitem"
-          >
-            Book a call →
-          </PortfolioButton>
+          <div className="mt-2">
+            <ECButton hierarchy="primary" size="md" label={cta.label} href={cta.href} target="_blank" role="menuitem" />
+          </div>
         </div>
       )}
     </nav>

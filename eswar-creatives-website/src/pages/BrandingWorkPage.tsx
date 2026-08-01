@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CaseCard } from '../components/branding/CaseCard'
 import { CaseDetailOverlay } from '../components/branding/CaseDetailOverlay'
-import { LandingNav } from '../components/LandingNav'
+import { Navbar } from '../app/components/Navbar'
 import { BRANDING_CASES } from '../data/brandingCases'
 import { useBreakpoint } from '../portal/hooks/useBreakpoint'
 import { t, tokens } from '../portal/theme'
@@ -19,8 +19,8 @@ export function BrandingWorkPage() {
       : BRANDING_CASES.filter((c) => c.client === activeFilter)
 
   return (
-    <div style={{ background: t.background.page, minHeight: '100vh' }}>
-      <LandingNav />
+    <div style={{ background: t.background.page, minHeight: '100vh', paddingTop: 67 }}>
+      <Navbar />
       <section
         style={{
           maxWidth: 1100,

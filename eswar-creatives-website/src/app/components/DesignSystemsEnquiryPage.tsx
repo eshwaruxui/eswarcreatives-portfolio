@@ -88,7 +88,7 @@ export function DesignSystemsEnquiryPage() {
 
           <div className="flex flex-wrap gap-3 justify-center mb-6">
             <PortfolioButton
-              href="mailto:eswar@eswarcreatives.in?subject=Atelier%20Design%20Systems%20enquiry"
+              href="mailto:eswar@eswarcreatives.in?subject=Design%20System%20Enquiry&body=Hi%20Eswar%2C%0A%0AHere%27s%20a%20quick%20summary%20of%20what%20we%27re%20working%20with%3A%0A%0ADesign%20system%20status%3A%0ATeam%20size%3A%0APlatform%20mix%20(web%2C%20iOS%2C%20Android)%3A%0ABiggest%20current%20pain%3A%0A%0ALooking%20forward%20to%20hearing%20from%20you."
               variant="primary"
               size="lg"
               style={{
