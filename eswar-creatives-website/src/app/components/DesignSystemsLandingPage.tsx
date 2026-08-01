@@ -402,11 +402,19 @@ export function DesignSystemsLandingPage() {
             {/* Figma "ICP - Badge Card" row (node 4537:25793) */}
             <div
               className="flex flex-wrap items-center justify-center"
-              style={{ gap: "20px", marginTop: "16px" }}
+              style={{ gap: "20px", marginTop: "16px", flexDirection: isMobile ? "column" : "row" }}
             >
               {ICP_BADGES.map(({ icon, title, caption }, i) => (
-                <div key={title} className="flex items-center" style={{ gap: "20px" }}>
-                  {i > 0 && <div style={{ width: "1px", height: "109px", background: "#e5e5e4" }} />}
+                <div key={title} className="flex items-center" style={{ gap: "20px", flexDirection: isMobile ? "column" : "row" }}>
+                  {i > 0 && (
+                    <div
+                      style={
+                        isMobile
+                          ? { width: "80px", height: "1px", background: "#e5e5e4" }
+                          : { width: "1px", height: "109px", background: "#e5e5e4" }
+                      }
+                    />
+                  )}
                   <motion.div
                     {...reveal(reducedMotion, { delay: 0.15 + i * 0.05 })}
                     style={{ width: "320px", padding: "24px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}
@@ -465,33 +473,12 @@ export function DesignSystemsLandingPage() {
               </h2>
             </motion.div>
 
-            <motion.div {...reveal(reducedMotion, { delay: 0.1 })} style={{ marginBottom: "48px" }}>
-              {isMobile ? (
-                <div
-                  style={{
-                    display:       "flex",
-                    alignItems:    "center",
-                    justifyContent: "center",
-                    flexWrap:      "wrap",
-                    gap:           "8px",
-                    fontSize:      "14px",
-                    color:         C.textMuted,
-                  }}
-                >
-                  {["Hexes", "Primitives", "Semantic", "User Interface"].map((step, i, arr) => (
-                    <span key={step} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      {step}
-                      {i < arr.length - 1 && <span style={{ color: C.gold }}>→</span>}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <img
-                  src={tokenDiagram}
-                  alt="Token architecture flowing from hexes to primitives to semantic tokens to UI"
-                  style={{ display: "block", width: "100%", maxWidth: "960px", margin: "0 auto" }}
-                />
-              )}
+            <motion.div {...reveal(reducedMotion, { delay: 0.1 })} style={{ marginBottom: "48px", overflowX: isMobile ? "auto" : "visible" }}>
+              <img
+                src={tokenDiagram}
+                alt="Token architecture flowing from hexes to primitives to semantic tokens to UI"
+                style={{ display: "block", width: isMobile ? "560px" : "100%", maxWidth: isMobile ? "none" : "960px", margin: "0 auto" }}
+              />
             </motion.div>
 
             <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: "16px", marginBottom: "40px" }}>
@@ -880,8 +867,8 @@ export function DesignSystemsLandingPage() {
 
               <div style={{ marginBottom: "8px", display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
                 {PRICING_CHECKLIST.map((row) => (
-                  <div key={row} style={{ display: "flex", alignItems: "center", gap: "6px", width: "436px", maxWidth: "100%" }}>
-                    <img src={checkCircleGoldIcon} alt="" aria-hidden="true" style={{ width: "16px", height: "16px", flexShrink: 0 }} />
+                  <div key={row} style={{ display: "flex", alignItems: "flex-start", gap: "6px", width: "436px", maxWidth: "100%" }}>
+                    <img src={checkCircleGoldIcon} alt="" aria-hidden="true" style={{ width: "16px", height: "16px", marginTop: "2px", flexShrink: 0 }} />
                     <p style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontWeight: 600, fontSize: "15px", lineHeight: "20px", letterSpacing: "-0.1px", color: C.text, textAlign: "left" }}>{row}</p>
                   </div>
                 ))}
@@ -901,8 +888,8 @@ export function DesignSystemsLandingPage() {
                 />
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginTop: "16px" }}>
-                <img src={shieldCheckIcon} alt="" aria-hidden="true" style={{ width: "15px", height: "17px" }} />
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", gap: "6px", marginTop: "16px" }}>
+                <img src={shieldCheckIcon} alt="" aria-hidden="true" style={{ width: "15px", height: "17px", marginTop: "2px", flexShrink: 0 }} />
                 <p style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontSize: "15px", lineHeight: "20px", color: C.text }}>100% money-back guarantee. No questions asked.</p>
               </div>
 
@@ -920,9 +907,9 @@ export function DesignSystemsLandingPage() {
               href="https://www.linkedin.com/in/eswaruxui/"
               target="_blank"
               rel="noopener noreferrer"
-              style={{ display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontSize: "15px", lineHeight: "20px", color: C.text, textDecoration: "none" }}
+              style={{ display: "inline-flex", alignItems: "flex-start", gap: "7px", fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontSize: "15px", lineHeight: "20px", color: C.text, textDecoration: "none" }}
             >
-              <img src={linkedinIcon} alt="" aria-hidden="true" style={{ width: "14px", height: "14px" }} />
+              <img src={linkedinIcon} alt="" aria-hidden="true" style={{ width: "14px", height: "14px", marginTop: "3px", flexShrink: 0 }} />
               Find me on LinkedIn
             </a>
             <span style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", fontSize: "16px", color: "#e5e5e4" }}>·</span>

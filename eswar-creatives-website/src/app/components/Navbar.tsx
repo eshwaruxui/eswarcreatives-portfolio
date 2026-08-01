@@ -74,7 +74,18 @@ export function Navbar({ page: pageProp }: NavbarProps = {}) {
     const target = document.getElementById(hash);
     if (!target) return;
     e.preventDefault();
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    // If the mobile dropdown is open, closing it collapses its height right
+    // as the scroll starts, which shifts the target and cancels the
+    // in-flight animation. Close it first and wait a frame for that layout
+    // to settle before scrolling.
+    if (mobileOpen) {
+      setMobileOpen(false);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }));
+    } else {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   const navLinks: NavLink[] =
@@ -210,10 +221,7 @@ export function Navbar({ page: pageProp }: NavbarProps = {}) {
               <a
                 key={link.label}
                 href={link.href}
-                onClick={(e) => {
-                  handleAnchorClick(e, link.href);
-                  setMobileOpen(false);
-                }}
+                onClick={(e) => handleAnchorClick(e, link.href)}
                 className="block px-4 py-2.5 text-text-secondary hover:text-text-primary rounded-xl hover:bg-black/[0.04] transition-all"
                 style={{
                   fontSize: "var(--ds-text-md)",
