@@ -1,13 +1,13 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 24 July 2026 (Smart Shortlist + Outreach fixes merged). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 3 August 2026 (PR #18 — LinkedIn planner save/refresh fix + image attachments — merged). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
 **Active branch:** `main`
-**Status:** Stable. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
+**Status:** Stable. PR #18 (`fix/linkedin-planner-save-and-attachments`) merged to main on 3 August 2026. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -208,9 +208,21 @@ _Invoice billing title + payment proof attachments (`feature/invoice-billing-tit
 - Cloudflare preview smoke-tested (admin + client sessions): Billing for/Billing title flow, list/detail/public-page/PDF surfacing, admin attach+view proof, client view-only proof all confirmed working end to end. One fix from that pass: the "For" value initially rendered in the mono font used by short Details tokens (dates, currency), which wrapped awkwardly for longer titles — switched to the body font for that row only (`DetailLine`'s `prose` variant).
 - Merged to main 24 July 2026 (no-ff, no conflicts).
 
+_LinkedIn planner save/refresh fix + image attachments (PR #18 — `fix/linkedin-planner-save-and-attachments` — merged 3 Aug 2026):_
+- Root cause fixed: LinkedIn slot cards failed to match saved posts because of a timezone string mismatch — `LinkedInTab.tsx` compared a locally-built `+05:30` ISO string against `scheduled_for` as returned by PostgREST, which normalizes `timestamptz` to `+00:00`. The insert and refetch were already correct; the strict string-equality match just never matched the same instant. Fixed by comparing parsed timestamps (`isSameInstant`) instead of raw strings. Confirmed live via direct SQL query before writing the fix, per the stage-attachments-bucket lesson (Section 1, PR #12).
+- Save flow hardened: Save button disables with an inline spinner while saving; success shows a toast and appends to local state immediately (no reload needed); failure shows a plain-language inline error under the textarea with the draft preserved, never raw `err.message`.
+- Migration 0082 applied: `linkedin-post-images` private storage bucket (5MB limit, `image/jpeg|png|webp|gif`) with an admin-only `is_admin()` RLS policy on `storage.objects`, mirroring the stage-attachments pattern from PR #12; `linkedin_posts.image_path` + `linkedin_posts.image_alt` columns added, schema cache reloaded via `NOTIFY pgrst`.
+- Post composer moved from an inline expand-in-card layout to a centered modal (same backdrop/card pattern as `DeleteProposalModal`) — the inline version pushed one slot card taller than its siblings in the 3-column grid. Opens via "+ Add Post" or the pencil Edit action on a saved pending post; closes via X, Cancel, backdrop click, or Escape (all guarded while a save is in flight).
+- Edit support added: saved (pending) posts previously only offered Publish Now / Delete with no way back into the composer. A Pencil action reopens the same modal pre-filled with the post's content, image, and alt text; Save then does an `UPDATE` on the existing row instead of an insert, and diffs the image (new upload replaces it, explicit removal deletes the old storage object, untouched leaves it alone).
+- Image attachment: drag/drop uploader in the composer (click/drag/drop, 5MB limit, inline error) — one image per post, uploaded to `linkedin-post-images` at Save time so cancelled drafts never orphan storage objects.
+- Live LinkedIn-style preview card renders under the composer while typing: avatar (`eswar-logo.svg`) + "Eswar Creatives" + headline, truncated body text with "...see more" past 210 characters, the attached image, and placeholder engagement icons.
+- Publish Now: copies the caption to the clipboard as before, and — if the post has an image — also opens a signed URL for it in a new tab, since LinkedIn has no API for automated image attachment; the admin downloads it and attaches manually.
+- Post History gains a thumbnail column (desktop table + mobile card list) via the shared `ProgressiveImage` component, backed by a batch of signed URLs (`createSignedUrls`) fetched once per `load()`.
+- Deleting a post now also removes its storage object, if any.
+
 **Supabase plan:** Pro ($25/month, upgraded 24 Jul 2026). Project ref: `urrinqwcrpivmvenupiu` (Mumbai, ap-south-1).
 
-**Next migration number: 0082**
+**Next migration number: 0083**
 
 ---
 
