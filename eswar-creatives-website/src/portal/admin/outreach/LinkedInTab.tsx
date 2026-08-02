@@ -1,7 +1,7 @@
 // LinkedIn post scheduling tab.
 // Week planner: Mon/Wed/Fri slot cards. Post history table. Weekly reminder banner.
 import { useEffect, useRef, useState } from 'react'
-import { Trash2, Copy, Image as ImageIcon, X, ThumbsUp, MessageCircle, Repeat2, Send } from 'lucide-react'
+import { Trash2, Copy, Image as ImageIcon, X, ThumbsUp, MessageCircle, Repeat2, Send, Pencil } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
@@ -80,10 +80,12 @@ export function LinkedInTab() {
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
   const [openSlot, setOpenSlot] = useState<SlotDate | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [draftContent, setDraftContent] = useState('')
   const [draftImageFile, setDraftImageFile] = useState<File | null>(null)
   const [draftImagePreview, setDraftImagePreview] = useState<string | null>(null)
   const [draftImageAlt, setDraftImageAlt] = useState('')
+  const [draftOriginalImagePath, setDraftOriginalImagePath] = useState<string | null>(null)
   const [imageError, setImageError] = useState<string | null>(null)
   const [imageDragging, setImageDragging] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -155,13 +157,49 @@ export function LinkedInTab() {
   const pendingThisWeek = posts.filter((p) => p.status === 'pending').length
   const showReminderBanner = isWeekend && pendingThisWeek < 3
 
-  function clearDraftImage() {
-    if (draftImagePreview) URL.revokeObjectURL(draftImagePreview)
+  // Clears whatever image is currently shown (new upload or the post's
+  // existing one). Keeps draftOriginalImagePath so handleSave still knows
+  // there was an original to delete/replace.
+  function removeDraftImage() {
+    if (draftImagePreview?.startsWith('blob:')) URL.revokeObjectURL(draftImagePreview)
     setDraftImageFile(null)
     setDraftImagePreview(null)
-    setDraftImageAlt('')
     setImageError(null)
     if (imageInputRef.current) imageInputRef.current.value = ''
+  }
+
+  // Full reset for opening a fresh draft or closing the composer.
+  function resetDraftImage() {
+    removeDraftImage()
+    setDraftImageAlt('')
+    setDraftOriginalImagePath(null)
+  }
+
+  function openAddDraft(slot: SlotDate) {
+    setOpenSlot(slot)
+    setEditingId(null)
+    setDraftContent('')
+    setSaveError(null)
+    resetDraftImage()
+  }
+
+  function openEditDraft(post: Post, slot: SlotDate) {
+    setOpenSlot(slot)
+    setEditingId(post.id)
+    setDraftContent(post.content)
+    setSaveError(null)
+    removeDraftImage()
+    setDraftImageAlt(post.image_alt ?? '')
+    setDraftOriginalImagePath(post.image_path)
+    setDraftImagePreview(post.image_path ? (imageUrls[post.image_path] ?? null) : null)
+  }
+
+  function closeDraft() {
+    setOpenSlot(null)
+    setEditingId(null)
+    setDraftContent('')
+    setSaveError(null)
+    resetDraftImage()
   }
 
   function handleImageSelect(file: File) {
@@ -173,7 +211,7 @@ export function LinkedInTab() {
       setImageError('Image too large (max 5MB).')
       return
     }
-    if (draftImagePreview) URL.revokeObjectURL(draftImagePreview)
+    if (draftImagePreview?.startsWith('blob:')) URL.revokeObjectURL(draftImagePreview)
     setImageError(null)
     setDraftImageFile(file)
     setDraftImagePreview(URL.createObjectURL(file))
@@ -185,7 +223,9 @@ export function LinkedInTab() {
     setSaveError(null)
     const dateStr = weekDates[slot]
 
-    let imagePath: string | null = null
+    // Resolve the final image_path for this save: a newly uploaded file
+    // replaces it, an explicit removal clears it, otherwise it's unchanged.
+    let imagePath: string | null = draftOriginalImagePath
     if (draftImageFile) {
       imagePath = `${slot}/${Date.now()}_${draftImageFile.name}`
       const { error: upErr } = await supabase.storage
@@ -196,30 +236,42 @@ export function LinkedInTab() {
         setSaving(false)
         return
       }
+    } else if (!draftImagePreview) {
+      imagePath = null
     }
 
-    const { data, error } = await supabase
-      .from('linkedin_posts')
-      .insert({
-        content: draftContent.trim(),
-        scheduled_for: isoSlotDate(dateStr),
-        status: 'pending',
-        image_path: imagePath,
-        image_alt: imagePath ? (draftImageAlt.trim() || null) : null,
-      })
-      .select('id, content, scheduled_for, status, published_at, created_at, image_path, image_alt')
-      .single()
+    const payload = {
+      content: draftContent.trim(),
+      image_path: imagePath,
+      image_alt: imagePath ? (draftImageAlt.trim() || null) : null,
+    }
+
+    const { data, error } = editingId
+      ? await supabase
+          .from('linkedin_posts')
+          .update(payload)
+          .eq('id', editingId)
+          .select('id, content, scheduled_for, status, published_at, created_at, image_path, image_alt')
+          .single()
+      : await supabase
+          .from('linkedin_posts')
+          .insert({ ...payload, scheduled_for: isoSlotDate(dateStr), status: 'pending' })
+          .select('id, content, scheduled_for, status, published_at, created_at, image_path, image_alt')
+          .single()
+
     if (error || !data) {
-      setSaveError('Could not save this post. Please try again.')
+      setSaveError(editingId ? 'Could not update this post. Please try again.' : 'Could not save this post. Please try again.')
     } else {
-      const newPost = data as Post
-      if (newPost.image_path) await loadImageUrls([newPost])
-      setPosts((prev) => [...prev, newPost])
-      setOpenSlot(null)
-      setDraftContent('')
-      clearDraftImage()
-      setSaveError(null)
-      showToast(`Post saved for ${formatSlotDate(dateStr)}.`)
+      const savedPost = data as Post
+      if (draftOriginalImagePath && draftOriginalImagePath !== imagePath) {
+        void supabase.storage.from(IMAGE_BUCKET).remove([draftOriginalImagePath])
+      }
+      if (savedPost.image_path) await loadImageUrls([savedPost])
+      setPosts((prev) =>
+        editingId ? prev.map((p) => (p.id === savedPost.id ? savedPost : p)) : [...prev, savedPost]
+      )
+      showToast(editingId ? `Post updated for ${formatSlotDate(dateStr)}.` : `Post saved for ${formatSlotDate(dateStr)}.`)
+      closeDraft()
     }
     setSaving(false)
   }
@@ -377,54 +429,7 @@ export function LinkedInTab() {
                   <span style={styles.slotDate}>{dateStr ? formatSlotDate(dateStr) : ''}</span>
                 </div>
 
-                {post ? (
-                  <>
-                    {post.image_path && imageUrls[post.image_path] && (
-                      <ProgressiveImage
-                        src={imageUrls[post.image_path]}
-                        alt={post.image_alt ?? 'Post image'}
-                        shimmerHeight={80}
-                        radius={6}
-                        fit="cover"
-                      />
-                    )}
-                    <p style={styles.postPreview} title={post.content}>
-                      {post.content}
-                    </p>
-                    <div style={styles.postFooter}>
-                      <span style={{
-                        ...styles.statusBadge,
-                        background: STATUS_TONES[post.status]?.bg,
-                        color: STATUS_TONES[post.status]?.fg,
-                      }}>
-                        {post.status}
-                      </span>
-                      <div style={styles.postActions}>
-                        {post.status === 'pending' && (
-                          <button
-                            type="button"
-                            style={styles.publishBtn}
-                            disabled={isPub}
-                            onClick={() => handlePublish(post)}
-                          >
-                            {isPub ? 'Publishing...' : 'Publish Now'}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          style={styles.iconBtn}
-                          disabled={isDel}
-                          onClick={() => handleDelete(post.id)}
-                          title="Delete post"
-                        >
-                          <Trash2 size={14} color={isDel ? t.text.muted : tokens.ruby} />
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {isOpen ? (
+                {isOpen ? (
                       <div style={styles.draftArea}>
                         <textarea
                           style={styles.draftTextarea}
@@ -450,7 +455,7 @@ export function LinkedInTab() {
                             <button
                               type="button"
                               style={styles.imageRemoveBtn}
-                              onClick={clearDraftImage}
+                              onClick={removeDraftImage}
                               title="Remove image"
                               aria-label="Remove image"
                             >
@@ -506,7 +511,7 @@ export function LinkedInTab() {
                               type="button"
                               style={styles.cancelDraftBtn}
                               disabled={saving}
-                              onClick={() => { setOpenSlot(null); setDraftContent(''); setSaveError(null); clearDraftImage() }}
+                              onClick={closeDraft}
                             >
                               Cancel
                             </button>
@@ -529,16 +534,69 @@ export function LinkedInTab() {
                         </div>
                         {saveError && <p style={styles.saveError}>{saveError}</p>}
                       </div>
-                    ) : (
-                      <button
-                        type="button"
-                        style={styles.addPostBtn}
-                        onClick={() => { setOpenSlot(key); setDraftContent(''); setSaveError(null); clearDraftImage() }}
-                      >
-                        + Add Post
-                      </button>
+                ) : post ? (
+                  <>
+                    {post.image_path && imageUrls[post.image_path] && (
+                      <ProgressiveImage
+                        src={imageUrls[post.image_path]}
+                        alt={post.image_alt ?? 'Post image'}
+                        shimmerHeight={80}
+                        radius={6}
+                        fit="cover"
+                      />
                     )}
+                    <p style={styles.postPreview} title={post.content}>
+                      {post.content}
+                    </p>
+                    <div style={styles.postFooter}>
+                      <span style={{
+                        ...styles.statusBadge,
+                        background: STATUS_TONES[post.status]?.bg,
+                        color: STATUS_TONES[post.status]?.fg,
+                      }}>
+                        {post.status}
+                      </span>
+                      <div style={styles.postActions}>
+                        {post.status === 'pending' && (
+                          <>
+                            <button
+                              type="button"
+                              style={styles.iconBtn}
+                              onClick={() => openEditDraft(post, key)}
+                              title="Edit post"
+                            >
+                              <Pencil size={14} color={t.text.tertiary} />
+                            </button>
+                            <button
+                              type="button"
+                              style={styles.publishBtn}
+                              disabled={isPub}
+                              onClick={() => handlePublish(post)}
+                            >
+                              {isPub ? 'Publishing...' : 'Publish Now'}
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          style={styles.iconBtn}
+                          disabled={isDel}
+                          onClick={() => handleDelete(post.id)}
+                          title="Delete post"
+                        >
+                          <Trash2 size={14} color={isDel ? t.text.muted : tokens.ruby} />
+                        </button>
+                      </div>
+                    </div>
                   </>
+                ) : (
+                  <button
+                    type="button"
+                    style={styles.addPostBtn}
+                    onClick={() => openAddDraft(key)}
+                  >
+                    + Add Post
+                  </button>
                 )}
               </div>
             )
