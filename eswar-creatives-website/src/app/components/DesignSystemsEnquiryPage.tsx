@@ -13,17 +13,29 @@ const TEAM_SIZES = ["1 to 10 engineers", "11 to 50", "51 to 150", "150+"] as con
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B", "Series C+"] as const;
 const TIMELINES = ["Immediately", "Within 30 days", "Within 90 days", "Exploring"] as const;
 
-const inputClass =
-  "w-full rounded-lg border border-border-default bg-bg-surface px-4 py-2.5 text-text-primary placeholder:text-text-muted outline-none transition-colors focus:border-border-focus focus:ring-2 focus:ring-border-focus/20";
 const labelClass = "block text-sm font-medium text-text-primary mb-1.5";
 const legendClass = "text-sm font-medium text-text-primary mb-2";
 const optionClass = "flex items-center gap-2 rounded-lg border border-border-default bg-bg-surface px-3.5 py-2 text-sm text-text-secondary cursor-pointer has-[:checked]:border-border-brand has-[:checked]:text-text-primary has-[:checked]:bg-bg-tint-1";
 const radioInputClass = "accent-teal-500 size-4 shrink-0";
+const errorTextClass = "mt-1.5 text-sm text-text-error";
+
+function fieldClass(hasError: boolean) {
+  return [
+    "w-full rounded-lg border bg-bg-surface px-4 py-2.5 text-text-primary placeholder:text-text-muted outline-none transition-colors focus:ring-2",
+    hasError
+      ? "border-border-error focus:border-border-error focus:ring-border-error/20"
+      : "border-border-default focus:border-border-focus focus:ring-border-focus/20",
+  ].join(" ");
+}
 
 export function DesignSystemsEnquiryPage() {
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [platformError, setPlatformError] = useState(false);
   const [problem, setProblem] = useState("");
+  const [problemError, setProblemError] = useState(false);
+  const [firstNameError, setFirstNameError] = useState(false);
+  const [companyNameError, setCompanyNameError] = useState(false);
+  const [companyUrlError, setCompanyUrlError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -46,9 +58,21 @@ export function DesignSystemsEnquiryPage() {
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
+    const data = new FormData(form);
 
-    if (platforms.length === 0) {
-      setPlatformError(true);
+    const hasFirstNameError = ((data.get("firstName") as string) || "").trim() === "";
+    const hasCompanyNameError = ((data.get("companyName") as string) || "").trim() === "";
+    const hasCompanyUrlError = ((data.get("companyUrl") as string) || "").trim() === "";
+    const hasPlatformError = platforms.length === 0;
+    const hasProblemError = problem.length < 50;
+
+    setFirstNameError(hasFirstNameError);
+    setCompanyNameError(hasCompanyNameError);
+    setCompanyUrlError(hasCompanyUrlError);
+    setPlatformError(hasPlatformError);
+    setProblemError(hasProblemError);
+
+    if (hasFirstNameError || hasCompanyNameError || hasCompanyUrlError || hasPlatformError || hasProblemError) {
       return;
     }
 
@@ -57,7 +81,7 @@ export function DesignSystemsEnquiryPage() {
     try {
       const res = await fetch(FORMSPREE_ENDPOINT, {
         method: "POST",
-        body: new FormData(form),
+        body: data,
         headers: { Accept: "application/json" },
       });
       if (res.ok) {
@@ -129,6 +153,7 @@ export function DesignSystemsEnquiryPage() {
 
               <form
                 onSubmit={handleSubmit}
+                noValidate
                 className="rounded-2xl border border-border-default bg-bg-surface p-6 sm:p-10 shadow-sm space-y-6"
               >
                 <input type="hidden" name="_subject" value="New design systems enquiry" />
@@ -138,13 +163,31 @@ export function DesignSystemsEnquiryPage() {
                     <label htmlFor="firstName" className={labelClass}>
                       First name
                     </label>
-                    <input id="firstName" name="firstName" type="text" required className={inputClass} />
+                    <input
+                      id="firstName"
+                      name="firstName"
+                      type="text"
+                      required
+                      aria-invalid={firstNameError}
+                      onChange={(e) => { if (e.target.value.trim() !== "") setFirstNameError(false); }}
+                      className={fieldClass(firstNameError)}
+                    />
+                    {firstNameError && <p className={errorTextClass} role="alert">First name is required.</p>}
                   </div>
                   <div>
                     <label htmlFor="companyName" className={labelClass}>
                       Company name
                     </label>
-                    <input id="companyName" name="companyName" type="text" required className={inputClass} />
+                    <input
+                      id="companyName"
+                      name="companyName"
+                      type="text"
+                      required
+                      aria-invalid={companyNameError}
+                      onChange={(e) => { if (e.target.value.trim() !== "") setCompanyNameError(false); }}
+                      className={fieldClass(companyNameError)}
+                    />
+                    {companyNameError && <p className={errorTextClass} role="alert">Company name is required.</p>}
                   </div>
                 </div>
 
@@ -158,8 +201,11 @@ export function DesignSystemsEnquiryPage() {
                     type="text"
                     required
                     placeholder="acme.com"
-                    className={inputClass}
+                    aria-invalid={companyUrlError}
+                    onChange={(e) => { if (e.target.value.trim() !== "") setCompanyUrlError(false); }}
+                    className={fieldClass(companyUrlError)}
                   />
+                  {companyUrlError && <p className={errorTextClass} role="alert">Company URL is required.</p>}
                 </div>
 
                 <fieldset aria-invalid={platformError}>
@@ -180,7 +226,7 @@ export function DesignSystemsEnquiryPage() {
                     ))}
                   </div>
                   {platformError && (
-                    <p className="mt-2 text-sm text-border-danger" role="alert">
+                    <p className="mt-2 text-sm text-text-error" role="alert">
                       Select at least one platform.
                     </p>
                   )}
@@ -218,15 +264,24 @@ export function DesignSystemsEnquiryPage() {
                     id="problem"
                     name="problem"
                     required
-                    minLength={50}
                     rows={5}
                     value={problem}
-                    onChange={(e) => setProblem(e.target.value)}
-                    className={inputClass}
+                    aria-invalid={problemError}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setProblem(value);
+                      if (value.length >= 50) setProblemError(false);
+                    }}
+                    className={fieldClass(problemError)}
                   />
                   <p className="mt-1.5 text-xs text-text-muted">
                     {problem.length} / 50 characters minimum
                   </p>
+                  {problemError && (
+                    <p className={errorTextClass} role="alert">
+                      Please describe your problem in at least 50 characters. This helps us scope a recommendation.
+                    </p>
+                  )}
                 </div>
 
                 <fieldset>
@@ -242,7 +297,7 @@ export function DesignSystemsEnquiryPage() {
                 </fieldset>
 
                 {submitError && (
-                  <p className="text-sm text-border-danger" role="alert">
+                  <p className="text-sm text-text-error" role="alert">
                     {submitError}
                   </p>
                 )}
