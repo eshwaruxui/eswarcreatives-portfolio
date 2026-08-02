@@ -631,6 +631,9 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 | Three admin modals desktop-only (DeleteProposalModal, DeleteInvoiceModal, OutreachSendModal) — not using shared Modal component; mobile treatment deferred | Low |
 | Public campaign responses pagination + filters | Low |
 | /branding landing page gallery/case showcase section — Vim Events and Newgen projects; `/branding/work` route, card grid + per-project case view | Low |
+| Branding landing page Phase 2/3 sections — Visibility (Social Media Workflow + Website Design) and Scale (SOP + CRM + Personal Brand) solutions — Claude Code build using same Figma MCP + token approach as hero | High |
+| Branding landing page carousel slides 2 and 3 — real retail and clinic before/after case study assets (currently TODO-flagged placeholders) | High |
+| Code Connect mapping — CTAButton, FitPill, BeforeAfterCard, IconWrapper in src/components/marketing/ — defer until reuse across Phase 2/3 sections is confirmed | Medium |
 
 ---
 
@@ -639,6 +642,8 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 **Smart Shortlist AI run fix:** Queue-based async processing via pg_net or dedicated worker to bypass edge function execution limits. Replaces current disabled synchronous flow.
 
 **Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0083` (`0081` used by billing_title; `0082` used twice — see Section 3's Enquiry tables note).
+
+**Branding landing Phase 2/3:** Visibility and Scale solution sections built from Figma hi-fi using same MCP + marketing component pattern as hero.
 
 **Project status share button:** One-click sends visual progress brief (stage stepper + summary) to client email and WhatsApp.
 
@@ -665,9 +670,15 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - Admin mobile patterns: hamburger drawer (z-300) + scrim (z-299) for nav; SidePanel full-screen (z-201) on mobile; shared Modal scrim at z-400. Never use `position: fixed` inside SidePanel (breaks iOS).
 - All migrations use `apply_migration`, not `execute_sql`. Always preview SQL before applying.
 - For long agent runs (25+ minutes without committing): open a separate terminal tab and run `git add src/ && git commit -m "wip(...): checkpoint"` manually.
+- Marketing site components in `src/components/marketing/` only — never in the portal components folder.
+- Storage buckets are private; use `createSignedUrl` + transform params (not `getPublicUrl`). Pro plan unlocks image transforms: width 1920, quality 80, WebP auto for display; width 120, quality 60 for thumbnails.
+- Always verify bucket existence before any UI work.
+- Check for existing shared helpers before writing new utility functions.
+- When implementing a Figma node via Claude Code: call `get_design_context` on the specific node to resolve semantic token bindings directly. Do not work from a static hex list.
+- WhatsApp CTA for Performance Growth Retainer: `https://wa.me/919841085484?text=Hi%2C%20I%27m%20interested%20in%20the%20Performance%20Growth%20Retainer%20on%20eswarcreatives.in` (target=_blank). Always include this in any Claude Code prompt touching this CTA.
 
 ---
 
 ## 14. One-line summary
 
-Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, Smart Shortlist AI run disabled pending queue-based architecture fix, next migration 0083.
+Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, marketing components in src/components/marketing/ not portal folder, Smart Shortlist AI run disabled pending queue-based architecture fix, next migration 0083.
