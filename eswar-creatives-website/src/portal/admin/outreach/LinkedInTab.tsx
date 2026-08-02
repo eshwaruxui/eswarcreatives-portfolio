@@ -1,13 +1,15 @@
 // LinkedIn post scheduling tab.
 // Week planner: Mon/Wed/Fri slot cards. Post history table. Weekly reminder banner.
 import { useEffect, useRef, useState } from 'react'
-import { Trash2, Copy } from 'lucide-react'
+import { Trash2, Copy, Image as ImageIcon, X, ThumbsUp, MessageCircle, Repeat2, Send } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, formatDate } from '../ui'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { Spinner } from '../../Spinner'
+import { ProgressiveImage } from '../../components/shared/ProgressiveImage'
+import eswarLogo from '../../../imports/eswar-logo.svg'
 
 type Post = {
   id: string
@@ -16,12 +18,17 @@ type Post = {
   status: 'pending' | 'published' | 'failed'
   published_at: string | null
   created_at: string
+  image_path: string | null
+  image_alt: string | null
 }
 
 type SlotDate = 'monday' | 'wednesday' | 'friday'
 
 const IST_OFFSET = '+05:30'
 const LI_CHAR_LIMIT = 3000
+const IMAGE_BUCKET = 'linkedin-post-images'
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const SIGNED_URL_TTL = 3600
 
 const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
   pending:   { bg: t.background.muted, fg: t.text.tertiary },
@@ -74,11 +81,18 @@ export function LinkedInTab() {
   const [toast, setToast] = useState<string | null>(null)
   const [openSlot, setOpenSlot] = useState<SlotDate | null>(null)
   const [draftContent, setDraftContent] = useState('')
+  const [draftImageFile, setDraftImageFile] = useState<File | null>(null)
+  const [draftImagePreview, setDraftImagePreview] = useState<string | null>(null)
+  const [draftImageAlt, setDraftImageAlt] = useState('')
+  const [imageError, setImageError] = useState<string | null>(null)
+  const [imageDragging, setImageDragging] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [publishing, setPublishing] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
   const plannerRef = useRef<HTMLDivElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   function showToast(msg: string) {
     setToast(msg)
@@ -99,21 +113,38 @@ export function LinkedInTab() {
       const [weekPosts, histPosts] = await Promise.all([
         supabase
           .from('linkedin_posts')
-          .select('id, content, scheduled_for, status, published_at, created_at')
+          .select('id, content, scheduled_for, status, published_at, created_at, image_path, image_alt')
           .in('scheduled_for', slotIsos),
         supabase
           .from('linkedin_posts')
-          .select('id, content, scheduled_for, status, published_at, created_at')
+          .select('id, content, scheduled_for, status, published_at, created_at, image_path, image_alt')
           .lt('scheduled_for', `${today}T00:00:00Z`)
           .order('scheduled_for', { ascending: false })
           .limit(20),
       ])
 
-      setPosts((weekPosts.data ?? []) as Post[])
-      setHistory((histPosts.data ?? []) as Post[])
+      const weekRows = (weekPosts.data ?? []) as Post[]
+      const histRows = (histPosts.data ?? []) as Post[]
+      setPosts(weekRows)
+      setHistory(histRows)
+      await loadImageUrls([...weekRows, ...histRows])
     } finally {
       setLoading(false)
     }
+  }
+
+  async function loadImageUrls(rows: Post[]) {
+    const paths = [...new Set(rows.map((p) => p.image_path).filter((p): p is string => !!p))]
+    if (paths.length === 0) return
+    const { data } = await supabase.storage.from(IMAGE_BUCKET).createSignedUrls(paths, SIGNED_URL_TTL)
+    if (!data) return
+    setImageUrls((prev) => {
+      const next = { ...prev }
+      for (const row of data) {
+        if (row.path && row.signedUrl) next[row.path] = row.signedUrl
+      }
+      return next
+    })
   }
 
   useEffect(() => { load() }, [])
@@ -124,26 +155,69 @@ export function LinkedInTab() {
   const pendingThisWeek = posts.filter((p) => p.status === 'pending').length
   const showReminderBanner = isWeekend && pendingThisWeek < 3
 
+  function clearDraftImage() {
+    if (draftImagePreview) URL.revokeObjectURL(draftImagePreview)
+    setDraftImageFile(null)
+    setDraftImagePreview(null)
+    setDraftImageAlt('')
+    setImageError(null)
+    if (imageInputRef.current) imageInputRef.current.value = ''
+  }
+
+  function handleImageSelect(file: File) {
+    if (!file.type.startsWith('image/')) {
+      setImageError('Please choose an image file.')
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError('Image too large (max 5MB).')
+      return
+    }
+    if (draftImagePreview) URL.revokeObjectURL(draftImagePreview)
+    setImageError(null)
+    setDraftImageFile(file)
+    setDraftImagePreview(URL.createObjectURL(file))
+  }
+
   async function handleSave(slot: SlotDate) {
     if (!weekDates || !draftContent.trim()) return
     setSaving(true)
     setSaveError(null)
     const dateStr = weekDates[slot]
+
+    let imagePath: string | null = null
+    if (draftImageFile) {
+      imagePath = `${slot}/${Date.now()}_${draftImageFile.name}`
+      const { error: upErr } = await supabase.storage
+        .from(IMAGE_BUCKET)
+        .upload(imagePath, draftImageFile)
+      if (upErr) {
+        setSaveError('Could not upload the image. Please try again.')
+        setSaving(false)
+        return
+      }
+    }
+
     const { data, error } = await supabase
       .from('linkedin_posts')
       .insert({
         content: draftContent.trim(),
         scheduled_for: isoSlotDate(dateStr),
         status: 'pending',
+        image_path: imagePath,
+        image_alt: imagePath ? (draftImageAlt.trim() || null) : null,
       })
-      .select('id, content, scheduled_for, status, published_at, created_at')
+      .select('id, content, scheduled_for, status, published_at, created_at, image_path, image_alt')
       .single()
     if (error || !data) {
       setSaveError('Could not save this post. Please try again.')
     } else {
-      setPosts((prev) => [...prev, data as Post])
+      const newPost = data as Post
+      if (newPost.image_path) await loadImageUrls([newPost])
+      setPosts((prev) => [...prev, newPost])
       setOpenSlot(null)
       setDraftContent('')
+      clearDraftImage()
       setSaveError(null)
       showToast(`Post saved for ${formatSlotDate(dateStr)}.`)
     }
@@ -164,7 +238,19 @@ export function LinkedInTab() {
         setPosts((prev) =>
           prev.map((p) => p.id === post.id ? { ...p, status: 'published', published_at: new Date().toISOString() } : p)
         )
-        showToast('Post copied to clipboard. Paste and publish on LinkedIn now.')
+        if (post.image_path) {
+          const { data: signed } = await supabase.storage
+            .from(IMAGE_BUCKET)
+            .createSignedUrl(post.image_path, SIGNED_URL_TTL)
+          if (signed?.signedUrl) {
+            window.open(signed.signedUrl, '_blank', 'noopener')
+            showToast('Post copied to clipboard. Image opened in a new tab — download it and attach it on LinkedIn.')
+          } else {
+            showToast('Post copied to clipboard. Paste and publish on LinkedIn now.')
+          }
+        } else {
+          showToast('Post copied to clipboard. Paste and publish on LinkedIn now.')
+        }
       }
     } catch {
       showToast('Could not copy to clipboard.')
@@ -175,10 +261,14 @@ export function LinkedInTab() {
 
   async function handleDelete(id: string) {
     setDeleting(id)
+    const target = posts.find((p) => p.id === id) ?? history.find((p) => p.id === id)
     const { error } = await supabase.from('linkedin_posts').delete().eq('id', id)
     if (error) {
       showToast('Could not delete post. Please try again.')
     } else {
+      if (target?.image_path) {
+        void supabase.storage.from(IMAGE_BUCKET).remove([target.image_path])
+      }
       setPosts((prev) => prev.filter((p) => p.id !== id))
       setHistory((prev) => prev.filter((p) => p.id !== id))
     }
@@ -289,6 +379,15 @@ export function LinkedInTab() {
 
                 {post ? (
                   <>
+                    {post.image_path && imageUrls[post.image_path] && (
+                      <ProgressiveImage
+                        src={imageUrls[post.image_path]}
+                        alt={post.image_alt ?? 'Post image'}
+                        shimmerHeight={80}
+                        radius={6}
+                        fit="cover"
+                      />
+                    )}
                     <p style={styles.postPreview} title={post.content}>
                       {post.content}
                     </p>
@@ -336,6 +435,68 @@ export function LinkedInTab() {
                           placeholder="Write your LinkedIn post..."
                           autoFocus
                         />
+
+                        {draftImagePreview ? (
+                          <div style={styles.imagePreviewRow}>
+                            <img src={draftImagePreview} alt="" style={styles.imagePreviewThumb} />
+                            <input
+                              type="text"
+                              style={styles.imageAltInput}
+                              placeholder="Alt text (optional)"
+                              value={draftImageAlt}
+                              onChange={(e) => setDraftImageAlt(e.target.value)}
+                              maxLength={200}
+                            />
+                            <button
+                              type="button"
+                              style={styles.imageRemoveBtn}
+                              onClick={clearDraftImage}
+                              title="Remove image"
+                              aria-label="Remove image"
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            style={{
+                              ...styles.imageDropZone,
+                              ...(imageDragging ? { borderColor: t.border.brand, background: t.background.tint1 } : {}),
+                            }}
+                            onClick={() => imageInputRef.current?.click()}
+                            onDragOver={(e) => { e.preventDefault(); setImageDragging(true) }}
+                            onDragEnter={(e) => { e.preventDefault(); setImageDragging(true) }}
+                            onDragLeave={(e) => {
+                              if (!e.currentTarget.contains(e.relatedTarget as Node)) setImageDragging(false)
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              setImageDragging(false)
+                              const file = e.dataTransfer.files?.[0]
+                              if (file) handleImageSelect(file)
+                            }}
+                          >
+                            <ImageIcon size={13} />
+                            <span>{imageDragging ? 'Drop to attach' : 'Drop an image, or click to attach'}</span>
+                          </button>
+                        )}
+                        <input
+                          ref={imageInputRef}
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleImageSelect(file)
+                          }}
+                        />
+                        {imageError && <p style={styles.saveError}>{imageError}</p>}
+
+                        {draftContent.trim() && (
+                          <LinkedInPreviewCard content={draftContent} imageSrc={draftImagePreview} imageAlt={draftImageAlt} />
+                        )}
+
                         <div style={styles.draftFooter}>
                           <span style={styles.charCount}>
                             {LI_CHAR_LIMIT - draftContent.length} remaining
@@ -345,7 +506,7 @@ export function LinkedInTab() {
                               type="button"
                               style={styles.cancelDraftBtn}
                               disabled={saving}
-                              onClick={() => { setOpenSlot(null); setDraftContent(''); setSaveError(null) }}
+                              onClick={() => { setOpenSlot(null); setDraftContent(''); setSaveError(null); clearDraftImage() }}
                             >
                               Cancel
                             </button>
@@ -372,7 +533,7 @@ export function LinkedInTab() {
                       <button
                         type="button"
                         style={styles.addPostBtn}
-                        onClick={() => { setOpenSlot(key); setDraftContent(''); setSaveError(null) }}
+                        onClick={() => { setOpenSlot(key); setDraftContent(''); setSaveError(null); clearDraftImage() }}
                       >
                         + Add Post
                       </button>
@@ -397,7 +558,19 @@ export function LinkedInTab() {
           <div style={styles.histCardStack}>
             {history.map((post) => (
               <div key={post.id} style={styles.histCard}>
-                <p style={styles.histCardContent}>{post.content}</p>
+                <div style={styles.histCardTop}>
+                  {post.image_path && imageUrls[post.image_path] && (
+                    <ProgressiveImage
+                      src={imageUrls[post.image_path]}
+                      alt={post.image_alt ?? 'Post image'}
+                      style={styles.histThumbMobile}
+                      shimmerHeight={44}
+                      radius={6}
+                      fit="cover"
+                    />
+                  )}
+                  <p style={styles.histCardContent}>{post.content}</p>
+                </div>
                 <div style={styles.histCardBottom}>
                   <span style={{
                     ...styles.statusBadge,
@@ -439,6 +612,7 @@ export function LinkedInTab() {
             <table style={styles.histTable}>
               <thead>
                 <tr>
+                  <th style={styles.th}></th>
                   <th style={styles.th}>Date</th>
                   <th style={styles.th}>Preview</th>
                   <th style={styles.th}>Status</th>
@@ -449,6 +623,20 @@ export function LinkedInTab() {
               <tbody>
                 {history.map((post) => (
                   <tr key={post.id} style={styles.histTr}>
+                    <td style={styles.td}>
+                      {post.image_path && imageUrls[post.image_path] ? (
+                        <ProgressiveImage
+                          src={imageUrls[post.image_path]}
+                          alt={post.image_alt ?? 'Post image'}
+                          style={styles.histThumb}
+                          shimmerHeight={36}
+                          radius={6}
+                          fit="cover"
+                        />
+                      ) : (
+                        <span style={styles.histThumbEmpty} />
+                      )}
+                    </td>
                     <td style={styles.td}>
                       <span style={styles.monoCell}>{formatDate(post.scheduled_for)}</span>
                     </td>
@@ -497,6 +685,126 @@ export function LinkedInTab() {
       </div>
     </div>
   )
+}
+
+// Realistic LinkedIn post card preview, shown live under the composer so the
+// admin can see roughly what the post will look like before publishing.
+function LinkedInPreviewCard({
+  content,
+  imageSrc,
+  imageAlt,
+}: {
+  content: string
+  imageSrc: string | null
+  imageAlt: string
+}) {
+  const TRUNCATE_AT = 210
+  const isTruncated = content.length > TRUNCATE_AT
+  const displayText = isTruncated ? content.slice(0, TRUNCATE_AT).trimEnd() : content
+
+  return (
+    <div style={previewStyles.card}>
+      <span style={previewStyles.label}>Live preview</span>
+      <div style={previewStyles.header}>
+        <img src={eswarLogo} alt="" style={previewStyles.avatar} />
+        <div style={previewStyles.headerText}>
+          <span style={previewStyles.name}>Eswar Creatives</span>
+          <span style={previewStyles.headline}>Design systems &amp; brand engineering for enterprise SaaS</span>
+          <span style={previewStyles.meta}>Now · 🌐</span>
+        </div>
+      </div>
+      <p style={previewStyles.body}>
+        {displayText}
+        {isTruncated && <span style={previewStyles.seeMore}> ...see more</span>}
+      </p>
+      {imageSrc && <img src={imageSrc} alt={imageAlt || 'Post image'} style={previewStyles.image} />}
+      <div style={previewStyles.engagementRow}>
+        <span style={previewStyles.reactionIcons}>👍 ❤️ 💡</span>
+        <span style={previewStyles.engagementCount}>128 · 14 comments</span>
+      </div>
+      <div style={previewStyles.actionsRow}>
+        <span style={previewStyles.action}><ThumbsUp size={15} /> Like</span>
+        <span style={previewStyles.action}><MessageCircle size={15} /> Comment</span>
+        <span style={previewStyles.action}><Repeat2 size={15} /> Repost</span>
+        <span style={previewStyles.action}><Send size={15} /> Send</span>
+      </div>
+    </div>
+  )
+}
+
+const previewStyles: Record<string, CSSProperties> = {
+  card: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    background: tokens.surface,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    padding: '10px 12px',
+  },
+  label: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    fontWeight: 600,
+    color: t.text.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  header: { display: 'flex', gap: 8 },
+  avatar: { width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 },
+  headerText: { display: 'flex', flexDirection: 'column', minWidth: 0 },
+  name: { fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: t.text.primary },
+  headline: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.secondary,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  meta: { fontFamily: fonts.body, fontSize: 11, color: t.text.muted },
+  body: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.primary,
+    margin: 0,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+  },
+  seeMore: { color: t.text.muted, fontWeight: 500 },
+  image: {
+    width: '100%',
+    maxHeight: 220,
+    objectFit: 'cover',
+    borderRadius: 6,
+    display: 'block',
+  },
+  engagementRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+    borderBottom: `1px solid ${t.border.subtle}`,
+    paddingBottom: 8,
+  },
+  reactionIcons: { fontSize: 11 },
+  engagementCount: {},
+  actionsRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  action: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    color: t.text.tertiary,
+  },
 }
 
 const styles: Record<string, CSSProperties> = {
@@ -676,6 +984,57 @@ const styles: Record<string, CSSProperties> = {
     resize: 'vertical' as const,
     boxSizing: 'border-box' as const,
   },
+  imageDropZone: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    background: 'none',
+    border: `1px dashed ${t.border.medium}`,
+    borderRadius: 8,
+    padding: '8px 12px',
+    width: '100%',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.tertiary,
+    cursor: 'pointer',
+    boxSizing: 'border-box' as const,
+    transition: `border-color ${motionTokens.durationFast} ${motionTokens.easeDefault}, background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  imagePreviewRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  imagePreviewThumb: {
+    width: 40,
+    height: 40,
+    objectFit: 'cover',
+    borderRadius: 6,
+    flexShrink: 0,
+    border: `1px solid ${t.border.subtle}`,
+  },
+  imageAltInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.primary,
+    background: tokens.inputBg,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 6,
+    padding: '5px 8px',
+    outline: 'none',
+    minWidth: 0,
+  },
+  imageRemoveBtn: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 4,
+    display: 'flex',
+    color: tokens.ruby,
+    flexShrink: 0,
+  },
   draftFooter: {
     display: 'flex',
     alignItems: 'center',
@@ -765,17 +1124,22 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     gap: 8,
   },
+  histCardTop: { display: 'flex', gap: 8, alignItems: 'flex-start' },
+  histThumbMobile: { width: 44, height: 44, flexShrink: 0 },
   histCardContent: {
     fontFamily: fonts.body,
     fontSize: 13,
     color: t.text.primary,
     margin: 0,
+    flex: 1,
     display: '-webkit-box',
     WebkitLineClamp: 2,
     WebkitBoxOrient: 'vertical',
     overflow: 'hidden',
   },
   histCardBottom: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  histThumb: { width: 36, height: 36, flexShrink: 0 },
+  histThumbEmpty: { display: 'block', width: 36, height: 36 },
 
   toast: {
     position: 'fixed',
