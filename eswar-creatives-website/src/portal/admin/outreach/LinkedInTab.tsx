@@ -151,6 +151,17 @@ export function LinkedInTab() {
 
   useEffect(() => { load() }, [])
 
+  // Close the composer modal on Escape, unless a save is in flight.
+  useEffect(() => {
+    if (!openSlot) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !saving) closeDraft()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSlot, saving])
+
   const today = new Date()
   const dayOfWeek = today.getDay()
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
@@ -217,8 +228,9 @@ export function LinkedInTab() {
     setDraftImagePreview(URL.createObjectURL(file))
   }
 
-  async function handleSave(slot: SlotDate) {
-    if (!weekDates || !draftContent.trim()) return
+  async function handleSave() {
+    if (!weekDates || !openSlot || !draftContent.trim()) return
+    const slot = openSlot
     setSaving(true)
     setSaveError(null)
     const dateStr = weekDates[slot]
@@ -368,6 +380,8 @@ export function LinkedInTab() {
     return <p style={styles.loading}>Loading LinkedIn planner...</p>
   }
 
+  const activeDateStr = openSlot ? weekDates?.[openSlot] ?? '' : ''
+
   return (
     <div style={styles.root}>
       {toast && <div style={styles.toast}>{toast}</div>}
@@ -412,7 +426,6 @@ export function LinkedInTab() {
             const dateStr = weekDates?.[key] ?? ''
             const slotIso = dateStr ? isoSlotDate(dateStr) : ''
             const post = slotIso ? posts.find((p) => isSameInstant(p.scheduled_for, slotIso)) : undefined
-            const isOpen = openSlot === key
             const isPub = publishing === post?.id
             const isDel = deleting === post?.id
 
@@ -429,112 +442,7 @@ export function LinkedInTab() {
                   <span style={styles.slotDate}>{dateStr ? formatSlotDate(dateStr) : ''}</span>
                 </div>
 
-                {isOpen ? (
-                      <div style={styles.draftArea}>
-                        <textarea
-                          style={styles.draftTextarea}
-                          value={draftContent}
-                          onChange={(e) => setDraftContent(e.target.value)}
-                          rows={5}
-                          maxLength={LI_CHAR_LIMIT}
-                          placeholder="Write your LinkedIn post..."
-                          autoFocus
-                        />
-
-                        {draftImagePreview ? (
-                          <div style={styles.imagePreviewRow}>
-                            <img src={draftImagePreview} alt="" style={styles.imagePreviewThumb} />
-                            <input
-                              type="text"
-                              style={styles.imageAltInput}
-                              placeholder="Alt text (optional)"
-                              value={draftImageAlt}
-                              onChange={(e) => setDraftImageAlt(e.target.value)}
-                              maxLength={200}
-                            />
-                            <button
-                              type="button"
-                              style={styles.imageRemoveBtn}
-                              onClick={removeDraftImage}
-                              title="Remove image"
-                              aria-label="Remove image"
-                            >
-                              <X size={13} />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            style={{
-                              ...styles.imageDropZone,
-                              ...(imageDragging ? { borderColor: t.border.brand, background: t.background.tint1 } : {}),
-                            }}
-                            onClick={() => imageInputRef.current?.click()}
-                            onDragOver={(e) => { e.preventDefault(); setImageDragging(true) }}
-                            onDragEnter={(e) => { e.preventDefault(); setImageDragging(true) }}
-                            onDragLeave={(e) => {
-                              if (!e.currentTarget.contains(e.relatedTarget as Node)) setImageDragging(false)
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault()
-                              setImageDragging(false)
-                              const file = e.dataTransfer.files?.[0]
-                              if (file) handleImageSelect(file)
-                            }}
-                          >
-                            <ImageIcon size={13} />
-                            <span>{imageDragging ? 'Drop to attach' : 'Drop an image, or click to attach'}</span>
-                          </button>
-                        )}
-                        <input
-                          ref={imageInputRef}
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) handleImageSelect(file)
-                          }}
-                        />
-                        {imageError && <p style={styles.saveError}>{imageError}</p>}
-
-                        {draftContent.trim() && (
-                          <LinkedInPreviewCard content={draftContent} imageSrc={draftImagePreview} imageAlt={draftImageAlt} />
-                        )}
-
-                        <div style={styles.draftFooter}>
-                          <span style={styles.charCount}>
-                            {LI_CHAR_LIMIT - draftContent.length} remaining
-                          </span>
-                          <div style={styles.draftBtns}>
-                            <button
-                              type="button"
-                              style={styles.cancelDraftBtn}
-                              disabled={saving}
-                              onClick={closeDraft}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              style={{ ...styles.saveDraftBtn, opacity: saving ? 0.6 : 1 }}
-                              onClick={() => handleSave(key)}
-                              disabled={saving || !draftContent.trim()}
-                            >
-                              {saving ? (
-                                <>
-                                  <Spinner size={12} color="#fff" />
-                                  <span>Saving...</span>
-                                </>
-                              ) : (
-                                'Save'
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                        {saveError && <p style={styles.saveError}>{saveError}</p>}
-                      </div>
-                ) : post ? (
+                {post ? (
                   <>
                     {post.image_path && imageUrls[post.image_path] && (
                       <ProgressiveImage
@@ -741,6 +649,144 @@ export function LinkedInTab() {
           </div>
         )}
       </div>
+
+      {openSlot && (
+        <>
+        <style>{`@keyframes linkedinComposerIn{from{opacity:0;transform:translateY(8px) scale(0.98)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+        <div
+          style={styles.modalBackdrop}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="linkedin-composer-title"
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) closeDraft() }}
+        >
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h2 id="linkedin-composer-title" style={styles.modalTitle}>
+                {editingId ? 'Edit post' : 'New post'}
+                {activeDateStr ? ` — ${formatSlotDate(activeDateStr)}` : ''}
+              </h2>
+              <button
+                type="button"
+                style={styles.modalCloseBtn}
+                onClick={closeDraft}
+                disabled={saving}
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={styles.modalBody}>
+              <textarea
+                style={styles.draftTextarea}
+                value={draftContent}
+                onChange={(e) => setDraftContent(e.target.value)}
+                rows={6}
+                maxLength={LI_CHAR_LIMIT}
+                placeholder="Write your LinkedIn post..."
+                autoFocus
+              />
+
+              {draftImagePreview ? (
+                <div style={styles.imagePreviewRow}>
+                  <img src={draftImagePreview} alt="" style={styles.imagePreviewThumb} />
+                  <input
+                    type="text"
+                    style={styles.imageAltInput}
+                    placeholder="Alt text (optional)"
+                    value={draftImageAlt}
+                    onChange={(e) => setDraftImageAlt(e.target.value)}
+                    maxLength={200}
+                  />
+                  <button
+                    type="button"
+                    style={styles.imageRemoveBtn}
+                    onClick={removeDraftImage}
+                    title="Remove image"
+                    aria-label="Remove image"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  style={{
+                    ...styles.imageDropZone,
+                    ...(imageDragging ? { borderColor: t.border.brand, background: t.background.tint1 } : {}),
+                  }}
+                  onClick={() => imageInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setImageDragging(true) }}
+                  onDragEnter={(e) => { e.preventDefault(); setImageDragging(true) }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) setImageDragging(false)
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setImageDragging(false)
+                    const file = e.dataTransfer.files?.[0]
+                    if (file) handleImageSelect(file)
+                  }}
+                >
+                  <ImageIcon size={13} />
+                  <span>{imageDragging ? 'Drop to attach' : 'Drop an image, or click to attach'}</span>
+                </button>
+              )}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleImageSelect(file)
+                }}
+              />
+              {imageError && <p style={styles.saveError}>{imageError}</p>}
+
+              {draftContent.trim() && (
+                <LinkedInPreviewCard content={draftContent} imageSrc={draftImagePreview} imageAlt={draftImageAlt} />
+              )}
+            </div>
+
+            <div style={styles.modalFooter}>
+              <span style={styles.charCount}>
+                {LI_CHAR_LIMIT - draftContent.length} remaining
+              </span>
+              <div style={styles.draftBtns}>
+                <button
+                  type="button"
+                  style={styles.cancelDraftBtn}
+                  disabled={saving}
+                  onClick={closeDraft}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  style={{ ...styles.saveDraftBtn, opacity: saving ? 0.6 : 1 }}
+                  onClick={handleSave}
+                  disabled={saving || !draftContent.trim()}
+                >
+                  {saving ? (
+                    <>
+                      <Spinner size={12} color="#fff" />
+                      <span>Saving...</span>
+                    </>
+                  ) : editingId ? (
+                    'Save changes'
+                  ) : (
+                    'Save'
+                  )}
+                </button>
+              </div>
+            </div>
+            {saveError && <p style={{ ...styles.saveError, padding: '0 20px 16px' }}>{saveError}</p>}
+          </div>
+        </div>
+        </>
+      )}
     </div>
   )
 }
@@ -1028,7 +1074,68 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 'auto',
     transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
-  draftArea: { display: 'flex', flexDirection: 'column', gap: 8 },
+  modalBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 500,
+    background: t.background.scrim,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: '85vh',
+    display: 'flex',
+    flexDirection: 'column',
+    background: tokens.surface,
+    borderRadius: 14,
+    boxShadow: '0 24px 60px rgba(2, 76, 79, 0.24)',
+    animation: `linkedinComposerIn ${motionTokens.durationFast} ${motionTokens.easeEnter}`,
+  },
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '18px 20px',
+    borderBottom: `1px solid ${t.border.subtle}`,
+    flexShrink: 0,
+  },
+  modalTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 17,
+    fontWeight: 600,
+    color: t.text.primary,
+    margin: 0,
+  },
+  modalCloseBtn: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 4,
+    display: 'flex',
+    color: t.text.tertiary,
+    flexShrink: 0,
+  },
+  modalBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    padding: '18px 20px',
+    overflowY: 'auto' as const,
+  },
+  modalFooter: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    padding: '14px 20px',
+    borderTop: `1px solid ${t.border.subtle}`,
+    flexShrink: 0,
+  },
   draftTextarea: {
     width: '100%',
     fontFamily: fonts.body,
