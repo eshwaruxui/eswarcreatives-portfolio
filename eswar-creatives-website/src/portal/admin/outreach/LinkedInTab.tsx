@@ -7,6 +7,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, formatDate } from '../ui'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { Spinner } from '../../Spinner'
 
 type Post = {
   id: string
@@ -30,6 +31,13 @@ const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
 
 function isoSlotDate(dateStr: string): string {
   return `${dateStr}T09:00:00${IST_OFFSET}`
+}
+
+// Postgres returns timestamptz normalized to UTC (e.g. "+00:00"), which never
+// string-equals a locally-built "+05:30" ISO string for the same instant —
+// compare as timestamps instead.
+function isSameInstant(a: string, b: string): boolean {
+  return new Date(a).getTime() === new Date(b).getTime()
 }
 
 function formatWeekRange(mon: string, fri: string): string {
@@ -67,6 +75,7 @@ export function LinkedInTab() {
   const [openSlot, setOpenSlot] = useState<SlotDate | null>(null)
   const [draftContent, setDraftContent] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [publishing, setPublishing] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const plannerRef = useRef<HTMLDivElement>(null)
@@ -118,20 +127,25 @@ export function LinkedInTab() {
   async function handleSave(slot: SlotDate) {
     if (!weekDates || !draftContent.trim()) return
     setSaving(true)
+    setSaveError(null)
     const dateStr = weekDates[slot]
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('linkedin_posts')
       .insert({
         content: draftContent.trim(),
         scheduled_for: isoSlotDate(dateStr),
         status: 'pending',
       })
-    if (error) {
-      showToast('Could not save post. Please try again.')
+      .select('id, content, scheduled_for, status, published_at, created_at')
+      .single()
+    if (error || !data) {
+      setSaveError('Could not save this post. Please try again.')
     } else {
+      setPosts((prev) => [...prev, data as Post])
       setOpenSlot(null)
       setDraftContent('')
-      await load()
+      setSaveError(null)
+      showToast(`Post saved for ${formatSlotDate(dateStr)}.`)
     }
     setSaving(false)
   }
@@ -254,8 +268,8 @@ export function LinkedInTab() {
         <div style={{ ...styles.slotGrid, ...(isMobile ? styles.slotGridMobile : null) }}>
           {SLOTS.map(({ key, label }) => {
             const dateStr = weekDates?.[key] ?? ''
-            const slotIso = isoSlotDate(dateStr)
-            const post = posts.find((p) => p.scheduled_for === slotIso)
+            const slotIso = dateStr ? isoSlotDate(dateStr) : ''
+            const post = slotIso ? posts.find((p) => isSameInstant(p.scheduled_for, slotIso)) : undefined
             const isOpen = openSlot === key
             const isPub = publishing === post?.id
             const isDel = deleting === post?.id
@@ -330,7 +344,8 @@ export function LinkedInTab() {
                             <button
                               type="button"
                               style={styles.cancelDraftBtn}
-                              onClick={() => { setOpenSlot(null); setDraftContent('') }}
+                              disabled={saving}
+                              onClick={() => { setOpenSlot(null); setDraftContent(''); setSaveError(null) }}
                             >
                               Cancel
                             </button>
@@ -340,16 +355,24 @@ export function LinkedInTab() {
                               onClick={() => handleSave(key)}
                               disabled={saving || !draftContent.trim()}
                             >
-                              {saving ? 'Saving...' : 'Save'}
+                              {saving ? (
+                                <>
+                                  <Spinner size={12} color="#fff" />
+                                  <span>Saving...</span>
+                                </>
+                              ) : (
+                                'Save'
+                              )}
                             </button>
                           </div>
                         </div>
+                        {saveError && <p style={styles.saveError}>{saveError}</p>}
                       </div>
                     ) : (
                       <button
                         type="button"
                         style={styles.addPostBtn}
-                        onClick={() => { setOpenSlot(key); setDraftContent('') }}
+                        onClick={() => { setOpenSlot(key); setDraftContent(''); setSaveError(null) }}
                       >
                         + Add Post
                       </button>
@@ -672,6 +695,9 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   saveDraftBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
     background: tokens.primary,
     color: t.text.onPrimary,
     fontFamily: fonts.body,
@@ -681,6 +707,12 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 6,
     padding: '5px 10px',
     cursor: 'pointer',
+  },
+  saveError: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.ruby,
+    margin: 0,
   },
   historySection: { display: 'flex', flexDirection: 'column', gap: 12 },
   emptyState: { textAlign: 'center', padding: '40px 24px' },
