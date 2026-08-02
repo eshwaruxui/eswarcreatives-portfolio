@@ -202,6 +202,19 @@ export function LeadsTab() {
     }
   }, [])
 
+  // ?leadId=<id> opens that lead's drawer directly. Used by the Enquiries
+  // tab's "View lead" link after a convert-to-lead action.
+  useEffect(() => {
+    const leadId = searchParams.get('leadId')
+    if (leadId) {
+      setOpenLeadId(leadId)
+      setSearchParams((prev) => {
+        prev.delete('leadId')
+        return prev
+      }, { replace: true })
+    }
+  }, [])
+
   async function load() {
     setLoading(true)
     setError(null)

@@ -9,16 +9,18 @@ import { tokens, t, fonts, motionTokens } from '../theme'
 import { mono, PageHeader } from './ui'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { TodayTab } from './outreach/TodayTab'
+import { EnquiriesTab } from './outreach/EnquiriesTab'
 import { LeadsTab } from './outreach/LeadsTab'
 import { SequencesTab } from './outreach/SequencesTab'
 import { ActivityTab } from './outreach/ActivityTab'
 import { LinkedInTab } from './outreach/LinkedInTab'
 import { SmartShortlistTab } from './outreach/SmartShortlistTab'
 
-type Tab = 'today' | 'leads' | 'sequences' | 'activity' | 'linkedin' | 'shortlist'
+type Tab = 'today' | 'enquiries' | 'leads' | 'sequences' | 'activity' | 'linkedin' | 'shortlist'
 
 const TABS: { id: Tab; label: string; icon?: React.ReactNode }[] = [
   { id: 'today', label: 'Today' },
+  { id: 'enquiries', label: 'Enquiries' },
   { id: 'leads', label: 'Leads' },
   { id: 'sequences', label: 'Sequences' },
   { id: 'activity', label: 'Activity' },
@@ -31,6 +33,7 @@ export function OutreachAdmin() {
   const [params, setParams] = useSearchParams()
   const activeTab = (params.get('tab') as Tab | null) ?? 'today'
   const [dueCount, setDueCount] = useState(0)
+  const [enquiryCount, setEnquiryCount] = useState(0)
 
   function setTab(tab: Tab) {
     setParams({ tab })
@@ -46,8 +49,16 @@ export function OutreachAdmin() {
       .then(({ count }) => setDueCount(count ?? 0))
   }
 
-  // Load badge count on mount; re-fetched via loadDueCount after any queue action
-  useEffect(() => { loadDueCount() }, [])
+  function loadEnquiryCount() {
+    supabase
+      .from('enquiry_submissions')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'new')
+      .then(({ count }) => setEnquiryCount(count ?? 0))
+  }
+
+  // Load badge counts on mount; re-fetched after any queue action or enquiry change.
+  useEffect(() => { loadDueCount(); loadEnquiryCount() }, [])
 
   return (
     <>
@@ -75,6 +86,9 @@ export function OutreachAdmin() {
               {tab.id === 'today' && dueCount > 0 && (
                 <span style={styles.badge}>{dueCount > 99 ? '99+' : dueCount}</span>
               )}
+              {tab.id === 'enquiries' && enquiryCount > 0 && (
+                <span style={styles.badge}>{enquiryCount > 99 ? '99+' : enquiryCount}</span>
+              )}
               {tab.id === 'shortlist' && <span style={styles.betaPill}>Beta</span>}
             </button>
           )
@@ -84,6 +98,7 @@ export function OutreachAdmin() {
       <style>{`@keyframes ecTabFadeIn{from{opacity:0}to{opacity:1}}`}</style>
       <div key={activeTab} style={{ ...styles.tabContent, animation: `ecTabFadeIn ${motionTokens.durationFast} ${motionTokens.easeDefault}` }}>
         {activeTab === 'today' && <TodayTab onRefreshCount={loadDueCount} />}
+        {activeTab === 'enquiries' && <EnquiriesTab onRefreshCount={loadEnquiryCount} />}
         {activeTab === 'leads' && <LeadsTab />}
         {activeTab === 'sequences' && <SequencesTab />}
         {activeTab === 'activity' && <ActivityTab />}

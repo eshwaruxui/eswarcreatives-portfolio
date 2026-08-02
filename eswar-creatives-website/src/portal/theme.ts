@@ -57,6 +57,7 @@ export const t = {
     onDarkSecondary: 'rgba(223,225,228,0.65)',  // Figma text/on-dark-secondary
     onDarkTertiary:  'rgba(220,221,224,0.60)',  // Figma text/on-dark-tertiary
     onDarkMuted:     'rgba(234,235,238,0.74)',  // Figma text/on-dark-muted
+    danger:          tokens.ruby,               // error/validation copy, alias of tokens.ruby (est. usage: LoginPage, SketchReviewPage)
   },
   border: {
     // Overlay-based neutral scale: semi-transparent near-black so borders keep
@@ -114,6 +115,7 @@ export const t = {
     // Warm-cream card surfaces, distinct from the page's own cream (page/inputBg).
     cardWarm:   '#F5F0E6',  // Figma background/card-warm (warm.50)
     subtleWarm: '#E8DCC4',  // Figma background/subtle-warm (warm.200)
+    success:    tokens.greenLight,  // success/confirmation surfaces, alias of tokens.greenLight
   },
 } as const
 
