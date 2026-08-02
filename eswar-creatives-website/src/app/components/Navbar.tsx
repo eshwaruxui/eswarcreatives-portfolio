@@ -70,7 +70,12 @@ export function Navbar({ page: pageProp }: NavbarProps = {}) {
   // section is already on the current page.
   function handleAnchorClick(e: React.MouseEvent, href: string) {
     const [path, hash] = href.split("#");
-    if (!hash || (path && path !== location.pathname)) return;
+    // Static prerender serves this route at a trailing-slash URL
+    // (location.pathname === "/design-systems/"), so compare paths with
+    // trailing slashes stripped — otherwise this bails out and the browser
+    // falls through to a full reload instead of a smooth in-page scroll.
+    const stripSlash = (p: string) => p.replace(/\/$/, "") || "/";
+    if (!hash || (path && stripSlash(path) !== stripSlash(location.pathname))) return;
     const target = document.getElementById(hash);
     if (!target) return;
     e.preventDefault();
