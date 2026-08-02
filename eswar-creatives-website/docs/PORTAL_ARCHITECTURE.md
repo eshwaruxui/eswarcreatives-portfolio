@@ -1,6 +1,6 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 24 July 2026 (Smart Shortlist + Outreach fixes merged). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 3 August 2026 (Enquiries feature: migration 0082, receive-enquiry + send-enquiry-reply edge functions, Enquiries tab). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
@@ -208,9 +208,19 @@ _Invoice billing title + payment proof attachments (`feature/invoice-billing-tit
 - Cloudflare preview smoke-tested (admin + client sessions): Billing for/Billing title flow, list/detail/public-page/PDF surfacing, admin attach+view proof, client view-only proof all confirmed working end to end. One fix from that pass: the "For" value initially rendered in the mono font used by short Details tokens (dates, currency), which wrapped awkwardly for longer titles — switched to the body font for that row only (`DetailLine`'s `prose` variant).
 - Merged to main 24 July 2026 (no-ff, no conflicts).
 
+_Enquiries feature (design systems marketing form → portal outreach module):_
+- Migration 0082 applied: `enquiry_submissions` table (first_name, company_name, company_url, buyer_email, platforms text[], team_size, funding_stage, problem, start_timeline — all NOT NULL; status CHECK IN ('new','responded','converted'), responded_at, converted_lead_id → leads); `enquiry_replies` table (enquiry_id → enquiry_submissions CASCADE, body, sent_by → auth.users); both admin-only RLS via `is_admin()`. `leads.source` CHECK extended to add `'enquiry_form'` (needed for the tab's convert-to-lead action; the original check predates this feature).
+- `receive-enquiry` edge function (public, `verify_jwt: false`): validates all fields server-side (returns 400 with a `fields` error map), inserts into `enquiry_submissions` via service role, best-effort emails a notification to eswar@eswarcreatives.in via Resend (failure never fails the request — the submission is already saved).
+- `send-enquiry-reply` edge function (admin-only, `verify_jwt: true`): verifies caller via `is_admin()` RPC, emails the buyer via Resend first, only logs to `enquiry_replies` and flips `status` to `'responded'` (first reply only) once the email actually sends — a Resend failure fails the whole request so the frontend's optimistic UI reverts.
+- `DesignSystemsEnquiryPage.tsx` (marketing site) rewired from Formspree to `receive-enquiry`; added a `buyer_email` ("Work email") field between First name and Company name; all validation converted from native HTML tooltips to inline error states. Note: this file is in the marketing site bundle (`src/app/theme.ts` CSS-variable tokens), not the portal bundle — it does not use `t.*`/`tokens.*` from `src/portal/theme.ts`.
+- `t.text.danger` and `t.background.success` added to `src/portal/theme.ts` (aliases of `tokens.ruby` / `tokens.greenLight`) — the `t.*` map had no error-text or success-background entry before this.
+- `EnquiriesTab.tsx` (2nd tab in OutreachAdmin, after Today, before Leads): list sorted by `created_at DESC`, badge count of `status = 'new'`. Each row: company name, funding-stage pill, platform chips, timeline, problem truncated to 80 chars, and a response-deadline countdown badge (green "Responded" if responded/converted, amber "Xh left" between 24-48h, red "Overdue" past 48h, teal "New" under 24h).
+- `EnquiryDrawer.tsx` (`src/portal/components/`): two-column detail drawer (860px) — enquiry fields on the left, a conversation thread on the right (grey bubble for the original enquiry, teal bubbles for replies) with a composer that posts to `send-enquiry-reply` and optimistically reverts on failure. "Convert to lead" creates a `leads` row (`segment: 'saas_product'`, `vertical: 'design_systems'`, `source: 'enquiry_form'`, `status: 'replied'`) and sets `converted_lead_id` + `status: 'converted'` on the enquiry; becomes "View lead" afterward, linking to `?tab=leads&leadId=<id>` (LeadsTab gained a matching `?leadId=` deep-link handler, mirroring its existing `?addLead=1` pattern).
+- Not yet visually verified in a live browser session (no admin login credentials available at build time) — build succeeds cleanly and the convert-to-lead data flow was validated directly against the database, but a manual pass through the actual rendered tab is still outstanding.
+
 **Supabase plan:** Pro ($25/month, upgraded 24 Jul 2026). Project ref: `urrinqwcrpivmvenupiu` (Mumbai, ap-south-1).
 
-**Next migration number: 0082**
+**Next migration number: 0083**
 
 ---
 
@@ -432,6 +442,8 @@ Candidates for Code Connect mapping once reuse across the Phase 2/3 marketing se
 | confirm-scheduled-touch | v1 | true | Admin verifies touch status='scheduled', sends immediately via Resend, sets draft_confirmed_at/by, updates status to 'sent'/'failed' |
 | send-linkedin-reminder | v1 | true | Calls get_upcoming_linkedin_week() RPC; counts pending posts for Mon/Wed/Fri; sends reminder to eswar@eswarcreatives.in via Resend if any slot unfilled; triggered by pg_cron Sunday 12:30 UTC |
 | process-shortlist-run | v4 | true | Admin JWT + explicit profiles.role check; downloads run screenshots from stage-attachments as base64; calls claude-sonnet-4-6 (max_tokens 4000) with ICP/goal text + existing-leads fuzzy-dedup list; parses candidate JSON array; filters excluded + not_interested matches; inserts shortlist_candidates; sets shortlist_runs.status to complete/failed, writing error_code on failure. Async via EdgeRuntime.waitUntil. **AI run currently disabled in UI pending queue-based architecture refactor.** |
+| receive-enquiry | v1 | false | Public endpoint for the marketing site's design systems enquiry form. Validates all fields server-side (400 + `fields` map on failure); inserts into enquiry_submissions via service role; best-effort Resend notification to eswar@eswarcreatives.in (never fails the request). CORS allowlist: eswarcreatives.in, www.eswarcreatives.in, localhost |
+| send-enquiry-reply | v1 | true | Admin-only (is_admin() RPC). Emails the buyer via Resend first; only inserts into enquiry_replies and sets status='responded' (first reply only) once the email actually sends, so a Resend failure fails the whole request |
 
 Edge function versions confirmed live via Supabase on 24 Jul 2026 — check `list_edge_functions` before citing a version number elsewhere, they increment on every deploy.
 
@@ -447,9 +459,9 @@ Edge function versions confirmed live via Supabase on 24 Jul 2026 — check `lis
 Two exports:
 - `tokens` — legacy flat strings (~360 usages). Do not restructure.
 - `t` — EC Design System semantic map:
-  - `t.text.*` (primary, secondary, tertiary, muted, disabled, inverse, onPrimary, urlLink, primaryBrand)
+  - `t.text.*` (primary, secondary, tertiary, muted, disabled, inverse, onPrimary, urlLink, primaryBrand, danger)
   - `t.border.*` (subtle, default, medium, strong, focus, overlay variants, brand, danger, success, warning)
-  - `t.background.*` (page, subtle, muted, surface, raised, sunken, tint1/2/3, overlay variants, scrim)
+  - `t.background.*` (page, subtle, muted, surface, raised, sunken, tint1/2/3, overlay variants, scrim, success)
 
 **Figma Design System Master:** `0SGbENUggpj9Fe6NebJ9QM`
 Token collections: teal (20), gold (20), neutral (21), ruby (20), success (20), warning (20), neutral-alpha (18), teal-alpha (20), yellow (20), avatar-palette (42), radius (15), spacing (33). Semantic Tokens: 268 total.
@@ -531,9 +543,11 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - TodayTab shows "Pending Confirmation" section for future scheduled email touches
 - `confirm-scheduled-touch` edge function sends immediately and marks `draft_confirmed_at/by`
 
-**Frontend tabs (6, OutreachAdmin.tsx):** Today (daily motion tracker), Leads (search + filter chips + sortable table + drawer), Sequences (step rail + inline editor), Activity (last 200 touches; includes scheduled status), LinkedIn (Mon/Wed/Fri week planner, post history, reminder trigger), Smart Shortlist (Beta pill — ICP summary, runs listing, New shortlist modal; AI run disabled pending architecture fix, see Section 1)
+**Frontend tabs (7, OutreachAdmin.tsx):** Today (daily motion tracker), Enquiries (design systems enquiry submissions; badge count of status='new'; countdown badges; conversation thread drawer; convert to lead — see below), Leads (search + filter chips + sortable table + drawer), Sequences (step rail + inline editor), Activity (last 200 touches; includes scheduled status), LinkedIn (Mon/Wed/Fri week planner, post history, reminder trigger), Smart Shortlist (Beta pill — ICP summary, runs listing, New shortlist modal; AI run disabled pending architecture fix, see Section 1)
 
-**LeadDrawer (`src/portal/components/LeadDrawer.tsx`):** shared drawer used by TodayTab, ActivityTab, LeadsTab. Shows: name, company, title, email (mailto), LinkedIn URL, status pill, specific observation, enrolled sequence + current step, last touch date (IST SF Mono), Notes (auto-save on blur), Follow-up date (explicit save + toast), Draft message (auto-save on blur).
+**LeadDrawer (`src/portal/components/LeadDrawer.tsx`):** shared drawer used by TodayTab, ActivityTab, LeadsTab. Shows: name, company, title, email (mailto), LinkedIn URL, status pill, specific observation, enrolled sequence + current step, last touch date (IST SF Mono), Notes (auto-save on blur), Follow-up date (explicit save + toast), Draft message (auto-save on blur). URL param `?leadId=<id>`: auto-opens that lead's drawer on mount (same pattern as `?addLead=1`), used by the Enquiries tab's "View lead" link.
+
+**EnquiryDrawer (`src/portal/components/EnquiryDrawer.tsx`):** two-column drawer (860px) opened from EnquiriesTab. Left: enquiry fields (first name, work email as mailto, company, company URL, platforms, team size, funding stage, timeline, problem, submitted date). Right: conversation thread (grey bubble for the original enquiry problem text, teal bubbles for admin replies) plus a composer (3-8 row textarea, "Send reply" button) that posts to `send-enquiry-reply` with an optimistic bubble that reverts on failure. Header has a "Convert to lead" button (becomes "View lead" once `converted_lead_id` is set).
 
 **Leads tab search + filter:**
 - Debounced (300ms) full-text search across: name, company, title, email, phone, source, notes
