@@ -20,7 +20,10 @@ function isAllowedOrigin(origin: string | null): boolean {
   if (ALLOWED_ORIGINS.includes(origin)) return true;
   try {
     const { hostname } = new URL(origin);
-    return hostname === "localhost" || hostname === "127.0.0.1";
+    if (hostname === "localhost" || hostname === "127.0.0.1") return true;
+    // Cloudflare Pages preview deployments, e.g. <hash>.eswarcreatives-portfolio.pages.dev
+    // and the branch alias staging.eswarcreatives-portfolio.pages.dev.
+    return hostname.endsWith(".eswarcreatives-portfolio.pages.dev");
   } catch {
     return false;
   }
