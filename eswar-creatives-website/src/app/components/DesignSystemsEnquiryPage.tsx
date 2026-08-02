@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 import { Navbar } from "./Navbar";
 import { PortfolioButton } from "./ui/portfolio-button";
 
-const FORMSPREE_ENDPOINT = "https://formspree.io/f/maqvagwj";
-const GENERIC_ERROR = "Something went wrong. Please try again, or email eswar@eswarcreatives.in directly.";
+const RECEIVE_ENQUIRY_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/receive-enquiry`;
+const GENERIC_ERROR = "Something went wrong. Email us directly at eswar@eswarcreatives.in";
 const SERIF = "'Fraunces', Georgia, 'Times New Roman', serif";
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const PLATFORMS = ["Web", "iOS", "Android"] as const;
 const TEAM_SIZES = ["1 to 10 engineers", "11 to 50", "51 to 150", "150+"] as const;
@@ -29,13 +30,24 @@ function fieldClass(hasError: boolean) {
 }
 
 export function DesignSystemsEnquiryPage() {
+  const [firstName, setFirstName] = useState("");
+  const [firstNameError, setFirstNameError] = useState(false);
+  const [buyerEmail, setBuyerEmail] = useState("");
+  const [buyerEmailError, setBuyerEmailError] = useState(false);
+  const [companyName, setCompanyName] = useState("");
+  const [companyNameError, setCompanyNameError] = useState(false);
+  const [companyUrl, setCompanyUrl] = useState("");
+  const [companyUrlError, setCompanyUrlError] = useState(false);
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [platformError, setPlatformError] = useState(false);
+  const [teamSize, setTeamSize] = useState("");
+  const [teamSizeError, setTeamSizeError] = useState(false);
+  const [fundingStage, setFundingStage] = useState("");
+  const [fundingStageError, setFundingStageError] = useState(false);
   const [problem, setProblem] = useState("");
   const [problemError, setProblemError] = useState(false);
-  const [firstNameError, setFirstNameError] = useState(false);
-  const [companyNameError, setCompanyNameError] = useState(false);
-  const [companyUrlError, setCompanyUrlError] = useState(false);
+  const [timeline, setTimeline] = useState("");
+  const [timelineError, setTimelineError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -57,38 +69,81 @@ export function DesignSystemsEnquiryPage() {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = e.currentTarget;
-    const data = new FormData(form);
 
-    const hasFirstNameError = ((data.get("firstName") as string) || "").trim() === "";
-    const hasCompanyNameError = ((data.get("companyName") as string) || "").trim() === "";
-    const hasCompanyUrlError = ((data.get("companyUrl") as string) || "").trim() === "";
+    const hasFirstNameError = firstName.trim() === "";
+    const hasBuyerEmailError = buyerEmail.trim() === "" || !EMAIL_RE.test(buyerEmail.trim());
+    const hasCompanyNameError = companyName.trim() === "";
+    const hasCompanyUrlError = companyUrl.trim() === "";
     const hasPlatformError = platforms.length === 0;
+    const hasTeamSizeError = teamSize === "";
+    const hasFundingStageError = fundingStage === "";
     const hasProblemError = problem.length < 50;
+    const hasTimelineError = timeline === "";
 
     setFirstNameError(hasFirstNameError);
+    setBuyerEmailError(hasBuyerEmailError);
     setCompanyNameError(hasCompanyNameError);
     setCompanyUrlError(hasCompanyUrlError);
     setPlatformError(hasPlatformError);
+    setTeamSizeError(hasTeamSizeError);
+    setFundingStageError(hasFundingStageError);
     setProblemError(hasProblemError);
+    setTimelineError(hasTimelineError);
 
-    if (hasFirstNameError || hasCompanyNameError || hasCompanyUrlError || hasPlatformError || hasProblemError) {
+    if (
+      hasFirstNameError ||
+      hasBuyerEmailError ||
+      hasCompanyNameError ||
+      hasCompanyUrlError ||
+      hasPlatformError ||
+      hasTeamSizeError ||
+      hasFundingStageError ||
+      hasProblemError ||
+      hasTimelineError
+    ) {
       return;
     }
 
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await fetch(FORMSPREE_ENDPOINT, {
+      const res = await fetch(RECEIVE_ENQUIRY_ENDPOINT, {
         method: "POST",
-        body: data,
-        headers: { Accept: "application/json" },
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: firstName.trim(),
+          company_name: companyName.trim(),
+          company_url: companyUrl.trim(),
+          buyer_email: buyerEmail.trim(),
+          platforms,
+          team_size: teamSize,
+          funding_stage: fundingStage,
+          problem,
+          start_timeline: timeline,
+        }),
       });
-      if (res.ok) {
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data?.success) {
         setSubmitted(true);
-      } else {
-        setSubmitError(GENERIC_ERROR);
+        return;
       }
+
+      // Defense in depth: reflect any server-side field errors the client
+      // validation didn't already catch.
+      const fields = data?.fields as Record<string, string> | undefined;
+      if (fields) {
+        if (fields.first_name) setFirstNameError(true);
+        if (fields.buyer_email) setBuyerEmailError(true);
+        if (fields.company_name) setCompanyNameError(true);
+        if (fields.company_url) setCompanyUrlError(true);
+        if (fields.platforms) setPlatformError(true);
+        if (fields.team_size) setTeamSizeError(true);
+        if (fields.funding_stage) setFundingStageError(true);
+        if (fields.problem) setProblemError(true);
+        if (fields.start_timeline) setTimelineError(true);
+      }
+      setSubmitError(GENERIC_ERROR);
     } catch {
       setSubmitError(GENERIC_ERROR);
     } finally {
@@ -107,14 +162,14 @@ export function DesignSystemsEnquiryPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="text-center rounded-2xl border border-border-default bg-bg-surface p-10 sm:p-12 shadow-sm"
+              className="text-center rounded-2xl border border-border-default bg-success-50 p-10 sm:p-12 shadow-sm"
             >
               <CheckCircle2 className="w-10 h-10 mx-auto mb-5 text-icon-brand" />
-              <h1 className="mb-3 text-2xl font-heading" style={{ fontFamily: SERIF, fontWeight: 600, fontStyle: "italic" }}>
-                Thank you.
+              <h1 className="mb-3 text-2xl text-text-primary" style={{ fontFamily: SERIF, fontWeight: 600, fontStyle: "italic" }}>
+                Got it.
               </h1>
               <p className="mb-8 text-text-secondary max-w-md mx-auto">
-                Got it. You will hear back within 48 hours with a scoped recommendation.
+                You will hear back within 48 hours with a scoped recommendation.
               </p>
               <PortfolioButton href="/services/design-systems" variant="ghost" size="sm">
                 <ArrowLeft className="w-3.5 h-3.5" />
@@ -156,7 +211,11 @@ export function DesignSystemsEnquiryPage() {
                 noValidate
                 className="rounded-2xl border border-border-default bg-bg-surface p-6 sm:p-10 shadow-sm space-y-6"
               >
-                <input type="hidden" name="_subject" value="New design systems enquiry" />
+                {submitError && (
+                  <p className="text-sm text-text-error" role="alert">
+                    {submitError}
+                  </p>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
@@ -168,12 +227,38 @@ export function DesignSystemsEnquiryPage() {
                       name="firstName"
                       type="text"
                       required
+                      value={firstName}
                       aria-invalid={firstNameError}
-                      onChange={(e) => { if (e.target.value.trim() !== "") setFirstNameError(false); }}
+                      onChange={(e) => {
+                        setFirstName(e.target.value);
+                        if (e.target.value.trim() !== "") setFirstNameError(false);
+                      }}
                       className={fieldClass(firstNameError)}
                     />
                     {firstNameError && <p className={errorTextClass} role="alert">First name is required.</p>}
                   </div>
+                  <div>
+                    <label htmlFor="buyerEmail" className={labelClass}>
+                      Work email
+                    </label>
+                    <input
+                      id="buyerEmail"
+                      name="buyerEmail"
+                      type="email"
+                      required
+                      value={buyerEmail}
+                      aria-invalid={buyerEmailError}
+                      onChange={(e) => {
+                        setBuyerEmail(e.target.value);
+                        if (EMAIL_RE.test(e.target.value.trim())) setBuyerEmailError(false);
+                      }}
+                      className={fieldClass(buyerEmailError)}
+                    />
+                    {buyerEmailError && <p className={errorTextClass} role="alert">Enter a valid work email.</p>}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label htmlFor="companyName" className={labelClass}>
                       Company name
@@ -183,29 +268,36 @@ export function DesignSystemsEnquiryPage() {
                       name="companyName"
                       type="text"
                       required
+                      value={companyName}
                       aria-invalid={companyNameError}
-                      onChange={(e) => { if (e.target.value.trim() !== "") setCompanyNameError(false); }}
+                      onChange={(e) => {
+                        setCompanyName(e.target.value);
+                        if (e.target.value.trim() !== "") setCompanyNameError(false);
+                      }}
                       className={fieldClass(companyNameError)}
                     />
                     {companyNameError && <p className={errorTextClass} role="alert">Company name is required.</p>}
                   </div>
-                </div>
-
-                <div>
-                  <label htmlFor="companyUrl" className={labelClass}>
-                    Company URL
-                  </label>
-                  <input
-                    id="companyUrl"
-                    name="companyUrl"
-                    type="text"
-                    required
-                    placeholder="acme.com"
-                    aria-invalid={companyUrlError}
-                    onChange={(e) => { if (e.target.value.trim() !== "") setCompanyUrlError(false); }}
-                    className={fieldClass(companyUrlError)}
-                  />
-                  {companyUrlError && <p className={errorTextClass} role="alert">Company URL is required.</p>}
+                  <div>
+                    <label htmlFor="companyUrl" className={labelClass}>
+                      Company URL
+                    </label>
+                    <input
+                      id="companyUrl"
+                      name="companyUrl"
+                      type="text"
+                      required
+                      placeholder="acme.com"
+                      value={companyUrl}
+                      aria-invalid={companyUrlError}
+                      onChange={(e) => {
+                        setCompanyUrl(e.target.value);
+                        if (e.target.value.trim() !== "") setCompanyUrlError(false);
+                      }}
+                      className={fieldClass(companyUrlError)}
+                    />
+                    {companyUrlError && <p className={errorTextClass} role="alert">Company URL is required.</p>}
+                  </div>
                 </div>
 
                 <fieldset aria-invalid={platformError}>
@@ -232,28 +324,58 @@ export function DesignSystemsEnquiryPage() {
                   )}
                 </fieldset>
 
-                <fieldset>
+                <fieldset aria-invalid={teamSizeError}>
                   <legend className={legendClass}>Team size</legend>
                   <div className="flex flex-wrap gap-2">
                     {TEAM_SIZES.map((size) => (
                       <label key={size} className={optionClass}>
-                        <input type="radio" name="teamSize" value={size} className={radioInputClass} />
+                        <input
+                          type="radio"
+                          name="teamSize"
+                          value={size}
+                          checked={teamSize === size}
+                          onChange={() => {
+                            setTeamSize(size);
+                            setTeamSizeError(false);
+                          }}
+                          className={radioInputClass}
+                        />
                         {size}
                       </label>
                     ))}
                   </div>
+                  {teamSizeError && (
+                    <p className="mt-2 text-sm text-text-error" role="alert">
+                      Team size is required.
+                    </p>
+                  )}
                 </fieldset>
 
-                <fieldset>
+                <fieldset aria-invalid={fundingStageError}>
                   <legend className={legendClass}>Funding stage</legend>
                   <div className="flex flex-wrap gap-2">
                     {FUNDING_STAGES.map((stage) => (
                       <label key={stage} className={optionClass}>
-                        <input type="radio" name="fundingStage" value={stage} className={radioInputClass} />
+                        <input
+                          type="radio"
+                          name="fundingStage"
+                          value={stage}
+                          checked={fundingStage === stage}
+                          onChange={() => {
+                            setFundingStage(stage);
+                            setFundingStageError(false);
+                          }}
+                          className={radioInputClass}
+                        />
                         {stage}
                       </label>
                     ))}
                   </div>
+                  {fundingStageError && (
+                    <p className="mt-2 text-sm text-text-error" role="alert">
+                      Funding stage is required.
+                    </p>
+                  )}
                 </fieldset>
 
                 <div>
@@ -279,31 +401,47 @@ export function DesignSystemsEnquiryPage() {
                   </p>
                   {problemError && (
                     <p className={errorTextClass} role="alert">
-                      Please describe your problem in at least 50 characters. This helps us scope a recommendation.
+                      Please describe your problem in at least 50 characters.
                     </p>
                   )}
                 </div>
 
-                <fieldset>
+                <fieldset aria-invalid={timelineError}>
                   <legend className={legendClass}>How soon do you need to start?</legend>
                   <div className="flex flex-wrap gap-2">
-                    {TIMELINES.map((timeline) => (
-                      <label key={timeline} className={optionClass}>
-                        <input type="radio" name="timeline" value={timeline} className={radioInputClass} />
-                        {timeline}
+                    {TIMELINES.map((option) => (
+                      <label key={option} className={optionClass}>
+                        <input
+                          type="radio"
+                          name="timeline"
+                          value={option}
+                          checked={timeline === option}
+                          onChange={() => {
+                            setTimeline(option);
+                            setTimelineError(false);
+                          }}
+                          className={radioInputClass}
+                        />
+                        {option}
                       </label>
                     ))}
                   </div>
+                  {timelineError && (
+                    <p className="mt-2 text-sm text-text-error" role="alert">
+                      Timeline is required.
+                    </p>
+                  )}
                 </fieldset>
 
-                {submitError && (
-                  <p className="text-sm text-text-error" role="alert">
-                    {submitError}
-                  </p>
-                )}
-
                 <PortfolioButton type="submit" variant="brand" size="lg" fullWidth disabled={submitting} loading={submitting}>
-                  {submitting ? "Submitting..." : "Submit enquiry"}
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit enquiry"
+                  )}
                 </PortfolioButton>
               </form>
 
