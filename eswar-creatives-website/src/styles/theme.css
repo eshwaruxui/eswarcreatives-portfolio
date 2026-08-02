@@ -496,6 +496,7 @@
   --border-focus:    var(--teal-500);
   --border-brand:    var(--teal-500);
   --border-danger:   var(--ruby-600);
+  --border-error:    var(--ruby-600);      /* alias of border-danger, form validation states */
   --border-success:  var(--success-600);
   --border-warning:  var(--warning-500);
 
@@ -509,6 +510,7 @@
   --text-inverse:    var(--neutral-0);
   --text-on-primary: var(--neutral-0);     /* on teal-500 */
   --text-on-accent:  var(--neutral-900);   /* on gold-400 */
+  --text-error:      var(--ruby-600);      /* form validation error copy */
 
   /* ── Semantic · Icon (21) ── */
   --icon-primary:              var(--neutral-900);
@@ -842,6 +844,7 @@
   --color-border-focus:    var(--border-focus);
   --color-border-brand:    var(--border-brand);
   --color-border-danger:   var(--border-danger);
+  --color-border-error:    var(--border-error);
   --color-border-success:  var(--border-success);
   --color-border-warning:  var(--border-warning);
 
@@ -849,6 +852,7 @@
   --color-text-muted:      var(--text-muted);
   --color-text-on-primary: var(--text-on-primary);
   --color-text-on-accent:  var(--text-on-accent);
+  --color-text-error:      var(--text-error);
 
   /* Semantic · Icon → text-icon-* (currentColor-driven SVGs) */
   --color-icon-primary:              var(--icon-primary);
