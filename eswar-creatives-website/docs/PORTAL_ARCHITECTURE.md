@@ -375,14 +375,20 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 
 ### Marketing components (`src/components/marketing/`)
 
-Public marketing pages (`/branding` and future marketing surfaces) are a separate consumer of the design system from the portal — never put these in `src/portal/components/`. Introduced on `feature/branding-landing-redesign` for the branding landing hero rebuild.
+Public marketing pages (`/branding` and `/design-systems`) are a separate consumer of the design system from the portal — never put these in `src/portal/components/`. Originally introduced on `feature/branding-landing-redesign` for the branding landing hero rebuild; extended and partly replaced during the `/design-systems` Figma-parity pass (merged to main 1 Aug 2026, see below).
+
+`CTAButton` was retired and replaced by `ECButton` (full Figma `Buttons/EC-Button` component set) on that same pass — update any reference to `CTAButton` you find elsewhere in older notes.
 
 | Component | Location | Notes |
 |---|---|---|
-| `CTAButton` | `src/components/marketing/CTAButton.tsx` | primary/outline variants; used by `LandingNav` and the branding landing hero, retainer, and CTA sections |
-| `FitPill` | `src/components/marketing/FitPill.tsx` | icon + title + description card; used in the hero's 3-pill row |
-| `BeforeAfterCard` | `src/components/marketing/BeforeAfterCard.tsx` | redesign/new-build showcase card; drives the hero's 3-slide carousel |
+| `ECButton` | `src/components/marketing/ECButton.tsx` | Full Figma `Buttons/EC-Button` variant matrix: 8 `hierarchy` values (primary, secondary-color/gray, tertiary-color/gray, link-color/gray, neutral-dark) × 4 `size` values (sm/md/lg/xl) × icon position (leading/trailing/dot/only) × disabled. Data-driven config, generated hover/focus CSS. Shared by `Navbar`, the `/design-systems` hero, pricing card, footer CTA, and pain-question sections. Replaces `CTAButton`. |
+| `ECChip` | `src/components/marketing/ECChip.tsx` | Figma `EC-Chip` component; `variant="default" \| "active"`; used in the `/design-systems` hero eyebrow chip |
+| `BrandLogoNav` | `src/components/marketing/BrandLogoNav.tsx` | Logo lockup, `variant="brand-studio" \| "saas" \| "portfolio"`; renders the matching pre-exported SVG per marketing surface; used by `Navbar` |
+| `FitPill` | `src/components/marketing/FitPill.tsx` | icon + title + description card; used in the branding hero's 3-pill row |
+| `BeforeAfterCard` | `src/components/marketing/BeforeAfterCard.tsx` | redesign/new-build showcase card; drives the branding hero's 3-slide carousel |
 | `IconWrapper` | `src/components/marketing/IconWrapper.tsx` | sizes/recolors an inline SVG icon via currentColor; never wraps exported PNG/SVG assets |
+
+**Shared nav consolidation (merged to main 1 Aug 2026):** `src/components/LandingNav.tsx` was retired; `src/app/components/Navbar.tsx` is now the single nav component for all three marketing surfaces (Figma component set "Navbar - Site & Landing pages", Page=Brand Studio/SaaS/Portfolio). Page is auto-detected from the route (`detectPage(pathname)`) with an optional `page` prop override; CTA label/href and logo destination are looked up per page via `CTA_BY_PAGE` / `LOGO_HREF_BY_PAGE`. Desktop links render via `ECButton hierarchy="tertiary-gray"`.
 
 Candidates for Code Connect mapping once reuse across the Phase 2/3 marketing sections is confirmed (see Section 11/12 roadmap) — not yet wired up.
 
