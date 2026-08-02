@@ -218,6 +218,7 @@ _Enquiries feature (design systems marketing form → portal outreach module):_
 - `EnquiryDrawer.tsx` (`src/portal/components/`): two-column detail drawer (860px) — enquiry fields on the left, a conversation thread on the right (grey bubble for the original enquiry, teal bubbles for replies) with a composer that posts to `send-enquiry-reply` and optimistically reverts on failure. "Convert to lead" creates a `leads` row (`segment: 'saas_product'`, `vertical: 'design_systems'`, `source: 'enquiry_form'`, `status: 'replied'`) and sets `converted_lead_id` + `status: 'converted'` on the enquiry; becomes "View lead" afterward, linking to `?tab=leads&leadId=<id>` (LeadsTab gained a matching `?leadId=` deep-link handler, mirroring its existing `?addLead=1` pattern).
 - Not yet visually verified in a live browser session (no admin login credentials available at build time) — build succeeds cleanly and the convert-to-lead data flow was validated directly against the database, but a manual pass through the actual rendered tab is still outstanding.
 - **Note:** this migration was built and applied in parallel with PR #18 below, which independently also used migration number `0082` for an unrelated change (`linkedin-post-images` bucket). Both were applied to the live database under their own full filenames (`0082_enquiry_submissions.sql` and `0082_linkedin_post_images.sql`) with no functional conflict, but the numeric prefix is duplicated in the repo — next migration is `0083`, do not reuse `0082` for anything else.
+- **Merge note:** PR #18 (LinkedIn planner fix) and this Enquiries feature were merged to main in the same session, from diverged histories. The conflict was in `DesignSystemsEnquiryPage.tsx` — PR #18's branch had been squash-merged from a point that included an earlier, stale version of this file (pre-`receive-enquiry` rewire, still Formspree-based). Resolved by keeping the complete version from `staging` (the finished `receive-enquiry` rewire) over the stale one. Both LinkedIn's work and all six Enquiries commits are confirmed present in `main` at `eb8a0ae3`.
 
 _LinkedIn planner save/refresh fix + image attachments (PR #18 — `fix/linkedin-planner-save-and-attachments` — merged 3 Aug 2026):_
 - Root cause fixed: LinkedIn slot cards failed to match saved posts because of a timezone string mismatch — `LinkedInTab.tsx` compared a locally-built `+05:30` ISO string against `scheduled_for` as returned by PostgREST, which normalizes `timestamptz` to `+00:00`. The insert and refetch were already correct; the strict string-equality match just never matched the same instant. Fixed by comparing parsed timestamps (`isSameInstant`) instead of raw strings. Confirmed live via direct SQL query before writing the fix, per the stage-attachments-bucket lesson (Section 1, PR #12).
@@ -288,6 +289,14 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 **Sales Cadence tables (migrations 0072-0073):**
 - `leads`: phone_business, phone_personal, unsubscribe_token, linkedin_visitor source
 - `sequences`, `sequence_steps`, `lead_enrollments` (statuses: active/paused/completed/cancelled), `outreach_touches`, `suppression_list`, `reply_messages`
+
+**Enquiry tables (migration 0082_enquiry_submissions):**
+- `enquiry_submissions`: id, first_name, company_name, company_url, buyer_email, platforms (text[]), team_size, funding_stage, problem, start_timeline, status (new/responded/converted), responded_at, converted_lead_id (FK → leads, ON DELETE SET NULL), created_at
+- `enquiry_replies`: id, enquiry_id (FK → enquiry_submissions, ON DELETE CASCADE), body, sent_by (FK → auth.users), created_at
+- RLS: admin full access on both tables via `is_admin()` SECURITY DEFINER function
+- Indexes: `idx_enquiry_submissions_created_at` (created_at DESC), `idx_enquiry_replies_enquiry_id` (enquiry_id)
+- `leads.source` CHECK extended to include `'enquiry_form'` (needed for the Enquiries tab's convert-to-lead action)
+- **Migration numbering note:** the `0082` prefix is used by two independent migrations — `0082_linkedin_post_images.sql` (PR #18, LinkedIn planner feature) and `0082_enquiry_submissions.sql` (this feature). Both are live in the database under their distinct filenames with no functional conflict, but do not reuse `0082` for anything else. Next migration must be `0083`.
 
 **Outreach scheduling tables (migration 0076):**
 - `outreach_touches` — 3 new columns: `recipient_timezone text`, `draft_confirmed_at timestamptz`, `draft_confirmed_by uuid → auth.users`; status constraint extended: `('pending','sent','failed','skipped','scheduled','cancelled')` (further extended to add `'held'` in migration 0080, see below)
@@ -365,6 +374,9 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 - `admin` / `owner` → `/portal/admin`
 - `client` → `/portal/projects`
 - `reviewer` → `/portal/review/:firstCampaignId`
+
+**Marketing site routes** (`src/app/components/`, separate bundle from the portal — see Section 5's Marketing components note):
+- `/services/design-systems/enquiry` — `DesignSystemsEnquiryPage.tsx`. Public enquiry form. Fields in order: first_name, buyer_email, company_name, company_url, platforms (checkbox group, min 1 required), team_size (radio), funding_stage (radio), problem (textarea, min 50 chars), start_timeline (radio). POSTs to the `receive-enquiry` Supabase edge function. All validation is inline React state — no native browser validation tooltips anywhere on the form. Inline success confirmation on submit, no redirect. No Formspree dependency (replaced during this feature).
 
 ---
 
@@ -562,6 +574,16 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 **EnquiryDrawer (`src/portal/components/EnquiryDrawer.tsx`):** two-column drawer (860px) opened from EnquiriesTab. Left: enquiry fields (first name, work email as mailto, company, company URL, platforms, team size, funding stage, timeline, problem, submitted date). Right: conversation thread (grey bubble for the original enquiry problem text, teal bubbles for admin replies) plus a composer (3-8 row textarea, "Send reply" button) that posts to `send-enquiry-reply` with an optimistic bubble that reverts on failure. Header has a "Convert to lead" button (becomes "View lead" once `converted_lead_id` is set).
 
+**Enquiries tab** (`EnquiriesTab.tsx`, second tab position — after Today, before Leads):
+- Shows inbound submissions from `/services/design-systems/enquiry`
+- Sorted by `created_at DESC`
+- Countdown badge states: teal "New" (under 48h, not responded), amber "Xh left" (under 24h remaining), red "Overdue" (past 48h, not responded), green "Responded" (status = responded or converted)
+- Tab badge: count of `status = 'new'` enquiries
+- Detail drawer (EnquiryDrawer): enquiry fields on the left panel, conversation thread on the right panel
+- Thread: enquiry message at top, sent replies below in chronological order
+- Reply composer at bottom: POSTs to `send-enquiry-reply`, optimistic update, inline error on failure
+- Convert to lead: creates a `leads` row with `source = 'enquiry_form'`, sets `converted_lead_id` on the enquiry, button changes to "View lead"
+
 **Leads tab search + filter:**
 - Debounced (300ms) full-text search across: name, company, title, email, phone, source, notes
 - Filter chips: status (New/Contacted/…), enrollment (Enrolled/Not Enrolled), source (values from data)
@@ -616,7 +638,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 **Smart Shortlist AI run fix:** Queue-based async processing via pg_net or dedicated worker to bypass edge function execution limits. Replaces current disabled synchronous flow.
 
-**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration (0082+; 0081 now used by billing_title).
+**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0083` (`0081` used by billing_title; `0082` used twice — see Section 3's Enquiry tables note).
 
 **Project status share button:** One-click sends visual progress brief (stage stepper + summary) to client email and WhatsApp.
 
@@ -648,4 +670,4 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 ## 14. One-line summary
 
-Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, Smart Shortlist AI run disabled pending queue-based architecture fix, next migration 0082.
+Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, Smart Shortlist AI run disabled pending queue-based architecture fix, next migration 0083.
