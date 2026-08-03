@@ -1,13 +1,14 @@
 // Shared ICP score ring: same visual and tier logic used by Smart Shortlist's
 // CandidateCard and LeadDrawer's header. A small progress ring plus a tier
-// label ("Strong ICP" / "Partial ICP" / "Weak ICP" / "Not scored"), with an
-// optional click-to-open popover showing the score's match reason and, when
-// unscored, an inline "Score this lead" action (no navigation away).
+// label ("Strong ICP" / "Partial ICP" / "Weak ICP" / "Not scored"). Clicking
+// the interactive variant opens the shared ICP Score modal with the full
+// breakdown and an inline scoring action (no navigation away, ever).
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, RefreshCw } from 'lucide-react'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { Spinner } from '../../Spinner'
+import { Modal, mono } from '../../admin/ui'
 import type { Vertical } from '../shortlist/types'
 
 export type ScoreTier = 'strong' | 'partial' | 'weak' | 'unscored'
@@ -47,7 +48,7 @@ const VERTICAL_LABEL: Record<Vertical, string> = {
 }
 
 function Ring({ tier, score, size }: { tier: ScoreTier; score: number | null; size: number }) {
-  const strokeWidth = size <= 22 ? 3 : 4
+  const strokeWidth = size <= 22 ? 3 : size <= 48 ? 4 : 6
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   const pct = Math.max(0, Math.min(100, score ?? 0))
@@ -96,7 +97,6 @@ export function ScoreRing({
   reason,
   size = 18,
   interactive = true,
-  popoverWidth = 260,
   leadVertical = null,
   scoringState = 'idle',
   onScore,
@@ -105,7 +105,6 @@ export function ScoreRing({
   reason?: string | null
   size?: number
   interactive?: boolean
-  popoverWidth?: number
   leadVertical?: Vertical | null
   scoringState?: ScoringState
   onScore?: (vertical: Vertical) => void
@@ -131,73 +130,108 @@ export function ScoreRing({
   }
 
   return (
-    <span style={s.wrap}>
+    <>
       <button
         type="button"
         style={s.pillButton}
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
+        onClick={() => setOpen(true)}
         aria-label={`ICP score: ${text}`}
       >
         {pill}
       </button>
+
       {open && (
-        <>
-          <div style={s.backdrop} onClick={() => setOpen(false)} />
-          <div style={{ ...s.popover, width: popoverWidth }}>
-            <span style={{ ...s.popoverTitle, color }}>{text}</span>
+        <Modal title="ICP Score" onClose={() => setOpen(false)}>
+          <div style={s.modalBody}>
+            <div style={s.ringHead}>
+              <div style={{ position: 'relative', width: 72, height: 72 }}>
+                <Ring tier={tier} score={score} size={72} />
+                {score != null && <span style={s.bigScore}>{score}</span>}
+              </div>
+              <span style={{ ...s.tierLabel, color }}>{label}</span>
+            </div>
+
             {tier === 'unscored' ? (
-              !effectiveVertical ? (
-                <>
-                  <p style={s.popoverBody}>Choose an ICP profile to score this lead against.</p>
-                  <div style={s.verticalRow}>
-                    <button type="button" style={s.verticalBtn} onClick={() => setPendingVertical('design_systems')}>
-                      {VERTICAL_LABEL.design_systems}
-                    </button>
-                    <button type="button" style={s.verticalBtn} onClick={() => setPendingVertical('branding')}>
-                      {VERTICAL_LABEL.branding}
-                    </button>
+              <>
+                {!effectiveVertical ? (
+                  <div style={s.verticalPrompt}>
+                    <p style={s.bodyText}>Select a vertical to score this lead.</p>
+                    <div style={s.verticalRow}>
+                      <button type="button" style={s.verticalBtn} onClick={() => setPendingVertical('design_systems')}>
+                        {VERTICAL_LABEL.design_systems}
+                      </button>
+                      <button type="button" style={s.verticalBtn} onClick={() => setPendingVertical('branding')}>
+                        {VERTICAL_LABEL.branding}
+                      </button>
+                    </div>
                   </div>
-                </>
-              ) : (
-                <>
-                  {scoringState === 'error' && <p style={s.errorText}>Scoring failed. Try again.</p>}
-                  <button
-                    type="button"
-                    style={{ ...s.scoreBtn, opacity: loading ? 0.7 : 1 }}
-                    disabled={loading}
-                    onClick={() => onScore?.(effectiveVertical)}
-                  >
-                    {loading ? (
-                      <>
-                        <Spinner size={12} color={t.text.onPrimary} />
-                        Scoring...
-                      </>
-                    ) : scoringState === 'error' ? (
-                      'Retry scoring'
-                    ) : (
-                      <>
-                        <Sparkles size={13} />
-                        Score this lead
-                      </>
-                    )}
-                  </button>
-                </>
-              )
+                ) : (
+                  <>
+                    {scoringState === 'error' && <p style={s.errorText}>Scoring failed. Try again.</p>}
+                    <button
+                      type="button"
+                      style={{ ...s.primaryBtn, opacity: loading ? 0.7 : 1 }}
+                      disabled={loading}
+                      onClick={() => onScore?.(effectiveVertical)}
+                    >
+                      {loading ? (
+                        <>
+                          <Spinner size={12} color={t.text.onPrimary} />
+                          Scoring...
+                        </>
+                      ) : scoringState === 'error' ? (
+                        'Retry scoring'
+                      ) : (
+                        <>
+                          <Sparkles size={13} />
+                          Score this lead
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </>
             ) : (
-              <p style={s.popoverBody}>
-                {reason ?? 'No score breakdown was recorded for this lead.'}
-              </p>
+              <>
+                <p style={s.bodyText}>{reason ?? 'No score breakdown was recorded for this lead.'}</p>
+                <div style={s.divider} />
+                {scoringState === 'error' && <p style={s.errorText}>Scoring failed. Try again.</p>}
+                <button
+                  type="button"
+                  style={{ ...s.outlineBtn, opacity: loading ? 0.7 : 1 }}
+                  disabled={loading}
+                  onClick={() => leadVertical && onScore?.(leadVertical)}
+                >
+                  {loading ? (
+                    <>
+                      <Spinner size={12} color={tokens.primary} />
+                      Scoring...
+                    </>
+                  ) : scoringState === 'error' ? (
+                    'Retry scoring'
+                  ) : (
+                    <>
+                      <RefreshCw size={13} />
+                      Rescore this lead
+                    </>
+                  )}
+                </button>
+              </>
             )}
+
+            <div style={s.footer}>
+              <button type="button" style={s.closeBtn} onClick={() => setOpen(false)}>
+                Close
+              </button>
+            </div>
           </div>
-        </>
+        </Modal>
       )}
-    </span>
+    </>
   )
 }
 
 const s: Record<string, CSSProperties> = {
-  wrap: { position: 'relative', display: 'inline-flex' },
   pillStatic: { display: 'inline-flex' },
   pillButton: {
     display: 'inline-flex',
@@ -220,53 +254,52 @@ const s: Record<string, CSSProperties> = {
     fontSize: 11,
     fontWeight: 600,
   },
-  backdrop: { position: 'fixed', inset: 0, zIndex: 30 },
-  popover: {
+  modalBody: { display: 'flex', flexDirection: 'column', gap: 16 },
+  ringHead: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 },
+  bigScore: {
     position: 'absolute',
-    top: '100%',
-    left: 0,
-    marginTop: 6,
-    background: t.background.surface,
-    border: `1px solid ${t.border.default}`,
-    borderRadius: 8,
-    boxShadow: '0 12px 32px rgba(2, 76, 79, 0.12)',
-    padding: 12,
-    zIndex: 31,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    fontFamily: mono,
+    fontSize: 22,
+    fontWeight: 700,
+    color: t.text.primary,
   },
-  popoverTitle: {
+  tierLabel: {
     fontFamily: fonts.body,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 700,
   },
-  popoverBody: {
+  bodyText: {
     fontFamily: fonts.body,
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: 400,
     color: t.text.secondary,
-    lineHeight: 1.45,
+    lineHeight: 1.5,
     margin: 0,
   },
   errorText: {
     fontFamily: fonts.body,
-    fontSize: 12,
+    fontSize: 13,
     color: t.text.danger,
     margin: 0,
   },
-  verticalRow: { display: 'flex', gap: 6, flexWrap: 'wrap' },
+  divider: { height: 1, background: t.border.subtle },
+  verticalPrompt: { display: 'flex', flexDirection: 'column', gap: 10 },
+  verticalRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   verticalBtn: {
     background: 'none',
     border: `1px solid ${t.border.default}`,
     borderRadius: 6,
-    padding: '5px 10px',
+    padding: '6px 12px',
     fontFamily: fonts.body,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 600,
     color: t.text.secondary,
     cursor: 'pointer',
   },
-  scoreBtn: {
+  primaryBtn: {
     alignSelf: 'flex-start',
     display: 'inline-flex',
     alignItems: 'center',
@@ -275,9 +308,40 @@ const s: Record<string, CSSProperties> = {
     color: t.text.onPrimary,
     border: 'none',
     borderRadius: 6,
-    padding: '6px 12px',
+    padding: '8px 14px',
     fontFamily: fonts.body,
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  outlineBtn: {
+    alignSelf: 'flex-start',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: 'none',
+    color: tokens.primary,
+    border: `1px solid ${tokens.primary}`,
+    borderRadius: 6,
+    padding: '8px 14px',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  closeBtn: {
+    background: tokens.surface,
+    color: t.text.secondary,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 6,
+    padding: '8px 16px',
+    fontFamily: fonts.body,
+    fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
   },

@@ -25,6 +25,7 @@ type LeadRow = {
   source: string | null
   linkedin_status: string
   specific_observation: string | null
+  icp_score: number | null
   created_at: string
   last_touch_at?: string | null
   next_touch_at?: string | null
@@ -109,6 +110,32 @@ function StatusChip({ status }: { status: string }) {
       whiteSpace: 'nowrap',
     }}>
       {status.replace(/_/g, ' ')}
+    </span>
+  )
+}
+
+// List-view ICP indicator. Deliberately its own tier cutoffs (70/41), distinct
+// from ScoreRing's 80/60 drawer tiers - a coarser at-a-glance read for a dense
+// table row versus the detailed breakdown in the drawer/modal.
+function icpDotColor(score: number | null): string {
+  if (score == null) return 'transparent'
+  if (score >= 70) return tokens.accent
+  if (score >= 41) return tokens.gold
+  return t.text.muted
+}
+
+function IcpIndicator({ score }: { score: number | null }) {
+  if (score == null) {
+    return (
+      <span style={styles.icpCell} title="Not scored yet">
+        <span style={styles.icpDotOutline} />
+      </span>
+    )
+  }
+  return (
+    <span style={styles.icpCell}>
+      <span style={{ ...styles.icpDot, background: icpDotColor(score) }} />
+      <span style={styles.icpScoreText}>{score}</span>
     </span>
   )
 }
@@ -221,7 +248,7 @@ export function LeadsTab() {
     try {
       let q = supabase
         .from('leads')
-        .select('id, first_name, last_name, company, email, linkedin_url, role_title, notes, segment, status, source, linkedin_status, specific_observation, created_at')
+        .select('id, first_name, last_name, company, email, linkedin_url, role_title, notes, segment, status, source, linkedin_status, specific_observation, icp_score, created_at')
         .order('created_at', { ascending: false })
 
       if (filterStatus.length > 0) q = q.in('status', filterStatus)
@@ -510,6 +537,7 @@ export function LeadsTab() {
                 </th>
                 <th style={styles.th}>Segment</th>
                 <th style={styles.th}>Status</th>
+                <th style={styles.th}>ICP</th>
                 <th style={styles.th}>LinkedIn</th>
                 <th style={styles.th}>
                   <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('last_touch')}>
@@ -544,6 +572,7 @@ export function LeadsTab() {
                   </td>
                   <td style={styles.td}><SegmentChip segment={lead.segment} /></td>
                   <td style={styles.td}><StatusChip status={lead.status} /></td>
+                  <td style={styles.td}><IcpIndicator score={lead.icp_score} /></td>
                   <td style={styles.td}>
                     <LinkedInStatusIcon status={lead.linkedin_status} />
                   </td>
@@ -861,6 +890,20 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   monoCell: {
+    fontFamily: mono,
+    fontSize: 12,
+    color: t.text.secondary,
+  },
+  icpCell: { display: 'inline-flex', alignItems: 'center', gap: 6 },
+  icpDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
+  icpDotOutline: {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    border: `1px solid ${t.border.medium}`,
+    flexShrink: 0,
+  },
+  icpScoreText: {
     fontFamily: mono,
     fontSize: 12,
     color: t.text.secondary,

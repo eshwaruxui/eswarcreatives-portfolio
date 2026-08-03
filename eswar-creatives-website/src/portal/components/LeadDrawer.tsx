@@ -486,7 +486,6 @@ export function LeadDrawer({
             score={lead.icp_score}
             reason={lead.icp_match_reason}
             size={isMobile ? 20 : 18}
-            popoverWidth={isMobile ? 220 : 260}
             leadVertical={lead.vertical}
             scoringState={scoringState}
             onScore={handleScoreThisLead}
