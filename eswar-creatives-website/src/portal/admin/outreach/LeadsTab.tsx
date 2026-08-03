@@ -1,6 +1,6 @@
 // Leads tab: search, filter chips, sortable table (desktop), card stack (mobile).
 import { useEffect, useState } from 'react'
-import { Upload, UserPlus, Linkedin, Search, ChevronUp, ChevronDown, ArrowUpDown, Check } from 'lucide-react'
+import { Upload, UserPlus, Linkedin, Search, ArrowUpDown, Check } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useSearchParams } from 'react-router'
 import { supabase } from '../../../lib/supabase'
@@ -8,6 +8,7 @@ import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { SortableTableHeader, nextSortState, type SortableColumn, type SortDir } from '../../components/shared/SortableTableHeader'
 import { AddLeadModal } from './AddLeadModal'
 import { CsvImportModal } from './CsvImportModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
@@ -33,8 +34,7 @@ type LeadRow = {
   enrolled?: boolean
 }
 
-type SortKey = 'name' | 'company' | 'last_touch' | 'created_at' | 'status' | null
-type SortDir = 'asc' | 'desc'
+type SortKey = string | null
 
 // Mobile "Sort" bottom sheet options — Name/Company/Status/Date Added per spec.
 // Status wasn't a sortable desktop column before; added here (and to
@@ -163,16 +163,19 @@ function FilterChip({
   )
 }
 
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (sortKey !== col) return <ChevronUp size={11} color={t.text.disabled} />
-  return sortDir === 'asc'
-    ? <ChevronUp size={11} color={tokens.primary} />
-    : <ChevronDown size={11} color={tokens.primary} />
-}
-
 function applySorting(leads: LeadRow[], sortKey: SortKey, sortDir: SortDir): LeadRow[] {
-  if (!sortKey) return leads
+  if (!sortKey || !sortDir) return leads
   return [...leads].sort((a, b) => {
+    // ICP score: nulls always sort last, regardless of direction.
+    if (sortKey === 'icp_score') {
+      const av = a.icp_score
+      const bv = b.icp_score
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      return sortDir === 'asc' ? av - bv : bv - av
+    }
+
     let va: string | null | undefined
     let vb: string | null | undefined
     if (sortKey === 'name') {
@@ -184,6 +187,9 @@ function applySorting(leads: LeadRow[], sortKey: SortKey, sortDir: SortDir): Lea
     } else if (sortKey === 'last_touch') {
       va = a.last_touch_at ?? ''
       vb = b.last_touch_at ?? ''
+    } else if (sortKey === 'next_touch') {
+      va = a.next_touch_at ?? ''
+      vb = b.next_touch_at ?? ''
     } else if (sortKey === 'created_at') {
       va = a.created_at
       vb = b.created_at
@@ -198,6 +204,19 @@ function applySorting(leads: LeadRow[], sortKey: SortKey, sortDir: SortDir): Lea
   })
 }
 
+const LEAD_COLUMNS: SortableColumn[] = [
+  { key: 'name', label: 'LEAD', sortable: true },
+  { key: 'company', label: 'COMPANY', sortable: true },
+  { key: 'segment', label: 'SEGMENT', sortable: false },
+  { key: 'status', label: 'STATUS', sortable: true },
+  { key: 'icp_score', label: 'ICP', sortable: true, hideOnMobile: true },
+  { key: 'linkedin', label: 'LINKEDIN', sortable: false, hideOnMobile: true },
+  { key: 'last_touch', label: 'LAST TOUCH', sortable: true },
+  { key: 'next_touch', label: 'NEXT TOUCH', sortable: true },
+  { key: 'created_at', label: 'CREATED', sortable: true, hideOnMobile: true },
+  { key: 'action', label: '', sortable: false },
+]
+
 export function LeadsTab() {
   const { isMobile } = useBreakpoint()
   const [leads, setLeads] = useState<LeadRow[]>([])
@@ -210,7 +229,7 @@ export function LeadsTab() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
   const [sortKey, setSortKey] = useState<SortKey>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [sortDir, setSortDir] = useState<SortDir>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [showCsv, setShowCsv] = useState(false)
   const [showSortSheet, setShowSortSheet] = useState(false)
@@ -319,14 +338,10 @@ export function LeadsTab() {
     load()
   }
 
-  function handleSortClick(col: SortKey) {
-    if (sortKey === col) {
-      if (sortDir === 'asc') setSortDir('desc')
-      else { setSortKey(null); setSortDir('asc') }
-    } else {
-      setSortKey(col)
-      setSortDir('asc')
-    }
+  function handleSort(key: string) {
+    const next = nextSortState(sortKey, sortDir, key)
+    setSortKey(next.key)
+    setSortDir(next.dir)
   }
 
   function toggleStatusFilter(val: string) {
@@ -524,34 +539,7 @@ export function LeadsTab() {
         <div style={{ overflowX: 'auto' }}>
           <table style={styles.table}>
             <thead>
-              <tr>
-                <th style={styles.th}>
-                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('name')}>
-                    Lead <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th style={styles.th}>
-                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('company')}>
-                    Company <SortIcon col="company" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th style={styles.th}>Segment</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>ICP</th>
-                <th style={styles.th}>LinkedIn</th>
-                <th style={styles.th}>
-                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('last_touch')}>
-                    Last touch <SortIcon col="last_touch" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th style={styles.th}>Next touch</th>
-                <th style={styles.th}>
-                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('created_at')}>
-                    Created <SortIcon col="created_at" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th style={styles.th}></th>
-              </tr>
+              <SortableTableHeader columns={LEAD_COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
             </thead>
             <tbody>
               {sorted.map((lead) => (
@@ -822,33 +810,6 @@ const styles: Record<string, CSSProperties> = {
   },
   emptyBody: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
   table: { width: '100%', borderCollapse: 'collapse', minWidth: 860 },
-  th: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: 600,
-    color: t.text.tertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    padding: '8px 12px',
-    textAlign: 'left',
-    borderBottom: `1px solid ${t.border.subtle}`,
-    whiteSpace: 'nowrap',
-  },
-  sortBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: 600,
-    color: t.text.tertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    padding: 0,
-  },
   tr: {
     cursor: 'pointer',
     transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
