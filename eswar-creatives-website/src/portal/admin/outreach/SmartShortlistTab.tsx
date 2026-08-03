@@ -89,12 +89,6 @@ export function SmartShortlistTab() {
     setReviewOpen(true)
   }
 
-  async function handleRunComplete(run: ShortlistRun) {
-    setShowNewShortlist(false)
-    await loadHistory()
-    await openReview(run)
-  }
-
   async function handleArchiveRun(runId: string, archive: boolean) {
     await supabase
       .from('shortlist_runs')
@@ -135,11 +129,7 @@ export function SmartShortlistTab() {
   return (
     <div style={s.root}>
       {showNewShortlist && (
-        <NewShortlistModal
-          hasIcpForVertical={(v) => Boolean(icpConfigs[v]?.icp_text)}
-          onClose={() => setShowNewShortlist(false)}
-          onRunComplete={handleRunComplete}
-        />
+        <NewShortlistModal onClose={() => setShowNewShortlist(false)} />
       )}
 
       {reviewOpen && reviewRun && (

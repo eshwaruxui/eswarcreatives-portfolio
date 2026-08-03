@@ -92,6 +92,25 @@ function Ring({ tier, score, size }: { tier: ScoreTier; score: number | null; si
   )
 }
 
+// Big ring + score + tier label, with no click/modal behavior of its own.
+// Shared so any screen showing a "just-computed" score (e.g. the New
+// Shortlist single-lead success state) stays in sync with scoreTier's
+// thresholds/colors automatically instead of re-specifying them.
+export function ScoreRingDisplay({ score, size = 72 }: { score: number | null; size?: number }) {
+  const tier = scoreTier(score)
+  const color = TIER_COLOR[tier]
+  const label = TIER_LABEL[tier]
+  return (
+    <div style={s.ringHead}>
+      <div style={{ position: 'relative', width: size, height: size }}>
+        <Ring tier={tier} score={score} size={size} />
+        {score != null && <span style={s.bigScore}>{score}</span>}
+      </div>
+      <span style={{ ...s.tierLabel, color }}>{label}</span>
+    </div>
+  )
+}
+
 export function ScoreRing({
   score,
   reason,
@@ -143,13 +162,7 @@ export function ScoreRing({
       {open && (
         <Modal title="ICP Score" onClose={() => setOpen(false)}>
           <div style={s.modalBody}>
-            <div style={s.ringHead}>
-              <div style={{ position: 'relative', width: 72, height: 72 }}>
-                <Ring tier={tier} score={score} size={72} />
-                {score != null && <span style={s.bigScore}>{score}</span>}
-              </div>
-              <span style={{ ...s.tierLabel, color }}>{label}</span>
-            </div>
+            <ScoreRingDisplay score={score} />
 
             {tier === 'unscored' ? (
               <>
