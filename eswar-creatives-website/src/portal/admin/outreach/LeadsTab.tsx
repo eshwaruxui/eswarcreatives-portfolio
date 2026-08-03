@@ -8,7 +8,9 @@ import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { useReloadableList } from '../../hooks/useReloadableList'
 import { SortableTableHeader, nextSortState, type SortableColumn, type SortDir } from '../../components/shared/SortableTableHeader'
+import { Skeleton } from '../../components/shared/Skeleton'
 import { AddLeadModal } from './AddLeadModal'
 import { CsvImportModal } from './CsvImportModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
@@ -220,7 +222,7 @@ const LEAD_COLUMNS: SortableColumn[] = [
 export function LeadsTab() {
   const { isMobile } = useBreakpoint()
   const [leads, setLeads] = useState<LeadRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const { initialLoading, refreshing, start: startLoad, finish: finishLoad } = useReloadableList()
   const [error, setError] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string[]>([])
   const [filterEnrollment, setFilterEnrollment] = useState<'all' | 'enrolled' | 'not_enrolled'>('all')
@@ -262,7 +264,7 @@ export function LeadsTab() {
   }, [])
 
   async function load() {
-    setLoading(true)
+    startLoad()
     setError(null)
     try {
       let q = supabase
@@ -327,7 +329,7 @@ export function LeadsTab() {
     } catch {
       setError('Could not load leads. Refresh to try again.')
     } finally {
-      setLoading(false)
+      finishLoad()
     }
   }
 
@@ -462,7 +464,7 @@ export function LeadsTab() {
       </div>
 
       {/* Result count + mobile Sort trigger (desktop sorts via column headers) */}
-      {!loading && (
+      {!initialLoading && (
         <div style={styles.resultRow}>
           <p style={styles.resultCount}>
             {sorted.length} lead{sorted.length !== 1 ? 's' : ''}
@@ -508,8 +510,23 @@ export function LeadsTab() {
 
       {error && <div style={styles.errorBanner}>{error}</div>}
 
-      {loading ? (
-        <p style={styles.loading}>Loading leads...</p>
+      {initialLoading ? (
+        isMobile ? (
+          <div style={styles.cardStack}>
+            {Array.from({ length: 6 }).map((_, i) => <MobileCardSkeleton key={i} />)}
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={styles.table}>
+              <thead>
+                <SortableTableHeader columns={LEAD_COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              </thead>
+              <tbody>
+                {Array.from({ length: 6 }).map((_, i) => <LeadRowSkeleton key={i} />)}
+              </tbody>
+            </table>
+          </div>
+        )
       ) : sorted.length === 0 ? (
         <div style={styles.emptyState}>
           {q || filterStatus.length > 0 || filterEnrollment !== 'all' || filterSource.length > 0 ? (
@@ -526,8 +543,9 @@ export function LeadsTab() {
           )}
         </div>
       ) : isMobile ? (
-        <div style={styles.cardStack}>
+        <div style={{ ...styles.cardStack, ...styles.fadeContent, opacity: refreshing ? 0.6 : 1 }}>
           <style>{`
+            @keyframes ecFadeIn { from { opacity: 0; } to { opacity: 1; } }
             .ec-tap-card { background: ${tokens.surface}; transition: background ${motionTokens.durationFast} ${motionTokens.easeDefault}; }
             .ec-tap-card:active { background: ${t.background.tint1}; }
           `}</style>
@@ -536,7 +554,8 @@ export function LeadsTab() {
           ))}
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: 'auto', ...styles.fadeContent, opacity: refreshing ? 0.6 : 1 }}>
+          <style>{`@keyframes ecFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
           <table style={styles.table}>
             <thead>
               <SortableTableHeader columns={LEAD_COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
@@ -620,10 +639,59 @@ function MobileCard({ lead, onOpen }: { lead: LeadRow; onOpen: () => void }) {
         <StatusChip status={lead.status} />
       </div>
       <div style={styles.mobileCardFoot}>
-        <SegmentChip segment={lead.segment} />
+        <div style={styles.mobileCardFootLeft}>
+          <SegmentChip segment={lead.segment} />
+          <IcpIndicator score={lead.icp_score} />
+        </div>
         {lead.next_touch_at && (
           <span style={styles.mobileNextTouch}>Next: {formatPortalDate(lead.next_touch_at)}</span>
         )}
+      </div>
+    </div>
+  )
+}
+
+// First-load placeholders only (see useReloadableList) - a background reload
+// after closing the drawer keeps real rows on screen instead of swapping to
+// these, which is what actually fixes the scroll-reset bug.
+function LeadRowSkeleton() {
+  return (
+    <tr style={styles.tr}>
+      <td style={styles.td}>
+        <div style={styles.leadCell}>
+          <Skeleton width={32} height={32} borderRadius={999} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <Skeleton width={110} height={13} />
+            <Skeleton width={80} height={11} />
+          </div>
+        </div>
+      </td>
+      <td style={styles.td}><Skeleton width={90} height={12} /></td>
+      <td style={styles.td}><Skeleton width={70} height={20} borderRadius={999} /></td>
+      <td style={styles.td}><Skeleton width={60} height={20} borderRadius={999} /></td>
+      <td style={styles.td}><Skeleton width={40} height={12} /></td>
+      <td style={styles.td}><Skeleton width={15} height={15} borderRadius={999} /></td>
+      <td style={styles.td}><Skeleton width={60} height={12} /></td>
+      <td style={styles.td}><Skeleton width={60} height={12} /></td>
+      <td style={styles.td}><Skeleton width={60} height={12} /></td>
+      <td style={styles.td}><Skeleton width={50} height={26} /></td>
+    </tr>
+  )
+}
+
+function MobileCardSkeleton() {
+  return (
+    <div style={styles.mobileCard}>
+      <div style={styles.mobileCardHead}>
+        <Skeleton width={32} height={32} borderRadius={999} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Skeleton width={130} height={13} />
+          <Skeleton width={95} height={11} />
+        </div>
+        <Skeleton width={60} height={20} borderRadius={999} />
+      </div>
+      <div style={styles.mobileCardFoot}>
+        <Skeleton width={80} height={18} borderRadius={999} />
       </div>
     </div>
   )
@@ -799,7 +867,10 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     marginBottom: 12,
   },
-  loading: { fontFamily: fonts.body, fontSize: 14, color: t.text.muted, padding: '24px 0' },
+  fadeContent: {
+    animation: `ecFadeIn ${motionTokens.durationBase} ${motionTokens.easeEnter}`,
+    transition: `opacity ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
+  },
   emptyState: { textAlign: 'center', padding: '60px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 },
   emptyHeading: {
     fontFamily: fonts.heading,
@@ -893,6 +964,7 @@ const styles: Record<string, CSSProperties> = {
   },
   mobileCardHead: { display: 'flex', alignItems: 'center', gap: 10 },
   mobileCardFoot: { display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' },
+  mobileCardFootLeft: { display: 'flex', gap: 8, alignItems: 'center' },
   mobileNextTouch: {
     fontFamily: mono,
     fontSize: 11,
