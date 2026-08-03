@@ -1,13 +1,17 @@
 // Enquiries tab: list of design systems enquiry submissions with a
 // response-deadline countdown, opening into a detail drawer with a
 // conversation thread and a convert-to-lead action.
+// Sortable table on desktop (mirrors LeadsTab); card stack on mobile.
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useSearchParams } from 'react-router'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts } from '../../theme'
-import { EmptyState } from '../ui'
+import { mono, EmptyState } from '../ui'
+import { formatPortalDate } from '../../utils/formatDate'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { SortableTableHeader, nextSortState, type SortableColumn, type SortDir } from '../../components/shared/SortableTableHeader'
 import { EnquiryDrawer, type EnquiryStatus } from '../../components/EnquiryDrawer'
 
 type EnquiryRow = {
@@ -26,6 +30,8 @@ type EnquiryRow = {
   converted_lead_id: string | null
   created_at: string
 }
+
+type SortKey = string | null
 
 type Tone = 'green' | 'amber' | 'red' | 'teal'
 
@@ -66,10 +72,46 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text
 }
 
+const ENQUIRY_COLUMNS: SortableColumn[] = [
+  { key: 'company_name', label: 'COMPANY', sortable: true },
+  { key: 'funding_stage', label: 'STAGE', sortable: true },
+  { key: 'start_timeline', label: 'TIMELINE', sortable: false },
+  { key: 'status', label: 'STATUS', sortable: true },
+  { key: 'created_at', label: 'RECEIVED', sortable: true },
+  { key: 'action', label: '', sortable: false },
+]
+
+function applySorting(rows: EnquiryRow[], sortKey: SortKey, sortDir: SortDir): EnquiryRow[] {
+  if (!sortKey || !sortDir) return rows
+  return [...rows].sort((a, b) => {
+    let va: string
+    let vb: string
+    if (sortKey === 'company_name') {
+      va = a.company_name.toLowerCase()
+      vb = b.company_name.toLowerCase()
+    } else if (sortKey === 'funding_stage') {
+      va = a.funding_stage.toLowerCase()
+      vb = b.funding_stage.toLowerCase()
+    } else if (sortKey === 'status') {
+      va = a.status
+      vb = b.status
+    } else if (sortKey === 'created_at') {
+      va = a.created_at
+      vb = b.created_at
+    } else {
+      return 0
+    }
+    return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+  })
+}
+
 export function EnquiriesTab({ onRefreshCount }: { onRefreshCount: () => void }) {
+  const { isMobile } = useBreakpoint()
   const [enquiries, setEnquiries] = useState<EnquiryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>(null)
+  const [sortDir, setSortDir] = useState<SortDir>(null)
   const [, setSearchParams] = useSearchParams()
 
   async function load() {
@@ -97,6 +139,12 @@ export function EnquiriesTab({ onRefreshCount }: { onRefreshCount: () => void })
     }, { replace: true })
   }
 
+  function handleSort(key: string) {
+    const next = nextSortState(sortKey, sortDir, key)
+    setSortKey(next.key)
+    setSortDir(next.dir)
+  }
+
   if (loading) {
     return (
       <div style={styles.loading}>
@@ -115,37 +163,82 @@ export function EnquiriesTab({ onRefreshCount }: { onRefreshCount: () => void })
     )
   }
 
+  const sorted = applySorting(enquiries, sortKey, sortDir)
+
   return (
     <>
-      <div style={styles.list}>
-        {enquiries.map((enquiry) => (
-          <div key={enquiry.id} style={styles.row}>
-            <div style={styles.rowTop}>
-              <p style={styles.company}>{enquiry.company_name}</p>
-              <FundingPill stage={enquiry.funding_stage} />
-              <div style={styles.spacer} />
-              <CountdownBadge status={enquiry.status} createdAt={enquiry.created_at} />
-            </div>
-
-            <div style={styles.rowMeta}>
-              <div style={styles.platformTags}>
-                {enquiry.platforms.map((p) => (
-                  <PlatformTag key={p} platform={p} />
-                ))}
+      {isMobile ? (
+        <div style={styles.list}>
+          {sorted.map((enquiry) => (
+            <div key={enquiry.id} style={styles.row}>
+              <div style={styles.rowTop}>
+                <p style={styles.company}>{enquiry.company_name}</p>
+                <FundingPill stage={enquiry.funding_stage} />
+                <div style={styles.spacer} />
+                <CountdownBadge status={enquiry.status} createdAt={enquiry.created_at} />
               </div>
-              <span style={styles.timeline}>{enquiry.start_timeline}</span>
-            </div>
 
-            <p style={styles.problem}>{truncate(enquiry.problem, 80)}</p>
+              <div style={styles.rowMeta}>
+                <div style={styles.platformTags}>
+                  {enquiry.platforms.map((p) => (
+                    <PlatformTag key={p} platform={p} />
+                  ))}
+                </div>
+                <span style={styles.timeline}>{enquiry.start_timeline}</span>
+              </div>
 
-            <div style={styles.rowActions}>
-              <button type="button" style={styles.openBtn} onClick={() => setOpenId(enquiry.id)}>
-                Open
-              </button>
+              <p style={styles.problem}>{truncate(enquiry.problem, 80)}</p>
+
+              <div style={styles.rowActions}>
+                <button type="button" style={styles.openBtn} onClick={() => setOpenId(enquiry.id)}>
+                  Open
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={styles.table}>
+            <thead>
+              <SortableTableHeader columns={ENQUIRY_COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+            </thead>
+            <tbody>
+              {sorted.map((enquiry) => (
+                <tr key={enquiry.id} style={styles.tr} onClick={() => setOpenId(enquiry.id)}>
+                  <td style={styles.td}>
+                    <div style={styles.companyCell}>
+                      <span style={styles.companyName}>{enquiry.company_name}</span>
+                      <div style={styles.platformTags}>
+                        {enquiry.platforms.map((p) => (
+                          <PlatformTag key={p} platform={p} />
+                        ))}
+                      </div>
+                    </div>
+                  </td>
+                  <td style={styles.td}><FundingPill stage={enquiry.funding_stage} /></td>
+                  <td style={styles.td}>
+                    <span style={styles.timelineCell}>{enquiry.start_timeline}</span>
+                  </td>
+                  <td style={styles.td}><CountdownBadge status={enquiry.status} createdAt={enquiry.created_at} /></td>
+                  <td style={styles.td}>
+                    <span style={styles.monoCell}>{formatPortalDate(enquiry.created_at)}</span>
+                  </td>
+                  <td style={styles.td}>
+                    <button
+                      type="button"
+                      style={styles.openBtn}
+                      onClick={(e) => { e.stopPropagation(); setOpenId(enquiry.id) }}
+                    >
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {openId && <EnquiryDrawer enquiryId={openId} onClose={handleDrawerClose} onChanged={handleChanged} />}
     </>
@@ -217,5 +310,33 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     padding: '6px 14px',
     cursor: 'pointer',
+  },
+  table: { width: '100%', borderCollapse: 'collapse', minWidth: 760 },
+  tr: { cursor: 'pointer' },
+  td: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.primary,
+    padding: '12px',
+    borderBottom: `1px solid ${t.border.subtle}`,
+    verticalAlign: 'middle',
+  },
+  companyCell: { display: 'flex', flexDirection: 'column', gap: 4 },
+  companyName: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    color: t.text.primary,
+    whiteSpace: 'nowrap',
+  },
+  timelineCell: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.secondary,
+  },
+  monoCell: {
+    fontFamily: mono,
+    fontSize: 12,
+    color: t.text.secondary,
   },
 }
