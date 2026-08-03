@@ -16,8 +16,8 @@ export type ScoringState = 'idle' | 'loading' | 'error'
 
 export function scoreTier(score: number | null): ScoreTier {
   if (score == null) return 'unscored'
-  if (score >= 80) return 'strong'
-  if (score >= 60) return 'partial'
+  if (score >= 75) return 'strong'
+  if (score >= 50) return 'partial'
   return 'weak'
 }
 

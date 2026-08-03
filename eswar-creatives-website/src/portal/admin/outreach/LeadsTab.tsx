@@ -115,13 +115,12 @@ function StatusChip({ status }: { status: string }) {
   )
 }
 
-// List-view ICP indicator. Deliberately its own tier cutoffs (70/41), distinct
-// from ScoreRing's 80/60 drawer tiers - a coarser at-a-glance read for a dense
-// table row versus the detailed breakdown in the drawer/modal.
+// List-view ICP indicator. Same tier cutoffs as ScoreRing (75/50), unified
+// across the drawer, modal, and this dense table row.
 function icpDotColor(score: number | null): string {
   if (score == null) return 'transparent'
-  if (score >= 70) return tokens.accent
-  if (score >= 41) return tokens.gold
+  if (score >= 75) return tokens.accent
+  if (score >= 50) return tokens.gold
   return t.text.muted
 }
 
