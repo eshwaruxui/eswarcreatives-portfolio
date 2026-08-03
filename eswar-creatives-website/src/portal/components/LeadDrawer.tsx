@@ -1,7 +1,6 @@
 // Lead drawer: full lead detail, editable fields, enrollment, timeline, convert to client.
 // SidePanel on desktop, full-screen bottom sheet on mobile (handled by SidePanel itself).
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
 import { ExternalLink, Clock, Mail, Linkedin, X, Reply } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
@@ -10,7 +9,8 @@ import { SidePanel } from '../admin/SidePanel'
 import { mono, formatDate } from '../admin/ui'
 import { showToast } from '../admin/toast'
 import { useBreakpoint } from '../hooks/useBreakpoint'
-import { ScoreRing } from './shared/ScoreRing'
+import { ScoreRing, type ScoringState } from './shared/ScoreRing'
+import type { Vertical } from './shortlist/types'
 
 type LeadStatus =
   | 'new' | 'active' | 'replied' | 'meeting_booked' | 'converted'
@@ -170,9 +170,9 @@ export function LeadDrawer({
   onConverted?: (clientId: string) => void
   onDeleted?: () => void
 }) {
-  const navigate = useNavigate()
   const { isMobile } = useBreakpoint()
   const [lead, setLead] = useState<LeadDetail | null>(null)
+  const [scoringState, setScoringState] = useState<ScoringState>('idle')
   const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([])
   const [timeline, setTimeline] = useState<TouchTimelineRow[]>([])
   const [replies, setReplies] = useState<ReplyMessageRow[]>([])
@@ -276,6 +276,43 @@ export function LeadDrawer({
     await supabase.from('leads').update(updates).eq('id', lead.id)
     setLead((prev) => prev ? { ...prev, ...updates } : prev)
     setSaving(false)
+  }
+
+  async function handleScoreThisLead(vertical: Vertical) {
+    if (!lead) return
+    const prevLead = lead
+    setScoringState('loading')
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token ?? ''
+      const { data, error: fnErr } = await supabase.functions.invoke('score-single-lead', {
+        body: { lead_id: lead.id, vertical },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
+      if (fnErr || typeof data?.icp_score !== 'number') {
+        setScoringState('error')
+        return
+      }
+
+      const icp_score: number = data.icp_score
+      const icp_match_reason: string | null = data.icp_match_reason ?? null
+
+      // Optimistic update: show the new score immediately, then persist.
+      setLead({ ...prevLead, icp_score, icp_match_reason, vertical })
+      setScoringState('idle')
+
+      const { error: updateErr } = await supabase
+        .from('leads')
+        .update({ icp_score, icp_match_reason, vertical })
+        .eq('id', lead.id)
+      if (updateErr) {
+        setLead(prevLead)
+        setScoringState('error')
+      }
+    } catch {
+      setLead(prevLead)
+      setScoringState('error')
+    }
   }
 
   async function saveObservation() {
@@ -450,7 +487,9 @@ export function LeadDrawer({
             reason={lead.icp_match_reason}
             size={isMobile ? 20 : 18}
             popoverWidth={isMobile ? 220 : 260}
-            onRunScoring={() => navigate('/portal/admin/outreach?tab=shortlist')}
+            leadVertical={lead.vertical}
+            scoringState={scoringState}
+            onScore={handleScoreThisLead}
           />
         </div>
 

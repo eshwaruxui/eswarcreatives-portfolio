@@ -1,12 +1,17 @@
 // Shared ICP score ring: same visual and tier logic used by Smart Shortlist's
 // CandidateCard and LeadDrawer's header. A small progress ring plus a tier
 // label ("Strong ICP" / "Partial ICP" / "Weak ICP" / "Not scored"), with an
-// optional click-to-open popover showing the score's match reason.
+// optional click-to-open popover showing the score's match reason and, when
+// unscored, an inline "Score this lead" action (no navigation away).
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
+import { Sparkles } from 'lucide-react'
 import { tokens, t, fonts, motionTokens } from '../../theme'
+import { Spinner } from '../../Spinner'
+import type { Vertical } from '../shortlist/types'
 
 export type ScoreTier = 'strong' | 'partial' | 'weak' | 'unscored'
+export type ScoringState = 'idle' | 'loading' | 'error'
 
 export function scoreTier(score: number | null): ScoreTier {
   if (score == null) return 'unscored'
@@ -34,6 +39,11 @@ const TIER_LABEL: Record<ScoreTier, string> = {
   partial: 'Partial ICP',
   weak: 'Weak ICP',
   unscored: 'Not scored',
+}
+
+const VERTICAL_LABEL: Record<Vertical, string> = {
+  design_systems: 'Design Systems',
+  branding: 'Branding',
 }
 
 function Ring({ tier, score, size }: { tier: ScoreTier; score: number | null; size: number }) {
@@ -86,26 +96,33 @@ export function ScoreRing({
   reason,
   size = 18,
   interactive = true,
-  onRunScoring,
   popoverWidth = 260,
+  leadVertical = null,
+  scoringState = 'idle',
+  onScore,
 }: {
   score: number | null
   reason?: string | null
   size?: number
   interactive?: boolean
-  onRunScoring?: () => void
   popoverWidth?: number
+  leadVertical?: Vertical | null
+  scoringState?: ScoringState
+  onScore?: (vertical: Vertical) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [pendingVertical, setPendingVertical] = useState<Vertical | null>(null)
   const tier = scoreTier(score)
   const color = TIER_COLOR[tier]
   const label = TIER_LABEL[tier]
   const text = score != null ? `${label} · ${score}` : label
+  const effectiveVertical = leadVertical ?? pendingVertical
+  const loading = scoringState === 'loading'
 
   const pill = (
     <span style={s.pillInner}>
-      <Ring tier={tier} score={score} size={size} />
-      <span style={{ ...s.label, color }}>{text}</span>
+      {loading ? <Spinner size={size} color={t.text.muted} /> : <Ring tier={tier} score={score} size={size} />}
+      <span style={{ ...s.label, color }}>{loading ? 'Scoring...' : text}</span>
     </span>
   )
 
@@ -130,23 +147,43 @@ export function ScoreRing({
           <div style={{ ...s.popover, width: popoverWidth }}>
             <span style={{ ...s.popoverTitle, color }}>{text}</span>
             {tier === 'unscored' ? (
-              <>
-                <p style={s.popoverBody}>
-                  This lead has not been through Smart Shortlist scoring yet.
-                </p>
-                {onRunScoring && (
+              !effectiveVertical ? (
+                <>
+                  <p style={s.popoverBody}>Choose an ICP profile to score this lead against.</p>
+                  <div style={s.verticalRow}>
+                    <button type="button" style={s.verticalBtn} onClick={() => setPendingVertical('design_systems')}>
+                      {VERTICAL_LABEL.design_systems}
+                    </button>
+                    <button type="button" style={s.verticalBtn} onClick={() => setPendingVertical('branding')}>
+                      {VERTICAL_LABEL.branding}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {scoringState === 'error' && <p style={s.errorText}>Scoring failed. Try again.</p>}
                   <button
                     type="button"
-                    style={s.runLink}
-                    onClick={() => {
-                      setOpen(false)
-                      onRunScoring()
-                    }}
+                    style={{ ...s.scoreBtn, opacity: loading ? 0.7 : 1 }}
+                    disabled={loading}
+                    onClick={() => onScore?.(effectiveVertical)}
                   >
-                    Run scoring
+                    {loading ? (
+                      <>
+                        <Spinner size={12} color={t.text.onPrimary} />
+                        Scoring...
+                      </>
+                    ) : scoringState === 'error' ? (
+                      'Retry scoring'
+                    ) : (
+                      <>
+                        <Sparkles size={13} />
+                        Score this lead
+                      </>
+                    )}
                   </button>
-                )}
-              </>
+                </>
+              )
             ) : (
               <p style={s.popoverBody}>
                 {reason ?? 'No score breakdown was recorded for this lead.'}
@@ -197,7 +234,7 @@ const s: Record<string, CSSProperties> = {
     zIndex: 31,
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 8,
   },
   popoverTitle: {
     fontFamily: fonts.body,
@@ -211,16 +248,37 @@ const s: Record<string, CSSProperties> = {
     lineHeight: 1.45,
     margin: 0,
   },
-  runLink: {
-    alignSelf: 'flex-start',
+  errorText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.danger,
+    margin: 0,
+  },
+  verticalRow: { display: 'flex', gap: 6, flexWrap: 'wrap' },
+  verticalBtn: {
     background: 'none',
-    border: 'none',
-    padding: 0,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 6,
+    padding: '5px 10px',
     fontFamily: fonts.body,
     fontSize: 12,
     fontWeight: 600,
-    color: tokens.primary,
+    color: t.text.secondary,
     cursor: 'pointer',
-    textDecoration: 'underline',
+  },
+  scoreBtn: {
+    alignSelf: 'flex-start',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 12px',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
   },
 }
