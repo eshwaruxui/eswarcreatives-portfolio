@@ -5,7 +5,8 @@
 // Theme tokens only; no raw hex; no em dashes.
 import type { CSSProperties } from 'react'
 import { tokens, t, fonts } from '../../theme'
-import { mono, formatDate } from '../../admin/ui'
+import { mono } from '../../admin/ui'
+import { formatPortalDate } from '../../utils/formatDate'
 import eswarLogo from '../../../imports/eswar-logo.svg'
 
 export type InvoiceDoc = {
@@ -137,10 +138,10 @@ export function InvoiceDocument({
         </section>
         <section style={styles.detailsCol}>
           <div style={styles.sectionLabel}>Details</div>
-          <DetailLine k="Issued" v={formatDate(invoice.issuedDate)} />
-          <DetailLine k="Due" v={formatDate(invoice.dueDate)} />
+          <DetailLine k="Issued" v={formatPortalDate(invoice.issuedDate)} />
+          <DetailLine k="Due" v={formatPortalDate(invoice.dueDate)} />
           {invoice.billingTitle && <DetailLine k="For" v={invoice.billingTitle} prose />}
-          {invoice.paidDate && <DetailLine k="Paid" v={formatDate(invoice.paidDate)} />}
+          {invoice.paidDate && <DetailLine k="Paid" v={formatPortalDate(invoice.paidDate)} />}
           {invoice.paymentMethod && <DetailLine k="Method" v={invoice.paymentMethod} />}
           <DetailLine k="Currency" v={invoice.currency} />
         </section>
@@ -181,7 +182,7 @@ export function InvoiceDocument({
               <div style={styles.paymentsSectionLabel}>Payments received</div>
               {payments!.map((p, i) => (
                 <div key={i} style={styles.paymentRow}>
-                  <span style={styles.paymentDate}>{formatDate(p.paid_on)}</span>
+                  <span style={styles.paymentDate}>{formatPortalDate(p.paid_on)}</span>
                   {p.method && <span style={styles.paymentMethod}>{p.method}</span>}
                   {p.reference_note && <span style={styles.paymentRef}>{p.reference_note}</span>}
                   <span style={styles.paymentAmt}>{formatAmount(Number(p.amount), invoice.currency)}</span>

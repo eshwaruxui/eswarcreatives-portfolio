@@ -11,8 +11,8 @@ import {
   ui,
   mono,
   formatMoney,
-  formatDate,
 } from './ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { InvoicePreview } from './InvoicePreview'
 import { DeleteInvoiceModal } from './DeleteInvoiceModal'
 import { ConfirmPaymentModal, type PaymentModalMode } from './ConfirmPaymentModal'
@@ -320,7 +320,7 @@ export function InvoicesAdmin() {
                           ? formatMoney(0, inv.currency)
                           : formatMoney(Number(inv.amount), inv.currency)}
                     </span>
-                    <span style={styles.mobileCardDue}>Due {formatDate(inv.due_date)}</span>
+                    <span style={styles.mobileCardDue}>Due {formatPortalDate(inv.due_date)}</span>
                   </div>
                 </div>
                 <div style={styles.mobileCardActions}>

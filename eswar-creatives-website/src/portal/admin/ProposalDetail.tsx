@@ -9,8 +9,8 @@ import {
   ui,
   mono,
   formatMoney,
-  formatDate,
 } from './ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { ProposalForm, emptySolution, defaultSchedule } from './ProposalForm'
 import { DeleteProposalModal } from './DeleteProposalModal'
 import { ProposalNudgeModal, type NudgeProposal } from './ProposalNudgeModal'
@@ -435,7 +435,7 @@ export function ProposalDetail() {
         {locked ? (
           <>
             <span style={styles.acceptedBadge}>
-              Accepted on {formatDate(existing.accepted_at)}
+              Accepted on {formatPortalDate(existing.accepted_at)}
             </span>
             {/* 5g: reorder phases/solutions after approval (admin only). */}
             <button
@@ -568,7 +568,7 @@ export function ProposalDetail() {
                 <span style={nudgeHistoryStyles.channel}>
                   {log.channel === 'whatsapp' ? 'WhatsApp' : 'Email'}
                 </span>
-                <span style={nudgeHistoryStyles.date}>{formatDate(log.sent_at)}</span>
+                <span style={nudgeHistoryStyles.date}>{formatPortalDate(log.sent_at)}</span>
               </div>
               {log.message_preview && (
                 <p style={nudgeHistoryStyles.preview}>{log.message_preview}</p>

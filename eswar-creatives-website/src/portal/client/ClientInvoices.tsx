@@ -10,7 +10,8 @@ import { supabase } from '../../lib/supabase'
 import { type PortalProfile } from '../PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { tokens, t, fonts, motionTokens } from '../theme'
-import { formatMoney, formatDate, mono } from '../admin/ui'
+import { formatMoney, mono } from '../admin/ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { InvoiceDocument, invoiceStatusPill, type InvoiceLine, type InvoicePaymentRow } from '../components/shared/InvoiceDocument'
 
@@ -212,7 +213,7 @@ function InvoiceCardList({ invoices, onOpen }: { invoices: Invoice[]; onOpen: (i
             {/* Due date */}
             {inv.due_date && (
               <div style={{ fontSize: 13, color: t.text.tertiary, marginTop: 6 }}>
-                Due {formatDate(inv.due_date)}
+                Due {formatPortalDate(inv.due_date)}
               </div>
             )}
 
@@ -275,7 +276,7 @@ function InvoiceTable({ invoices, openId, onOpen }: { invoices: Invoice[]; openI
                     <span style={{ fontFamily: mono, color: t.text.muted }}>-</span>
                   )}
                 </td>
-                <td style={styles.td}>{formatDate(inv.due_date)}</td>
+                <td style={styles.td}>{formatPortalDate(inv.due_date)}</td>
                 <td style={styles.td}>
                   <span style={{ ...styles.badge, background: s.bg, color: s.fg }}>{s.label}</span>
                 </td>

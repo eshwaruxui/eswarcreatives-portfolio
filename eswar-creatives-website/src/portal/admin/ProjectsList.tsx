@@ -3,7 +3,8 @@ import type { CSSProperties, DragEvent } from 'react'
 import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
-import { PageHeader, Card, StatusBadge, mono, formatDate, ui } from './ui'
+import { PageHeader, Card, StatusBadge, mono, ui } from './ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { showToast } from './toast'
 import { usePortal } from '../PortalContext'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -824,7 +825,7 @@ function ProjectPanel({
               {createdAt && (
                 <div style={s.field}>
                   <span style={s.fieldLabel}>Created</span>
-                  <span style={s.fieldValue}>{formatDate(createdAt)}</span>
+                  <span style={s.fieldValue}>{formatPortalDate(createdAt)}</span>
                 </div>
               )}
 

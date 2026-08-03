@@ -14,7 +14,7 @@ import { CLIENT_NAV_HEIGHT } from './client/ClientNav'
 import { getBadges, subscribeBadges } from './client/clientNotifications'
 import { DocumentChips } from './client/DocumentChips'
 import type { ClientDocument } from './client/DocumentChips'
-import { formatDate } from './admin/ui'
+import { formatPortalDate } from './utils/formatDate'
 import { tokens, t, fonts, motionTokens, phaseUI } from './theme'
 import { useBreakpoint } from './hooks/useBreakpoint'
 import { SidePanel } from './admin/SidePanel'
@@ -420,7 +420,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
                         <span style={styles.milestoneIcon} aria-hidden="true">&#10003;</span>
                         <div style={styles.milestoneMain}>
                           <div style={styles.milestoneLabel}>{m.title}</div>
-                          <div style={styles.milestoneDate}>{formatDate(m.createdAt)}</div>
+                          <div style={styles.milestoneDate}>{formatPortalDate(m.createdAt)}</div>
                           <div style={styles.milestoneOutcome}>
                             {m.totalVotes} votes collected. Top concepts shortlisted.
                           </div>

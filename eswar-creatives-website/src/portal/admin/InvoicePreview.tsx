@@ -8,7 +8,8 @@ import { supabase } from '../../lib/supabase'
 import { sanitizeFilename } from '../../lib/sanitizeFilename'
 import { tokens, t, fonts } from '../theme'
 import { InvoiceDocument, type InvoiceLine, type InvoicePaymentRow } from '../components/shared/InvoiceDocument'
-import { mono, formatDate } from './ui'
+import { mono } from './ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import type { CSSProperties } from 'react'
 
@@ -421,7 +422,7 @@ export function InvoicePreview({
                   <span style={nudgeStyles.channel}>
                     {log.channel === 'whatsapp' ? 'WhatsApp' : 'Email'}
                   </span>
-                  <span style={nudgeStyles.date}>{formatDate(log.sent_at)}</span>
+                  <span style={nudgeStyles.date}>{formatPortalDate(log.sent_at)}</span>
                 </div>
                 {log.message_preview && (
                   <p style={nudgeStyles.preview}>{log.message_preview}</p>

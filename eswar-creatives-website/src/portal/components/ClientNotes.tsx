@@ -6,7 +6,7 @@ import type { CSSProperties } from 'react'
 import { Send } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
-import { relativeTime } from '../admin/ui'
+import { formatPortalDate } from '../utils/formatDate'
 
 type Note = {
   id: string
@@ -123,7 +123,7 @@ export function ClientNotes({
                 <div style={s.bubbleBody}>
                   <div style={s.bubbleMeta}>
                     <span style={s.authorName}>{note.author_name ?? note.author_role}</span>
-                    <span style={s.time}>{relativeTime(note.created_at)}</span>
+                    <span style={s.time}>{formatPortalDate(note.created_at)}</span>
                   </div>
                   <p style={s.noteText}>{note.body}</p>
                 </div>

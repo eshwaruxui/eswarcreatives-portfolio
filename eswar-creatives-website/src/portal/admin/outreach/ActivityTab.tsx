@@ -5,7 +5,8 @@ import { Eye, Mail, Linkedin, Clock, Loader2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
-import { mono, formatDate } from '../ui'
+import { mono } from '../ui'
+import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { LeadDrawer } from '../../components/LeadDrawer'
 
@@ -52,7 +53,7 @@ function formatScheduledFor(isoString: string, tz: string | null): string {
       hour12: true,
     }).format(new Date(isoString))
   } catch {
-    return formatDate(isoString)
+    return formatPortalDate(isoString)
   }
 }
 
@@ -196,7 +197,7 @@ export function ActivityTab() {
                     {row.opened_at && <Eye size={13} color={tokens.green} />}
                     {row.bounced_at && <span style={styles.bounced}>Bounced</span>}
                   </span>
-                  <span style={styles.mono}>{formatDate(row.sent_at ?? row.scheduled_for)}</span>
+                  <span style={styles.mono}>{formatPortalDate(row.sent_at ?? row.scheduled_for)}</span>
                 </div>
                 {isScheduled && row.channel === 'email' && (
                   <div onClick={(e) => e.stopPropagation()}>
@@ -249,7 +250,7 @@ export function ActivityTab() {
                     >
                       <td style={styles.td}>
                         <span style={styles.mono}>
-                          {formatDate(row.sent_at ?? row.scheduled_for)}
+                          {formatPortalDate(row.sent_at ?? row.scheduled_for)}
                         </span>
                       </td>
                       <td style={styles.td}>

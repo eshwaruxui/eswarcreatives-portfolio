@@ -7,7 +7,8 @@ import { useNavigate } from 'react-router'
 import { Check, X, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
-import { StatusBadge, mono, formatMoney, formatDate } from './ui'
+import { StatusBadge, mono, formatMoney } from './ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { showToast } from './toast'
 import { SidePanel } from './SidePanel'
 import { InvoicePreview } from './InvoicePreview'
@@ -266,7 +267,7 @@ export function ClientPanel({
                   <span style={styles.itemTitle}>{inv.label || '—'}</span>
                   <span style={styles.itemAmount}>{formatMoney(Number(inv.amount), inv.currency)}</span>
                   <StatusBadge status={inv.status} />
-                  <span style={styles.itemMeta}>Due {formatDate(inv.due_date)}</span>
+                  <span style={styles.itemMeta}>Due {formatPortalDate(inv.due_date)}</span>
                 </button>
               ))
             )}

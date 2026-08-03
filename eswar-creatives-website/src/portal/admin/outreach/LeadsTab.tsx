@@ -1,12 +1,16 @@
 // Leads tab: search, filter chips, sortable table (desktop), card stack (mobile).
 import { useEffect, useState } from 'react'
-import { Upload, UserPlus, Linkedin, Search, ChevronUp, ChevronDown, ArrowUpDown, Check } from 'lucide-react'
+import { Upload, UserPlus, Linkedin, Search, ArrowUpDown, Check } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useSearchParams } from 'react-router'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
-import { mono, formatDate } from '../ui'
+import { mono } from '../ui'
+import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { useReloadableList } from '../../hooks/useReloadableList'
+import { SortableTableHeader, nextSortState, type SortableColumn, type SortDir } from '../../components/shared/SortableTableHeader'
+import { Skeleton } from '../../components/shared/Skeleton'
 import { AddLeadModal } from './AddLeadModal'
 import { CsvImportModal } from './CsvImportModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
@@ -25,14 +29,14 @@ type LeadRow = {
   source: string | null
   linkedin_status: string
   specific_observation: string | null
+  icp_score: number | null
   created_at: string
   last_touch_at?: string | null
   next_touch_at?: string | null
   enrolled?: boolean
 }
 
-type SortKey = 'name' | 'company' | 'last_touch' | 'created_at' | 'status' | null
-type SortDir = 'asc' | 'desc'
+type SortKey = string | null
 
 // Mobile "Sort" bottom sheet options — Name/Company/Status/Date Added per spec.
 // Status wasn't a sortable desktop column before; added here (and to
@@ -113,6 +117,31 @@ function StatusChip({ status }: { status: string }) {
   )
 }
 
+// List-view ICP indicator. Same tier cutoffs as ScoreRing (75/50), unified
+// across the drawer, modal, and this dense table row.
+function icpDotColor(score: number | null): string {
+  if (score == null) return 'transparent'
+  if (score >= 75) return tokens.accent
+  if (score >= 50) return tokens.gold
+  return t.text.muted
+}
+
+function IcpIndicator({ score }: { score: number | null }) {
+  if (score == null) {
+    return (
+      <span style={styles.icpCell} title="Not scored yet">
+        <span style={styles.icpDotOutline} />
+      </span>
+    )
+  }
+  return (
+    <span style={styles.icpCell}>
+      <span style={{ ...styles.icpDot, background: icpDotColor(score) }} />
+      <span style={styles.icpScoreText}>{score}</span>
+    </span>
+  )
+}
+
 function FilterChip({
   label,
   active,
@@ -136,16 +165,19 @@ function FilterChip({
   )
 }
 
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (sortKey !== col) return <ChevronUp size={11} color={t.text.disabled} />
-  return sortDir === 'asc'
-    ? <ChevronUp size={11} color={tokens.primary} />
-    : <ChevronDown size={11} color={tokens.primary} />
-}
-
 function applySorting(leads: LeadRow[], sortKey: SortKey, sortDir: SortDir): LeadRow[] {
-  if (!sortKey) return leads
+  if (!sortKey || !sortDir) return leads
   return [...leads].sort((a, b) => {
+    // ICP score: nulls always sort last, regardless of direction.
+    if (sortKey === 'icp_score') {
+      const av = a.icp_score
+      const bv = b.icp_score
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      return sortDir === 'asc' ? av - bv : bv - av
+    }
+
     let va: string | null | undefined
     let vb: string | null | undefined
     if (sortKey === 'name') {
@@ -157,6 +189,9 @@ function applySorting(leads: LeadRow[], sortKey: SortKey, sortDir: SortDir): Lea
     } else if (sortKey === 'last_touch') {
       va = a.last_touch_at ?? ''
       vb = b.last_touch_at ?? ''
+    } else if (sortKey === 'next_touch') {
+      va = a.next_touch_at ?? ''
+      vb = b.next_touch_at ?? ''
     } else if (sortKey === 'created_at') {
       va = a.created_at
       vb = b.created_at
@@ -171,10 +206,23 @@ function applySorting(leads: LeadRow[], sortKey: SortKey, sortDir: SortDir): Lea
   })
 }
 
+const LEAD_COLUMNS: SortableColumn[] = [
+  { key: 'name', label: 'LEAD', sortable: true },
+  { key: 'company', label: 'COMPANY', sortable: true },
+  { key: 'segment', label: 'SEGMENT', sortable: false },
+  { key: 'status', label: 'STATUS', sortable: true },
+  { key: 'icp_score', label: 'ICP', sortable: true, hideOnMobile: true },
+  { key: 'linkedin', label: 'LINKEDIN', sortable: false, hideOnMobile: true },
+  { key: 'last_touch', label: 'LAST TOUCH', sortable: true },
+  { key: 'next_touch', label: 'NEXT TOUCH', sortable: true },
+  { key: 'created_at', label: 'CREATED', sortable: true, hideOnMobile: true },
+  { key: 'action', label: '', sortable: false },
+]
+
 export function LeadsTab() {
   const { isMobile } = useBreakpoint()
   const [leads, setLeads] = useState<LeadRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const { initialLoading, refreshing, start: startLoad, finish: finishLoad } = useReloadableList()
   const [error, setError] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string[]>([])
   const [filterEnrollment, setFilterEnrollment] = useState<'all' | 'enrolled' | 'not_enrolled'>('all')
@@ -183,7 +231,7 @@ export function LeadsTab() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
   const [sortKey, setSortKey] = useState<SortKey>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [sortDir, setSortDir] = useState<SortDir>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [showCsv, setShowCsv] = useState(false)
   const [showSortSheet, setShowSortSheet] = useState(false)
@@ -216,12 +264,12 @@ export function LeadsTab() {
   }, [])
 
   async function load() {
-    setLoading(true)
+    startLoad()
     setError(null)
     try {
       let q = supabase
         .from('leads')
-        .select('id, first_name, last_name, company, email, linkedin_url, role_title, notes, segment, status, source, linkedin_status, specific_observation, created_at')
+        .select('id, first_name, last_name, company, email, linkedin_url, role_title, notes, segment, status, source, linkedin_status, specific_observation, icp_score, created_at')
         .order('created_at', { ascending: false })
 
       if (filterStatus.length > 0) q = q.in('status', filterStatus)
@@ -281,7 +329,7 @@ export function LeadsTab() {
     } catch {
       setError('Could not load leads. Refresh to try again.')
     } finally {
-      setLoading(false)
+      finishLoad()
     }
   }
 
@@ -292,14 +340,10 @@ export function LeadsTab() {
     load()
   }
 
-  function handleSortClick(col: SortKey) {
-    if (sortKey === col) {
-      if (sortDir === 'asc') setSortDir('desc')
-      else { setSortKey(null); setSortDir('asc') }
-    } else {
-      setSortKey(col)
-      setSortDir('asc')
-    }
+  function handleSort(key: string) {
+    const next = nextSortState(sortKey, sortDir, key)
+    setSortKey(next.key)
+    setSortDir(next.dir)
   }
 
   function toggleStatusFilter(val: string) {
@@ -420,7 +464,7 @@ export function LeadsTab() {
       </div>
 
       {/* Result count + mobile Sort trigger (desktop sorts via column headers) */}
-      {!loading && (
+      {!initialLoading && (
         <div style={styles.resultRow}>
           <p style={styles.resultCount}>
             {sorted.length} lead{sorted.length !== 1 ? 's' : ''}
@@ -466,8 +510,23 @@ export function LeadsTab() {
 
       {error && <div style={styles.errorBanner}>{error}</div>}
 
-      {loading ? (
-        <p style={styles.loading}>Loading leads...</p>
+      {initialLoading ? (
+        isMobile ? (
+          <div style={styles.cardStack}>
+            {Array.from({ length: 6 }).map((_, i) => <MobileCardSkeleton key={i} />)}
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={styles.table}>
+              <thead>
+                <SortableTableHeader columns={LEAD_COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              </thead>
+              <tbody>
+                {Array.from({ length: 6 }).map((_, i) => <LeadRowSkeleton key={i} />)}
+              </tbody>
+            </table>
+          </div>
+        )
       ) : sorted.length === 0 ? (
         <div style={styles.emptyState}>
           {q || filterStatus.length > 0 || filterEnrollment !== 'all' || filterSource.length > 0 ? (
@@ -484,8 +543,9 @@ export function LeadsTab() {
           )}
         </div>
       ) : isMobile ? (
-        <div style={styles.cardStack}>
+        <div style={{ ...styles.cardStack, ...styles.fadeContent, opacity: refreshing ? 0.6 : 1 }}>
           <style>{`
+            @keyframes ecFadeIn { from { opacity: 0; } to { opacity: 1; } }
             .ec-tap-card { background: ${tokens.surface}; transition: background ${motionTokens.durationFast} ${motionTokens.easeDefault}; }
             .ec-tap-card:active { background: ${t.background.tint1}; }
           `}</style>
@@ -494,36 +554,11 @@ export function LeadsTab() {
           ))}
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: 'auto', ...styles.fadeContent, opacity: refreshing ? 0.6 : 1 }}>
+          <style>{`@keyframes ecFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
           <table style={styles.table}>
             <thead>
-              <tr>
-                <th style={styles.th}>
-                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('name')}>
-                    Lead <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th style={styles.th}>
-                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('company')}>
-                    Company <SortIcon col="company" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th style={styles.th}>Segment</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>LinkedIn</th>
-                <th style={styles.th}>
-                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('last_touch')}>
-                    Last touch <SortIcon col="last_touch" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th style={styles.th}>Next touch</th>
-                <th style={styles.th}>
-                  <button type="button" style={styles.sortBtn} onClick={() => handleSortClick('created_at')}>
-                    Created <SortIcon col="created_at" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th style={styles.th}></th>
-              </tr>
+              <SortableTableHeader columns={LEAD_COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
             </thead>
             <tbody>
               {sorted.map((lead) => (
@@ -544,22 +579,23 @@ export function LeadsTab() {
                   </td>
                   <td style={styles.td}><SegmentChip segment={lead.segment} /></td>
                   <td style={styles.td}><StatusChip status={lead.status} /></td>
+                  <td style={styles.td}><IcpIndicator score={lead.icp_score} /></td>
                   <td style={styles.td}>
                     <LinkedInStatusIcon status={lead.linkedin_status} />
                   </td>
                   <td style={styles.td}>
                     <span style={styles.monoCell}>
-                      {lead.last_touch_at ? formatDate(lead.last_touch_at) : '-'}
+                      {lead.last_touch_at ? formatPortalDate(lead.last_touch_at) : '-'}
                     </span>
                   </td>
                   <td style={styles.td}>
                     <span style={styles.monoCell}>
-                      {lead.next_touch_at ? formatDate(lead.next_touch_at) : '-'}
+                      {lead.next_touch_at ? formatPortalDate(lead.next_touch_at) : '-'}
                     </span>
                   </td>
                   <td style={styles.td}>
                     <span style={styles.monoCell}>
-                      {formatDate(lead.created_at)}
+                      {formatPortalDate(lead.created_at)}
                     </span>
                   </td>
                   <td style={styles.td}>
@@ -603,10 +639,59 @@ function MobileCard({ lead, onOpen }: { lead: LeadRow; onOpen: () => void }) {
         <StatusChip status={lead.status} />
       </div>
       <div style={styles.mobileCardFoot}>
-        <SegmentChip segment={lead.segment} />
+        <div style={styles.mobileCardFootLeft}>
+          <SegmentChip segment={lead.segment} />
+          <IcpIndicator score={lead.icp_score} />
+        </div>
         {lead.next_touch_at && (
-          <span style={styles.mobileNextTouch}>Next: {formatDate(lead.next_touch_at)}</span>
+          <span style={styles.mobileNextTouch}>Next: {formatPortalDate(lead.next_touch_at)}</span>
         )}
+      </div>
+    </div>
+  )
+}
+
+// First-load placeholders only (see useReloadableList) - a background reload
+// after closing the drawer keeps real rows on screen instead of swapping to
+// these, which is what actually fixes the scroll-reset bug.
+function LeadRowSkeleton() {
+  return (
+    <tr style={styles.tr}>
+      <td style={styles.td}>
+        <div style={styles.leadCell}>
+          <Skeleton width={32} height={32} borderRadius={999} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <Skeleton width={110} height={13} />
+            <Skeleton width={80} height={11} />
+          </div>
+        </div>
+      </td>
+      <td style={styles.td}><Skeleton width={90} height={12} /></td>
+      <td style={styles.td}><Skeleton width={70} height={20} borderRadius={999} /></td>
+      <td style={styles.td}><Skeleton width={60} height={20} borderRadius={999} /></td>
+      <td style={styles.td}><Skeleton width={40} height={12} /></td>
+      <td style={styles.td}><Skeleton width={15} height={15} borderRadius={999} /></td>
+      <td style={styles.td}><Skeleton width={60} height={12} /></td>
+      <td style={styles.td}><Skeleton width={60} height={12} /></td>
+      <td style={styles.td}><Skeleton width={60} height={12} /></td>
+      <td style={styles.td}><Skeleton width={50} height={26} /></td>
+    </tr>
+  )
+}
+
+function MobileCardSkeleton() {
+  return (
+    <div style={styles.mobileCard}>
+      <div style={styles.mobileCardHead}>
+        <Skeleton width={32} height={32} borderRadius={999} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Skeleton width={130} height={13} />
+          <Skeleton width={95} height={11} />
+        </div>
+        <Skeleton width={60} height={20} borderRadius={999} />
+      </div>
+      <div style={styles.mobileCardFoot}>
+        <Skeleton width={80} height={18} borderRadius={999} />
       </div>
     </div>
   )
@@ -782,7 +867,10 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     marginBottom: 12,
   },
-  loading: { fontFamily: fonts.body, fontSize: 14, color: t.text.muted, padding: '24px 0' },
+  fadeContent: {
+    animation: `ecFadeIn ${motionTokens.durationBase} ${motionTokens.easeEnter}`,
+    transition: `opacity ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
+  },
   emptyState: { textAlign: 'center', padding: '60px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 },
   emptyHeading: {
     fontFamily: fonts.heading,
@@ -793,33 +881,6 @@ const styles: Record<string, CSSProperties> = {
   },
   emptyBody: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
   table: { width: '100%', borderCollapse: 'collapse', minWidth: 860 },
-  th: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: 600,
-    color: t.text.tertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    padding: '8px 12px',
-    textAlign: 'left',
-    borderBottom: `1px solid ${t.border.subtle}`,
-    whiteSpace: 'nowrap',
-  },
-  sortBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: 600,
-    color: t.text.tertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    padding: 0,
-  },
   tr: {
     cursor: 'pointer',
     transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
@@ -865,6 +926,20 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     color: t.text.secondary,
   },
+  icpCell: { display: 'inline-flex', alignItems: 'center', gap: 6 },
+  icpDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
+  icpDotOutline: {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    border: `1px solid ${t.border.medium}`,
+    flexShrink: 0,
+  },
+  icpScoreText: {
+    fontFamily: mono,
+    fontSize: 12,
+    color: t.text.secondary,
+  },
   openBtn: {
     background: 'none',
     border: `1px solid ${t.border.default}`,
@@ -889,6 +964,7 @@ const styles: Record<string, CSSProperties> = {
   },
   mobileCardHead: { display: 'flex', alignItems: 'center', gap: 10 },
   mobileCardFoot: { display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' },
+  mobileCardFootLeft: { display: 'flex', gap: 8, alignItems: 'center' },
   mobileNextTouch: {
     fontFamily: mono,
     fontSize: 11,

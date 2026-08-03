@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase'
 import { type PortalProfile } from '../PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { tokens, t, fonts, motionTokens } from '../theme'
-import { formatDate } from '../admin/ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ClientLightbox } from '../mockups/ClientLightbox'
 import { signMockupItems, type LightboxMockup, type LightboxMeta } from '../mockups/signItems'
@@ -233,7 +233,7 @@ function Mockups({ profile }: { profile: PortalProfile }) {
                   </p>
                   <p style={styles.cardSub}>
                     {s.mockup_items?.[0]?.count ?? 0} image
-                    {(s.mockup_items?.[0]?.count ?? 0) === 1 ? '' : 's'} · {formatDate(s.created_at)}
+                    {(s.mockup_items?.[0]?.count ?? 0) === 1 ? '' : 's'} · {formatPortalDate(s.created_at)}
                   </p>
                 </div>
 

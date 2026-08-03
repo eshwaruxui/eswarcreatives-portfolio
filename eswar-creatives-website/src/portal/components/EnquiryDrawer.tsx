@@ -9,6 +9,7 @@ import { tokens, t, fonts, motionTokens } from '../theme'
 import { SidePanel } from '../admin/SidePanel'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { showToast } from '../admin/toast'
+import { formatPortalDate } from '../utils/formatDate'
 
 export type EnquiryStatus = 'new' | 'responded' | 'converted'
 
@@ -38,17 +39,6 @@ type ReplyRow = {
 }
 
 const SEND_FAILED_MESSAGE = 'Failed to send. Try again or email eswar@eswarcreatives.in'
-
-function formatDateTime(iso: string): string {
-  return new Intl.DateTimeFormat('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(iso))
-}
 
 function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -249,7 +239,7 @@ export function EnquiryDrawer({
             <FieldRow label="Funding stage" value={enquiry.funding_stage} />
             <FieldRow label="Timeline" value={enquiry.start_timeline} />
             <FieldRow label="Problem" value={enquiry.problem} />
-            <FieldRow label="Submitted" value={formatDateTime(enquiry.created_at)} />
+            <FieldRow label="Submitted" value={formatPortalDate(enquiry.created_at)} />
           </div>
 
           <div style={styles.threadCol}>
@@ -257,7 +247,7 @@ export function EnquiryDrawer({
               <div style={styles.bubbleRow}>
                 <div style={styles.bubbleEnquiry}>
                   <p style={styles.bubbleBody}>{enquiry.problem}</p>
-                  <p style={styles.bubbleTime}>{formatDateTime(enquiry.created_at)}</p>
+                  <p style={styles.bubbleTime}>{formatPortalDate(enquiry.created_at)}</p>
                 </div>
               </div>
               {replies.length === 0 ? (
@@ -268,7 +258,7 @@ export function EnquiryDrawer({
                     <div style={styles.bubbleReply}>
                       <p style={{ ...styles.bubbleBody, color: t.text.inverse }}>{reply.body}</p>
                       <p style={{ ...styles.bubbleTime, color: 'rgba(255,255,255,0.7)' }}>
-                        {formatDateTime(reply.created_at)}
+                        {formatPortalDate(reply.created_at)}
                       </p>
                     </div>
                   </div>

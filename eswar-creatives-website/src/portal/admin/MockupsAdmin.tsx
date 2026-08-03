@@ -11,7 +11,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, ArrowUp, ArrowDown, Trash2, Eye, UploadCloud, X, Lock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
-import { PageHeader, Card, Modal, ui, formatDate } from './ui'
+import { PageHeader, Card, Modal, ui } from './ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { usePortal, clientLabel } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
 import { ClientLightbox } from '../mockups/ClientLightbox'
@@ -198,7 +199,7 @@ export function MockupsAdmin() {
                     <ClientDecisionPill decision={decisions[s.id]} />
                   </td>
                   {/* H2: human-readable date, never a raw timestamp. */}
-                  <td style={styles.td}>{formatDate(s.created_at)}</td>
+                  <td style={styles.td}>{formatPortalDate(s.created_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1161,7 +1162,7 @@ function FeedbackComment({ row, email }: { row: FeedbackRow; email?: string }) {
       <p style={styles.fbCommentText}>{row.comment}</p>
       {/* H2: human date, never a raw timestamp. */}
       <p style={styles.fbCommentMeta}>
-        {email || 'Client'} · {formatDate(row.created_at)}
+        {email || 'Client'} · {formatPortalDate(row.created_at)}
       </p>
     </div>
   )

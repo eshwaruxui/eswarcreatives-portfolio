@@ -7,7 +7,8 @@ import type { CSSProperties, DragEvent } from 'react'
 import { ChevronRight, GripVertical, Plus, Trash2, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
-import { StatusBadge, mono, formatDate, relativeTime as _rt, ui } from './ui'
+import { StatusBadge, mono, ui } from './ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { SidePanel } from './SidePanel'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { showToast } from './toast'
@@ -582,7 +583,7 @@ export function ProjectPanel({
         {/* Created */}
         <div style={s.field}>
           <span style={s.fieldLabel}>Created</span>
-          <span style={s.fieldValue}>{project ? formatDate(project.created_at) : ''}</span>
+          <span style={s.fieldValue}>{project ? formatPortalDate(project.created_at) : ''}</span>
         </div>
 
         {/* Timeline */}
@@ -708,7 +709,7 @@ export function ProjectPanel({
     <>
       <SidePanel
         title={project?.title ?? 'Project'}
-        subtitle={project ? `Created ${formatDate(project.created_at)}` : undefined}
+        subtitle={project ? `Created ${formatPortalDate(project.created_at)}` : undefined}
         onClose={onClose}
         width={560}
         headerExtra={project ? <StatusBadge status={project.status} /> : undefined}

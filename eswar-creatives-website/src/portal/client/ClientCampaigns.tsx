@@ -10,7 +10,8 @@ import { supabase } from '../../lib/supabase'
 import { type PortalProfile } from '../PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { ClientConceptSetPanel } from './ClientConceptSetPanel'
-import { formatDate, mono } from '../admin/ui'
+import { mono } from '../admin/ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 
@@ -288,7 +289,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
                       {c.visibility === 'public' && <span style={styles.publicBadge}>Public</span>}
                     </div>
                     <h3 style={styles.cardTitle}>{c.title}</h3>
-                    <p style={styles.cardSub}>{formatDate(c.created_at)}</p>
+                    <p style={styles.cardSub}>{formatPortalDate(c.created_at)}</p>
                   </div>
                   {/* 6g: closed campaigns are read-only (results only, no voting). */}
                   <Link to={`/portal/review/${c.id}`} style={styles.cta}>
@@ -326,7 +327,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
                       <span style={styles.campaignText}>
                         <span style={styles.historyName}>{camp.label}</span>
                         <span style={styles.historyMeta}>
-                          {formatDate(camp.latestAt)} · {camp.sets.length} {setLabel} ·{' '}
+                          {formatPortalDate(camp.latestAt)} · {camp.sets.length} {setLabel} ·{' '}
                           {camp.totalAccepted} accepted / {camp.totalPassed} passed
                         </span>
                       </span>
@@ -338,7 +339,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
                             <div style={{ minWidth: 0 }}>
                               <div style={styles.setName}>{s.name}</div>
                               <div style={styles.historyMeta}>
-                                {formatDate(s.completedAt)} · {s.accepted} accepted /{' '}
+                                {formatPortalDate(s.completedAt)} · {s.accepted} accepted /{' '}
                                 {s.passed} passed
                               </div>
                             </div>
@@ -380,7 +381,7 @@ function Campaigns({ profile }: { profile: PortalProfile }) {
                     <span style={styles.closedPill}>Closed</span>
                   </div>
                   <div style={styles.pollMeta}>
-                    {formatDate(poll.createdAt)} ·{' '}
+                    {formatPortalDate(poll.createdAt)} ·{' '}
                     <span style={styles.pollVotes}>{poll.totalVotes}</span> votes collected
                   </div>
 
