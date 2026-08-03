@@ -1,13 +1,13 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 3 August 2026 (ICP lead scoring + portal-wide UX consistency pass: migration 0083, score-single-lead edge function, ScoreRing/SortableTableHeader/Skeleton shared components, useReloadableList scroll-reset fix, New Shortlist modal rewired to single-screenshot flow — merged staging → main, resolved a real conflict against PR #18's LinkedIn image feature). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 4 August 2026 (outreach footer cleanup + HTML link embedding, migration 0084; "Review in Advance" hold-to-next-business-day + cron auto-send, migration 0085, new send-confirmed-outreach-touches edge function — both merged staging → main). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
 **Active branch:** `main`
-**Status:** Stable. ICP lead scoring + portal UX consistency work (`staging` branch, ten commits) merged to main on 3 August 2026, same day as PR #18 — see the dedicated entry below for the full list and the merge-conflict note. PR #18 (`fix/linkedin-planner-save-and-attachments`) merged to main on 3 August 2026. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
+**Status:** Stable. Outreach footer/link-embedding fix and the "Review in Advance" hold-to-next-business-day + cron auto-send feature (`staging` branch) merged to main on 4 August 2026 — see the dedicated entries below. ICP lead scoring + portal UX consistency work (`staging` branch, ten commits) merged to main on 3 August 2026, same day as PR #18 — see the dedicated entry below for the full list and the merge-conflict note. PR #18 (`fix/linkedin-planner-save-and-attachments`) merged to main on 3 August 2026. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -246,9 +246,23 @@ _ICP lead scoring + portal-wide UX consistency pass (`staging` branch, ten commi
 - `NewShortlistModal.tsx` rewired from the bulk multi-screenshot flow (which drives `process-shortlist-run`, disabled — see the AI-run note in the Smart Shortlist entry above) to a single-screenshot flow: `extract-lead-from-image` (vision, base64 body, no storage upload) → insert one `leads` row → `score-single-lead` → write the score back. `segment` is fixed to `'saas_product'` on every insert here (matching `CandidateCard.tsx`'s own precedent — `vertical`/`segment` are separate taxonomies, `vertical` is the field that actually drives ICP selection); the Volume dropdown and Channel selector from the old bulk flow were removed (no `channel` column exists on `leads`, so a Channel selector here would have written nowhere). Every failure mode has its own inline message and, critically, if the lead was already created before a step 3/4 failure (scoring/write-back), the error state still carries the lead's id so "View lead" works — the lead is never lost silently. `hasIcpForVertical`/`onRunComplete` props removed from the modal's interface as dead code (the new flow creates a lead directly, not a `shortlist_runs` row, so `SmartShortlistTab`'s run-history refresh has nothing to do here). **Not live browser-verified end to end** (build-verified and hand-traced only, hit a tool rate limit mid-test) — test manually against the real edge functions before fully trusting it.
 - **Merge note:** merging `staging` into `main` conflicted in `LinkedInTab.tsx` against PR #18 (merged the same day, see above), which had independently split one `<td>` into a new thumbnail-image cell plus a date cell on `main` while `staging` had renamed `formatDate` → `formatPortalDate` on the old single-cell version of the same line. Resolved by keeping PR #18's thumbnail cell fully intact and applying the rename to the surviving date cell; every other file in the ten-commit range auto-merged cleanly.
 
+_Outreach footer cleanup + HTML link embedding (migration 0084 — merged to main 4 Aug 2026):_
+- Root issue: the outreach email footer showed "Eswar Creatives, Chennai, India" (undesired for the international/enterprise positioning) and both the design-systems sign-off and the unsubscribe link were bare plain-text URLs, not clickable — Resend was only ever sent an escaped-and-`<br>`'d plain-text body, never real `<a>` tags.
+- Migration 0084: `update sequence_steps set body_template = replace(body_template, E'\nEswar Creatives, Chennai, India', '')` — strips the location line from all 6 live email templates (Email A/B, steps 1-3). Confirmed live via direct query before and after.
+- `send-outreach-email`'s `htmlBody()` now takes the unsubscribe URL as a second argument and, in the HTML part only (never the plain-text part, which correctly keeps bare URLs for text/plain clients), swaps the literal `eswarcreatives.in/design-systems` substring and the full unsubscribe URL for real `<a href>` anchors (teal, underlined). No template markup changes needed — the swap works directly on the already-rendered plain text.
+- **Real pre-existing bug found and fixed in the same pass:** `hasSignOffWithoutDesignSystems()` (`OutreachSendModal.tsx`'s quality checklist) tested the whole body for `eswarcreatives.in` not followed by `/design-systems` — since the footer *always* also contains `eswarcreatives.in/unsubscribe/...`, this check was guaranteed to fail on every single email, regardless of correctness (false "Sign-off link may point to homepage" warning, checklist permanently stuck at 5/6). Fixed by excluding `/unsubscribe` from the same negative-lookahead regex.
+- Confirmed live: Cloudflare Production deployment for the checklist fix, and a direct `curl`/`net._http_response`-style check for the edge function's new HTML output.
+
+_"Review in Advance" hold-to-next-business-day + cron auto-send (migration 0085 — merged to main 4 Aug 2026):_
+- Renamed TodayTab's "Pending Confirmation" section to "Review in Advance" and restricted its query to *only* touches scheduled for tomorrow (was: any future date, unbounded) — it's a look-ahead of tomorrow's queue, not a general future-touches list.
+- `confirm-scheduled-touch` rewritten: no longer sends on click. It validates the lead (email present, not suppressed, has a specific observation), then stamps `draft_confirmed_at`/`draft_confirmed_by` and pushes `scheduled_for` to 9:30 AM ET on the next business day — always at least one calendar day forward and never a weekend, regardless of what time the admin actually clicks. Uses a from-scratch `nextBusinessDay930ET()` + `zonedWallTimeToUtc()` (2-pass DST-safe convergence, no external date library) since Deno's edge runtime has no built-in timezone-aware wall-clock conversion. Button relabeled "Approve" (was "Confirm and Send") since it no longer sends immediately.
+- New edge function `send-confirmed-outreach-touches` (v1, `verify_jwt: false` — the caller is `pg_cron`/`pg_net`, not a logged-in admin, so it authenticates via a shared `x-cron-secret` header instead of a Supabase JWT): finds touches with `status='scheduled'`, `draft_confirmed_at is not null`, `scheduled_for <= now()`; **re-runs every safety check** (suppression, unsubscribed/bounced, missing observation, unresolved template variables) since lead state can change in the gap between approval and delivery — anything that now fails gets `status='cancelled'` with a `skipped_reason`, never silently sent; respects the same shared 25/day cap as `send-outreach-email` (same aggregate `status='sent'` count, so all three send paths coordinate automatically); sends via Resend using the same fixed link-embedding `htmlBody()`.
+- Migration 0085: enables `pg_cron` + `pg_net`, schedules `send-confirmed-outreach-touches` every 5 minutes via `cron.schedule` + `net.http_post`, pulling the shared secret from `vault.decrypted_secrets`. The `CRON_SECRET` Vault entry and the matching Edge Function secret are **not** part of the migration (security-sensitive, set once manually in the dashboard/SQL editor) — both must hold the exact same string or the function 401s on every call. Hit exactly this during setup: the Vault copy was 1 character short from a copy-paste truncation; fixed via `vault.update_secret(...)`, confirmed via `net._http_response.status_code` flipping from 401 to 200.
+- **Not yet live-tested end to end with a real send** — verified the auth handshake and the empty-queue path (`processed:0`) via a manual `curl` call, but no admin has approved a tomorrow-touch and watched it actually arrive in an inbox at its 9:30 AM ET window yet. Do that before fully trusting it with live prospects.
+
 **Supabase plan:** Pro ($25/month, upgraded 24 Jul 2026). Project ref: `urrinqwcrpivmvenupiu` (Mumbai, ap-south-1).
 
-**Next migration number: 0084**
+**Next migration number: 0086**
 
 ---
 
@@ -316,7 +330,12 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 - `leads.icp_score` int, CHECK (icp_score between 0 and 100), nullable
 - `leads.icp_match_reason` text, nullable
 - Backs the `score-single-lead` edge function and the unified `ScoreRing` display (see Section 1's ICP lead scoring entry). No backfill for leads converted before this migration — they show "Not scored" until scored.
-- Next migration must be `0084`.
+
+**Migration 0084 — outreach footer location removed:** `sequence_steps.body_template` string-replace, strips `Eswar Creatives, Chennai, India` from all 6 live email templates. No column/table changes. See Section 1's outreach footer entry.
+
+**Migration 0085 — outreach confirmed-send cron:** enables `pg_cron` + `pg_net`, schedules `send-confirmed-outreach-touches` every 5 minutes. No column/table changes — infra-only. `CRON_SECRET` Vault entry created manually, not via migration (security-sensitive). See Section 1's "Review in Advance" entry.
+
+- Next migration must be `0086`.
 
 **Outreach scheduling tables (migration 0076):**
 - `outreach_touches` — 3 new columns: `recipient_timezone text`, `draft_confirmed_at timestamptz`, `draft_confirmed_by uuid → auth.users`; status constraint extended: `('pending','sent','failed','skipped','scheduled','cancelled')` (further extended to add `'held'` in migration 0080, see below)
@@ -485,19 +504,20 @@ Candidates for Code Connect mapping once reuse across the Phase 2/3 marketing se
 | send-proposal-nudge | v6 | true | Proposal nudge; guards status='sent'; always regenerates token |
 | create-razorpay-order | v6 | false | Creates Razorpay order; verifies invoice token server-side |
 | verify-razorpay-payment | v6 | false | Verifies HMAC-SHA256 signature; inserts invoice_payments; syncs status |
-| send-outreach-email | v6 | true | Sends cold email via Resend; guards: suppression, daily cap (25), missing_observation, unresolved variables; business hours check — defers to next Mon-Fri 09:00-18:00 in recipient timezone; returns `{ scheduled: true }` if deferred |
+| send-outreach-email | v7 | true | Sends cold email via Resend; guards: suppression, daily cap (25), missing_observation, unresolved variables; business hours check — defers to next Mon-Fri 09:00-18:00 in recipient timezone; returns `{ scheduled: true }` if deferred. `htmlBody(body, unsubUrl)` (v7, 4 Aug 2026) embeds the design-systems and unsubscribe links as real `<a>` tags in the HTML part only — see Section 1's outreach footer entry |
 | resend-outreach-webhook | v5 | true | Verifies RESEND_WEBHOOK_SECRET; handles email.bounced + email.opened events |
 | extract-lead-from-image | v6 | true | Calls claude-sonnet-4-6; extracts 13 fields: name, company, title, email, phone_business, phone_personal, website, location, source, linkedin_url, instagram_url, twitter_handle, notes; max_tokens 800; client infers website from business email domain |
-| confirm-scheduled-touch | v1 | true | Admin verifies touch status='scheduled', sends immediately via Resend, sets draft_confirmed_at/by, updates status to 'sent'/'failed' |
+| confirm-scheduled-touch | v2 | true | Admin approves a "Review in Advance" touch — does **not** send. Validates lead (email, suppression, observation), stamps draft_confirmed_at/by, pushes scheduled_for to 9:30 AM ET next business day. Rewritten 4 Aug 2026 (v1 sent immediately; see Section 1) |
+| send-confirmed-outreach-touches | v1 | **false** | Cron-invoked (pg_cron/pg_net every 5 min), auth via `x-cron-secret` header (not a user JWT — verify_jwt must stay false). Finds confirmed touches whose held delivery window has arrived, re-runs all safety checks, sends via Resend with the same fixed `htmlBody()`. New 4 Aug 2026, see Section 1 |
 | send-linkedin-reminder | v1 | true | Calls get_upcoming_linkedin_week() RPC; counts pending posts for Mon/Wed/Fri; sends reminder to eswar@eswarcreatives.in via Resend if any slot unfilled; triggered by pg_cron Sunday 12:30 UTC |
 | process-shortlist-run | v4 | true | Admin JWT + explicit profiles.role check; downloads run screenshots from stage-attachments as base64; calls claude-sonnet-4-6 (max_tokens 4000) with ICP/goal text + existing-leads fuzzy-dedup list; parses candidate JSON array; filters excluded + not_interested matches; inserts shortlist_candidates; sets shortlist_runs.status to complete/failed, writing error_code on failure. Async via EdgeRuntime.waitUntil. **AI run currently disabled in UI pending queue-based architecture refactor** — superseded for single-lead use by `score-single-lead` + `NewShortlistModal`'s rewired flow, see Section 1. |
 | score-single-lead | v1 | true | Admin JWT + explicit profiles.role check. Input `{ lead_id, vertical }`. Text-only (no screenshots) — fetches the lead's stored fields + the vertical's saved `icp_configs.icp_text`, one Claude call, synchronous response. Returns `{ icp_score, icp_match_reason }`; does not write to the DB itself, caller does. Errors: `invalid_lead_id`, `invalid_vertical`, `lead_not_found`, `no_icp`, `anthropic_timeout`, `scoring_failed`, `parse_failed`. |
 | receive-enquiry | v2 | false | Public endpoint for the marketing site's design systems enquiry form. Validates all fields server-side (400 + `fields` map on failure); inserts into enquiry_submissions via service role; best-effort Resend notification to eswar@eswarcreatives.in (never fails the request). CORS allowlist: eswarcreatives.in, www.eswarcreatives.in, localhost, and `*.eswarcreatives-portfolio.pages.dev` (Cloudflare Pages previews — v2 fix, v1 blocked preview submissions at the CORS preflight) |
 | send-enquiry-reply | v1 | true | Admin-only (is_admin() RPC). Emails the buyer via Resend first; only inserts into enquiry_replies and sets status='responded' (first reply only) once the email actually sends, so a Resend failure fails the whole request |
 
-Edge function versions confirmed live via Supabase on 24 Jul 2026 — check `list_edge_functions` before citing a version number elsewhere, they increment on every deploy.
+Edge function versions confirmed live via Supabase on 24 Jul 2026, except send-outreach-email/confirm-scheduled-touch/send-confirmed-outreach-touches confirmed live 4 Aug 2026 — check `list_edge_functions` before citing a version number elsewhere, they increment on every deploy.
 
-**Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `ANTHROPIC_API_KEY`
+**Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `ANTHROPIC_API_KEY`, `CRON_SECRET` (added 4 Aug 2026 — must exactly match the `CRON_SECRET` Vault entry, see Section 1's cron entry)
 **Secrets pending:** `RESEND_WEBHOOK_SECRET` (required before resend-outreach-webhook goes live)
 
 ---
@@ -590,8 +610,9 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - COUNTRY_TZ map covers 10 countries (IN, US, GB, SG, AU, AE, CA, NL, DE, FR); fallback = `Asia/Kolkata`
 - Touch status → `scheduled`; `scheduled_for` timestamptz set to next Mon-Fri 09:00 in recipient timezone
 - ActivityTab shows "Scheduled" in filter dropdown; per-row "Confirm and Send" button
-- TodayTab shows "Pending Confirmation" section for future scheduled email touches
-- `confirm-scheduled-touch` edge function sends immediately and marks `draft_confirmed_at/by`
+- TodayTab shows a "Review in Advance" section (renamed from "Pending Confirmation" 4 Aug 2026), restricted to only touches scheduled for tomorrow — not a general future-touches list
+- `confirm-scheduled-touch` edge function (rewritten 4 Aug 2026) no longer sends on click — it approves and holds. Regardless of when the admin clicks "Approve," delivery is held to 9:30 AM ET on the next business day (never same-day, never a weekend); it stamps `draft_confirmed_at/by` and moves `scheduled_for` to that computed time
+- `send-confirmed-outreach-touches` edge function, triggered by a `pg_cron` job every 5 minutes, does the actual send once a held touch's window arrives — re-running all the same safety checks (suppression, missing observation, unresolved variables) in case lead state changed since approval. Auth via shared `x-cron-secret` header (Vault + Edge Function secret, both named `CRON_SECRET`, must match exactly), since the caller is `pg_cron`/`pg_net`, not a logged-in admin. Not yet live-tested end to end with a real send — see Section 1
 
 **Frontend tabs (7, OutreachAdmin.tsx):** Today (daily motion tracker), Enquiries (design systems enquiry submissions; badge count of status='new'; countdown badges; conversation thread drawer; convert to lead — see below), Leads (search + filter chips + sortable table + drawer), Sequences (step rail + inline editor), Activity (last 200 touches; includes scheduled status), LinkedIn (Mon/Wed/Fri week planner, post history, reminder trigger), Smart Shortlist (Beta pill — ICP summary, runs listing, New shortlist modal; AI run disabled pending architecture fix, see Section 1)
 
@@ -647,11 +668,12 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 | Item | Priority |
 |---|---|
+| "Review in Advance" hold + cron auto-send (4 Aug 2026) — auth handshake and empty-queue path verified manually via curl; no real approve-then-auto-send has been watched end to end yet; test with a real lead before trusting with live prospects | High |
 | New Shortlist modal (single-screenshot lead extraction, 3 Aug 2026) — not live browser-verified against the real edge functions end to end; test manually before fully trusting | High |
 | Smart Shortlist AI run — queue-based async architecture refactor (pg_net or dedicated worker) to fix edge function timeout; currently disabled in UI | High |
 | `ActivityTab.tsx` / `EnquiriesTab.tsx` list-collapses-on-reload bug — same root cause as the fixed `LeadsTab` scroll-reset issue (see Section 1), not yet migrated to `useReloadableList` | Medium |
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
-| Invoice nudge automation (next available migration is `0084`): scheduled reminders at due date, +3d, +7d with PDF attachment | High |
+| Invoice nudge automation (next available migration is `0086`): scheduled reminders at due date, +3d, +7d with PDF attachment | High |
 | pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) — standing gap across Proposals, Invoices admin, and all portal error states | Medium |
@@ -671,7 +693,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 **Smart Shortlist AI run fix:** Queue-based async processing via pg_net or dedicated worker to bypass edge function execution limits. Replaces current disabled synchronous flow.
 
-**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0084` (`0081` billing_title, `0082` used twice — see Section 3's Enquiry tables note — `0083` leads ICP score columns).
+**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0086` (`0081` billing_title, `0082` used twice — see Section 3's Enquiry tables note — `0083` leads ICP score columns, `0084` outreach footer, `0085` outreach confirmed-send cron).
 
 **Branding landing Phase 2/3:** Visibility and Scale solution sections built from Figma hi-fi using same MCP + marketing component pattern as hero.
 
@@ -711,4 +733,4 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 ## 14. One-line summary
 
-Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, marketing components in src/components/marketing/ not portal folder, Smart Shortlist bulk AI run disabled pending queue-based architecture fix (single-lead extraction via New Shortlist modal works instead, not yet live-verified), ICP score tiers unified at 75/50 everywhere, formatPortalDate is the one date formatter (documented exceptions apply), SortableTableHeader is the one sortable-table-header component, next migration 0084.
+Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, marketing components in src/components/marketing/ not portal folder, Smart Shortlist bulk AI run disabled pending queue-based architecture fix (single-lead extraction via New Shortlist modal works instead, not yet live-verified), ICP score tiers unified at 75/50 everywhere, formatPortalDate is the one date formatter (documented exceptions apply), SortableTableHeader is the one sortable-table-header component, "Review in Advance" approvals hold to 9:30 AM ET next business day via cron (not yet live-tested end to end), next migration 0086.
