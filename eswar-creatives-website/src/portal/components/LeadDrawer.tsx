@@ -1,7 +1,7 @@
 // Lead drawer: full lead detail, editable fields, enrollment, timeline, convert to client.
 // SidePanel on desktop, full-screen bottom sheet on mobile (handled by SidePanel itself).
 import { useEffect, useRef, useState } from 'react'
-import { ExternalLink, Clock, Mail, Linkedin, X, Reply } from 'lucide-react'
+import { ExternalLink, Clock, Mail, Linkedin, X, Reply, ChevronDown } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
@@ -62,6 +62,7 @@ type TouchTimelineRow = {
   bounced_at: string | null
   skipped_reason: string | null
   subject_snapshot: string | null
+  body_snapshot: string | null
   enrollment_id: string
   step: { step_number: number; day_offset: number | null } | null
   enrollment: { sequence: { name: string } | null } | null
@@ -253,7 +254,7 @@ export function LeadDrawer({
         sequence:sequences!sequence_id (name, segment)
       `).eq('lead_id', leadId).order('started_at', { ascending: false }),
       supabase.from('outreach_touches').select(`
-        id, channel, status, scheduled_for, sent_at, opened_at, bounced_at, skipped_reason, subject_snapshot, enrollment_id,
+        id, channel, status, scheduled_for, sent_at, opened_at, bounced_at, skipped_reason, subject_snapshot, body_snapshot, enrollment_id,
         step:sequence_steps!step_id (step_number, day_offset),
         enrollment:lead_enrollments!enrollment_id (sequence:sequences!sequence_id (name))
       `).eq('lead_id', leadId).order('scheduled_for', { ascending: false }).limit(50),
@@ -1021,9 +1022,12 @@ function EditableInput({
 }
 
 function TimelineEntry({ touch }: { touch: TouchTimelineRow }) {
+  const { isMobile } = useBreakpoint()
+  const [expanded, setExpanded] = useState(false)
   const seqName = touch.enrollment?.sequence?.name ?? 'Sequence'
   const isEmail = touch.channel === 'email'
   const isCancelled = touch.status === 'cancelled'
+  const isSent = touch.status === 'sent'
   const label = intentLabel(touch.step?.day_offset ?? null)
 
   const badgeBg =
@@ -1043,50 +1047,77 @@ function TimelineEntry({ touch }: { touch: TouchTimelineRow }) {
       ...styles.timelineEntry,
       opacity: isCancelled ? 0.6 : 1,
     }}>
-      <div style={styles.timelineIcon}>
-        {isEmail ? <Mail size={13} color={isCancelled ? t.text.disabled : t.text.muted} /> : <Linkedin size={13} color={isCancelled ? t.text.disabled : t.text.muted} />}
-      </div>
-      <div style={styles.timelineContent}>
-        <span style={{
-          ...styles.timelineLabel,
-          textDecoration: isCancelled ? 'line-through' : 'none',
-          color: isCancelled ? t.text.muted : t.text.primary,
-        }}>
-          {label}
+      <div style={styles.timelineRow}>
+        <div style={styles.timelineIcon}>
+          {isEmail ? <Mail size={13} color={isCancelled ? t.text.disabled : t.text.muted} /> : <Linkedin size={13} color={isCancelled ? t.text.disabled : t.text.muted} />}
+        </div>
+        <div style={styles.timelineContent}>
+          <span style={{
+            ...styles.timelineLabel,
+            textDecoration: isCancelled ? 'line-through' : 'none',
+            color: isCancelled ? t.text.muted : t.text.primary,
+          }}>
+            {label}
+          </span>
+          <span style={styles.timelineSeq}>{seqName}</span>
+          <span style={styles.timelineMeta}>
+            {touch.status === 'sent' && touch.sent_at ? `Sent ${formatDate(touch.sent_at)}` : null}
+            {touch.status === 'skipped' ? `Skipped: ${touch.skipped_reason ?? 'manually'}` : null}
+            {touch.status === 'scheduled' ? `Due ${formatDate(touch.scheduled_for)}` : null}
+            {isCancelled ? `Cancelled${touch.skipped_reason ? ': ' + touch.skipped_reason.replace(/_/g, ' ') : ''}` : null}
+            {touch.status === 'failed' ? 'Failed to send' : null}
+            {touch.opened_at ? ' · Opened' : null}
+            {touch.bounced_at ? ' · Bounced' : null}
+          </span>
+        </div>
+        <span style={{ ...styles.timelineBadge, background: badgeBg, color: badgeFg }}>
+          {touch.status}
         </span>
-        <span style={styles.timelineSeq}>{seqName}</span>
-        <span style={styles.timelineMeta}>
-          {touch.status === 'sent' && touch.sent_at ? `Sent ${formatDate(touch.sent_at)}` : null}
-          {touch.status === 'skipped' ? `Skipped: ${touch.skipped_reason ?? 'manually'}` : null}
-          {touch.status === 'scheduled' ? `Due ${formatDate(touch.scheduled_for)}` : null}
-          {isCancelled ? `Cancelled${touch.skipped_reason ? ': ' + touch.skipped_reason.replace(/_/g, ' ') : ''}` : null}
-          {touch.status === 'failed' ? 'Failed to send' : null}
-          {touch.opened_at ? ' · Opened' : null}
-          {touch.bounced_at ? ' · Bounced' : null}
-        </span>
+        {isSent && (
+          <button
+            type="button"
+            style={styles.chevronBtn}
+            onClick={() => setExpanded((o) => !o)}
+            aria-label={expanded ? 'Collapse email' : 'Expand email'}
+            aria-expanded={expanded}
+          >
+            <ChevronDown
+              size={14}
+              color={t.text.muted}
+              style={{
+                transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: `transform ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+              }}
+            />
+          </button>
+        )}
       </div>
-      <span style={{ ...styles.timelineBadge, background: badgeBg, color: badgeFg }}>
-        {touch.status}
-      </span>
+      {isSent && expanded && (
+        <div style={{ ...styles.touchBodyCard, marginLeft: isMobile ? 0 : 23 }}>
+          {touch.subject_snapshot && <div style={styles.touchSubject}>{touch.subject_snapshot}</div>}
+          {touch.body_snapshot ? (
+            <div style={styles.touchBody}>{touch.body_snapshot}</div>
+          ) : (
+            <p style={styles.mutedText}>Email content not available</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 function ReplyEntry({ reply }: { reply: ReplyMessageRow }) {
-  const preview = reply.body.length > 100 ? reply.body.slice(0, 100) + '…' : reply.body
+  const { isMobile } = useBreakpoint()
   return (
-    <div style={styles.timelineEntry}>
-      <div style={styles.timelineIcon}>
-        <Reply size={13} color={tokens.green} />
+    <div style={styles.replyRow}>
+      <div style={{ ...styles.replyCard, maxWidth: isMobile ? '90%' : '75%' }}>
+        <div style={styles.replyHead}>
+          <Reply size={13} color={tokens.primary} />
+          <span style={styles.replyLabel}>Reply from lead</span>
+        </div>
+        <p style={styles.replyBody}>{reply.body}</p>
+        <span style={styles.replyMeta}>{formatDate(reply.logged_at)}</span>
       </div>
-      <div style={styles.timelineContent}>
-        <span style={{ ...styles.timelineLabel, color: tokens.green }}>Reply logged</span>
-        <span style={styles.timelineMeta}>{preview}</span>
-        <span style={{ ...styles.timelineMeta, marginTop: 2 }}>{formatDate(reply.logged_at)}</span>
-      </div>
-      <span style={{ ...styles.timelineBadge, background: tokens.greenLight, color: tokens.green }}>
-        reply
-      </span>
     </div>
   )
 }
@@ -1441,11 +1472,12 @@ const styles: Record<string, CSSProperties> = {
   timeline: { display: 'flex', flexDirection: 'column', gap: 0 },
   timelineEntry: {
     display: 'flex',
-    alignItems: 'flex-start',
-    gap: 10,
+    flexDirection: 'column',
+    gap: 8,
     padding: '10px 0',
     borderBottom: `1px solid ${t.border.subtle}`,
   },
+  timelineRow: { display: 'flex', alignItems: 'flex-start', gap: 10 },
   timelineIcon: { flexShrink: 0, marginTop: 2 },
   timelineContent: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   timelineLabel: { fontFamily: fonts.body, fontSize: 13, color: t.text.primary },
@@ -1460,6 +1492,64 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     flexShrink: 0,
   },
+  chevronBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'none',
+    border: 'none',
+    padding: 4,
+    margin: 0,
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  touchBodyCard: {
+    background: t.background.muted,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    maxHeight: 300,
+    overflowY: 'auto',
+  },
+  touchSubject: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    color: t.text.primary,
+  },
+  touchBody: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 400,
+    color: t.text.secondary,
+    whiteSpace: 'pre-wrap',
+    lineHeight: 1.5,
+  },
+  replyRow: { display: 'flex', justifyContent: 'flex-end', padding: '8px 0' },
+  replyCard: {
+    background: tokens.tealLight,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 10,
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  replyHead: { display: 'flex', alignItems: 'center', gap: 6 },
+  replyLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.primary },
+  replyBody: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 400,
+    color: t.text.primary,
+    whiteSpace: 'pre-wrap',
+    lineHeight: 1.5,
+    margin: 0,
+  },
+  replyMeta: { fontFamily: fonts.body, fontSize: 11, color: t.text.muted, alignSelf: 'flex-end' },
   mutedText: { fontFamily: fonts.body, fontSize: 13, color: t.text.muted, margin: 0 },
   errorBanner: {
     background: tokens.rubyLight,
