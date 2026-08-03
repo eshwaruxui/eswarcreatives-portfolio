@@ -10,8 +10,8 @@ import {
   ui,
   mono,
   formatMoney,
-  formatDate,
 } from './ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { ProposalForm } from './ProposalForm'
 import { DeleteProposalModal } from './DeleteProposalModal'
 import { ProposalNudgeModal, type NudgeProposal } from './ProposalNudgeModal'
@@ -208,7 +208,7 @@ export function ProposalsAdmin() {
                   <span style={styles.currencyBadge}>{p.currency}</span>
                   {formatMoney(Number(p.total_amount), p.currency)}
                 </span>
-                <span style={styles.validUntil}>Valid until {formatDate(p.valid_until)}</span>
+                <span style={styles.validUntil}>Valid until {formatPortalDate(p.valid_until)}</span>
               </div>
             </div>
           ))}

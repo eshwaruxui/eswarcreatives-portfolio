@@ -10,7 +10,8 @@ import { type PortalProfile } from '../PortalGuard'
 import { CLIENT_NAV_HEIGHT } from './ClientNav'
 import { ClientProposalPanel } from './ClientProposalPanel'
 import { tokens, t, fonts } from '../theme'
-import { formatMoney, formatDate } from '../admin/ui'
+import { formatMoney } from '../admin/ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 
 type ProposalStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined' | 'expired'
@@ -143,7 +144,7 @@ function Proposals({ profile }: { profile: PortalProfile }) {
                     <h2 style={styles.cardTitle}>{p.title}</h2>
                     <p style={styles.cardMeta}>
                       {VERTICAL_LABEL[p.vertical] ?? p.vertical}
-                      {p.valid_until ? ` · Valid until ${formatDate(p.valid_until)}` : ''}
+                      {p.valid_until ? ` · Valid until ${formatPortalDate(p.valid_until)}` : ''}
                     </p>
                   </div>
                   <span style={{ ...styles.badge, background: badge.bg, color: badge.fg }}>

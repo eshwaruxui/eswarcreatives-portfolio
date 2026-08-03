@@ -8,6 +8,7 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, Modal } from '../ui'
+import { formatPortalDate } from '../../utils/formatDate'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
 import { showToast as showGlobalToast } from '../toast'
@@ -60,19 +61,6 @@ type ThreadTouch = {
   sent_at: string
   subject: string
   body: string
-}
-
-function formatThreadDate(iso: string): string {
-  const formatted = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Kolkata',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date(iso))
-  return `${formatted} IST`
 }
 
 function useConfirmScheduledTouch(onSuccess: (id: string) => void) {
@@ -963,7 +951,7 @@ function PriorEmailCard({ touch }: { touch: ThreadTouch }) {
 
   return (
     <div style={styles.threadCard}>
-      <span style={styles.threadDate}>{formatThreadDate(touch.sent_at)}</span>
+      <span style={styles.threadDate}>{formatPortalDate(touch.sent_at)}</span>
       <span style={styles.threadSubject}>{touch.subject || '(no subject)'}</span>
       <p
         ref={bodyRef}

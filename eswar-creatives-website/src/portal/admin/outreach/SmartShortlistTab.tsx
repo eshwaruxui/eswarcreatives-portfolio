@@ -7,7 +7,8 @@ import { ChevronDown, ChevronUp, Sparkles, Archive, Trash2, Eye, ArchiveRestore 
 import { useNavigate } from 'react-router'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts } from '../../theme'
-import { mono, formatDate, EmptyState } from '../ui'
+import { mono, EmptyState } from '../ui'
+import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { SidePanel } from '../SidePanel'
 import { CandidateCard } from '../../components/shortlist/CandidateCard'
@@ -144,7 +145,7 @@ export function SmartShortlistTab() {
       {reviewOpen && reviewRun && (
         <SidePanel
           title="Review shortlist"
-          subtitle={`${VERTICAL_LABELS[reviewRun.vertical]} · ${formatDate(reviewRun.created_at)} · ${reviewCandidates.length} candidates`}
+          subtitle={`${VERTICAL_LABELS[reviewRun.vertical]} · ${formatPortalDate(reviewRun.created_at)} · ${reviewCandidates.length} candidates`}
           onClose={() => setReviewOpen(false)}
         >
           <ReviewPanelContent run={reviewRun} candidates={reviewCandidates} onUpdated={updateCandidate} />
@@ -235,7 +236,7 @@ export function SmartShortlistTab() {
                   const counts = historyCounts[run.id] ?? { screenshots: 0, candidates: 0, added: 0 }
                   return (
                     <tr key={run.id}>
-                      <td style={s.td}><span style={s.monoCell}>{formatDate(run.created_at)}</span></td>
+                      <td style={s.td}><span style={s.monoCell}>{formatPortalDate(run.created_at)}</span></td>
                       <td style={s.td}><VerticalPill vertical={run.vertical} /></td>
                       <td style={s.td}>{run.channel === 'both' ? 'Email + LinkedIn' : CHANNEL_LABELS[run.channel]}</td>
                       <td style={s.td}>{counts.screenshots}</td>
@@ -399,7 +400,7 @@ function HistoryCard({
         <VerticalPill vertical={run.vertical} />
         <RunStatusPill status={run.status} />
       </div>
-      <span style={s.monoCell}>{formatDate(run.created_at)}</span>
+      <span style={s.monoCell}>{formatPortalDate(run.created_at)}</span>
       <span style={s.hintText}>
         {run.channel === 'both' ? 'Email + LinkedIn' : CHANNEL_LABELS[run.channel]} · {c.screenshots} screenshots · {c.candidates} candidates · {c.added} added
       </span>

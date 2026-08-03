@@ -7,7 +7,8 @@ import { Link } from 'react-router'
 import { Plus, X, ExternalLink } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
-import { PageHeader, Card, ui, formatDate } from './ui'
+import { PageHeader, Card, ui } from './ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { usePortal, clientLabel } from '../PortalContext'
 import { ClientFilterBanner } from './ClientFilterBanner'
 import type { CSSProperties } from 'react'
@@ -229,7 +230,7 @@ function ReviewRow({
         <span style={styles.visBadge}>{c.visibility === 'public' ? 'Public' : 'Private'}</span>
       </td>
       <td style={styles.td}>—</td>
-      <td style={styles.td}>{formatDate(c.created_at)}</td>
+      <td style={styles.td}>{formatPortalDate(c.created_at)}</td>
       <td style={styles.td}>
         <div style={styles.statusCell}>
           {/* H1: status badge always visible, updates immediately. */}
@@ -278,7 +279,7 @@ function PublicRow({ c, votes }: { c: PublicCampaign; votes: number }) {
         <span style={styles.visBadge}>{c.visibility === 'public' ? 'Public' : 'Private'}</span>
       </td>
       <td style={styles.td}>{votes}</td>
-      <td style={styles.td}>{formatDate(c.created_at)}</td>
+      <td style={styles.td}>{formatPortalDate(c.created_at)}</td>
       <td style={styles.td}>
         {/* H1: status visible but read-only; logo voting is managed elsewhere. */}
         <span style={{ ...styles.statusBadge, background: tone.bg, color: tone.fg }}>

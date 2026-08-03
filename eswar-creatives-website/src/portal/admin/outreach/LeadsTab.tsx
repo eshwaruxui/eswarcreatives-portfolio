@@ -5,7 +5,8 @@ import type { CSSProperties } from 'react'
 import { useSearchParams } from 'react-router'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
-import { mono, formatDate } from '../ui'
+import { mono } from '../ui'
+import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { AddLeadModal } from './AddLeadModal'
 import { CsvImportModal } from './CsvImportModal'
@@ -578,17 +579,17 @@ export function LeadsTab() {
                   </td>
                   <td style={styles.td}>
                     <span style={styles.monoCell}>
-                      {lead.last_touch_at ? formatDate(lead.last_touch_at) : '-'}
+                      {lead.last_touch_at ? formatPortalDate(lead.last_touch_at) : '-'}
                     </span>
                   </td>
                   <td style={styles.td}>
                     <span style={styles.monoCell}>
-                      {lead.next_touch_at ? formatDate(lead.next_touch_at) : '-'}
+                      {lead.next_touch_at ? formatPortalDate(lead.next_touch_at) : '-'}
                     </span>
                   </td>
                   <td style={styles.td}>
                     <span style={styles.monoCell}>
-                      {formatDate(lead.created_at)}
+                      {formatPortalDate(lead.created_at)}
                     </span>
                   </td>
                   <td style={styles.td}>
@@ -634,7 +635,7 @@ function MobileCard({ lead, onOpen }: { lead: LeadRow; onOpen: () => void }) {
       <div style={styles.mobileCardFoot}>
         <SegmentChip segment={lead.segment} />
         {lead.next_touch_at && (
-          <span style={styles.mobileNextTouch}>Next: {formatDate(lead.next_touch_at)}</span>
+          <span style={styles.mobileNextTouch}>Next: {formatPortalDate(lead.next_touch_at)}</span>
         )}
       </div>
     </div>

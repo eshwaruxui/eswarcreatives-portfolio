@@ -6,7 +6,8 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { SidePanel } from '../admin/SidePanel'
-import { mono, formatDate } from '../admin/ui'
+import { mono } from '../admin/ui'
+import { formatPortalDate } from '../utils/formatDate'
 import { showToast } from '../admin/toast'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ScoreRing, type ScoringState } from './shared/ScoreRing'
@@ -151,14 +152,6 @@ function currentStepForEnrollment(enrollmentId: string, timeline: TouchTimelineR
   return sentSteps.length > 0 ? Math.max(...sentSteps) + 1 : 1
 }
 
-function formatIST(iso: string): string {
-  return new Intl.DateTimeFormat('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(iso))
-}
 
 export function LeadDrawer({
   leadId,
@@ -494,7 +487,7 @@ export function LeadDrawer({
         </div>
 
         {lastTouchAt && (
-          <span style={styles.lastTouch}>Last touch {formatIST(lastTouchAt)}</span>
+          <span style={styles.lastTouch}>Last touch {formatPortalDate(lastTouchAt)}</span>
         )}
 
         {error && <div style={styles.errorBanner}>{error}</div>}
@@ -1061,9 +1054,9 @@ function TimelineEntry({ touch }: { touch: TouchTimelineRow }) {
           </span>
           <span style={styles.timelineSeq}>{seqName}</span>
           <span style={styles.timelineMeta}>
-            {touch.status === 'sent' && touch.sent_at ? `Sent ${formatDate(touch.sent_at)}` : null}
+            {touch.status === 'sent' && touch.sent_at ? `Sent ${formatPortalDate(touch.sent_at)}` : null}
             {touch.status === 'skipped' ? `Skipped: ${touch.skipped_reason ?? 'manually'}` : null}
-            {touch.status === 'scheduled' ? `Due ${formatDate(touch.scheduled_for)}` : null}
+            {touch.status === 'scheduled' ? `Due ${formatPortalDate(touch.scheduled_for)}` : null}
             {isCancelled ? `Cancelled${touch.skipped_reason ? ': ' + touch.skipped_reason.replace(/_/g, ' ') : ''}` : null}
             {touch.status === 'failed' ? 'Failed to send' : null}
             {touch.opened_at ? ' · Opened' : null}
@@ -1116,7 +1109,7 @@ function ReplyEntry({ reply }: { reply: ReplyMessageRow }) {
           <span style={styles.replyLabel}>Reply from lead</span>
         </div>
         <p style={styles.replyBody}>{reply.body}</p>
-        <span style={styles.replyMeta}>{formatDate(reply.logged_at)}</span>
+        <span style={styles.replyMeta}>{formatPortalDate(reply.logged_at)}</span>
       </div>
     </div>
   )

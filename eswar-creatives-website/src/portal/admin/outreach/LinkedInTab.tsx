@@ -5,7 +5,8 @@ import { Trash2, Copy } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
-import { mono, formatDate } from '../ui'
+import { mono } from '../ui'
+import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 
 type Post = {
@@ -53,7 +54,7 @@ function formatIST(iso: string): string {
       hour12: true,
     }).format(new Date(iso))
   } catch {
-    return formatDate(iso)
+    return formatPortalDate(iso)
   }
 }
 
@@ -384,7 +385,7 @@ export function LinkedInTab() {
                     {post.status}
                   </span>
                   <span style={styles.monoCell}>
-                    {post.published_at ? formatIST(post.published_at) : formatDate(post.scheduled_for)}
+                    {post.published_at ? formatIST(post.published_at) : formatPortalDate(post.scheduled_for)}
                   </span>
                   <div style={styles.histActions}>
                     <button
@@ -427,7 +428,7 @@ export function LinkedInTab() {
                 {history.map((post) => (
                   <tr key={post.id} style={styles.histTr}>
                     <td style={styles.td}>
-                      <span style={styles.monoCell}>{formatDate(post.scheduled_for)}</span>
+                      <span style={styles.monoCell}>{formatPortalDate(post.scheduled_for)}</span>
                     </td>
                     <td style={styles.td}>
                       <span style={styles.histPreview}>{post.content.slice(0, 80)}{post.content.length > 80 ? '...' : ''}</span>
@@ -442,7 +443,7 @@ export function LinkedInTab() {
                       </span>
                     </td>
                     <td style={styles.td}>
-                      <span style={styles.monoCell}>{post.published_at ? formatDate(post.published_at) : '-'}</span>
+                      <span style={styles.monoCell}>{post.published_at ? formatPortalDate(post.published_at) : '-'}</span>
                     </td>
                     <td style={styles.td}>
                       <div style={styles.histActions}>
