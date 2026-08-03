@@ -90,7 +90,7 @@ function stripEmDashes(text: string): { cleaned: string; hadEmDash: boolean } {
 }
 
 function hasSignOffWithoutDesignSystems(text: string): boolean {
-  return /eswarcreatives\.in(?!\/design-systems)/.test(text)
+  return /eswarcreatives\.in(?!\/design-systems|\/unsubscribe)/.test(text)
 }
 
 function renderTemplate(
