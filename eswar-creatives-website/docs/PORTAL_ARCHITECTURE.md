@@ -1,13 +1,13 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 3 August 2026 (Enquiries feature: migration 0082, receive-enquiry + send-enquiry-reply edge functions, Enquiries tab; PR #18 — LinkedIn planner save/refresh fix + image attachments — merged). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 3 August 2026 (ICP lead scoring + portal-wide UX consistency pass: migration 0083, score-single-lead edge function, ScoreRing/SortableTableHeader/Skeleton shared components, useReloadableList scroll-reset fix, New Shortlist modal rewired to single-screenshot flow — merged staging → main, resolved a real conflict against PR #18's LinkedIn image feature). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
 **Active branch:** `main`
-**Status:** Stable. PR #18 (`fix/linkedin-planner-save-and-attachments`) merged to main on 3 August 2026. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
+**Status:** Stable. ICP lead scoring + portal UX consistency work (`staging` branch, ten commits) merged to main on 3 August 2026, same day as PR #18 — see the dedicated entry below for the full list and the merge-conflict note. PR #18 (`fix/linkedin-planner-save-and-attachments`) merged to main on 3 August 2026. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -217,7 +217,7 @@ _Enquiries feature (design systems marketing form → portal outreach module):_
 - `EnquiriesTab.tsx` (2nd tab in OutreachAdmin, after Today, before Leads): list sorted by `created_at DESC`, badge count of `status = 'new'`. Each row: company name, funding-stage pill, platform chips, timeline, problem truncated to 80 chars, and a response-deadline countdown badge (green "Responded" if responded/converted, amber "Xh left" between 24-48h, red "Overdue" past 48h, teal "New" under 24h).
 - `EnquiryDrawer.tsx` (`src/portal/components/`): two-column detail drawer (860px) — enquiry fields on the left, a conversation thread on the right (grey bubble for the original enquiry, teal bubbles for replies) with a composer that posts to `send-enquiry-reply` and optimistically reverts on failure. "Convert to lead" creates a `leads` row (`segment: 'saas_product'`, `vertical: 'design_systems'`, `source: 'enquiry_form'`, `status: 'replied'`) and sets `converted_lead_id` + `status: 'converted'` on the enquiry; becomes "View lead" afterward, linking to `?tab=leads&leadId=<id>` (LeadsTab gained a matching `?leadId=` deep-link handler, mirroring its existing `?addLead=1` pattern).
 - Not yet visually verified in a live browser session (no admin login credentials available at build time) — build succeeds cleanly and the convert-to-lead data flow was validated directly against the database, but a manual pass through the actual rendered tab is still outstanding.
-- **Note:** this migration was built and applied in parallel with PR #18 below, which independently also used migration number `0082` for an unrelated change (`linkedin-post-images` bucket). Both were applied to the live database under their own full filenames (`0082_enquiry_submissions.sql` and `0082_linkedin_post_images.sql`) with no functional conflict, but the numeric prefix is duplicated in the repo — next migration is `0083`, do not reuse `0082` for anything else.
+- **Note:** this migration was built and applied in parallel with PR #18 below, which independently also used migration number `0082` for an unrelated change (`linkedin-post-images` bucket). Both were applied to the live database under their own full filenames (`0082_enquiry_submissions.sql` and `0082_linkedin_post_images.sql`) with no functional conflict, but the numeric prefix is duplicated in the repo — do not reuse `0082` for anything else. (At the time this was written, `0083` was next; `0083` has since been used for leads ICP score columns — see Section 1's ICP lead scoring entry — current next migration is `0084`.)
 - **Merge note:** PR #18 (LinkedIn planner fix) and this Enquiries feature were merged to main in the same session, from diverged histories. The conflict was in `DesignSystemsEnquiryPage.tsx` — PR #18's branch had been squash-merged from a point that included an earlier, stale version of this file (pre-`receive-enquiry` rewire, still Formspree-based). Resolved by keeping the complete version from `staging` (the finished `receive-enquiry` rewire) over the stale one. Both LinkedIn's work and all six Enquiries commits are confirmed present in `main` at `eb8a0ae3`.
 
 _LinkedIn planner save/refresh fix + image attachments (PR #18 — `fix/linkedin-planner-save-and-attachments` — merged 3 Aug 2026):_
@@ -232,9 +232,23 @@ _LinkedIn planner save/refresh fix + image attachments (PR #18 — `fix/linkedin
 - Post History gains a thumbnail column (desktop table + mobile card list) via the shared `ProgressiveImage` component, backed by a batch of signed URLs (`createSignedUrls`) fetched once per `load()`.
 - Deleting a post now also removes its storage object, if any.
 
+_ICP lead scoring + portal-wide UX consistency pass (`staging` branch, ten commits — merged to main 3 Aug 2026):_
+- Migration 0083 applied: `leads.icp_score` (int, CHECK 0-100, nullable) and `leads.icp_match_reason` (text, nullable). Before this the `leads` table had no score column at all — `icp_score` only lived on `shortlist_candidates` and was dropped on convert-to-lead; `CandidateCard.tsx`'s insert now copies both fields across on conversion.
+- `score-single-lead` edge function (new, deployed): admin JWT, input `{ lead_id, vertical }` (`vertical` CHECK `'design_systems'|'branding'`), a **text-only** companion to `process-shortlist-run` — no screenshots, scores one already-stored lead's fields against the vertical's saved ICP text via a single Claude call. Returns `{ icp_score, icp_match_reason }`; the caller writes the result back onto the `leads` row (the function itself never touches the DB).
+- `ScoreRing` shared component (`src/portal/components/shared/ScoreRing.tsx`): score ring + tier label, one unified threshold scale used everywhere — **75+ "Strong ICP" (teal), 50-74 "Partial ICP" (gold), <50 "Weak ICP" (muted), null "Not scored" (dashed ghost ring)**. `ScoreRingDisplay` sub-component holds just the ring+score+label block (extracted so the New Shortlist success state and the ring's own popover modal share one implementation instead of two).
+- `LeadDrawer` header: ICP score ring, click opens an "ICP Score" modal (big ring, tier label, match reason, "Score this lead" / "Rescore this lead" button calling `score-single-lead` inline — no navigation away). If the lead has no `vertical` set, the modal shows an inline Design Systems/Branding picker before the score button appears.
+- `LeadDrawer` timeline: sent touches are now expandable (chevron toggle, sent-status only) revealing the actual subject/body in a muted card, max-height 300px scroll. Replies render as right-aligned teal bubbles labeled "Reply from lead", interleaved with touches by date — a real conversation thread instead of a flat activity log.
+- `LeadsTab`: new ICP column (filled dot + score, teal/gold/muted per the tiers above; outline dot + "Not scored yet" tooltip when null) — desktop table only (mobile still uses the card stack, where the same dot now also appears next to the segment chip; it was missing there entirely until a user-reported screenshot caught it).
+- `src/portal/utils/formatDate.ts` — new `formatPortalDate()`, the single date-display formatter for the portal: today shows IST time only ("2:15 PM"), current calendar year shows "D MMM", other years show "D MMM YYYY", null/undefined shows "-". Applied across 27 files, replacing the old `admin/ui.tsx` `formatDate` as the primary helper (that export still exists but is no longer the one to reach for). **Deliberately not applied** to: `TodayTab.tsx`'s per-recipient-timezone send-confirmation display, `ActivityTab.tsx`/`LinkedInTab.tsx`'s weekday/timezone-aware schedulers, `AdminDashboard.tsx`'s relative "2h ago" feed, `SketchReviewPage.tsx`/`ProposalView.tsx`/`AdminSketchUpload.tsx`'s own local formatters, and the public (unauthenticated) invoice/proposal pages' formal long-month style — each of those encodes real information the generic formatter doesn't carry.
+- `SortableTableHeader` shared component (`src/portal/components/shared/SortableTableHeader.tsx`) + exported `nextSortState()` cycle helper (asc → desc → clear — the one place this logic lives, so no screen reimplements it). `LeadsTab` migrated (gained two new sortable columns that weren't sortable before: `next_touch` and `icp_score`, the latter with nulls always sorting last regardless of direction). `EnquiriesTab` migrated too — it had **no table at all before**, just a card list with no sort state; it's now `isMobile ? card-list : sortable table`, mirroring `LeadsTab`'s own split.
+- `useReloadableList` hook (`src/portal/hooks/useReloadableList.ts`) + `Skeleton` shared shimmer component (`src/portal/components/shared/Skeleton.tsx`, consolidating six duplicated inline `.ec-shimmer` implementations). Fixes a real reported bug: closing the `LeadDrawer` reloaded the leads list by flipping a single `loading` boolean that swapped the **entire table** for a "Loading..." placeholder, collapsing the page height and resetting scroll to the top. Now: true first load shows a skeleton table/cards, every later reload keeps existing rows rendered with a subtle opacity fade instead. **Same anti-pattern is still present in `ActivityTab.tsx` and `EnquiriesTab.tsx`** — not yet migrated, likely has the same latent scroll-reset bug, just unreported so far.
+- ICP score thresholds unified: `LeadsTab`'s dot column originally shipped with its own coarser cutoffs (70/41) deliberately different from `ScoreRing`'s (80/60); both were later reconciled onto the single 75/50 scale documented above.
+- `NewShortlistModal.tsx` rewired from the bulk multi-screenshot flow (which drives `process-shortlist-run`, disabled — see the AI-run note in the Smart Shortlist entry above) to a single-screenshot flow: `extract-lead-from-image` (vision, base64 body, no storage upload) → insert one `leads` row → `score-single-lead` → write the score back. `segment` is fixed to `'saas_product'` on every insert here (matching `CandidateCard.tsx`'s own precedent — `vertical`/`segment` are separate taxonomies, `vertical` is the field that actually drives ICP selection); the Volume dropdown and Channel selector from the old bulk flow were removed (no `channel` column exists on `leads`, so a Channel selector here would have written nowhere). Every failure mode has its own inline message and, critically, if the lead was already created before a step 3/4 failure (scoring/write-back), the error state still carries the lead's id so "View lead" works — the lead is never lost silently. `hasIcpForVertical`/`onRunComplete` props removed from the modal's interface as dead code (the new flow creates a lead directly, not a `shortlist_runs` row, so `SmartShortlistTab`'s run-history refresh has nothing to do here). **Not live browser-verified end to end** (build-verified and hand-traced only, hit a tool rate limit mid-test) — test manually against the real edge functions before fully trusting it.
+- **Merge note:** merging `staging` into `main` conflicted in `LinkedInTab.tsx` against PR #18 (merged the same day, see above), which had independently split one `<td>` into a new thumbnail-image cell plus a date cell on `main` while `staging` had renamed `formatDate` → `formatPortalDate` on the old single-cell version of the same line. Resolved by keeping PR #18's thumbnail cell fully intact and applying the rename to the surviving date cell; every other file in the ten-commit range auto-merged cleanly.
+
 **Supabase plan:** Pro ($25/month, upgraded 24 Jul 2026). Project ref: `urrinqwcrpivmvenupiu` (Mumbai, ap-south-1).
 
-**Next migration number: 0083**
+**Next migration number: 0084**
 
 ---
 
@@ -296,7 +310,13 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 - RLS: admin full access on both tables via `is_admin()` SECURITY DEFINER function
 - Indexes: `idx_enquiry_submissions_created_at` (created_at DESC), `idx_enquiry_replies_enquiry_id` (enquiry_id)
 - `leads.source` CHECK extended to include `'enquiry_form'` (needed for the Enquiries tab's convert-to-lead action)
-- **Migration numbering note:** the `0082` prefix is used by two independent migrations — `0082_linkedin_post_images.sql` (PR #18, LinkedIn planner feature) and `0082_enquiry_submissions.sql` (this feature). Both are live in the database under their distinct filenames with no functional conflict, but do not reuse `0082` for anything else. Next migration must be `0083`.
+- **Migration numbering note:** the `0082` prefix is used by two independent migrations — `0082_linkedin_post_images.sql` (PR #18, LinkedIn planner feature) and `0082_enquiry_submissions.sql` (this feature). Both are live in the database under their distinct filenames with no functional conflict, but do not reuse `0082` for anything else.
+
+**Migration 0083 — leads ICP score columns:**
+- `leads.icp_score` int, CHECK (icp_score between 0 and 100), nullable
+- `leads.icp_match_reason` text, nullable
+- Backs the `score-single-lead` edge function and the unified `ScoreRing` display (see Section 1's ICP lead scoring entry). No backfill for leads converted before this migration — they show "Not scored" until scored.
+- Next migration must be `0084`.
 
 **Outreach scheduling tables (migration 0076):**
 - `outreach_touches` — 3 new columns: `recipient_timezone text`, `draft_confirmed_at timestamptz`, `draft_confirmed_by uuid → auth.users`; status constraint extended: `('pending','sent','failed','skipped','scheduled','cancelled')` (further extended to add `'held'` in migration 0080, see below)
@@ -405,8 +425,12 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 | `ProgressiveImage` | `src/portal/components/shared/ProgressiveImage.tsx` | All remote image rendering; shimmer placeholder. Never use raw `<img>` for remote URLs |
 | `SidePanel` | `src/portal/admin/SidePanel.tsx` | z-201, motionTokens slide-in, 100vw x 100dvh on mobile, shared by all drawers |
 | `useBreakpoint` | `src/portal/hooks/useBreakpoint.ts` | Sole breakpoint authority |
-| `CandidateCard` | `src/portal/components/shortlist/CandidateCard.tsx` | Smart Shortlist candidate card; ICP score bar, confidence badge, Add to leads inline form, Ignore action |
+| `CandidateCard` | `src/portal/components/shortlist/CandidateCard.tsx` | Smart Shortlist candidate card; ICP score ring (via `ScoreRing`, `interactive={false}`), confidence badge, Add to leads inline form, Ignore action |
 | `AddProjectModal` | `src/portal/admin/AddProjectModal.tsx` | Client picker + project name field; inserts into projects; desktop top-right + mobile sticky footer button |
+| `ScoreRing` / `ScoreRingDisplay` | `src/portal/components/shared/ScoreRing.tsx` | Single source of truth for ICP tier thresholds/colors (75+/50-74/<50) and the score ring visual. `ScoreRing` is the interactive pill + popover modal (LeadDrawer, LeadsTab); `ScoreRingDisplay` is the non-interactive big-ring block it shares with `NewShortlistModal`'s success state. Also exports `scoreTier()`. |
+| `SortableTableHeader` | `src/portal/components/shared/SortableTableHeader.tsx` | Shared sortable `<thead>` row + exported `nextSortState()` asc→desc→clear cycle helper. Used by `LeadsTab`, `EnquiriesTab`. Any new sortable admin table should import this rather than reimplementing the cycle. |
+| `Skeleton` | `src/portal/components/shared/Skeleton.tsx` | Shimmer placeholder block (consolidates the `.ec-shimmer` pattern previously duplicated in 6 client-facing files). Self-contained keyframes per instance, same pattern as `Spinner.tsx`. |
+| `useReloadableList` | `src/portal/hooks/useReloadableList.ts` | Distinguishes `initialLoading` (no data yet) from `refreshing` (data on screen, reload in background) so a list never collapses to a placeholder mid-refetch. Wrap an existing `load()` with its `start()`/`finish()`. Currently only `LeadsTab` uses it — `ActivityTab`/`EnquiriesTab` still have the older collapse-on-reload pattern. |
 
 ### Marketing components (`src/components/marketing/`)
 
@@ -466,7 +490,8 @@ Candidates for Code Connect mapping once reuse across the Phase 2/3 marketing se
 | extract-lead-from-image | v6 | true | Calls claude-sonnet-4-6; extracts 13 fields: name, company, title, email, phone_business, phone_personal, website, location, source, linkedin_url, instagram_url, twitter_handle, notes; max_tokens 800; client infers website from business email domain |
 | confirm-scheduled-touch | v1 | true | Admin verifies touch status='scheduled', sends immediately via Resend, sets draft_confirmed_at/by, updates status to 'sent'/'failed' |
 | send-linkedin-reminder | v1 | true | Calls get_upcoming_linkedin_week() RPC; counts pending posts for Mon/Wed/Fri; sends reminder to eswar@eswarcreatives.in via Resend if any slot unfilled; triggered by pg_cron Sunday 12:30 UTC |
-| process-shortlist-run | v4 | true | Admin JWT + explicit profiles.role check; downloads run screenshots from stage-attachments as base64; calls claude-sonnet-4-6 (max_tokens 4000) with ICP/goal text + existing-leads fuzzy-dedup list; parses candidate JSON array; filters excluded + not_interested matches; inserts shortlist_candidates; sets shortlist_runs.status to complete/failed, writing error_code on failure. Async via EdgeRuntime.waitUntil. **AI run currently disabled in UI pending queue-based architecture refactor.** |
+| process-shortlist-run | v4 | true | Admin JWT + explicit profiles.role check; downloads run screenshots from stage-attachments as base64; calls claude-sonnet-4-6 (max_tokens 4000) with ICP/goal text + existing-leads fuzzy-dedup list; parses candidate JSON array; filters excluded + not_interested matches; inserts shortlist_candidates; sets shortlist_runs.status to complete/failed, writing error_code on failure. Async via EdgeRuntime.waitUntil. **AI run currently disabled in UI pending queue-based architecture refactor** — superseded for single-lead use by `score-single-lead` + `NewShortlistModal`'s rewired flow, see Section 1. |
+| score-single-lead | v1 | true | Admin JWT + explicit profiles.role check. Input `{ lead_id, vertical }`. Text-only (no screenshots) — fetches the lead's stored fields + the vertical's saved `icp_configs.icp_text`, one Claude call, synchronous response. Returns `{ icp_score, icp_match_reason }`; does not write to the DB itself, caller does. Errors: `invalid_lead_id`, `invalid_vertical`, `lead_not_found`, `no_icp`, `anthropic_timeout`, `scoring_failed`, `parse_failed`. |
 | receive-enquiry | v2 | false | Public endpoint for the marketing site's design systems enquiry form. Validates all fields server-side (400 + `fields` map on failure); inserts into enquiry_submissions via service role; best-effort Resend notification to eswar@eswarcreatives.in (never fails the request). CORS allowlist: eswarcreatives.in, www.eswarcreatives.in, localhost, and `*.eswarcreatives-portfolio.pages.dev` (Cloudflare Pages previews — v2 fix, v1 blocked preview submissions at the CORS preflight) |
 | send-enquiry-reply | v1 | true | Admin-only (is_admin() RPC). Emails the buyer via Resend first; only inserts into enquiry_replies and sets status='responded' (first reply only) once the email actually sends, so a Resend failure fails the whole request |
 
@@ -570,7 +595,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 **Frontend tabs (7, OutreachAdmin.tsx):** Today (daily motion tracker), Enquiries (design systems enquiry submissions; badge count of status='new'; countdown badges; conversation thread drawer; convert to lead — see below), Leads (search + filter chips + sortable table + drawer), Sequences (step rail + inline editor), Activity (last 200 touches; includes scheduled status), LinkedIn (Mon/Wed/Fri week planner, post history, reminder trigger), Smart Shortlist (Beta pill — ICP summary, runs listing, New shortlist modal; AI run disabled pending architecture fix, see Section 1)
 
-**LeadDrawer (`src/portal/components/LeadDrawer.tsx`):** shared drawer used by TodayTab, ActivityTab, LeadsTab. Shows: name, company, title, email (mailto), LinkedIn URL, status pill, specific observation, enrolled sequence + current step, last touch date (IST SF Mono), Notes (auto-save on blur), Follow-up date (explicit save + toast), Draft message (auto-save on blur). URL param `?leadId=<id>`: auto-opens that lead's drawer on mount (same pattern as `?addLead=1`), used by the Enquiries tab's "View lead" link.
+**LeadDrawer (`src/portal/components/LeadDrawer.tsx`):** shared drawer used by TodayTab, ActivityTab, LeadsTab. Shows: name, company, title, email (mailto), LinkedIn URL, status pill, ICP score ring (`ScoreRing`, click opens breakdown modal + inline "Score this lead"/"Rescore this lead" action — see Section 1), specific observation, enrolled sequence + current step, last touch date (IST SF Mono), Notes (auto-save on blur), Follow-up date (explicit save + toast), Draft message (auto-save on blur), Timeline (expandable sent-touch rows showing subject/body; replies as right-aligned teal bubbles, interleaved by date — see Section 1). URL param `?leadId=<id>`: auto-opens that lead's drawer on mount (same pattern as `?addLead=1`), used by the Enquiries tab's "View lead" link.
 
 **EnquiryDrawer (`src/portal/components/EnquiryDrawer.tsx`):** two-column drawer (860px) opened from EnquiriesTab. Left: enquiry fields (first name, work email as mailto, company, company URL, platforms, team size, funding stage, timeline, problem, submitted date). Right: conversation thread (grey bubble for the original enquiry problem text, teal bubbles for admin replies) plus a composer (3-8 row textarea, "Send reply" button) that posts to `send-enquiry-reply` with an optimistic bubble that reverts on failure. Header has a "Convert to lead" button (becomes "View lead" once `converted_lead_id` is set).
 
@@ -583,13 +608,16 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - Thread: enquiry message at top, sent replies below in chronological order
 - Reply composer at bottom: POSTs to `send-enquiry-reply`, optimistic update, inline error on failure
 - Convert to lead: creates a `leads` row with `source = 'enquiry_form'`, sets `converted_lead_id` on the enquiry, button changes to "View lead"
+- **List view (3 Aug 2026):** converted from a plain card list (no sort) to `isMobile ? card-list : sortable table` via `SortableTableHeader` — desktop columns: Company, Stage, Timeline (not sortable), Status, Received. Mobile keeps the original rich card (platform tags, problem preview, countdown badge); the desktop table is denser (platform tags folded into the company cell, problem preview dropped from the row — still one click away via the drawer).
 
 **Leads tab search + filter:**
 - Debounced (300ms) full-text search across: name, company, title, email, phone, source, notes
 - Filter chips: status (New/Contacted/…), enrollment (Enrolled/Not Enrolled), source (values from data)
-- Sortable columns: click cycles asc → desc → clear (third click); sort icon shows active direction
+- Sortable columns via shared `SortableTableHeader` (see Section 5): click cycles asc → desc → clear (third click); sort icon shows active direction. Columns: Lead, Company, Status, ICP (hidden on mobile — table itself is desktop-only), Last touch, Next touch (newly sortable 3 Aug 2026), Created (hidden on mobile). Segment and LinkedIn are not sortable.
+- ICP column sort: nulls always sort last regardless of direction (numeric compare otherwise)
 - Result count displayed as `[N] leads` in SF Mono; empty state with Search icon + "No leads match"
 - URL param `?addLead=1`: auto-opens AddLeadModal on mount, clears param with replace:true
+- First load shows a skeleton table/card-stack (`Skeleton`); reloading after closing the drawer keeps existing rows on screen with a subtle opacity fade instead of collapsing (`useReloadableList` — see Section 5), fixing a reported scroll-reset-to-top bug
 
 **Add Lead CTA (TopBar):**
 - "Add Lead" primary button (tokens.primary background) shown on all routes starting with `/portal`
@@ -605,7 +633,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - Weekend reminder banner when today is Sat/Sun; "Send Test Reminder" ghost button calls edge function directly
 - pg_cron job: `linkedin-weekly-reminder` schedule `'30 12 * * 0'` (Sunday 12:30 UTC) — requires pg_cron + pg_net extensions enabled
 
-**Smart Shortlist tab:** see Section 1's `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` entries for full detail (tables, edge function, frontend, current disabled-AI-run state). Admin-only, 6th tab, Sparkles icon.
+**Smart Shortlist tab:** see Section 1's `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` entries for full detail (tables, edge function, frontend, current disabled-AI-run state). Admin-only, 6th tab, Sparkles icon. The bulk multi-screenshot "Run" button is still disabled pending the queue-based architecture fix — as of 3 Aug 2026 the "New shortlist" modal instead drives a working **single-screenshot** flow (`extract-lead-from-image` → create lead → `score-single-lead`), see Section 1's ICP lead scoring entry. Not yet live browser-verified end to end.
 
 **Public route:** `/unsubscribe/:token` — confirmation step before RPC fires (prevents pre-fetcher unsubscribes)
 
@@ -619,9 +647,11 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 | Item | Priority |
 |---|---|
+| New Shortlist modal (single-screenshot lead extraction, 3 Aug 2026) — not live browser-verified against the real edge functions end to end; test manually before fully trusting | High |
 | Smart Shortlist AI run — queue-based async architecture refactor (pg_net or dedicated worker) to fix edge function timeout; currently disabled in UI | High |
+| `ActivityTab.tsx` / `EnquiriesTab.tsx` list-collapses-on-reload bug — same root cause as the fixed `LeadsTab` scroll-reset issue (see Section 1), not yet migrated to `useReloadableList` | Medium |
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
-| Invoice nudge automation (next available migration, 0081 now used by billing_title): scheduled reminders at due date, +3d, +7d with PDF attachment | High |
+| Invoice nudge automation (next available migration is `0084`): scheduled reminders at due date, +3d, +7d with PDF attachment | High |
 | pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) — standing gap across Proposals, Invoices admin, and all portal error states | Medium |
@@ -641,7 +671,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 **Smart Shortlist AI run fix:** Queue-based async processing via pg_net or dedicated worker to bypass edge function execution limits. Replaces current disabled synchronous flow.
 
-**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0083` (`0081` used by billing_title; `0082` used twice — see Section 3's Enquiry tables note).
+**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0084` (`0081` billing_title, `0082` used twice — see Section 3's Enquiry tables note — `0083` leads ICP score columns).
 
 **Branding landing Phase 2/3:** Visibility and Scale solution sections built from Figma hi-fi using same MCP + marketing component pattern as hero.
 
@@ -681,4 +711,4 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 ## 14. One-line summary
 
-Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, marketing components in src/components/marketing/ not portal folder, Smart Shortlist AI run disabled pending queue-based architecture fix, next migration 0083.
+Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, marketing components in src/components/marketing/ not portal folder, Smart Shortlist bulk AI run disabled pending queue-based architecture fix (single-lead extraction via New Shortlist modal works instead, not yet live-verified), ICP score tiers unified at 75/50 everywhere, formatPortalDate is the one date formatter (documented exceptions apply), SortableTableHeader is the one sortable-table-header component, next migration 0084.
