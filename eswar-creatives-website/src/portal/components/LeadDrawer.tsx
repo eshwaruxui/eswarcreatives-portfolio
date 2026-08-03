@@ -1,6 +1,7 @@
 // Lead drawer: full lead detail, editable fields, enrollment, timeline, convert to client.
 // SidePanel on desktop, full-screen bottom sheet on mobile (handled by SidePanel itself).
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { ExternalLink, Clock, Mail, Linkedin, X, Reply } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
@@ -8,6 +9,8 @@ import { tokens, t, fonts, motionTokens } from '../theme'
 import { SidePanel } from '../admin/SidePanel'
 import { mono, formatDate } from '../admin/ui'
 import { showToast } from '../admin/toast'
+import { useBreakpoint } from '../hooks/useBreakpoint'
+import { ScoreRing } from './shared/ScoreRing'
 
 type LeadStatus =
   | 'new' | 'active' | 'replied' | 'meeting_booked' | 'converted'
@@ -36,6 +39,9 @@ export type LeadDetail = {
   unsubscribe_token: string
   follow_up_date: string | null
   draft_message: string | null
+  vertical: 'design_systems' | 'branding' | null
+  icp_score: number | null
+  icp_match_reason: string | null
 }
 
 type EnrollmentRow = {
@@ -164,6 +170,8 @@ export function LeadDrawer({
   onConverted?: (clientId: string) => void
   onDeleted?: () => void
 }) {
+  const navigate = useNavigate()
+  const { isMobile } = useBreakpoint()
   const [lead, setLead] = useState<LeadDetail | null>(null)
   const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([])
   const [timeline, setTimeline] = useState<TouchTimelineRow[]>([])
@@ -437,6 +445,13 @@ export function LeadDrawer({
         <div style={styles.chipRow}>
           <SegmentChip segment={lead.segment} />
           <StatusChip status={lead.status} />
+          <ScoreRing
+            score={lead.icp_score}
+            reason={lead.icp_match_reason}
+            size={isMobile ? 20 : 18}
+            popoverWidth={isMobile ? 220 : 260}
+            onRunScoring={() => navigate('/portal/admin/outreach?tab=shortlist')}
+          />
         </div>
 
         {lastTouchAt && (

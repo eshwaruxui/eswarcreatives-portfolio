@@ -7,32 +7,13 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../../admin/ui'
 import { showToast } from '../../admin/toast'
+import { ScoreRing } from '../shared/ScoreRing'
 import {
   candidateInitials,
   splitName,
   type ShortlistCandidate,
   type Vertical,
 } from './types'
-
-function scoreColor(score: number | null): string {
-  if (score == null) return t.text.muted
-  if (score < 41) return t.border.danger
-  if (score < 70) return tokens.gold
-  return t.border.success
-}
-
-export function ScoreBar({ score }: { score: number | null }) {
-  const pct = score ?? 0
-  const color = scoreColor(score)
-  return (
-    <div style={s.scoreRow}>
-      <div style={s.scoreBarTrack}>
-        <div style={{ ...s.scoreBarFill, width: `${pct}%`, background: color }} />
-      </div>
-      <span style={s.scoreNumber}>{score ?? '—'}</span>
-    </div>
-  )
-}
 
 export function CandidateCard({
   candidate,
@@ -80,6 +61,8 @@ export function CandidateCard({
         segment: 'saas_product',
         source: 'smart_shortlist',
         status: 'new',
+        icp_score: candidate.icp_score,
+        icp_match_reason: candidate.icp_match_reason,
       })
       .select('id')
       .single()
@@ -131,7 +114,7 @@ export function CandidateCard({
 
       <div style={s.scoreBlock}>
         <span style={s.scoreLabel}>ICP match</span>
-        <ScoreBar score={candidate.icp_score} />
+        <ScoreRing score={candidate.icp_score} interactive={false} size={22} />
       </div>
 
       {candidate.icp_match_reason && <p style={s.reason}>{candidate.icp_match_reason}</p>}
@@ -246,20 +229,6 @@ const s: Record<string, CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  scoreRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  scoreBarTrack: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    background: t.background.muted,
-    overflow: 'hidden',
-  },
-  scoreBarFill: {
-    height: '100%',
-    borderRadius: 2,
-    transition: `width ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
-  },
-  scoreNumber: { fontFamily: mono, fontSize: 12, color: t.text.muted, flexShrink: 0 },
   reason: {
     fontFamily: fonts.body,
     fontSize: 12,
