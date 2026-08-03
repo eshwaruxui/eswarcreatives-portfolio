@@ -68,9 +68,21 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function htmlBody(body: string): string {
+function htmlBody(body: string, unsubUrl: string): string {
   // Preserve paragraph breaks: \n\n → <br><br>, then remaining \n → <br>
-  const escaped = escapeHtml(body)
+  let escaped = escapeHtml(body);
+
+  // Embed the two footer links as real anchors instead of bare URLs.
+  const linkStyle = "color:#024C4F;text-decoration:underline;";
+  const escapedUnsubUrl = escapeHtml(unsubUrl);
+  escaped = escaped.split(escapedUnsubUrl).join(
+    `<a href="${escapedUnsubUrl}" style="${linkStyle}">unsubscribe</a>`
+  );
+  escaped = escaped.split("eswarcreatives.in/design-systems").join(
+    `<a href="https://www.eswarcreatives.in/design-systems" style="${linkStyle}">eswarcreatives.in/design-systems</a>`
+  );
+
+  escaped = escaped
     .replace(/\n\n/g, "<br><br>")
     .replace(/\n/g, "<br>");
   return `<!doctype html>
@@ -294,7 +306,7 @@ Deno.serve(async (req: Request) => {
         reply_to: "eswar@eswarcreatives.in",
         subject: renderedSubject,
         text: renderedBody,
-        html: htmlBody(renderedBody),
+        html: htmlBody(renderedBody, unsubUrl),
       }),
     });
 

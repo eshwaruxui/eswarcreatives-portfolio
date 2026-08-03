@@ -1,16 +1,18 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Confirms and sends a touch that was deferred due to business hours.
+// Approves a touch early from "Review in Advance" (tomorrow's queue).
+// Does NOT send immediately: regardless of when the admin confirms, delivery
+// is held for 9:30 AM ET on the next business day (never same day, never a
+// weekend). This function just stamps the approval and moves scheduled_for
+// to that hold time; send-confirmed-outreach-touches (cron-invoked) does the
+// actual send once the window arrives, re-running these same safety checks.
 // Auth: admin JWT required.
 // POST body: { touch_id: string }
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const PORTAL_URL = Deno.env.get("PORTAL_URL") ?? "https://www.eswarcreatives.in";
-const FROM = "Eswar Maheswaran <eswar@eswarcreatives.in>";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -32,37 +34,50 @@ function fail(code: string, status = 400) {
   });
 }
 
-function substitute(template: string, vars: Record<string, string>): string {
-  let out = template;
-  for (const [key, val] of Object.entries(vars)) {
-    out = out.replaceAll(`{{${key}}}`, val);
+function isWeekendInET(date: Date): boolean {
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" }).format(date);
+  return wd === "Sat" || wd === "Sun";
+}
+
+// Converts a wall-clock date/time in a given IANA zone to the equivalent UTC instant.
+function zonedWallTimeToUtc(y: number, m: number, d: number, hh: number, mm: number, timeZone: string): Date {
+  let utcGuess = Date.UTC(y, m - 1, d, hh, mm);
+  for (let i = 0; i < 2; i++) {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone, hour12: false,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+    });
+    const parts = dtf.formatToParts(new Date(utcGuess));
+    const get = (t: string) => parseInt(parts.find((p) => p.type === t)!.value, 10);
+    const asIfUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"));
+    utcGuess += Date.UTC(y, m - 1, d, hh, mm) - asIfUtc;
   }
-  return out;
+  return new Date(utcGuess);
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+// Always advances at least one calendar day in US Eastern time, skipping
+// weekends, then returns that day's 9:30 AM ET as a UTC instant.
+function nextBusinessDay930ET(from: Date): Date {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const parts = fmt.formatToParts(from);
+  const y = parseInt(parts.find((p) => p.type === "year")!.value, 10);
+  const m = parseInt(parts.find((p) => p.type === "month")!.value, 10);
+  const d = parseInt(parts.find((p) => p.type === "day")!.value, 10);
 
-function htmlBody(body: string): string {
-  const escaped = escapeHtml(body)
-    .replace(/\n\n/g, "<br><br>")
-    .replace(/\n/g, "<br>");
-  return `<!doctype html>
-<html>
-  <body style="margin:0;background:#FAF8F4;font-family:Inter,Arial,sans-serif;color:#0A1A1B;">
-    <div style="max-width:520px;margin:0 auto;padding:32px 24px;">
-      <div style="font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;color:#024C4F;margin-bottom:24px;">
-        EswarCreatives
-      </div>
-      <div style="font-size:15px;line-height:1.65;color:#1A1A1A;">${escaped}</div>
-    </div>
-  </body>
-</html>`;
+  let anchor = new Date(Date.UTC(y, m - 1, d, 12));
+  do {
+    anchor = new Date(anchor.getTime() + 86400000);
+  } while (isWeekendInET(anchor));
+
+  const targetParts = fmt.formatToParts(anchor);
+  const ty = parseInt(targetParts.find((p) => p.type === "year")!.value, 10);
+  const tm = parseInt(targetParts.find((p) => p.type === "month")!.value, 10);
+  const td = parseInt(targetParts.find((p) => p.type === "day")!.value, 10);
+
+  return zonedWallTimeToUtc(ty, tm, td, 9, 30, "America/New_York");
 }
 
 Deno.serve(async (req: Request) => {
@@ -103,13 +118,8 @@ Deno.serve(async (req: Request) => {
     .from("outreach_touches")
     .select(`
       id, channel, status,
-      subject_snapshot, body_snapshot, step_id,
       lead:leads!lead_id (
-        id, first_name, last_name, company, email, specific_observation,
-        unsubscribe_token, status
-      ),
-      step:sequence_steps!step_id (
-        subject_template, body_template
+        id, email, specific_observation, status
       )
     `)
     .eq("id", touchId)
@@ -120,9 +130,7 @@ Deno.serve(async (req: Request) => {
   if (touch.status !== "scheduled") return fail("not_scheduled");
 
   const lead = touch.lead as {
-    id: string; first_name: string; last_name: string | null; company: string;
-    email: string | null; specific_observation: string | null;
-    unsubscribe_token: string; status: string;
+    id: string; email: string | null; specific_observation: string | null; status: string;
   };
 
   if (!lead.email) return fail("no_email");
@@ -147,82 +155,16 @@ Deno.serve(async (req: Request) => {
     return fail("missing_observation");
   }
 
-  // Mark confirmed by admin
+  const holdUntil = nextBusinessDay930ET(new Date());
+
   await db
     .from("outreach_touches")
     .update({
       draft_confirmed_at: new Date().toISOString(),
       draft_confirmed_by: auth.user.id,
+      scheduled_for: holdUntil.toISOString(),
     })
     .eq("id", touchId);
 
-  const step = touch.step as { subject_template: string | null; body_template: string } | null;
-  const unsubUrl = `${PORTAL_URL}/unsubscribe/${lead.unsubscribe_token}`;
-  const vars: Record<string, string> = {
-    first_name: lead.first_name,
-    company: lead.company,
-    specific_observation: lead.specific_observation ?? "",
-    flow: "product",
-    unsubscribe_url: unsubUrl,
-    topic: "{{topic}}",
-  };
-
-  const rawSubject = step?.subject_template ?? touch.subject_snapshot ?? "";
-  const rawBody = step?.body_template ?? touch.body_snapshot ?? "";
-  const renderedSubject = substitute(rawSubject, vars);
-  let renderedBody = substitute(rawBody, vars);
-
-  if (lead.company.slice(-1).toLowerCase() === "s") {
-    renderedBody = renderedBody.replaceAll(`${lead.company}'s`, `${lead.company}'`);
-  }
-
-  if (renderedBody.includes("{{")) return fail("unresolved_variables");
-
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: FROM,
-        to: lead.email,
-        reply_to: "eswar@eswarcreatives.in",
-        subject: renderedSubject,
-        text: renderedBody,
-        html: htmlBody(renderedBody),
-      }),
-    });
-
-    if (!res.ok) {
-      console.error("confirm-scheduled-touch: Resend error", res.status);
-      await db
-        .from("outreach_touches")
-        .update({ status: "failed" })
-        .eq("id", touchId);
-      return fail("Could not send email. Please try again.");
-    }
-
-    const resJson = await res.json() as { id?: string };
-    await db
-      .from("outreach_touches")
-      .update({
-        status: "sent",
-        sent_at: new Date().toISOString(),
-        subject_snapshot: renderedSubject,
-        body_snapshot: renderedBody,
-        resend_message_id: resJson.id ?? null,
-      })
-      .eq("id", touchId);
-
-    return ok({ sent: true });
-  } catch (e) {
-    console.error("confirm-scheduled-touch: exception", e);
-    await db
-      .from("outreach_touches")
-      .update({ status: "failed" })
-      .eq("id", touchId);
-    return fail("Could not send email. Please try again.");
-  }
+  return ok({ approved: true, hold_until: holdUntil.toISOString() });
 });

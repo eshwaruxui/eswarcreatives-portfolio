@@ -63,7 +63,7 @@ type ThreadTouch = {
   body: string
 }
 
-function useConfirmScheduledTouch(onSuccess: (id: string) => void) {
+function useConfirmScheduledTouch(onSuccess: (id: string, holdUntil?: string) => void) {
   const [confirming, setConfirming] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -78,9 +78,9 @@ function useConfirmScheduledTouch(onSuccess: (id: string) => void) {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       })
       if (fnErr || !data || data.error) {
-        setErrors((e) => ({ ...e, [touchId]: 'Could not send. Please try again.' }))
+        setErrors((e) => ({ ...e, [touchId]: 'Could not approve. Please try again.' }))
       } else {
-        onSuccess(touchId)
+        onSuccess(touchId, data.hold_until as string | undefined)
       }
     } catch {
       setErrors((e) => ({ ...e, [touchId]: 'Network error. Please try again.' }))
@@ -94,6 +94,10 @@ function useConfirmScheduledTouch(onSuccess: (id: string) => void) {
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
+}
+
+function tomorrowStr(): string {
+  return new Date(Date.now() + 86400000).toISOString().slice(0, 10)
 }
 
 function daysOverdue(scheduled: string): number {
@@ -239,7 +243,8 @@ export function TodayTab({
           `)
           .eq('status', 'scheduled')
           .eq('channel', 'email')
-          .gt('scheduled_for', `${today}T23:59:59Z`)
+          .gte('scheduled_for', `${tomorrowStr()}T00:00:00Z`)
+          .lte('scheduled_for', `${tomorrowStr()}T23:59:59Z`)
           .order('scheduled_for', { ascending: true })
           .limit(20),
         supabase
@@ -291,9 +296,14 @@ export function TodayTab({
     setDueToday(update)
   }
 
-  const { confirming: confirmingId, errors: confirmErrors, confirm } = useConfirmScheduledTouch((id) => {
+  const { confirming: confirmingId, errors: confirmErrors, confirm } = useConfirmScheduledTouch((id, holdUntil) => {
     setPendingConfirmation((prev) => prev.filter((t) => t.id !== id))
-    showToast('Email sent successfully.')
+    const when = holdUntil
+      ? new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/New_York', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true,
+        }).format(new Date(holdUntil))
+      : null
+    showToast(when ? `Approved — will send ${when} ET.` : 'Approved. Will send at the next business-day window.')
   })
 
   async function handleMarkFollowUpDone(leadId: string) {
@@ -557,7 +567,7 @@ export function TodayTab({
       {!loading && pendingConfirmation.length > 0 && (
         <div style={styles.pendingSection}>
           <div style={styles.pendingSectionHeader}>
-            <span style={styles.sectionTitle}>Pending Confirmation</span>
+            <span style={styles.sectionTitle}>Review in Advance</span>
             <span style={{ ...styles.sectionCount, color: tokens.goldDark, fontFamily: mono }}>
               {pendingConfirmation.length}
             </span>
@@ -616,7 +626,7 @@ export function TodayTab({
                             disabled={!!confirmingId}
                             onClick={() => confirm(touch.id)}
                           >
-                            Confirm and Send
+                            Approve
                           </button>
                         </>
                       )}
