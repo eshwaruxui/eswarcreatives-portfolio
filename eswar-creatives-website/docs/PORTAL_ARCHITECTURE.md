@@ -1,13 +1,13 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 4 August 2026 (outreach footer cleanup + HTML link embedding, migration 0084; "Review in Advance" hold-to-next-business-day + cron auto-send, migration 0085, new send-confirmed-outreach-touches edge function — both merged staging → main). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 5 August 2026 (LinkedIn content calendar redesign — Pending Posts, week-grouped History, drawer composer/view; This-Week-pinning fix + Next Week + Drafts sections, migration 0086; CSV lead import Apollo-header fix — all merged staging → main). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
 **Active branch:** `main`
-**Status:** Stable. Outreach footer/link-embedding fix and the "Review in Advance" hold-to-next-business-day + cron auto-send feature (`staging` branch) merged to main on 4 August 2026 — see the dedicated entries below. ICP lead scoring + portal UX consistency work (`staging` branch, ten commits) merged to main on 3 August 2026, same day as PR #18 — see the dedicated entry below for the full list and the merge-conflict note. PR #18 (`fix/linkedin-planner-save-and-attachments`) merged to main on 3 August 2026. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
+**Status:** Stable. LinkedIn content calendar redesign (Pending Posts, week-grouped History, drawer composer/view, This Week pinning fix, Next Week + Drafts sections — migration 0086) and a CSV lead import fix (Apollo/export-tool header aliasing) merged to main on 5 August 2026 — see the dedicated entries below. Outreach footer/link-embedding fix and the "Review in Advance" hold-to-next-business-day + cron auto-send feature (`staging` branch) merged to main on 4 August 2026 — see the dedicated entries below. ICP lead scoring + portal UX consistency work (`staging` branch, ten commits) merged to main on 3 August 2026, same day as PR #18 — see the dedicated entry below for the full list and the merge-conflict note. PR #18 (`fix/linkedin-planner-save-and-attachments`) merged to main on 3 August 2026. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -260,9 +260,32 @@ _"Review in Advance" hold-to-next-business-day + cron auto-send (migration 0085 
 - Migration 0085: enables `pg_cron` + `pg_net`, schedules `send-confirmed-outreach-touches` every 5 minutes via `cron.schedule` + `net.http_post`, pulling the shared secret from `vault.decrypted_secrets`. The `CRON_SECRET` Vault entry and the matching Edge Function secret are **not** part of the migration (security-sensitive, set once manually in the dashboard/SQL editor) — both must hold the exact same string or the function 401s on every call. Hit exactly this during setup: the Vault copy was 1 character short from a copy-paste truncation; fixed via `vault.update_secret(...)`, confirmed via `net._http_response.status_code` flipping from 401 to 200.
 - **Not yet live-tested end to end with a real send** — verified the auth handshake and the empty-queue path (`processed:0`) via a manual `curl` call, but no admin has approved a tomorrow-touch and watched it actually arrive in an inbox at its 9:30 AM ET window yet. Do that before fully trusting it with live prospects.
 
+_LinkedIn content calendar redesign — Pending Posts, week-grouped History, drawer composer/view (merged to main 5 Aug 2026):_
+- New shared file `src/portal/admin/outreach/linkedinPosts.ts`: `Post` type, constants, IST-based date helpers (`groupPostsByWeek`, `daysOverdue`, `nextWeekOf`), and shared mutation actions (`publishLinkedInPost`, `deleteLinkedInPost`) used by `LinkedInTab.tsx` and the two new drawer components below — one source of truth instead of duplicated logic per screen.
+- **Pending Posts section:** any `pending` post whose `scheduled_for` no longer falls in either This Week's or Next Week's 3 visible slots (e.g. it fell off the grid before the current-week fix below existed, or is more than a week overdue) now stays visible in its own section instead of silently vanishing once the week rolled over. Shows an "Overdue by N days" tag per post.
+- **Post History grouped by week:** buckets computed off the Monday of each post's IST calendar week, labeled "\<Month> Week N" (newest week first, Mon→Fri chronological within each group) — was a flat, ungrouped list before.
+- **Detail panel (`LinkedInPostView.tsx`):** clicking any post card anywhere in the tab (slots, Pending, History) opens a right-side read-only panel with the full untruncated content and banner image, plus Copy/Edit/Publish/Delete actions gated by status. History rows/cards gained click-to-view + keyboard support (Enter/Space); quick-action icon buttons `stopPropagation()` so they still act on the post directly.
+- **Composer moved from a centered modal to a right-side drawer (`LinkedInPostComposer.tsx`)**, using the same shared `SidePanel` every other admin drawer uses (`LeadDrawer`, `EnquiryDrawer`, ...) instead of a one-off `Modal`. Save/Cancel live in `headerExtra` (always visible, no footer needed).
+- `SidePanel.tsx` gained an optional `preventClose` prop (backward-compatible, opt-in) — blocks Escape/backdrop-click/the header X while a save is in flight, matching what the old modal already guarded against.
+- Editing now works for *any* pending post, not just ones in the current week's slots — the composer's `edit` mode no longer depends on `weekDates[slot]` to resolve the post's date, it reads `post.scheduled_for` directly.
+
+_LinkedIn current-week fix + Next Week + Drafts sections (migration 0086 — merged to main 5 Aug 2026):_
+- **Root cause fixed:** `get_upcoming_linkedin_week()` always resolved to "the upcoming Monday" — correct only when today itself was Monday; from Tuesday through Friday it silently jumped forward and showed *next* week's dates in "This Week's Posts," hiding that week's real Wed/Fri posts entirely (confirmed live before the fix: two real pending posts were invisible under the bug and reappeared once fixed). Migration 0086 pins Mon-Fri to the actual current week; weekend behavior (Sat/Sun → next Monday) is unchanged, since the Sunday `linkedin-weekly-reminder` cron relies on it.
+- **Next Week section:** visible Wednesday through Friday only (hidden the rest of the week, since once the weekend rollover happens "next week" already becomes "this week"). Dates computed client-side as `nextWeekOf(thisWeek)` — exactly +7 days on each of This Week's Mon/Wed/Fri — no second RPC call.
+- **Drafts section:** new `'draft'` status + nullable `scheduled_for` (migration 0086), for post ideas saved before they're assigned to a specific slot. A `linkedin_posts_draft_scheduled_for_check` constraint enforces `status = 'draft' OR scheduled_for IS NOT NULL` — every non-draft row is guaranteed a date. Editing a draft shows a picker of currently-open slots across both This Week and Next Week (`{dateStr, label}` options built from whichever of the 6 slots are empty); picking one sets `scheduled_for` + flips `status` to `pending` in the same save. A draft **cannot** be "Published Now" directly — publishing sets `status='published'` without touching `scheduled_for`, which would violate the constraint for a still-dateless row — so Publish stays gated to `status === 'pending'` only; Edit is allowed for both `draft` and `pending`.
+- **Click-to-view everywhere:** This Week and Next Week slot cards (previously actions-only, no click behavior) now open the detail panel on click too, via a shared `WeekSlotGrid` component reused by both sections — completing the click-to-view pattern for every post card in the tab (slots, Pending, Drafts, History).
+- `SlotDate`/composer state simplified: `ComposerState` no longer keys create-mode off a `SlotDate` + `weekDates` lookup — it carries the resolved `slotDateStr` directly (or none, for a new draft), since Next Week slots and draft-assignment slots both need an arbitrary date string, not just one of the three current-week keys.
+- Migration presented to the user and run manually via the Supabase SQL Editor (per the step-by-step migration preference — see Section 13); **live-verified end to end afterward**, not just typechecked: This Week correctly showed the real current week post-fix, a real draft was created and saved, and the slot-assignment flow was confirmed via a direct DB query (draft → assigned to a Next Week slot → row correctly became `status='pending'` with `scheduled_for` at the right instant) before being cleaned up.
+
+_CSV lead import — Apollo/export-tool header fix (`CsvImportModal.tsx` — merged to main 5 Aug 2026):_
+- **Root cause:** not a text-casing bug (headers were already lowercased) — Apollo's export uses entirely different column names than the app's canonical fields (`Company Name` vs `company`, `Title` vs `role_title`, `Person Linkedin Url` vs `linkedin_url`). With zero alias mapping, every row failed the "missing company" check even though the data was present under a different column, so 100% of an Apollo export got skipped.
+- Added a `HEADER_ALIASES` map (`company` ← `company_name`/`organization`, `role_title` ← `title`/`job_title`, `linkedin_url` ← `person_linkedin_url`) resolved once per row via `resolveAliases()`. UI hint text updated to list the recognized aliases.
+- Related bug fixed in the same parser: naive `line.split(',')` misaligned columns on any quoted field containing a comma (e.g. a title like "VP, Product") — very likely the cause of a company name landing in the EMAIL column for a couple of rows in the original bug report. Replaced with a quote-aware `splitCsvLine()` (handles quoted fields + escaped `""`), plus `\r\n` line-ending normalization for Windows-exported files.
+- Live-verified against real production leads data: pasted a synthetic Apollo-style row with a quoted comma in the title (testing both fixes at once) — company/title/LinkedIn URL resolved correctly, and an already-existing lead's email was correctly caught as a duplicate. Did not click Import during the test to avoid writing fake data.
+
 **Supabase plan:** Pro ($25/month, upgraded 24 Jul 2026). Project ref: `urrinqwcrpivmvenupiu` (Mumbai, ap-south-1).
 
-**Next migration number: 0086**
+**Next migration number: 0087**
 
 ---
 
@@ -335,11 +358,13 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 
 **Migration 0085 — outreach confirmed-send cron:** enables `pg_cron` + `pg_net`, schedules `send-confirmed-outreach-touches` every 5 minutes. No column/table changes — infra-only. `CRON_SECRET` Vault entry created manually, not via migration (security-sensitive). See Section 1's "Review in Advance" entry.
 
-- Next migration must be `0086`.
+**Migration 0086 — LinkedIn current-week fix + drafts:** `CREATE OR REPLACE FUNCTION get_upcoming_linkedin_week()` — pins Mon-Fri to the actual current week instead of always resolving to "the upcoming Monday" (weekend rollover behavior unchanged). `linkedin_posts.scheduled_for` — `DROP NOT NULL` (nullable, for drafts). `linkedin_posts` status CHECK constraint — extended to `('pending','published','failed','draft')` (existing constraint discovered dynamically via `pg_constraint`/`pg_get_constraintdef` rather than a hardcoded guessed name, since it was an unnamed inline column CHECK). New `linkedin_posts_draft_scheduled_for_check` CHECK: `status = 'draft' OR scheduled_for IS NOT NULL`. Applied manually via the Supabase SQL Editor by the user; live-verified afterward — see Section 1's LinkedIn current-week entry.
+
+- Next migration must be `0087`.
 
 **Outreach scheduling tables (migration 0076):**
 - `outreach_touches` — 3 new columns: `recipient_timezone text`, `draft_confirmed_at timestamptz`, `draft_confirmed_by uuid → auth.users`; status constraint extended: `('pending','sent','failed','skipped','scheduled','cancelled')` (further extended to add `'held'` in migration 0080, see below)
-- `linkedin_posts`: id, content, scheduled_for (timestamptz at 09:00+05:30 for Mon/Wed/Fri), status (`pending`/`published`/`failed`), published_at, reminder_sent_at, created_at, updated_at. RLS: admin-only via `is_admin()`.
+- `linkedin_posts`: id, content, scheduled_for (timestamptz at 09:00+05:30 for Mon/Wed/Fri; **nullable since migration 0086** — null only for drafts, enforced by `linkedin_posts_draft_scheduled_for_check`), status (`pending`/`published`/`failed`/`draft` — `draft` added in 0086), published_at, reminder_sent_at, created_at, updated_at. RLS: admin-only via `is_admin()`.
 
 **Migration 0078 — leads table additions:**
 - `follow_up_date` date (nullable): powers Follow-ups today section in TodayTab and date input in LeadDrawer
@@ -377,7 +402,7 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 - `update_own_full_name(name)` — client SECURITY DEFINER
 - `mark_proposal_viewed(proposal_id)` — client SECURITY DEFINER
 - `is_admin()` — SECURITY DEFINER, used by all RLS policies
-- `get_upcoming_linkedin_week() → TABLE(monday date, wednesday date, friday date)` — STABLE SECURITY DEFINER; returns the Mon/Wed/Fri dates for the upcoming week (Mon if today is Monday)
+- `get_upcoming_linkedin_week() → TABLE(monday date, wednesday date, friday date)` — STABLE SECURITY DEFINER; returns the Mon/Wed/Fri dates for the **current** week when today is Mon-Fri (pinned — fixed in migration 0086, previously always jumped to the next Monday from Tuesday onward), or the **upcoming** week's dates when today is Sat/Sun (unchanged, the Sunday reminder cron relies on this)
 - `mark_lead_connected(p_lead_id uuid)` — admin-only SECURITY DEFINER (migration 0080); sets `leads.linkedin_status = 'connected'` and promotes that lead's `held` touches to `scheduled` in one call
 
 **Invoice number sequence:** Starts at EC-I-2026-105 (via invoice_number_seq)
@@ -645,14 +670,17 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 - `UserPlus` icon from lucide-react; height 34px; navigates to `/portal/admin/outreach?tab=leads&addLead=1`
 - Sits between the flex spacer and the Settings gear
 
-**LinkedIn planner tab:**
+**LinkedIn planner tab** (`LinkedInTab.tsx` + `LinkedInPostComposer.tsx` + `LinkedInPostView.tsx` + shared `linkedinPosts.ts` — see Section 1's two LinkedIn entries, 5 Aug 2026, for the full history of how this evolved from the original inline-composer version):
 - `isoSlotDate(dateStr)` formats Mon/Wed/Fri as `${date}T09:00:00+05:30`
-- On mount: calls `get_upcoming_linkedin_week()` RPC; fetches existing posts for those 3 slots
-- 3-column slot grid; each slot has inline textarea composer with 3000-char limit and character count
-- "Publish Now" button: copies content to clipboard + inserts/upserts `linkedin_posts` row optimistically
-- Post history table: last 20 rows ordered by created_at desc; published_at formatted in IST
+- On mount: calls `get_upcoming_linkedin_week()` RPC (pinned to the actual current week Mon-Fri, migration 0086 — see Section 3), derives Next Week client-side as `nextWeekOf(thisWeek)` (+7 days, no second RPC call), fetches This Week/Next Week posts, drafts, overdue-pending, and history in one `Promise.all`
+- **This Week's Posts** and **Next Week's Posts** (visible Wed-Fri only): identical 3-column Mon/Wed/Fri slot grid, rendered by a shared `WeekSlotGrid` component. Each filled slot card opens the detail panel on click; Edit/Publish Now/Delete icon buttons inside `stopPropagation()` so they act on the post directly. Empty slots show "+ Add Post" (opens the composer pre-targeted at that date).
+- **Drafts section:** always visible, "+ New Draft" opens the composer with no target date (`status='draft'`, `scheduled_for=null`). Editing a draft offers an "Assign to a slot" picker of currently-open slots across both weeks; picking one schedules it (`status→pending`) in the same save. See Section 1/Section 3 for the constraint that keeps a draft from being published without a date first.
+- **Pending Posts section:** any `pending` post that fell out of both weeks' slot grids (previous week's leftovers, anything more than ~a week overdue) — shown so it never silently disappears. "Overdue by N days" tag per card.
+- **Post History:** grouped by week ("\<Month> Week N" headers, newest first) instead of a flat list; click any row/card to open the detail panel (Copy/Delete only — Edit/Publish don't apply to resolved posts).
+- **Detail panel (click any post card, anywhere in the tab):** full untruncated content + banner image, Copy always, Edit/Publish gated by status (`draft`/`pending` → Edit; `pending` only → Publish Now).
+- "Publish Now": copies content to clipboard, updates `linkedin_posts` row (`status='published'`), opens a signed image URL in a new tab if the post has one — there's no real LinkedIn API, this is a human-in-the-loop copy/paste flow by design.
 - Weekend reminder banner when today is Sat/Sun; "Send Test Reminder" ghost button calls edge function directly
-- pg_cron job: `linkedin-weekly-reminder` schedule `'30 12 * * 0'` (Sunday 12:30 UTC) — requires pg_cron + pg_net extensions enabled
+- pg_cron job: `linkedin-weekly-reminder` schedule `'30 12 * * 0'` (Sunday 12:30 UTC) — requires pg_cron + pg_net extensions enabled; unaffected by the migration 0086 RPC fix since it only ever fires on the unchanged weekend code path
 
 **Smart Shortlist tab:** see Section 1's `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` entries for full detail (tables, edge function, frontend, current disabled-AI-run state). Admin-only, 6th tab, Sparkles icon. The bulk multi-screenshot "Run" button is still disabled pending the queue-based architecture fix — as of 3 Aug 2026 the "New shortlist" modal instead drives a working **single-screenshot** flow (`extract-lead-from-image` → create lead → `score-single-lead`), see Section 1's ICP lead scoring entry. Not yet live browser-verified end to end.
 
@@ -669,6 +697,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 | Item | Priority |
 |---|---|
 | "Review in Advance" hold + cron auto-send (4 Aug 2026) — auth handshake and empty-queue path verified manually via curl; no real approve-then-auto-send has been watched end to end yet; test with a real lead before trusting with live prospects | High |
+| LinkedIn "Next Week's Posts" section (5 Aug 2026) — visibility logic (Wed-Fri) and the underlying slot-assignment flow were confirmed via a direct DB query, but the section's own rendering hasn't been visually watched live yet (verified on a Tuesday); check once a Wednesday arrives that it actually renders the 3 correct next-week slot cards | Medium |
 | New Shortlist modal (single-screenshot lead extraction, 3 Aug 2026) — not live browser-verified against the real edge functions end to end; test manually before fully trusting | High |
 | Smart Shortlist AI run — queue-based async architecture refactor (pg_net or dedicated worker) to fix edge function timeout; currently disabled in UI | High |
 | `ActivityTab.tsx` / `EnquiriesTab.tsx` list-collapses-on-reload bug — same root cause as the fixed `LeadsTab` scroll-reset issue (see Section 1), not yet migrated to `useReloadableList` | Medium |
@@ -693,7 +722,7 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 **Smart Shortlist AI run fix:** Queue-based async processing via pg_net or dedicated worker to bypass edge function execution limits. Replaces current disabled synchronous flow.
 
-**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0086` (`0081` billing_title, `0082` used twice — see Section 3's Enquiry tables note — `0083` leads ICP score columns, `0084` outreach footer, `0085` outreach confirmed-send cron).
+**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0087` (`0081` billing_title, `0082` used twice — see Section 3's Enquiry tables note — `0083` leads ICP score columns, `0084` outreach footer, `0085` outreach confirmed-send cron, `0086` LinkedIn current-week fix + drafts).
 
 **Branding landing Phase 2/3:** Visibility and Scale solution sections built from Figma hi-fi using same MCP + marketing component pattern as hero.
 
