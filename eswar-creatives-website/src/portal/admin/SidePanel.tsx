@@ -26,6 +26,10 @@ export function SidePanel({
   // higher base so they stack above the panel that launched them.
   baseZIndex = 201,
   headerExtra,
+  // Blocks Escape / backdrop-click / the header close button from closing the
+  // panel — e.g. while a save is in flight, so a stray Escape can't unmount a
+  // form mid-request. The panel stays put rather than silently swallowing input.
+  preventClose = false,
   children,
 }: {
   title: string
@@ -34,6 +38,7 @@ export function SidePanel({
   width?: number
   baseZIndex?: number
   headerExtra?: ReactNode
+  preventClose?: boolean
   children: ReactNode
 }) {
   const { isMobile: narrow } = useBreakpoint()
@@ -51,11 +56,11 @@ export function SidePanel({
   // closing reads as the mirror image of opening (H4: consistent motion). The
   // ref guards against a double trigger (e.g. Escape during an outside click).
   const requestClose = useCallback(() => {
-    if (closingRef.current) return
+    if (closingRef.current || preventClose) return
     closingRef.current = true
     setShown(false)
     window.setTimeout(onClose, SLIDE_MS)
-  }, [onClose])
+  }, [onClose, preventClose])
 
   // H7 (flexibility/efficiency): Escape closes the drawer.
   useEffect(() => {
@@ -113,8 +118,13 @@ export function SidePanel({
             {headerExtra}
             <button
               type="button"
-              style={{ ...styles.close, ...(narrow ? styles.closeMobile : null) }}
+              style={{
+                ...styles.close,
+                ...(narrow ? styles.closeMobile : null),
+                ...(preventClose ? { opacity: 0.5, cursor: 'not-allowed' } : null),
+              }}
               onClick={requestClose}
+              disabled={preventClose}
               aria-label="Close panel"
             >
               <X size={18} />
