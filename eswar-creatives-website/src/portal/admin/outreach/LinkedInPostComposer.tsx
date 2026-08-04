@@ -21,20 +21,28 @@ import {
   type Post,
 } from './linkedinPosts'
 
+export type SlotOption = { dateStr: string; label: string }
+
 type ComposerProps = {
   mode: 'create' | 'edit'
   post?: Post
-  // Target slot date (YYYY-MM-DD), required for mode === 'create'.
+  // Target slot date (YYYY-MM-DD). For mode === 'create': present -> creates
+  // a scheduled post for that slot; absent -> creates a new draft instead.
   slotDateStr?: string
   // Pre-resolved signed URL for the post's existing image, if any (avoids a
   // redundant sign call when the parent already has it cached).
   existingImageUrl?: string | null
+  // Currently-empty This/Next week slots, offered as an "assign to a slot"
+  // picker when editing a draft. Ignored otherwise.
+  availableSlots?: SlotOption[]
   onClose: () => void
   onSaved: (post: Post) => void
 }
 
-export function LinkedInPostComposer({ mode, post, slotDateStr, existingImageUrl, onClose, onSaved }: ComposerProps) {
+export function LinkedInPostComposer({ mode, post, slotDateStr, existingImageUrl, availableSlots, onClose, onSaved }: ComposerProps) {
+  const isDraftPost = mode === 'edit' && post?.status === 'draft'
   const [draftContent, setDraftContent] = useState(post?.content ?? '')
+  const [selectedSlot, setSelectedSlot] = useState('')
   const [draftImageFile, setDraftImageFile] = useState<File | null>(null)
   const [draftImagePreview, setDraftImagePreview] = useState<string | null>(post?.image_path ? (existingImageUrl ?? null) : null)
   const [draftImageAlt, setDraftImageAlt] = useState(post?.image_alt ?? '')
@@ -77,13 +85,12 @@ export function LinkedInPostComposer({ mode, post, slotDateStr, existingImageUrl
 
   async function handleSave() {
     if (!draftContent.trim()) return
-    if (mode === 'create' && !slotDateStr) return
     setSaving(true)
     setSaveError(null)
 
     // Resolve the final image_path for this save: a newly uploaded file
     // replaces it, an explicit removal clears it, otherwise it's unchanged.
-    const slotKey = mode === 'create' ? slotDateStr!.slice(0, 10) : 'edit'
+    const slotKey = mode === 'create' ? (slotDateStr ?? 'draft').slice(0, 10) : 'edit'
     let imagePath: string | null = draftOriginalImagePath
     if (draftImageFile) {
       imagePath = `${slotKey}/${Date.now()}_${draftImageFile.name}`
@@ -97,20 +104,27 @@ export function LinkedInPostComposer({ mode, post, slotDateStr, existingImageUrl
       imagePath = null
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       content: draftContent.trim(),
       image_path: imagePath,
       image_alt: imagePath ? (draftImageAlt.trim() || null) : null,
     }
 
+    // A slot is only ever assigned here (create with a target slot, or
+    // editing a draft that just got a slot picked) — editing an
+    // already-scheduled post never touches scheduled_for/status.
+    if (mode === 'create') {
+      payload.scheduled_for = slotDateStr ? isoSlotDate(slotDateStr) : null
+      payload.status = slotDateStr ? 'pending' : 'draft'
+    } else if (isDraftPost && selectedSlot) {
+      payload.scheduled_for = isoSlotDate(selectedSlot)
+      payload.status = 'pending'
+    }
+
     const { data, error } =
       mode === 'edit' && post
         ? await supabase.from('linkedin_posts').update(payload).eq('id', post.id).select(POST_COLUMNS).single()
-        : await supabase
-            .from('linkedin_posts')
-            .insert({ ...payload, scheduled_for: isoSlotDate(slotDateStr!), status: 'pending' })
-            .select(POST_COLUMNS)
-            .single()
+        : await supabase.from('linkedin_posts').insert(payload).select(POST_COLUMNS).single()
 
     if (error || !data) {
       setSaveError(mode === 'edit' ? 'Could not update this post. Please try again.' : 'Could not save this post. Please try again.')
@@ -125,9 +139,15 @@ export function LinkedInPostComposer({ mode, post, slotDateStr, existingImageUrl
     onSaved(data as Post)
   }
 
-  const activeDateStr = mode === 'create' ? slotDateStr : post?.scheduled_for
-  const title = mode === 'edit' ? 'Edit post' : 'New post'
-  const subtitle = activeDateStr ? formatSlotDate(activeDateStr) : undefined
+  const activeDateStr = mode === 'create' ? slotDateStr : (post?.scheduled_for ?? undefined)
+  const title = mode === 'edit' ? (isDraftPost ? 'Edit draft' : 'Edit post') : (slotDateStr ? 'New post' : 'New draft')
+  const subtitle = activeDateStr ? formatSlotDate(activeDateStr) : (isDraftPost ? 'No date assigned yet' : undefined)
+
+  function saveLabel(): string {
+    if (mode === 'create') return slotDateStr ? 'Save' : 'Save draft'
+    if (isDraftPost) return selectedSlot ? 'Assign & save' : 'Save draft'
+    return 'Save changes'
+  }
 
   const headerExtra = (
     <div style={styles.headerActions}>
@@ -145,10 +165,8 @@ export function LinkedInPostComposer({ mode, post, slotDateStr, existingImageUrl
             <Spinner size={12} color="#fff" />
             <span>Saving...</span>
           </>
-        ) : mode === 'edit' ? (
-          'Save changes'
         ) : (
-          'Save'
+          saveLabel()
         )}
       </button>
     </div>
@@ -167,6 +185,26 @@ export function LinkedInPostComposer({ mode, post, slotDateStr, existingImageUrl
           autoFocus
         />
         <p style={styles.charCount}>{LI_CHAR_LIMIT - draftContent.length} characters remaining</p>
+
+        {isDraftPost && (
+          <div style={styles.slotPicker}>
+            <label style={styles.slotPickerLabel} htmlFor="linkedin-draft-slot">Assign to a slot (optional)</label>
+            <select
+              id="linkedin-draft-slot"
+              style={styles.slotSelect}
+              value={selectedSlot}
+              onChange={(e) => setSelectedSlot(e.target.value)}
+            >
+              <option value="">Keep as draft</option>
+              {(availableSlots ?? []).map((s) => (
+                <option key={s.dateStr} value={s.dateStr}>{s.label}</option>
+              ))}
+            </select>
+            {(availableSlots ?? []).length === 0 && (
+              <p style={styles.slotPickerHint}>No open slots this week or next — free one up, or keep this as a draft.</p>
+            )}
+          </div>
+        )}
 
         {draftImagePreview ? (
           <div style={styles.imagePreviewRow}>
@@ -392,6 +430,27 @@ const styles: Record<string, CSSProperties> = {
     boxSizing: 'border-box' as const,
   },
   charCount: { fontFamily: mono, fontSize: 11, color: t.text.muted, margin: '-4px 0 0', textAlign: 'right' },
+  slotPicker: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    background: t.background.subtle,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    padding: '10px 12px',
+  },
+  slotPickerLabel: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: t.text.secondary },
+  slotSelect: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.primary,
+    background: tokens.inputBg,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 6,
+    padding: '6px 8px',
+    outline: 'none',
+  },
+  slotPickerHint: { fontFamily: fonts.body, fontSize: 11, color: t.text.muted, margin: 0 },
   imageDropZone: {
     display: 'flex',
     alignItems: 'center',

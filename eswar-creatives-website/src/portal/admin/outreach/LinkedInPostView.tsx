@@ -1,7 +1,8 @@
 // Right-side read-only panel for a single LinkedIn post — shows the full
-// (untruncated) content and banner image. Opened by clicking a post in
-// "Pending Posts" or "Post History". Still-pending posts get Edit/Publish
-// actions; resolved posts (published/failed) are view + copy + delete only.
+// (untruncated) content and banner image. Opened by clicking any post card
+// anywhere in the tab (This/Next Week slots, Pending, Drafts, History).
+// Drafts and pending posts get Edit/Publish actions; resolved posts
+// (published/failed) are view + copy + delete only.
 import { useState } from 'react'
 import { Copy, Pencil, Trash2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
@@ -16,6 +17,7 @@ import {
   daysOverdue,
   deleteLinkedInPost,
   formatIST,
+  isEditable,
   publishLinkedInPost,
   type Post,
 } from './linkedinPosts'
@@ -33,8 +35,14 @@ type ViewProps = {
 export function LinkedInPostView({ post, imageUrl, onClose, onEdit, onDeleted, onPublished, onToast }: ViewProps) {
   const [publishing, setPublishing] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const isPending = post.status === 'pending'
-  const overdue = isPending ? daysOverdue(post.scheduled_for) : -1
+  // Drafts and pending posts can both be edited; only a pending post (one
+  // that already has a scheduled_for) can be published — publishing a draft
+  // directly would leave status='published' with scheduled_for still null,
+  // which the DB's linkedin_posts_draft_scheduled_for_check rejects. A draft
+  // has to be assigned to a slot first (via Edit).
+  const canEdit = isEditable(post)
+  const canPublish = post.status === 'pending'
+  const overdue = post.status === 'pending' && post.scheduled_for ? daysOverdue(post.scheduled_for) : -1
 
   async function handleCopy() {
     try {
@@ -75,7 +83,7 @@ export function LinkedInPostView({ post, imageUrl, onClose, onEdit, onDeleted, o
 
   const headerExtra = (
     <div style={styles.headerActions}>
-      {isPending && (
+      {canEdit && (
         <button type="button" style={styles.iconBtn} onClick={() => onEdit(post)} title="Edit post" aria-label="Edit post">
           <Pencil size={15} color={t.text.tertiary} />
         </button>
@@ -98,8 +106,8 @@ export function LinkedInPostView({ post, imageUrl, onClose, onEdit, onDeleted, o
 
   return (
     <SidePanel
-      title="LinkedIn post"
-      subtitle={formatPortalDate(post.scheduled_for)}
+      title={post.status === 'draft' ? 'LinkedIn draft' : 'LinkedIn post'}
+      subtitle={post.scheduled_for ? formatPortalDate(post.scheduled_for) : 'No date assigned yet'}
       onClose={onClose}
       width={520}
       headerExtra={headerExtra}
@@ -110,7 +118,7 @@ export function LinkedInPostView({ post, imageUrl, onClose, onEdit, onDeleted, o
           <span style={{ ...styles.statusBadge, background: STATUS_TONES[post.status]?.bg, color: STATUS_TONES[post.status]?.fg }}>
             {post.status}
           </span>
-          {isPending && overdue > 0 && (
+          {overdue > 0 && (
             <span style={styles.overdueBadge}>Overdue by {overdue} day{overdue !== 1 ? 's' : ''}</span>
           )}
           {post.published_at && <span style={styles.metaText}>Published {formatIST(post.published_at)}</span>}
@@ -122,7 +130,9 @@ export function LinkedInPostView({ post, imageUrl, onClose, onEdit, onDeleted, o
 
         <p style={styles.content}>{post.content}</p>
 
-        {isPending && (
+        {post.status === 'draft' && <p style={styles.metaText}>Assign this to a slot (via Edit) before it can be published.</p>}
+
+        {canPublish && (
           <button type="button" style={{ ...styles.publishBtn, opacity: publishing ? 0.6 : 1 }} onClick={handlePublish} disabled={publishing}>
             {publishing ? (
               <>

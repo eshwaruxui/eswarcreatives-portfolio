@@ -4,12 +4,14 @@
 import { supabase } from '../../../lib/supabase'
 import { tokens, t } from '../../theme'
 
-export type LinkedInPostStatus = 'pending' | 'published' | 'failed'
+export type LinkedInPostStatus = 'draft' | 'pending' | 'published' | 'failed'
 
 export type Post = {
   id: string
   content: string
-  scheduled_for: string
+  // Null only for drafts — every pending/published/failed row is guaranteed
+  // a date by the linkedin_posts_draft_scheduled_for_check DB constraint.
+  scheduled_for: string | null
   status: LinkedInPostStatus
   published_at: string | null
   created_at: string
@@ -20,9 +22,16 @@ export type Post = {
 export const POST_COLUMNS = 'id, content, scheduled_for, status, published_at, created_at, image_path, image_alt'
 
 export const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
+  draft: { bg: t.background.subtle, fg: t.text.muted },
   pending: { bg: t.background.muted, fg: t.text.tertiary },
   published: { bg: tokens.greenLight, fg: tokens.green },
   failed: { bg: tokens.rubyLight, fg: tokens.ruby },
+}
+
+// Drafts and pending posts are the two "not yet published" states that can
+// still be edited or published directly; published/failed posts are final.
+export function isEditable(post: Post): boolean {
+  return post.status === 'draft' || post.status === 'pending'
 }
 
 export const IST_OFFSET = '+05:30'
@@ -45,6 +54,19 @@ export function isSameInstant(a: string, b: string): boolean {
 export function formatWeekRange(mon: string, fri: string): string {
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
   return `${fmt(mon)} - ${fmt(fri)}`
+}
+
+export type WeekDates = { monday: string; wednesday: string; friday: string }
+
+// Derives next week's Mon/Wed/Fri from this week's, entirely client-side —
+// no separate RPC needed since it's always exactly +7 days on each date.
+export function nextWeekOf(week: WeekDates): WeekDates {
+  const addDays = (d: string, n: number) => {
+    const date = new Date(`${d}T00:00:00Z`)
+    date.setUTCDate(date.getUTCDate() + n)
+    return date.toISOString().slice(0, 10)
+  }
+  return { monday: addDays(week.monday, 7), wednesday: addDays(week.wednesday, 7), friday: addDays(week.friday, 7) }
 }
 
 export function formatSlotDate(dateStr: string): string {
@@ -112,6 +134,9 @@ function weekGroupInfo(iso: string): { key: string; label: string; mondayUtc: nu
 export function groupPostsByWeek(posts: Post[]): WeekGroup[] {
   const buckets = new Map<string, { label: string; mondayUtc: number; posts: Post[] }>()
   for (const post of posts) {
+    // Drafts (null scheduled_for) never reach this — History only ever holds
+    // resolved (published/failed) posts — but guard defensively anyway.
+    if (!post.scheduled_for) continue
     const { key, label, mondayUtc } = weekGroupInfo(post.scheduled_for)
     const existing = buckets.get(key)
     if (existing) existing.posts.push(post)

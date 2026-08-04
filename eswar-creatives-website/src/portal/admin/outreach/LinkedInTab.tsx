@@ -1,20 +1,23 @@
 // LinkedIn post scheduling tab.
-// Week planner: Mon/Wed/Fri slot cards. Pending Posts: unpublished posts that
-// fell out of the current week's slots instead of silently vanishing. Post
-// History: resolved (published/failed) posts grouped by week. Weekly
-// reminder banner. Create/edit happens in a right-side drawer; clicking a
-// Pending/History post opens a read-only detail panel with the full content
-// and banner image.
+// This Week: Mon/Wed/Fri slot cards for the current calendar week, pinned
+// through Friday (doesn't jump forward mid-week). Next Week: same grid for
+// the week after, visible from Wednesday onward so posts can be prepped
+// ahead of time. Drafts: ideas saved before they're assigned to any slot.
+// Pending Posts: unpublished posts that fell out of both weeks' slot grids
+// instead of silently vanishing. Post History: resolved (published/failed)
+// posts grouped by week. Weekly reminder banner. Create/edit happens in a
+// right-side drawer; clicking any post card anywhere opens a read-only
+// detail panel with the full content, banner image, and actions.
 import { useEffect, useRef, useState } from 'react'
 import { Trash2, Copy, Pencil } from 'lucide-react'
-import type { CSSProperties, KeyboardEvent } from 'react'
+import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { ProgressiveImage } from '../../components/shared/ProgressiveImage'
-import { LinkedInPostComposer } from './LinkedInPostComposer'
+import { LinkedInPostComposer, type SlotOption } from './LinkedInPostComposer'
 import { LinkedInPostView } from './LinkedInPostView'
 import {
   IMAGE_BUCKET,
@@ -28,23 +31,44 @@ import {
   groupPostsByWeek,
   isSameInstant,
   isoSlotDate,
+  nextWeekOf,
   publishLinkedInPost,
   type Post,
+  type WeekDates,
 } from './linkedinPosts'
 
 type SlotDate = 'monday' | 'wednesday' | 'friday'
+
+const SLOTS: { key: SlotDate; label: string }[] = [
+  { key: 'monday', label: 'Monday' },
+  { key: 'wednesday', label: 'Wednesday' },
+  { key: 'friday', label: 'Friday' },
+]
 
 // How far back "Post History" looks for resolved posts. Wide enough that a
 // week is never truncated mid-group by a row-count cap; the query itself
 // stays cheap since this admin only publishes ~3 posts/week.
 const HISTORY_WINDOW_DAYS = 180
 
-type ComposerState = { mode: 'create'; slot: SlotDate } | { mode: 'edit'; post: Post } | null
+type ComposerState = { mode: 'create'; slotDateStr?: string } | { mode: 'edit'; post: Post } | null
+
+// Empty slots in a given week, offered as "assign to a slot" options when
+// editing a draft. weekLabel prefixes each option ("This week — Wed 6 Aug").
+function emptySlotOptions(dates: WeekDates | null, posts: Post[], weekLabel: string): SlotOption[] {
+  if (!dates) return []
+  return SLOTS.filter(({ key }) => {
+    const iso = isoSlotDate(dates[key])
+    return !posts.some((p) => p.scheduled_for && isSameInstant(p.scheduled_for, iso))
+  }).map(({ key }) => ({ dateStr: dates[key], label: `${weekLabel} — ${formatSlotDate(dates[key])}` }))
+}
 
 export function LinkedInTab() {
   const { isMobile } = useBreakpoint()
-  const [weekDates, setWeekDates] = useState<{ monday: string; wednesday: string; friday: string } | null>(null)
+  const [weekDates, setWeekDates] = useState<WeekDates | null>(null)
+  const [nextWeekDates, setNextWeekDates] = useState<WeekDates | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
+  const [nextWeekPosts, setNextWeekPosts] = useState<Post[]>([])
+  const [drafts, setDrafts] = useState<Post[]>([])
   const [pendingOverdue, setPendingOverdue] = useState<Post[]>([])
   const [history, setHistory] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,16 +90,26 @@ export function LinkedInTab() {
     try {
       const { data: week } = await supabase.rpc('get_upcoming_linkedin_week')
       if (!week || week.length === 0) return
-      const { monday, wednesday, friday } = week[0] as { monday: string; wednesday: string; friday: string }
-      setWeekDates({ monday, wednesday, friday })
+      const thisWeek = week[0] as WeekDates
+      const nextWeek = nextWeekOf(thisWeek)
+      setWeekDates(thisWeek)
+      setNextWeekDates(nextWeek)
 
-      const slotIsos = [isoSlotDate(monday), isoSlotDate(wednesday), isoSlotDate(friday)]
-      const inCurrentSlots = (p: Post) => slotIsos.some((iso) => isSameInstant(p.scheduled_for, iso))
+      const thisWeekIsos = SLOTS.map(({ key }) => isoSlotDate(thisWeek[key]))
+      const nextWeekIsos = SLOTS.map(({ key }) => isoSlotDate(nextWeek[key]))
+      const allSlotIsos = [...thisWeekIsos, ...nextWeekIsos]
+      // A post still sitting in either week's slot grid is shown there only,
+      // never duplicated into "Pending Posts" or "History" (e.g. next
+      // Friday's post published early is still next Friday's slot card
+      // until that week rolls around).
+      const inVisibleSlotGrid = (p: Post) => !!p.scheduled_for && allSlotIsos.some((iso) => isSameInstant(p.scheduled_for as string, iso))
       const nowIso = new Date().toISOString()
       const historyWindowStart = new Date(Date.now() - HISTORY_WINDOW_DAYS * 86_400_000).toISOString()
 
-      const [weekRes, pendingRes, historyRes] = await Promise.all([
-        supabase.from('linkedin_posts').select(POST_COLUMNS).in('scheduled_for', slotIsos),
+      const [weekRes, nextWeekRes, draftRes, pendingRes, historyRes] = await Promise.all([
+        supabase.from('linkedin_posts').select(POST_COLUMNS).in('scheduled_for', thisWeekIsos),
+        supabase.from('linkedin_posts').select(POST_COLUMNS).in('scheduled_for', nextWeekIsos),
+        supabase.from('linkedin_posts').select(POST_COLUMNS).eq('status', 'draft').order('created_at', { ascending: false }).limit(100),
         supabase
           .from('linkedin_posts')
           .select(POST_COLUMNS)
@@ -93,17 +127,17 @@ export function LinkedInTab() {
       ])
 
       const weekRows = (weekRes.data ?? []) as Post[]
-      // Excluded from both: a post still sitting in this week's slot grid is
-      // shown there only, never duplicated into "Pending Posts" or "History"
-      // (e.g. Friday's post published early, on Wednesday, is still Friday's
-      // slot card until the week rolls over).
-      const pendingRows = ((pendingRes.data ?? []) as Post[]).filter((p) => !inCurrentSlots(p))
-      const histRows = ((historyRes.data ?? []) as Post[]).filter((p) => !inCurrentSlots(p))
+      const nextWeekRows = (nextWeekRes.data ?? []) as Post[]
+      const draftRows = (draftRes.data ?? []) as Post[]
+      const pendingRows = ((pendingRes.data ?? []) as Post[]).filter((p) => !inVisibleSlotGrid(p))
+      const histRows = ((historyRes.data ?? []) as Post[]).filter((p) => !inVisibleSlotGrid(p))
 
       setPosts(weekRows)
+      setNextWeekPosts(nextWeekRows)
+      setDrafts(draftRows)
       setPendingOverdue(pendingRows)
       setHistory(histRows)
-      await loadImageUrls([...weekRows, ...pendingRows, ...histRows])
+      await loadImageUrls([...weekRows, ...nextWeekRows, ...draftRows, ...pendingRows, ...histRows])
     } finally {
       setLoading(false)
     }
@@ -128,18 +162,33 @@ export function LinkedInTab() {
   const today = new Date()
   const dayOfWeek = today.getDay()
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+  // Next Week becomes relevant once you're far enough into this week that
+  // it's worth prepping ahead — Wednesday through Friday.
+  const showNextWeek = dayOfWeek >= 3 && dayOfWeek <= 5
   const pendingThisWeek = posts.filter((p) => p.status === 'pending').length
   const showReminderBanner = isWeekend && pendingThisWeek < 3
+
+  const availableSlotOptions = [
+    ...emptySlotOptions(weekDates, posts, 'This week'),
+    ...emptySlotOptions(nextWeekDates, nextWeekPosts, 'Next week'),
+  ]
 
   function closeComposer() {
     setComposer(null)
   }
 
   async function handleComposerSaved(savedPost: Post) {
-    const wasCreate = composer?.mode === 'create'
+    const prevComposer = composer
     setComposer(null)
     await load()
-    showToast(wasCreate ? `Post saved for ${formatSlotDate(savedPost.scheduled_for)}.` : `Post updated for ${formatSlotDate(savedPost.scheduled_for)}.`)
+    const dateLabel = savedPost.scheduled_for ? formatSlotDate(savedPost.scheduled_for) : null
+    if (prevComposer?.mode === 'create') {
+      showToast(dateLabel ? `Post saved for ${dateLabel}.` : 'Draft saved.')
+    } else if (prevComposer?.mode === 'edit' && prevComposer.post.status === 'draft' && savedPost.status === 'pending') {
+      showToast(`Draft scheduled for ${dateLabel}.`)
+    } else {
+      showToast(dateLabel ? `Post updated for ${dateLabel}.` : 'Draft updated.')
+    }
   }
 
   // Switches a currently-open detail panel straight into the edit drawer
@@ -149,8 +198,8 @@ export function LinkedInTab() {
     setComposer({ mode: 'edit', post })
   }
 
-  // Keyboard equivalent of clicking a history row/card (H7: flexibility).
-  function handleRowKeyDown(e: KeyboardEvent, post: Post) {
+  // Keyboard equivalent of clicking a post card (H7: flexibility).
+  function handleCardKeyDown(e: KeyboardEvent, post: Post) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       setViewingPost(post)
@@ -212,17 +261,13 @@ export function LinkedInTab() {
     }
   }
 
-  const SLOTS: { key: SlotDate; label: string }[] = [
-    { key: 'monday', label: 'Monday' },
-    { key: 'wednesday', label: 'Wednesday' },
-    { key: 'friday', label: 'Friday' },
-  ]
-
   if (loading) {
     return <p style={styles.loading}>Loading LinkedIn planner...</p>
   }
 
   const weekGroups = groupPostsByWeek(history)
+  const isPub = (post: Post) => publishing === post.id
+  const isDel = (post: Post) => deleting === post.id
 
   return (
     <div style={styles.root}>
@@ -245,7 +290,7 @@ export function LinkedInTab() {
         </div>
       )}
 
-      {/* Week planner */}
+      {/* This Week */}
       <div ref={plannerRef}>
         <div style={styles.plannerHeader}>
           <div>
@@ -263,100 +308,96 @@ export function LinkedInTab() {
           </button>
         </div>
 
-        <div style={{ ...styles.slotGrid, ...(isMobile ? styles.slotGridMobile : null) }}>
-          {SLOTS.map(({ key, label }) => {
-            const dateStr = weekDates?.[key] ?? ''
-            const slotIso = dateStr ? isoSlotDate(dateStr) : ''
-            const post = slotIso ? posts.find((p) => isSameInstant(p.scheduled_for, slotIso)) : undefined
-            const isPub = publishing === post?.id
-            const isDel = deleting === post?.id
-
-            return (
-              <div
-                key={key}
-                style={{
-                  ...styles.slotCard,
-                  ...(post ? {} : styles.slotCardEmpty),
-                }}
-              >
-                <div style={styles.slotHeader}>
-                  <span style={styles.slotDay}>{label}</span>
-                  <span style={styles.slotDate}>{dateStr ? formatSlotDate(dateStr) : ''}</span>
-                </div>
-
-                {post ? (
-                  <>
-                    {post.image_path && imageUrls[post.image_path] && (
-                      <ProgressiveImage
-                        src={imageUrls[post.image_path]}
-                        alt={post.image_alt ?? 'Post image'}
-                        shimmerHeight={80}
-                        radius={6}
-                        fit="cover"
-                      />
-                    )}
-                    <p style={styles.postPreview} title={post.content}>
-                      {post.content}
-                    </p>
-                    <div style={styles.postFooter}>
-                      <span style={{
-                        ...styles.statusBadge,
-                        background: STATUS_TONES[post.status]?.bg,
-                        color: STATUS_TONES[post.status]?.fg,
-                      }}>
-                        {post.status}
-                      </span>
-                      <div style={styles.postActions}>
-                        {post.status === 'pending' && (
-                          <>
-                            <button
-                              type="button"
-                              style={styles.iconBtn}
-                              onClick={() => setComposer({ mode: 'edit', post })}
-                              title="Edit post"
-                            >
-                              <Pencil size={14} color={t.text.tertiary} />
-                            </button>
-                            <button
-                              type="button"
-                              style={styles.publishBtn}
-                              disabled={isPub}
-                              onClick={() => handlePublish(post)}
-                            >
-                              {isPub ? 'Publishing...' : 'Publish Now'}
-                            </button>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          style={styles.iconBtn}
-                          disabled={isDel}
-                          onClick={() => handleDelete(post)}
-                          title="Delete post"
-                        >
-                          <Trash2 size={14} color={isDel ? t.text.muted : tokens.ruby} />
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    style={styles.addPostBtn}
-                    onClick={() => setComposer({ mode: 'create', slot: key })}
-                  >
-                    + Add Post
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
+        {weekDates && (
+          <WeekSlotGrid
+            slotDates={weekDates}
+            posts={posts}
+            imageUrls={imageUrls}
+            isMobile={isMobile}
+            onView={setViewingPost}
+            onEdit={(post) => setComposer({ mode: 'edit', post })}
+            onPublish={handlePublish}
+            onDelete={handleDelete}
+            onAddNew={(dateStr) => setComposer({ mode: 'create', slotDateStr: dateStr })}
+            isPublishing={isPub}
+            isDeleting={isDel}
+          />
+        )}
       </div>
 
-      {/* Pending Posts — unpublished posts that fell out of this week's slot
-          grid (previous week's Mon/Wed left unpublished, etc.) so they stay
-          visible and actionable instead of silently disappearing. */}
+      {/* Next Week — visible Wed-Fri so posts can be prepped ahead of time */}
+      {showNextWeek && nextWeekDates && (
+        <div>
+          <div style={styles.plannerHeader}>
+            <div>
+              <h2 style={styles.sectionHeading}>Next Week's Posts</h2>
+              <p style={styles.weekRange}>{formatWeekRange(nextWeekDates.monday, nextWeekDates.friday)}</p>
+            </div>
+          </div>
+          <WeekSlotGrid
+            slotDates={nextWeekDates}
+            posts={nextWeekPosts}
+            imageUrls={imageUrls}
+            isMobile={isMobile}
+            onView={setViewingPost}
+            onEdit={(post) => setComposer({ mode: 'edit', post })}
+            onPublish={handlePublish}
+            onDelete={handleDelete}
+            onAddNew={(dateStr) => setComposer({ mode: 'create', slotDateStr: dateStr })}
+            isPublishing={isPub}
+            isDeleting={isDel}
+          />
+        </div>
+      )}
+
+      {/* Drafts — ideas saved before they're assigned to a specific week */}
+      <div style={styles.pendingSection}>
+        <div style={styles.plannerHeader}>
+          <div>
+            <h2 style={styles.sectionHeading}>Drafts</h2>
+            <p style={styles.weekRange}>
+              {drafts.length === 0 ? 'No unscheduled ideas' : `${drafts.length} idea${drafts.length !== 1 ? 's' : ''} not yet scheduled`}
+            </p>
+          </div>
+          <button
+            type="button"
+            style={{ ...styles.testReminderBtn, ...(isMobile ? styles.fullWidthBtn : null) }}
+            onClick={() => setComposer({ mode: 'create' })}
+          >
+            + New Draft
+          </button>
+        </div>
+        {drafts.length > 0 && (
+          <div style={{ ...styles.slotGrid, ...(isMobile ? styles.slotGridMobile : null) }}>
+            {drafts.map((post) => (
+              <button
+                type="button"
+                key={post.id}
+                style={styles.draftCard}
+                onClick={() => setViewingPost(post)}
+              >
+                {post.image_path && imageUrls[post.image_path] && (
+                  <ProgressiveImage
+                    src={imageUrls[post.image_path]}
+                    alt={post.image_alt ?? 'Post image'}
+                    shimmerHeight={80}
+                    radius={6}
+                    fit="cover"
+                  />
+                )}
+                <p style={styles.postPreview}>{post.content}</p>
+                <span style={{ ...styles.statusBadge, background: STATUS_TONES.draft.bg, color: STATUS_TONES.draft.fg, alignSelf: 'flex-start' }}>
+                  draft
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Pending Posts — unpublished posts that fell out of both weeks' slot
+          grids so they stay visible and actionable instead of silently
+          disappearing. */}
       {pendingOverdue.length > 0 && (
         <div style={styles.pendingSection}>
           <div>
@@ -367,7 +408,7 @@ export function LinkedInTab() {
           </div>
           <div style={{ ...styles.slotGrid, ...(isMobile ? styles.slotGridMobile : null) }}>
             {pendingOverdue.map((post) => {
-              const overdue = daysOverdue(post.scheduled_for)
+              const overdue = post.scheduled_for ? daysOverdue(post.scheduled_for) : 0
               return (
                 <button
                   type="button"
@@ -376,7 +417,7 @@ export function LinkedInTab() {
                   onClick={() => setViewingPost(post)}
                 >
                   <div style={styles.slotHeader}>
-                    <span style={styles.slotDay}>{formatPortalDate(post.scheduled_for)}</span>
+                    <span style={styles.slotDay}>{post.scheduled_for ? formatPortalDate(post.scheduled_for) : ''}</span>
                     {overdue > 0 && (
                       <span style={styles.overdueTag}>Overdue by {overdue} day{overdue !== 1 ? 's' : ''}</span>
                     )}
@@ -420,7 +461,7 @@ export function LinkedInTab() {
                       key={post.id}
                       style={styles.histCard}
                       onClick={() => setViewingPost(post)}
-                      onKeyDown={(e) => handleRowKeyDown(e, post)}
+                      onKeyDown={(e) => handleCardKeyDown(e, post)}
                       role="button"
                       tabIndex={0}
                     >
@@ -445,7 +486,7 @@ export function LinkedInTab() {
                         }}>
                           {post.status}
                         </span>
-                        <span style={styles.monoCell}>{formatPortalDate(post.scheduled_for)}</span>
+                        <span style={styles.monoCell}>{post.scheduled_for ? formatPortalDate(post.scheduled_for) : ''}</span>
                         <div style={styles.histActions}>
                           <button
                             type="button"
@@ -489,7 +530,7 @@ export function LinkedInTab() {
                           key={post.id}
                           style={styles.histTr}
                           onClick={() => setViewingPost(post)}
-                          onKeyDown={(e) => handleRowKeyDown(e, post)}
+                          onKeyDown={(e) => handleCardKeyDown(e, post)}
                           role="button"
                           tabIndex={0}
                         >
@@ -508,7 +549,7 @@ export function LinkedInTab() {
                             )}
                           </td>
                           <td style={styles.td}>
-                            <span style={styles.monoCell}>{formatPortalDate(post.scheduled_for)}</span>
+                            <span style={styles.monoCell}>{post.scheduled_for ? formatPortalDate(post.scheduled_for) : ''}</span>
                           </td>
                           <td style={styles.td}>
                             <span style={styles.histPreview}>{post.content.slice(0, 80)}{post.content.length > 80 ? '...' : ''}</span>
@@ -556,14 +597,14 @@ export function LinkedInTab() {
 
       {composer && (
         <LinkedInPostComposer
-          // Forces a remount if the target ever changes directly (e.g. a
-          // future "edit next post" affordance) instead of reusing state
-          // from the previous post.
-          key={composer.mode === 'edit' ? composer.post.id : `create-${composer.slot}`}
+          // Forces a remount if the target ever changes directly instead of
+          // reusing state from the previous post.
+          key={composer.mode === 'edit' ? composer.post.id : `create-${composer.slotDateStr ?? 'draft'}`}
           mode={composer.mode}
           post={composer.mode === 'edit' ? composer.post : undefined}
-          slotDateStr={composer.mode === 'create' ? weekDates?.[composer.slot] : undefined}
+          slotDateStr={composer.mode === 'create' ? composer.slotDateStr : undefined}
           existingImageUrl={composer.mode === 'edit' && composer.post.image_path ? imageUrls[composer.post.image_path] : undefined}
+          availableSlots={composer.mode === 'edit' && composer.post.status === 'draft' ? availableSlotOptions : undefined}
           onClose={closeComposer}
           onSaved={handleComposerSaved}
         />
@@ -581,6 +622,143 @@ export function LinkedInTab() {
           onToast={showToast}
         />
       )}
+    </div>
+  )
+}
+
+// Mon/Wed/Fri slot grid, reused for both "This Week" and "Next Week" — each
+// card opens the detail panel on click (H4: consistent interaction across
+// every post card in the tab); the quick-action buttons inside stop
+// propagation so they act on the post directly instead of also opening it.
+function WeekSlotGrid({
+  slotDates,
+  posts,
+  imageUrls,
+  isMobile,
+  onView,
+  onEdit,
+  onPublish,
+  onDelete,
+  onAddNew,
+  isPublishing,
+  isDeleting,
+}: {
+  slotDates: WeekDates
+  posts: Post[]
+  imageUrls: Record<string, string>
+  isMobile: boolean
+  onView: (post: Post) => void
+  onEdit: (post: Post) => void
+  onPublish: (post: Post) => void
+  onDelete: (post: Post) => void
+  onAddNew: (dateStr: string) => void
+  isPublishing: (post: Post) => boolean
+  isDeleting: (post: Post) => boolean
+}) {
+  function stop(e: MouseEvent, fn: () => void) {
+    e.stopPropagation()
+    fn()
+  }
+  function onKeyDown(e: KeyboardEvent, post: Post) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onView(post)
+    }
+  }
+
+  return (
+    <div style={{ ...styles.slotGrid, ...(isMobile ? styles.slotGridMobile : null) }}>
+      {SLOTS.map(({ key, label }) => {
+        const dateStr = slotDates[key]
+        const slotIso = isoSlotDate(dateStr)
+        const post = posts.find((p) => p.scheduled_for && isSameInstant(p.scheduled_for, slotIso))
+        const pub = post ? isPublishing(post) : false
+        const del = post ? isDeleting(post) : false
+
+        return (
+          <div
+            key={key}
+            style={{
+              ...styles.slotCard,
+              ...(post ? {} : styles.slotCardEmpty),
+            }}
+            onClick={post ? () => onView(post) : undefined}
+            onKeyDown={post ? (e) => onKeyDown(e, post) : undefined}
+            role={post ? 'button' : undefined}
+            tabIndex={post ? 0 : undefined}
+          >
+            <div style={styles.slotHeader}>
+              <span style={styles.slotDay}>{label}</span>
+              <span style={styles.slotDate}>{formatSlotDate(dateStr)}</span>
+            </div>
+
+            {post ? (
+              <>
+                {post.image_path && imageUrls[post.image_path] && (
+                  <ProgressiveImage
+                    src={imageUrls[post.image_path]}
+                    alt={post.image_alt ?? 'Post image'}
+                    shimmerHeight={80}
+                    radius={6}
+                    fit="cover"
+                  />
+                )}
+                <p style={styles.postPreview} title={post.content}>
+                  {post.content}
+                </p>
+                <div style={styles.postFooter}>
+                  <span style={{
+                    ...styles.statusBadge,
+                    background: STATUS_TONES[post.status]?.bg,
+                    color: STATUS_TONES[post.status]?.fg,
+                  }}>
+                    {post.status}
+                  </span>
+                  <div style={styles.postActions}>
+                    {post.status === 'pending' && (
+                      <>
+                        <button
+                          type="button"
+                          style={styles.iconBtn}
+                          onClick={(e) => stop(e, () => onEdit(post))}
+                          title="Edit post"
+                        >
+                          <Pencil size={14} color={t.text.tertiary} />
+                        </button>
+                        <button
+                          type="button"
+                          style={styles.publishBtn}
+                          disabled={pub}
+                          onClick={(e) => stop(e, () => onPublish(post))}
+                        >
+                          {pub ? 'Publishing...' : 'Publish Now'}
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      style={styles.iconBtn}
+                      disabled={del}
+                      onClick={(e) => stop(e, () => onDelete(post))}
+                      title="Delete post"
+                    >
+                      <Trash2 size={14} color={del ? t.text.muted : tokens.ruby} />
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                style={styles.addPostBtn}
+                onClick={() => onAddNew(dateStr)}
+              >
+                + Add Post
+              </button>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -749,11 +927,24 @@ const styles: Record<string, CSSProperties> = {
     transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
 
-  // Pending Posts section
+  // Pending Posts / Drafts sections
   pendingSection: { display: 'flex', flexDirection: 'column', gap: 16 },
   pendingCard: {
     background: tokens.surface,
     border: `1px solid ${tokens.gold}`,
+    borderRadius: 10,
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    minHeight: 140,
+    textAlign: 'left',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  draftCard: {
+    background: tokens.surface,
+    border: `1px solid ${t.border.default}`,
     borderRadius: 10,
     padding: '16px',
     display: 'flex',
