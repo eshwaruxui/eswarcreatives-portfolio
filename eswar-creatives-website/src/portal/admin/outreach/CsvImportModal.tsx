@@ -1,5 +1,8 @@
 // CSV import modal for leads. Parse -> preview table -> import valid rows only.
 // Headers: first_name, last_name, email, linkedin_url, company, role_title, segment, country
+// Also accepts common export-tool aliases for company/role_title/linkedin_url
+// (see HEADER_ALIASES) so Apollo/Sales Navigator/ZoomInfo exports resolve
+// without the admin having to manually rename columns first.
 import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
@@ -23,15 +26,71 @@ function isValidEmail(e: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
 }
 
+// Alternate header names (already lowercased/underscored) that different
+// export tools use for the same canonical field. "company" is the common
+// break: Apollo exports "Company Name", never "Company" — without this,
+// every row silently fails the "missing company" check even though the data
+// is present under a different column name.
+const HEADER_ALIASES: Record<string, string[]> = {
+  company: ['company_name', 'organization'],
+  role_title: ['title', 'job_title'],
+  linkedin_url: ['person_linkedin_url'],
+}
+
+// Fills in canonical field keys from known alias columns when the canonical
+// key itself is blank/absent, without touching any key the source CSV
+// already populated correctly.
+function resolveAliases(row: RawRow): RawRow {
+  for (const [canonical, aliases] of Object.entries(HEADER_ALIASES)) {
+    if (row[canonical]?.trim()) continue
+    const alias = aliases.find((a) => row[a]?.trim())
+    if (alias) row[canonical] = row[alias]
+  }
+  return row
+}
+
+// RFC4180-ish single-line CSV split: handles double-quoted fields containing
+// commas and escaped quotes (""). Does not handle a quoted field spanning
+// multiple physical lines — rare for lead-export tools, and out of scope for
+// this lightweight hand-rolled parser (would need a full-text scan instead
+// of splitting by line first).
+function splitCsvLine(line: string): string[] {
+  const out: string[] = []
+  let field = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { field += '"'; i++ } else { inQuotes = false }
+      } else {
+        field += ch
+      }
+    } else if (ch === '"') {
+      inQuotes = true
+    } else if (ch === ',') {
+      out.push(field)
+      field = ''
+    } else {
+      field += ch
+    }
+  }
+  out.push(field)
+  return out.map((v) => v.trim())
+}
+
 function parseCsv(text: string): RawRow[] {
-  const lines = text.trim().split('\n').filter(Boolean)
+  // Normalize Windows line endings first so the last column of every row
+  // doesn't end up with a trailing "\r" (breaks exact-match checks like
+  // segment validation when that happens to be the last column).
+  const lines = text.trim().split(/\r\n|\n/).filter(Boolean)
   if (lines.length < 2) return []
-  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/\s+/g, '_'))
+  const headers = splitCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, '_'))
   return lines.slice(1).map((line) => {
-    const vals = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''))
+    const vals = splitCsvLine(line)
     const row: RawRow = {}
     headers.forEach((h, i) => { row[h] = vals[i] ?? '' })
-    return row
+    return resolveAliases(row)
   })
 }
 
@@ -151,6 +210,9 @@ export function CsvImportModal({
             <p style={styles.hint}>
               Expected headers: <code style={styles.code}>first_name, last_name, email, linkedin_url, company, role_title, segment, country</code>
             </p>
+            <p style={styles.hintSecondary}>
+              Also recognizes common export columns: <code style={styles.code}>Company Name</code>, <code style={styles.code}>Title</code>, <code style={styles.code}>Person Linkedin Url</code> (e.g. Apollo).
+            </p>
             <div style={styles.uploadRow}>
               <button type="button" style={styles.outlineBtn} onClick={() => fileRef.current?.click()}>
                 Upload .csv file
@@ -235,6 +297,7 @@ export function CsvImportModal({
 const styles: Record<string, CSSProperties> = {
   body: { display: 'flex', flexDirection: 'column', gap: 16 },
   hint: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary, margin: 0 },
+  hintSecondary: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, margin: 0 },
   code: { fontFamily: mono, fontSize: 12, background: t.background.muted, padding: '2px 4px', borderRadius: 4 },
   uploadRow: { display: 'flex', gap: 10 },
   textarea: {
