@@ -66,7 +66,12 @@ type TouchTimelineRow = {
   subject_snapshot: string | null
   body_snapshot: string | null
   enrollment_id: string
-  step: { step_number: number; day_offset: number | null } | null
+  step: {
+    step_number: number
+    day_offset: number | null
+    subject_template: string | null
+    body_template: string | null
+  } | null
   enrollment: { sequence: { name: string } | null } | null
 }
 
@@ -257,7 +262,7 @@ export function LeadDrawer({
       `).eq('lead_id', leadId).order('started_at', { ascending: false }),
       supabase.from('outreach_touches').select(`
         id, channel, status, scheduled_for, sent_at, opened_at, bounced_at, skipped_reason, subject_snapshot, body_snapshot, enrollment_id,
-        step:sequence_steps!step_id (step_number, day_offset),
+        step:sequence_steps!step_id (step_number, day_offset, subject_template, body_template),
         enrollment:lead_enrollments!enrollment_id (sequence:sequences!sequence_id (name))
       `).eq('lead_id', leadId).order('scheduled_for', { ascending: false }).limit(50),
       supabase.from('sequences').select('id, name, segment, is_active').eq('is_active', true).order('name'),
@@ -349,21 +354,58 @@ export function LeadDrawer({
     }
   }
 
-  // Refines the current draft if one exists, otherwise writes a first draft
-  // from scratch — same call either way, generate-outreach-message decides
-  // based on whether current_draft is non-empty.
+  // Mirrors OutreachSendModal's renderTemplate exactly (substitution + double
+  // -period collapse + em dash strip; no possessive fix, that one's applied
+  // server-side only in send-outreach-email) — so "Apply skills" starts from
+  // the same text a reviewer would see in "Review and Send", not a message
+  // invented independently from raw lead facts.
+  function renderReviewAndSendBody(template: string, leadForRender: LeadDetail): string {
+    const vars: Record<string, string> = {
+      first_name: leadForRender.first_name,
+      company: leadForRender.company,
+      specific_observation: leadForRender.specific_observation ?? '',
+      flow: 'product',
+      unsubscribe_url: `https://www.eswarcreatives.in/unsubscribe/${leadForRender.unsubscribe_token}`,
+      topic: '{{topic}}',
+    }
+    let out = template
+    for (const [key, val] of Object.entries(vars)) out = out.replaceAll(`{{${key}}}`, val)
+    out = out.replace(/\.\s*\./g, '.')
+    out = out.replace(/—/g, '')
+    return out
+  }
+
+  // The lead's next actionable email touch — same one "Review and Send" would
+  // open — found from the timeline already loaded for this drawer rather than
+  // a second query. Held/scheduled only; earliest scheduled_for first.
+  function findNextEmailStep(): TouchTimelineRow['step'] | null {
+    const candidates = timeline
+      .filter((row) => row.channel === 'email' && (row.status === 'scheduled' || row.status === 'held') && row.step?.body_template)
+      .sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for))
+    return candidates[0]?.step ?? null
+  }
+
+  // Applies the selected skills as a rewrite ON TOP OF the actual Review and
+  // Send email for this lead (same template, same rendering recipe) — not an
+  // independent generation from lead facts. Falls back to whatever's already
+  // in the draft box only when there's no pending email step to render from.
   async function handleApplySkills() {
     if (!lead) return
     setGenerateError(null)
     setGeneratingMessage(true)
     try {
+      const nextStep = findNextEmailStep()
+      const baseMessage = nextStep?.body_template
+        ? renderReviewAndSendBody(nextStep.body_template, lead)
+        : draftRef.current?.value ?? ''
+
       const { data: sessionData } = await supabase.auth.getSession()
       const token = sessionData?.session?.access_token ?? ''
       const { data, error: fnErr } = await supabase.functions.invoke('generate-outreach-message', {
         body: {
           lead_id: lead.id,
           skill_ids: selectedSkillIds,
-          current_draft: draftRef.current?.value ?? '',
+          current_draft: baseMessage,
         },
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       })
@@ -720,6 +762,13 @@ export function LeadDrawer({
                   )
                 })}
               </div>
+            )}
+            {skills.length > 0 && (
+              <span style={styles.templateSourceHint}>
+                {findNextEmailStep()
+                  ? "Generating from this lead's next scheduled email + selected skills."
+                  : 'No pending email step for this lead — generating from lead details instead.'}
+              </span>
             )}
             <button
               type="button"
@@ -1344,6 +1393,11 @@ const styles: Record<string, CSSProperties> = {
     color: t.text.secondary,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
+  },
+  templateSourceHint: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
   },
   applySkillsBtn: {
     display: 'inline-flex',
