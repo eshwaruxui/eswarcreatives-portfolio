@@ -1,7 +1,7 @@
 // Leads tab: search, filter chips, sortable table (desktop), card stack (mobile).
 import { useEffect, useState } from 'react'
 import { Upload, UserPlus, Linkedin, Search, ArrowUpDown, Check } from 'lucide-react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MouseEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
@@ -9,8 +9,9 @@ import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useReloadableList } from '../../hooks/useReloadableList'
-import { SortableTableHeader, nextSortState, type SortableColumn, type SortDir } from '../../components/shared/SortableTableHeader'
+import { SortableTableHeader, nextMultiSortState, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
 import { Skeleton } from '../../components/shared/Skeleton'
+import { SegmentSelect } from '../../components/shared/SegmentSelect'
 import { AddLeadModal } from './AddLeadModal'
 import { CsvImportModal } from './CsvImportModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
@@ -36,12 +37,12 @@ type LeadRow = {
   enrolled?: boolean
 }
 
-type SortKey = string | null
-
 // Mobile "Sort" bottom sheet options — Name/Company/Status/Date Added per spec.
 // Status wasn't a sortable desktop column before; added here (and to
 // applySorting below) since a bottom sheet needs a fixed, meaningful set.
-const SORT_SHEET_OPTIONS: { key: SortKey; label: string }[] = [
+// Mobile stays single-column (no shift-click gesture on touch), so picking
+// an option here always replaces the sort outright.
+const SORT_SHEET_OPTIONS: { key: string; label: string }[] = [
   { key: 'name', label: 'Name' },
   { key: 'company', label: 'Company' },
   { key: 'status', label: 'Status' },
@@ -59,30 +60,6 @@ function useDebounce<T>(value: T, delay: number): T {
 
 function initials(first: string, last: string | null) {
   return ((first[0] ?? '') + (last?.[0] ?? '')).toUpperCase()
-}
-
-const SEGMENT_LABELS: Record<string, string> = {
-  security_ai: 'Security / AI',
-  saas_product: 'SaaS Product',
-}
-
-function SegmentChip({ segment }: { segment: string }) {
-  const isSecAI = segment === 'security_ai'
-  return (
-    <span style={{
-      display: 'inline-block',
-      padding: '2px 8px',
-      borderRadius: 999,
-      background: isSecAI ? tokens.tealLight : tokens.goldLight,
-      color: isSecAI ? tokens.primary : tokens.goldDark,
-      fontFamily: fonts.body,
-      fontSize: 11,
-      fontWeight: 600,
-      whiteSpace: 'nowrap',
-    }}>
-      {SEGMENT_LABELS[segment] ?? segment}
-    </span>
-  )
 }
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -165,44 +142,54 @@ function FilterChip({
   )
 }
 
-function applySorting(leads: LeadRow[], sortKey: SortKey, sortDir: SortDir): LeadRow[] {
-  if (!sortKey || !sortDir) return leads
-  return [...leads].sort((a, b) => {
-    // ICP score: nulls always sort last, regardless of direction.
-    if (sortKey === 'icp_score') {
-      const av = a.icp_score
-      const bv = b.icp_score
-      if (av == null && bv == null) return 0
-      if (av == null) return 1
-      if (bv == null) return -1
-      return sortDir === 'asc' ? av - bv : bv - av
-    }
+function compareByKey(a: LeadRow, b: LeadRow, key: string, dir: 'asc' | 'desc'): number {
+  // ICP score: nulls always sort last, regardless of direction.
+  if (key === 'icp_score') {
+    const av = a.icp_score
+    const bv = b.icp_score
+    if (av == null && bv == null) return 0
+    if (av == null) return 1
+    if (bv == null) return -1
+    return dir === 'asc' ? av - bv : bv - av
+  }
 
-    let va: string | null | undefined
-    let vb: string | null | undefined
-    if (sortKey === 'name') {
-      va = (a.last_name ?? a.first_name).toLowerCase()
-      vb = (b.last_name ?? b.first_name).toLowerCase()
-    } else if (sortKey === 'company') {
-      va = a.company.toLowerCase()
-      vb = b.company.toLowerCase()
-    } else if (sortKey === 'last_touch') {
-      va = a.last_touch_at ?? ''
-      vb = b.last_touch_at ?? ''
-    } else if (sortKey === 'next_touch') {
-      va = a.next_touch_at ?? ''
-      vb = b.next_touch_at ?? ''
-    } else if (sortKey === 'created_at') {
-      va = a.created_at
-      vb = b.created_at
-    } else if (sortKey === 'status') {
-      va = a.status
-      vb = b.status
+  let va: string | null | undefined
+  let vb: string | null | undefined
+  if (key === 'name') {
+    va = (a.last_name ?? a.first_name).toLowerCase()
+    vb = (b.last_name ?? b.first_name).toLowerCase()
+  } else if (key === 'company') {
+    va = a.company.toLowerCase()
+    vb = b.company.toLowerCase()
+  } else if (key === 'last_touch') {
+    va = a.last_touch_at ?? ''
+    vb = b.last_touch_at ?? ''
+  } else if (key === 'next_touch') {
+    va = a.next_touch_at ?? ''
+    vb = b.next_touch_at ?? ''
+  } else if (key === 'created_at') {
+    va = a.created_at
+    vb = b.created_at
+  } else if (key === 'status') {
+    va = a.status
+    vb = b.status
+  }
+  if (!va && !vb) return 0
+  if (!va) return dir === 'asc' ? 1 : -1
+  if (!vb) return dir === 'asc' ? -1 : 1
+  return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+}
+
+// Multi-column: earlier entries in `sorts` take priority; ties fall through
+// to the next sort key, in order.
+function applySorting(leads: LeadRow[], sorts: SortSpec[]): LeadRow[] {
+  if (sorts.length === 0) return leads
+  return [...leads].sort((a, b) => {
+    for (const { key, dir } of sorts) {
+      const cmp = compareByKey(a, b, key, dir)
+      if (cmp !== 0) return cmp
     }
-    if (!va && !vb) return 0
-    if (!va) return sortDir === 'asc' ? 1 : -1
-    if (!vb) return sortDir === 'asc' ? -1 : 1
-    return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+    return 0
   })
 }
 
@@ -230,8 +217,7 @@ export function LeadsTab() {
   const [filterMissingObs, setFilterMissingObs] = useState(false)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
-  const [sortKey, setSortKey] = useState<SortKey>(null)
-  const [sortDir, setSortDir] = useState<SortDir>(null)
+  const [sorts, setSorts] = useState<SortSpec[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [showCsv, setShowCsv] = useState(false)
   const [showSortSheet, setShowSortSheet] = useState(false)
@@ -340,10 +326,16 @@ export function LeadsTab() {
     load()
   }
 
-  function handleSort(key: string) {
-    const next = nextSortState(sortKey, sortDir, key)
-    setSortKey(next.key)
-    setSortDir(next.dir)
+  async function handleSegmentChange(leadId: string, segment: string) {
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, segment } : l)))
+    await supabase.from('leads').update({ segment }).eq('id', leadId)
+  }
+
+  // Plain click sorts by that column alone (asc -> desc -> clear); shift-click
+  // adds/cycles/drops it as an additional sort level without disturbing the
+  // others, so multiple columns can be sorted at once.
+  function handleSort(key: string, e: MouseEvent<HTMLButtonElement>) {
+    setSorts((prev) => nextMultiSortState(prev, key, e.shiftKey))
   }
 
   function toggleStatusFilter(val: string) {
@@ -369,7 +361,7 @@ export function LeadsTab() {
     return true
   })
 
-  const sorted = applySorting(filtered, sortKey, sortDir)
+  const sorted = applySorting(filtered, sorts)
 
   return (
     <>
@@ -485,15 +477,14 @@ export function LeadsTab() {
           <div style={styles.sheet} role="dialog" aria-label="Sort leads">
             <div style={styles.sheetHandle} />
             {SORT_SHEET_OPTIONS.map((opt) => {
-              const active = sortKey === opt.key
+              const active = sorts.length > 0 && sorts[0].key === opt.key
               return (
                 <button
                   key={opt.key}
                   type="button"
                   style={styles.sheetRow}
                   onClick={() => {
-                    setSortKey(opt.key)
-                    setSortDir('asc')
+                    setSorts([{ key: opt.key, dir: 'asc' }])
                     setShowSortSheet(false)
                   }}
                 >
@@ -519,7 +510,7 @@ export function LeadsTab() {
           <div style={{ overflowX: 'auto' }}>
             <table style={styles.table}>
               <thead>
-                <SortableTableHeader columns={LEAD_COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortableTableHeader columns={LEAD_COLUMNS} sorts={sorts} onSort={handleSort} />
               </thead>
               <tbody>
                 {Array.from({ length: 6 }).map((_, i) => <LeadRowSkeleton key={i} />)}
@@ -550,7 +541,12 @@ export function LeadsTab() {
             .ec-tap-card:active { background: ${t.background.tint1}; }
           `}</style>
           {sorted.map((lead) => (
-            <MobileCard key={lead.id} lead={lead} onOpen={() => setOpenLeadId(lead.id)} />
+            <MobileCard
+              key={lead.id}
+              lead={lead}
+              onOpen={() => setOpenLeadId(lead.id)}
+              onSegmentChange={(v) => handleSegmentChange(lead.id, v)}
+            />
           ))}
         </div>
       ) : (
@@ -558,7 +554,7 @@ export function LeadsTab() {
           <style>{`@keyframes ecFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
           <table style={styles.table}>
             <thead>
-              <SortableTableHeader columns={LEAD_COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortableTableHeader columns={LEAD_COLUMNS} sorts={sorts} onSort={handleSort} />
             </thead>
             <tbody>
               {sorted.map((lead) => (
@@ -577,7 +573,9 @@ export function LeadsTab() {
                   <td style={styles.td}>
                     <span style={styles.monoCell}>{lead.company}</span>
                   </td>
-                  <td style={styles.td}><SegmentChip segment={lead.segment} /></td>
+                  <td style={styles.td}>
+                    <SegmentSelect value={lead.segment} onChange={(v) => handleSegmentChange(lead.id, v)} />
+                  </td>
                   <td style={styles.td}><StatusChip status={lead.status} /></td>
                   <td style={styles.td}><IcpIndicator score={lead.icp_score} /></td>
                   <td style={styles.td}>
@@ -627,7 +625,15 @@ function LinkedInStatusIcon({ status }: { status: string }) {
   return <Linkedin size={15} color={colors[status] ?? t.text.muted} />
 }
 
-function MobileCard({ lead, onOpen }: { lead: LeadRow; onOpen: () => void }) {
+function MobileCard({
+  lead,
+  onOpen,
+  onSegmentChange,
+}: {
+  lead: LeadRow
+  onOpen: () => void
+  onSegmentChange: (segment: string) => void
+}) {
   return (
     <div className="ec-tap-card" style={styles.mobileCard} onClick={onOpen}>
       <div style={styles.mobileCardHead}>
@@ -640,7 +646,7 @@ function MobileCard({ lead, onOpen }: { lead: LeadRow; onOpen: () => void }) {
       </div>
       <div style={styles.mobileCardFoot}>
         <div style={styles.mobileCardFootLeft}>
-          <SegmentChip segment={lead.segment} />
+          <SegmentSelect value={lead.segment} onChange={onSegmentChange} />
           <IcpIndicator score={lead.icp_score} />
         </div>
         {lead.next_touch_at && (

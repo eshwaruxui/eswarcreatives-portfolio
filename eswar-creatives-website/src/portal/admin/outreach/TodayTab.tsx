@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Mail, Linkedin, Clock, AlertTriangle, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, Modal } from '../ui'
@@ -37,6 +37,18 @@ type ScheduledTouch = {
 // Mirrors the substitution + grammar fix applied by the confirm-scheduled-touch
 // edge function, so the preview shows exactly what will be sent (not the raw
 // template with unresolved {{variables}}).
+function formatScheduledMeta(touch: ScheduledTouch): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: touch.recipient_timezone ?? 'UTC',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(touch.scheduled_for))
+}
+
 function resolveTemplate(template: string, lead: NonNullable<ScheduledTouch['lead']>): string {
   const vars: Record<string, string> = {
     first_name: lead.first_name,
@@ -111,6 +123,50 @@ function initials(first: string, last: string | null): string {
   return ((first[0] ?? '') + (last?.[0] ?? '')).toUpperCase()
 }
 
+// Shared row shape for the three simple (non-multi-step) lists on this tab:
+// Follow-ups today, Review in Advance, and Scheduled. Each only differs in
+// its meta line and right-side actions.
+function SimpleTouchRow({
+  avatarLabel,
+  title,
+  meta,
+  onOpenLead,
+  actions,
+  error,
+}: {
+  avatarLabel: string
+  title: string
+  meta?: ReactNode
+  onOpenLead?: () => void
+  actions: ReactNode
+  error?: string
+}) {
+  return (
+    <div style={styles.touchCard}>
+      <div style={styles.touchMain}>
+        <div
+          role="button"
+          tabIndex={0}
+          style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: onOpenLead ? 'pointer' : 'default' }}
+          onClick={onOpenLead}
+          onKeyDown={(e) => { if (onOpenLead && e.key === 'Enter') onOpenLead() }}
+          aria-label={onOpenLead ? `Open ${title} detail` : undefined}
+        >
+          <div style={styles.avatar}>{avatarLabel}</div>
+          <div style={styles.touchInfo}>
+            <span style={styles.touchName}>{title}</span>
+            {meta}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(e) => e.stopPropagation()}>
+          {actions}
+        </div>
+      </div>
+      {error && <div style={styles.pendingErr}>{error}</div>}
+    </div>
+  )
+}
+
 // Fix 9: enroll_lead still creates every sequence step's touch up front, so
 // without this, LinkedIn DM follow-ups (steps 2-4, all gated 'held' once
 // requires_connected) can all become due on the same day and pile up as
@@ -163,6 +219,7 @@ export function TodayTab({
   const [overdue, setOverdue] = useState<TouchRow[]>([])
   const [dueToday, setDueToday] = useState<TouchRow[]>([])
   const [pendingConfirmation, setPendingConfirmation] = useState<ScheduledTouch[]>([])
+  const [scheduledApproved, setScheduledApproved] = useState<ScheduledTouch[]>([])
   const [followUps, setFollowUps] = useState<FollowUpLead[]>([])
   const [activeTouch, setActiveTouch] = useState<TouchRow | null>(null)
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
@@ -189,7 +246,7 @@ export function TodayTab({
       weekStart.setDate(weekStart.getDate() - weekStart.getDay() + (weekStart.getDay() === 0 ? -6 : 1))
       const weekStartStr = weekStart.toISOString().slice(0, 10)
 
-      const [queueRes, emailTodayRes, liTodayRes, repliesRes, callsRes, pendingRes, followUpRes] = await Promise.all([
+      const [queueRes, emailTodayRes, liTodayRes, repliesRes, callsRes, pendingRes, approvedRes, followUpRes] = await Promise.all([
         supabase
           .from('outreach_touches')
           .select(`
@@ -243,8 +300,25 @@ export function TodayTab({
           `)
           .eq('status', 'scheduled')
           .eq('channel', 'email')
+          .is('draft_confirmed_at', null)
           .gte('scheduled_for', `${tomorrowStr()}T00:00:00Z`)
           .lte('scheduled_for', `${tomorrowStr()}T23:59:59Z`)
+          .order('scheduled_for', { ascending: true })
+          .limit(20),
+        // Already approved from "Review in Advance" but not yet sent — preview
+        // only, no further action needed. Not date-bounded like pendingRes
+        // above: approval can push scheduled_for a few days out (weekend
+        // rollover), and this list is naturally short.
+        supabase
+          .from('outreach_touches')
+          .select(`
+            id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot,
+            lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
+            step:sequence_steps!step_id (subject_template, body_template)
+          `)
+          .eq('status', 'scheduled')
+          .eq('channel', 'email')
+          .not('draft_confirmed_at', 'is', null)
           .order('scheduled_for', { ascending: true })
           .limit(20),
         supabase
@@ -269,6 +343,7 @@ export function TodayTab({
         callsWeek: callsRes.count ?? 0,
       })
       setPendingConfirmation((pendingRes.data ?? []) as ScheduledTouch[])
+      setScheduledApproved((approvedRes.data ?? []) as ScheduledTouch[])
       setFollowUps((followUpRes.data ?? []) as FollowUpLead[])
     } catch {
       setError('Could not load the queue. Refresh to try again.')
@@ -297,7 +372,16 @@ export function TodayTab({
   }
 
   const { confirming: confirmingId, errors: confirmErrors, confirm } = useConfirmScheduledTouch((id, holdUntil) => {
-    setPendingConfirmation((prev) => prev.filter((t) => t.id !== id))
+    setPendingConfirmation((prev) => {
+      const approved = prev.find((t) => t.id === id)
+      if (approved) {
+        setScheduledApproved((sa) => [
+          ...sa,
+          { ...approved, scheduled_for: holdUntil ?? approved.scheduled_for },
+        ])
+      }
+      return prev.filter((t) => t.id !== id)
+    })
     const when = holdUntil
       ? new Intl.DateTimeFormat('en-US', {
           timeZone: 'America/New_York', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true,
@@ -384,7 +468,9 @@ export function TodayTab({
       step: null,
     }
     setPreviewTouch(updatedTouch)
-    setPendingConfirmation((prev) => prev.map((t) => (t.id === updatedTouch.id ? updatedTouch : t)))
+    const replace = (prev: ScheduledTouch[]) => prev.map((t) => (t.id === updatedTouch.id ? updatedTouch : t))
+    setPendingConfirmation(replace)
+    setScheduledApproved(replace)
     setPreviewSaving(false)
     showGlobalToast('Email content saved', 'success', 2000)
   }
@@ -491,43 +577,28 @@ export function TodayTab({
           </div>
           <div style={styles.touchList}>
             {followUps.map((lead) => (
-              <div key={lead.id} style={styles.touchCard}>
-                <div style={styles.touchMain}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}
-                    onClick={() => setActiveLeadId(lead.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') setActiveLeadId(lead.id) }}
-                    aria-label={`Open ${lead.first_name} ${lead.last_name ?? ''} detail`}
+              <SimpleTouchRow
+                key={lead.id}
+                avatarLabel={initials(lead.first_name, lead.last_name)}
+                title={`${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}`}
+                onOpenLead={() => setActiveLeadId(lead.id)}
+                meta={lead.draft_message && (
+                  <span style={styles.draftPreview}>
+                    {lead.draft_message.length > 100
+                      ? lead.draft_message.slice(0, 100) + '…'
+                      : lead.draft_message}
+                  </span>
+                )}
+                actions={
+                  <button
+                    type="button"
+                    style={styles.previewBtn}
+                    onClick={() => handleMarkFollowUpDone(lead.id)}
                   >
-                    <div style={styles.avatar}>
-                      {((lead.first_name[0] ?? '') + (lead.last_name?.[0] ?? '')).toUpperCase()}
-                    </div>
-                    <div style={styles.touchInfo}>
-                      <span style={styles.touchName}>
-                        {lead.first_name} {lead.last_name ?? ''} · {lead.company}
-                      </span>
-                      {lead.draft_message && (
-                        <span style={styles.draftPreview}>
-                          {lead.draft_message.length > 100
-                            ? lead.draft_message.slice(0, 100) + '…'
-                            : lead.draft_message}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      style={styles.previewBtn}
-                      onClick={() => handleMarkFollowUpDone(lead.id)}
-                    >
-                      Mark done
-                    </button>
-                  </div>
-                </div>
-              </div>
+                    Mark done
+                  </button>
+                }
+              />
             ))}
           </div>
         </div>
@@ -578,62 +649,67 @@ export function TodayTab({
               const isConf = confirmingId === touch.id
               const err = confirmErrors[touch.id]
               return (
-                <div key={touch.id} style={styles.touchCard}>
-                  <div style={styles.touchMain}>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: lead ? 'pointer' : 'default' }}
-                      onClick={() => lead && setActiveLeadId(lead.id)}
-                      onKeyDown={(e) => { if (lead && e.key === 'Enter') setActiveLeadId(lead.id) }}
-                      aria-label={lead ? `Open ${lead.first_name} ${lead.last_name ?? ''} detail` : undefined}
-                    >
-                      <div style={styles.avatar}>
-                        {lead ? ((lead.first_name[0] ?? '') + (lead.last_name?.[0] ?? '')).toUpperCase() : '?'}
-                      </div>
-                      <div style={styles.touchInfo}>
-                        <span style={styles.touchName}>
-                          {lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
-                        </span>
-                        <span style={styles.touchMeta}>
-                          Scheduled for {new Intl.DateTimeFormat('en-GB', {
-                            timeZone: touch.recipient_timezone ?? 'UTC',
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true,
-                          }).format(new Date(touch.scheduled_for))}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(e) => e.stopPropagation()}>
-                      {isConf ? (
-                        <Loader2 size={16} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            style={styles.previewBtn}
-                            onClick={() => openPreview(touch)}
-                          >
-                            Preview
-                          </button>
-                          <button
-                            type="button"
-                            style={styles.actionBtn}
-                            disabled={!!confirmingId}
-                            onClick={() => confirm(touch.id)}
-                          >
-                            Approve
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  {err && <div style={styles.pendingErr}>{err}</div>}
-                </div>
+                <SimpleTouchRow
+                  key={touch.id}
+                  avatarLabel={lead ? initials(lead.first_name, lead.last_name) : '?'}
+                  title={lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
+                  onOpenLead={lead ? () => setActiveLeadId(lead.id) : undefined}
+                  meta={<span style={styles.touchMeta}>Scheduled for {formatScheduledMeta(touch)}</span>}
+                  error={err}
+                  actions={
+                    isConf ? (
+                      <Loader2 size={16} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          style={styles.previewBtn}
+                          onClick={() => openPreview(touch)}
+                        >
+                          Preview
+                        </button>
+                        <button
+                          type="button"
+                          style={styles.actionBtn}
+                          disabled={!!confirmingId}
+                          onClick={() => confirm(touch.id)}
+                        >
+                          Approve
+                        </button>
+                      </>
+                    )
+                  }
+                />
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {!loading && scheduledApproved.length > 0 && (
+        <div style={styles.pendingSection}>
+          <div style={styles.pendingSectionHeader}>
+            <span style={styles.sectionTitle}>Scheduled</span>
+            <span style={{ ...styles.sectionCount, color: tokens.green, fontFamily: mono }}>
+              {scheduledApproved.length}
+            </span>
+          </div>
+          <div style={styles.touchList}>
+            {scheduledApproved.map((touch) => {
+              const lead = touch.lead
+              return (
+                <SimpleTouchRow
+                  key={touch.id}
+                  avatarLabel={lead ? initials(lead.first_name, lead.last_name) : '?'}
+                  title={lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
+                  onOpenLead={lead ? () => setActiveLeadId(lead.id) : undefined}
+                  meta={<span style={styles.touchMeta}>Sends {formatScheduledMeta(touch)}</span>}
+                  actions={
+                    <button type="button" style={styles.previewBtn} onClick={() => openPreview(touch)}>
+                      Preview
+                    </button>
+                  }
+                />
               )
             })}
           </div>

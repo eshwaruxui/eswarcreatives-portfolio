@@ -3,12 +3,13 @@
 // SmartShortlistTab's Section A (Fix 1). Route: /portal/admin/settings.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Upload, SlidersHorizontal } from 'lucide-react'
+import { Upload, SlidersHorizontal, Sparkles, Trash2, FileText } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts } from '../../theme'
 import { mono, PageHeader } from '../ui'
 import { showToast } from '../toast'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { sanitizeFilename } from '../../../lib/sanitizeFilename'
 import {
   VERTICAL_LABELS,
   type Vertical,
@@ -19,10 +20,11 @@ const VERTICALS: Vertical[] = ['design_systems', 'branding']
 const ATTACHMENT_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp'
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
-type SettingsSection = 'icp'
+type SettingsSection = 'icp' | 'skills'
 
 const SECTIONS: { id: SettingsSection; label: string; Icon: React.ComponentType<{ size?: number; color?: string }> }[] = [
   { id: 'icp', label: 'ICP configuration', Icon: SlidersHorizontal },
+  { id: 'skills', label: 'Outreach skills', Icon: Sparkles },
 ]
 
 export function SettingsPage() {
@@ -48,6 +50,7 @@ export function SettingsPage() {
         </nav>
         <div style={s.content}>
           {activeSection === 'icp' && <ICPConfigPanel />}
+          {activeSection === 'skills' && <SkillsPanel />}
         </div>
       </div>
     </>
@@ -272,6 +275,141 @@ function AttachmentField({
   )
 }
 
+type OutreachSkill = {
+  id: string
+  name: string
+  description: string | null
+  storage_path: string
+  is_active: boolean
+  created_at: string
+}
+
+// Skill files are .skill bundles (a zip of SKILL.md + optional references —
+// the same format Claude Code's own Skill system uses). Unzipping needs a
+// real zip library, so the browser just uploads the raw file to storage and
+// hands off the path to process-skill-upload, which parses it server-side
+// into a plain-text row this panel then lists.
+function SkillsPanel() {
+  const [skills, setSkills] = useState<OutreachSkill[]>([])
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function loadSkills() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('outreach_skills')
+      .select('id, name, description, storage_path, is_active, created_at')
+      .order('created_at', { ascending: false })
+    setSkills((data ?? []) as OutreachSkill[])
+    setLoading(false)
+  }
+
+  useEffect(() => { loadSkills() }, [])
+
+  async function handleUpload(file: File) {
+    if (!file.name.toLowerCase().endsWith('.skill')) {
+      setError('Only .skill files are supported.')
+      return
+    }
+    setError(null)
+    setUploading(true)
+    try {
+      const path = `skills/${Date.now()}-${sanitizeFilename(file.name)}.skill`
+      const { error: uploadErr } = await supabase.storage.from('outreach-skills').upload(path, file)
+      if (uploadErr) throw uploadErr
+
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token ?? ''
+      const { data, error: fnErr } = await supabase.functions.invoke('process-skill-upload', {
+        body: { storage_path: path },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
+      if (fnErr || !data || data.error) {
+        throw new Error(data?.error ?? 'process_failed')
+      }
+      showToast('Skill uploaded', 'success', 2000)
+      await loadSkills()
+    } catch {
+      setError('Could not process that skill file. Make sure it\'s a valid .skill bundle with a SKILL.md inside.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleDelete(skill: OutreachSkill) {
+    await supabase.storage.from('outreach-skills').remove([skill.storage_path])
+    await supabase.from('outreach_skills').delete().eq('id', skill.id)
+    setSkills((prev) => prev.filter((s) => s.id !== skill.id))
+    showToast('Skill removed', 'success', 2000)
+  }
+
+  return (
+    <div style={s.card}>
+      <h2 style={s.cardTitle}>Outreach skills</h2>
+      <p style={s.cardSubtitle}>
+        Uploaded skills are available to select when generating personalized outreach messages for a lead.
+      </p>
+
+      <button
+        type="button"
+        style={{ ...s.uploadZone, ...(dragging ? s.uploadZoneDragging : null) }}
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+        onDragEnter={(e) => { e.preventDefault(); setDragging(true) }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragging(false)
+          const file = e.dataTransfer.files?.[0]
+          if (file) handleUpload(file)
+        }}
+      >
+        <Upload size={13} color={t.text.tertiary} />
+        {uploading ? 'Uploading...' : dragging ? 'Drop to upload' : 'Drop a .skill file, or click to browse'}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".skill"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) handleUpload(file)
+          if (inputRef.current) inputRef.current.value = ''
+        }}
+      />
+      {error && <div style={s.skillError}>{error}</div>}
+
+      <div style={s.skillList}>
+        {loading ? (
+          <p style={s.skillEmpty}>Loading...</p>
+        ) : skills.length === 0 ? (
+          <p style={s.skillEmpty}>No skills uploaded yet.</p>
+        ) : (
+          skills.map((skill) => (
+            <div key={skill.id} style={s.skillRow}>
+              <FileText size={16} color={tokens.primary} style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={s.skillName}>{skill.name}</div>
+                {skill.description && <div style={s.skillDescription}>{skill.description}</div>}
+              </div>
+              <button type="button" style={s.removeLink} onClick={() => handleDelete(skill)} aria-label={`Remove ${skill.name}`}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 const s: Record<string, CSSProperties> = {
   layout: { display: 'flex', gap: 24, alignItems: 'flex-start' },
   layoutMobile: { flexDirection: 'column', gap: 16 },
@@ -316,6 +454,26 @@ const s: Record<string, CSSProperties> = {
     padding: 20,
   },
   cardTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary, margin: '0 0 16px' },
+  cardSubtitle: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary, margin: '-8px 0 16px' },
+  skillList: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 },
+  skillEmpty: { fontFamily: fonts.body, fontSize: 13, color: t.text.muted, margin: 0 },
+  skillRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: '10px 12px',
+    background: t.background.subtle,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+  },
+  skillName: { fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: t.text.primary },
+  skillDescription: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, marginTop: 2 },
+  skillError: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.ruby,
+    marginTop: 8,
+  },
   configBody: { display: 'flex', flexDirection: 'column', gap: 16 },
   vertTabs: { display: 'flex', gap: 6 },
   vertTab: {

@@ -1,7 +1,7 @@
 // Lead drawer: full lead detail, editable fields, enrollment, timeline, convert to client.
 // SidePanel on desktop, full-screen bottom sheet on mobile (handled by SidePanel itself).
 import { useEffect, useRef, useState } from 'react'
-import { ExternalLink, Clock, Mail, Linkedin, X, Reply, ChevronDown } from 'lucide-react'
+import { ExternalLink, Clock, Mail, Linkedin, X, Reply, ChevronDown, Sparkles, Loader2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
@@ -11,6 +11,7 @@ import { formatPortalDate } from '../utils/formatDate'
 import { showToast } from '../admin/toast'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ScoreRing, type ScoringState } from './shared/ScoreRing'
+import { SegmentSelect } from './shared/SegmentSelect'
 import type { Vertical } from './shortlist/types'
 
 type LeadStatus =
@@ -118,24 +119,6 @@ function StatusChip({ status }: { status: string }) {
   )
 }
 
-function SegmentChip({ segment }: { segment: string }) {
-  const isSecAI = segment === 'security_ai'
-  return (
-    <span style={{
-      display: 'inline-block',
-      padding: '2px 10px',
-      borderRadius: 999,
-      background: isSecAI ? tokens.tealLight : tokens.goldLight,
-      color: isSecAI ? tokens.primary : tokens.goldDark,
-      fontFamily: fonts.body,
-      fontSize: 11,
-      fontWeight: 600,
-    }}>
-      {isSecAI ? 'Security / AI' : 'SaaS Product'}
-    </span>
-  )
-}
-
 function intentLabel(dayOffset: number | null): string {
   if (dayOffset === null) return 'Touch'
   if (dayOffset === 0) return 'First touch'
@@ -208,6 +191,32 @@ export function LeadDrawer({
   // Website warning on enroll
   const [websiteWarn, setWebsiteWarn] = useState(false)
   const websiteInputRef = useRef<HTMLInputElement>(null)
+
+  // Outreach skills: multi-select applied when generating/refining the draft
+  // message. lastGenerated is the exact text last written by the AI — if the
+  // saved value later differs from it, that's a real human edit worth logging
+  // as feedback for future generations to learn from.
+  const [skills, setSkills] = useState<{ id: string; name: string }[]>([])
+  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([])
+  const [generatingMessage, setGeneratingMessage] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
+  const [lastGenerated, setLastGenerated] = useState<string | null>(null)
+  const draftRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    supabase
+      .from('outreach_skills')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => {
+        const rows = (data ?? []) as { id: string; name: string }[]
+        setSkills(rows)
+        // Every uploaded skill applies by default; the checkboxes below let
+        // an admin narrow it down for a specific message.
+        setSelectedSkillIds(rows.map((s) => s.id))
+      })
+  }, [])
 
   useEffect(() => {
     setStartDate(new Date().toISOString().split('T')[0])
@@ -337,6 +346,36 @@ export function LeadDrawer({
         year: 'numeric',
       }).format(new Date(value))
       showToast(`We'll remind you on ${reminderDate}`, 'success')
+    }
+  }
+
+  // Refines the current draft if one exists, otherwise writes a first draft
+  // from scratch — same call either way, generate-outreach-message decides
+  // based on whether current_draft is non-empty.
+  async function handleApplySkills() {
+    if (!lead) return
+    setGenerateError(null)
+    setGeneratingMessage(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token ?? ''
+      const { data, error: fnErr } = await supabase.functions.invoke('generate-outreach-message', {
+        body: {
+          lead_id: lead.id,
+          skill_ids: selectedSkillIds,
+          current_draft: draftRef.current?.value ?? '',
+        },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
+      if (fnErr || !data || data.error || typeof data.message !== 'string') {
+        throw new Error(data?.error ?? 'generation_failed')
+      }
+      if (draftRef.current) draftRef.current.value = data.message
+      setLastGenerated(data.message)
+    } catch {
+      setGenerateError('Could not generate a message. Please try again.')
+    } finally {
+      setGeneratingMessage(false)
     }
   }
 
@@ -474,7 +513,7 @@ export function LeadDrawer({
       <div style={styles.drawerBody}>
         {/* Header chips */}
         <div style={styles.chipRow}>
-          <SegmentChip segment={lead.segment} />
+          <SegmentSelect value={lead.segment} onChange={(segment) => saveLead({ segment })} />
           <StatusChip status={lead.status} />
           <ScoreRing
             score={lead.icp_score}
@@ -661,15 +700,60 @@ export function LeadDrawer({
           </div>
           <div style={styles.followUpField}>
             <label style={styles.followUpLabel}>Draft message</label>
+            {skills.length > 0 && (
+              <div style={styles.skillPicker}>
+                {skills.map((skill) => {
+                  const checked = selectedSkillIds.includes(skill.id)
+                  return (
+                    <label key={skill.id} style={styles.skillPickerItem}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setSelectedSkillIds((prev) =>
+                            checked ? prev.filter((id) => id !== skill.id) : [...prev, skill.id]
+                          )
+                        }
+                      />
+                      {skill.name}
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+            <button
+              type="button"
+              style={{ ...styles.applySkillsBtn, opacity: generatingMessage ? 0.6 : 1 }}
+              onClick={handleApplySkills}
+              disabled={generatingMessage}
+            >
+              {generatingMessage ? (
+                <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <Sparkles size={13} />
+              )}
+              {generatingMessage ? 'Generating...' : lead.draft_message ? 'Update message' : 'Apply skills'}
+            </button>
+            {generateError && <div style={styles.warnNote}>{generateError}</div>}
             <textarea
               key={lead.id + 'draft'}
+              ref={draftRef}
               defaultValue={lead.draft_message ?? ''}
               style={styles.textarea}
               rows={4}
-              placeholder="Paste or write your next message here."
+              placeholder="Paste or write your next message here, or generate one with Apply skills above."
               onBlur={(e) => {
                 const val = e.target.value.trim()
                 if (val !== (lead.draft_message ?? '').trim()) saveLead({ draft_message: val || null })
+                if (lastGenerated && val !== lastGenerated.trim()) {
+                  supabase.from('outreach_message_feedback').insert({
+                    lead_id: lead.id,
+                    skill_ids: selectedSkillIds.length > 0 ? selectedSkillIds : null,
+                    generated_text: lastGenerated,
+                    edited_text: val,
+                  })
+                  setLastGenerated(null)
+                }
               }}
             />
           </div>
@@ -1241,6 +1325,40 @@ const styles: Record<string, CSSProperties> = {
     resize: 'vertical' as const,
     boxSizing: 'border-box' as const,
     lineHeight: 1.5,
+  },
+  skillPicker: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '4px 12px',
+    padding: '8px 10px',
+    background: t.background.subtle,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+  },
+  skillPickerItem: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.secondary,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  applySkillsBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    background: tokens.tealLight,
+    color: tokens.primary,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 8,
+    padding: '6px 12px',
+    cursor: 'pointer',
   },
   select: {
     fontFamily: fonts.body,
