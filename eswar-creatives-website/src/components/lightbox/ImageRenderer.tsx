@@ -64,7 +64,16 @@ export function ImageRenderer({
     )
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+    // display:flex + centering: the <img> (or a custom renderImage element)
+    // is an inline-level replaced element with no explicit size hint when
+    // width/height aren't provided (e.g. Lightbox callers that don't know
+    // the source image's natural dimensions ahead of time, like the Outputs
+    // file browser). Without this, it renders at its natural pixel size and
+    // sits flush-left in this wrapper's line box instead of centered --
+    // centering the *wrapper* alone (as Lightbox.tsx's caller does) has no
+    // effect once this div is stretched to 100% width by its own flex
+    // parent, since there's no leftover space left to distribute.
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {state !== 'loaded' && (
         <div
           aria-hidden="true"

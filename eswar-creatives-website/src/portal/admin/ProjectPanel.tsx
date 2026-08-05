@@ -10,7 +10,6 @@ import { tokens, t, fonts, motionTokens } from '../theme'
 import { StatusBadge, mono, ui } from './ui'
 import { formatPortalDate } from '../utils/formatDate'
 import { SidePanel } from './SidePanel'
-import { useBreakpoint } from '../hooks/useBreakpoint'
 import { showToast } from './toast'
 import { StageLabel } from '../components/StageLabel'
 import type { StageStatus } from '../components/StageLabel'
@@ -21,6 +20,26 @@ import type { ProjectStageAttachment, AttachmentCategory } from '../components/A
 import { ClientNotes } from '../components/ClientNotes'
 import { ProposalLinkPicker } from '../components/ProposalLinkPicker'
 import type { ProjectStageProposalLink } from '../components/ProposalLinkPicker'
+import { TabBar, TabFadeIn } from '../components/TabBar'
+import { OutputsBrowser } from '../components/OutputsBrowser'
+import type { OutputFile } from '../components/OutputsBrowser'
+import { Lightbox } from '../../components/lightbox/Lightbox'
+import type { GalleryImage } from '../../components/lightbox/types'
+import { toPreviewItem } from '../utils/toPreviewItem'
+
+// Lightbox chrome is intentionally a dark photo-viewer theme, independent of
+// the portal's teal/cream palette -- same rationale as CaseDetailOverlay's
+// LIGHTBOX_THEME (src/components/branding/CaseDetailOverlay.tsx).
+const OUTPUTS_LIGHTBOX_THEME = {
+  background: '#0F0F0F',
+  text: t.text.onPrimary,
+  textMuted: 'rgba(255,255,255,0.6)',
+  accent: tokens.gold,
+  accentForeground: '#000000',
+  surface: 'rgba(255,255,255,0.1)',
+  border: 'rgba(255,255,255,0.15)',
+  radius: '8px',
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,12 +72,13 @@ type Proposal = {
 
 type Client = { id: string; name: string | null; email: string }
 
-type Tab = 'overview' | 'stages' | 'notes' | 'settings'
+type Tab = 'overview' | 'stages' | 'notes' | 'outputs' | 'settings'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'stages',   label: 'Stages'   },
   { id: 'notes',    label: 'Notes'    },
+  { id: 'outputs',  label: 'Outputs'  },
   { id: 'settings', label: 'Settings' },
 ]
 
@@ -255,8 +275,20 @@ export function ProjectPanel({
   projectId: string
   onClose: () => void
 }) {
-  const { isMobile } = useBreakpoint()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
+  const [previewState, setPreviewState] = useState<{ items: GalleryImage[]; index: number } | null>(null)
+
+  // Batch-resolves signed URLs for every file in the folder the admin is
+  // browsing, so Lightbox's next/prev navigation (scoped by groupKey to the
+  // clicked file's folder) works without an extra round-trip per navigation.
+  async function openPreview(files: OutputFile[], clickedIndex: number, folderId: string | null) {
+    const groupKey = folderId ?? 'root'
+    const signed = await Promise.all(
+      files.map((f) => supabase.storage.from('project-outputs').createSignedUrl(f.storage_path, 3600))
+    )
+    const items = files.map((f, i) => toPreviewItem(f, signed[i].data?.signedUrl ?? '', groupKey))
+    setPreviewState({ items, index: clickedIndex })
+  }
 
   // Core data
   const [project, setProject]     = useState<Project | null>(null)
@@ -655,6 +687,23 @@ export function ProjectPanel({
     )
   }
 
+  function OutputsTab() {
+    return (
+      <div style={s.tabContent}>
+        <OutputsBrowser projectId={projectId} canEdit onOpenPreview={openPreview} />
+        {previewState && (
+          <Lightbox
+            images={previewState.items}
+            index={previewState.index}
+            theme={OUTPUTS_LIGHTBOX_THEME}
+            onClose={() => setPreviewState(null)}
+            onNavigate={(i) => setPreviewState((cur) => (cur ? { ...cur, index: i } : cur))}
+          />
+        )}
+      </div>
+    )
+  }
+
   function SettingsTab() {
     return (
       <div style={s.tabContent}>
@@ -721,31 +770,16 @@ export function ProjectPanel({
         ) : (
           <>
             {/* Tab bar — H7: keeps users oriented in the panel hierarchy.
-                Horizontal scroll strip on mobile so all 4 tabs stay reachable. */}
-            <div style={{ ...s.tabBar, ...(isMobile ? s.tabBarMobile : null) }}>
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  style={{
-                    ...s.tabBtn,
-                    ...(isMobile ? s.tabBtnMobile : null),
-                    ...(activeTab === tab.id ? s.tabBtnActive : {}),
-                  }}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+                Horizontal scroll strip on mobile so all tabs stay reachable. */}
+            <TabBar tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
-            <style>{`@keyframes ecTabFadeIn{from{opacity:0}to{opacity:1}}`}</style>
-            <div key={activeTab} style={{ animation: `ecTabFadeIn ${motionTokens.durationFast} ${motionTokens.easeDefault}` }}>
+            <TabFadeIn key={activeTab}>
               {activeTab === 'overview' && <OverviewTab />}
               {activeTab === 'stages'   && <StagesTab />}
               {activeTab === 'notes'    && <NotesTab />}
+              {activeTab === 'outputs'  && <OutputsTab />}
               {activeTab === 'settings' && <SettingsTab />}
-            </div>
+            </TabFadeIn>
           </>
         )}
       </SidePanel>
@@ -816,40 +850,6 @@ export function ProjectPanel({
 const s: Record<string, CSSProperties> = {
   muted: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
   errorText: { fontFamily: fonts.body, fontSize: 14, color: tokens.ruby, margin: 0 },
-
-  // Tab bar
-  tabBar: {
-    display: 'flex',
-    gap: 2,
-    borderBottom: `2px solid ${t.border.subtle}`,
-    marginBottom: 20,
-    flexShrink: 0,
-  },
-  tabBarMobile: {
-    overflowX: 'auto',
-    WebkitOverflowScrolling: 'touch',
-    flexWrap: 'nowrap',
-  },
-  tabBtn: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: 500,
-    color: t.text.secondary,
-    background: 'none',
-    border: 'none',
-    padding: '8px 14px',
-    cursor: 'pointer',
-    borderBottom: '2px solid transparent',
-    marginBottom: -2,
-    borderRadius: '4px 4px 0 0',
-    transition: `color ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
-  },
-  tabBtnMobile: { minWidth: 80, padding: '12px 16px', flexShrink: 0, whiteSpace: 'nowrap' },
-  tabBtnActive: {
-    color: tokens.primary,
-    fontWeight: 600,
-    borderBottomColor: tokens.primary,
-  },
 
   // Tab content wrapper
   tabContent: { display: 'flex', flexDirection: 'column', gap: 16 },

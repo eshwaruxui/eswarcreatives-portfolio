@@ -41,7 +41,7 @@ export function LoginPage() {
       // overview (the /portal/admin index route), not a sub-module like sketches.
       navigate('/portal/admin', { replace: true })
     } else if (role === 'client') {
-      navigate('/portal/projects', { replace: true })
+      navigate('/portal/dashboard', { replace: true })
     } else if (role === 'reviewer') {
       // Land the reviewer on their first campaign. RLS scopes review_campaigns
       // to reviewers, so this returns only campaigns they may see.
