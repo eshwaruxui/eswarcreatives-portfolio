@@ -742,11 +742,11 @@ export function LeadDrawer({
               style={styles.textarea}
               rows={4}
               placeholder="Paste or write your next message here, or generate one with Apply skills above."
-              onBlur={(e) => {
+              onBlur={async (e) => {
                 const val = e.target.value.trim()
                 if (val !== (lead.draft_message ?? '').trim()) saveLead({ draft_message: val || null })
                 if (lastGenerated && val !== lastGenerated.trim()) {
-                  supabase.from('outreach_message_feedback').insert({
+                  await supabase.from('outreach_message_feedback').insert({
                     lead_id: lead.id,
                     skill_ids: selectedSkillIds.length > 0 ? selectedSkillIds : null,
                     generated_text: lastGenerated,
