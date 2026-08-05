@@ -19,6 +19,26 @@ import type { ProjectStageAttachment, AttachmentCategory } from '../components/A
 import { ClientNotes } from '../components/ClientNotes'
 import { ProposalLinkPicker } from '../components/ProposalLinkPicker'
 import type { ProjectStageProposalLink } from '../components/ProposalLinkPicker'
+import { OutputsBrowser } from '../components/OutputsBrowser'
+import type { OutputFile } from '../components/OutputsBrowser'
+import { Lightbox } from '../../components/lightbox/Lightbox'
+import type { GalleryImage } from '../../components/lightbox/types'
+import { toPreviewItem } from '../utils/toPreviewItem'
+
+// Lightbox chrome is intentionally a dark photo-viewer theme, independent of
+// the portal's teal/cream palette -- same rationale as CaseDetailOverlay's
+// LIGHTBOX_THEME (src/components/branding/CaseDetailOverlay.tsx) and the
+// standalone admin ProjectPanel's matching constant.
+const OUTPUTS_LIGHTBOX_THEME = {
+  background: '#0F0F0F',
+  text: t.text.onPrimary,
+  textMuted: 'rgba(255,255,255,0.6)',
+  accent: tokens.gold,
+  accentForeground: '#000000',
+  surface: 'rgba(255,255,255,0.1)',
+  border: 'rgba(255,255,255,0.15)',
+  radius: '8px',
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -44,12 +64,13 @@ type ProjectStage = {
 
 type Proposal = { id: string; proposal_number: string; title: string; status: string }
 
-type Tab = 'overview' | 'stages' | 'notes' | 'settings'
+type Tab = 'overview' | 'stages' | 'notes' | 'outputs' | 'settings'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'stages',   label: 'Stages'   },
   { id: 'notes',    label: 'Notes'    },
+  { id: 'outputs',  label: 'Outputs'  },
   { id: 'settings', label: 'Settings' },
 ]
 
@@ -396,6 +417,17 @@ function ProjectPanel({
 
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [loadError, setLoadError] = useState<string | null>(null)
+
+  // ── Outputs ──
+  const [previewState, setPreviewState] = useState<{ items: GalleryImage[]; index: number } | null>(null)
+  async function openPreview(files: OutputFile[], clickedIndex: number, folderId: string | null) {
+    const groupKey = folderId ?? 'root'
+    const signed = await Promise.all(
+      files.map((f) => supabase.storage.from('project-outputs').createSignedUrl(f.storage_path, 3600))
+    )
+    const items = files.map((f, i) => toPreviewItem(f, signed[i].data?.signedUrl ?? '', groupKey))
+    setPreviewState({ items, index: clickedIndex })
+  }
 
   // ── Overview ──
   const [projectTitle, setProjectTitle] = useState(project.title)
@@ -967,6 +999,22 @@ function ProjectPanel({
                 currentUserRole="admin"
                 currentUserId=""
               />
+            </div>
+          )}
+
+          {/* ── Outputs ──────────────────────────────────────────── */}
+          {activeTab === 'outputs' && (
+            <div style={s.tabContent}>
+              <OutputsBrowser projectId={project.id} canEdit onOpenPreview={openPreview} />
+              {previewState && (
+                <Lightbox
+                  images={previewState.items}
+                  index={previewState.index}
+                  theme={OUTPUTS_LIGHTBOX_THEME}
+                  onClose={() => setPreviewState(null)}
+                  onNavigate={(i) => setPreviewState((cur) => (cur ? { ...cur, index: i } : cur))}
+                />
+              )}
             </div>
           )}
 
