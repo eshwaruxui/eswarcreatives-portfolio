@@ -1,7 +1,7 @@
 // Leads tab: search, filter chips, sortable table (desktop), card stack (mobile).
 import { useEffect, useState } from 'react'
 import { Upload, UserPlus, Linkedin, Search, ArrowUpDown, Check } from 'lucide-react'
-import type { CSSProperties, MouseEvent } from 'react'
+import type { CSSProperties } from 'react'
 import { useSearchParams } from 'react-router'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
@@ -9,7 +9,7 @@ import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useReloadableList } from '../../hooks/useReloadableList'
-import { SortableTableHeader, nextMultiSortState, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
+import { SortableTableHeader, toggleMultiSort, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
 import { Skeleton } from '../../components/shared/Skeleton'
 import { SegmentSelect, SEGMENT_LABELS } from '../../components/shared/SegmentSelect'
 import { AddLeadModal } from './AddLeadModal'
@@ -336,11 +336,12 @@ export function LeadsTab() {
     await supabase.from('leads').update({ segment }).eq('id', leadId)
   }
 
-  // Plain click sorts by that column alone (asc -> desc -> clear); shift-click
-  // adds/cycles/drops it as an additional sort level without disturbing the
-  // others, so multiple columns can be sorted at once.
-  function handleSort(key: string, e: MouseEvent<HTMLButtonElement>) {
-    setSorts((prev) => nextMultiSortState(prev, key, e.shiftKey))
+  // Every click is additive: a new column appends as the lowest-priority sort
+  // key, an already-active one cycles asc -> desc -> removed in place. No
+  // modifier key — "Clear sort" (rendered next to the result count) is the
+  // way back to no sort at all.
+  function handleSort(key: string) {
+    setSorts((prev) => toggleMultiSort(prev, key))
   }
 
   function toggleStatusFilter(val: string) {
@@ -466,12 +467,19 @@ export function LeadsTab() {
           <p style={styles.resultCount}>
             {sorted.length} lead{sorted.length !== 1 ? 's' : ''}
           </p>
-          {isMobile && (
-            <button type="button" style={styles.sortSheetBtn} onClick={() => setShowSortSheet(true)}>
-              <ArrowUpDown size={13} />
-              Sort
-            </button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {!isMobile && sorts.length > 0 && (
+              <button type="button" style={styles.clearSortBtn} onClick={() => setSorts([])}>
+                Clear sort{sorts.length > 1 ? ` (${sorts.length})` : ''}
+              </button>
+            )}
+            {isMobile && (
+              <button type="button" style={styles.sortSheetBtn} onClick={() => setShowSortSheet(true)}>
+                <ArrowUpDown size={13} />
+                Sort
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -773,6 +781,17 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     color: t.text.muted,
     margin: 0,
+  },
+  clearSortBtn: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 500,
+    color: t.text.urlLink,
+    textDecoration: 'underline',
+    cursor: 'pointer',
   },
   sortSheetBtn: {
     display: 'inline-flex',

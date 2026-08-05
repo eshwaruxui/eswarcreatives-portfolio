@@ -2,7 +2,7 @@
 // and any future list) cycles and displays sort state the same way instead of
 // each screen reimplementing its own header buttons and chevrons.
 import { useState } from 'react'
-import type { CSSProperties, MouseEvent } from 'react'
+import type { CSSProperties } from 'react'
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { t, fonts } from '../../theme'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
@@ -32,24 +32,15 @@ export function nextSortState(
   return { key: null, dir: null }
 }
 
-// Multi-column counterpart: plain click replaces the whole sort with just
-// this column (same asc -> desc -> clear cycle as above); shift-click adds,
-// cycles, or drops this column as an additional sort level, leaving the
-// others untouched. Order in the returned array is priority order.
-export function nextMultiSortState(
-  sorts: SortSpec[],
-  clickedKey: string,
-  additive: boolean
-): SortSpec[] {
+// Multi-column counterpart: every click is additive — no modifier key. A
+// fresh column is appended as the lowest-priority sort key (asc); a column
+// already in the list cycles asc -> desc -> removed, in place, without
+// touching the others. (Originally required holding Shift to add a second
+// column; changed to plain-click-additive since the modifier was never
+// discovered in practice.) Order in the returned array is priority order —
+// use the "Clear sort" affordance in the caller to reset to no sort at all.
+export function toggleMultiSort(sorts: SortSpec[], clickedKey: string): SortSpec[] {
   const idx = sorts.findIndex((sp) => sp.key === clickedKey)
-
-  if (!additive) {
-    if (sorts.length === 1 && idx === 0) {
-      return sorts[0].dir === 'asc' ? [{ key: clickedKey, dir: 'desc' }] : []
-    }
-    return [{ key: clickedKey, dir: 'asc' }]
-  }
-
   if (idx === -1) return [...sorts, { key: clickedKey, dir: 'asc' }]
   if (sorts[idx].dir === 'asc') {
     const next = [...sorts]
@@ -74,7 +65,7 @@ export function SortableTableHeader({
   // sortKey/sortDir are ignored and numbered priority badges are shown once
   // more than one column is active.
   sorts?: SortSpec[]
-  onSort: (key: string, e: MouseEvent<HTMLButtonElement>) => void
+  onSort: (key: string) => void
 }) {
   const { isMobile } = useBreakpoint()
   const [hoverKey, setHoverKey] = useState<string | null>(null)
@@ -108,10 +99,10 @@ export function SortableTableHeader({
               <button
                 type="button"
                 style={s.sortBtn}
-                onClick={(e) => onSort(col.key, e)}
+                onClick={() => onSort(col.key)}
                 onMouseEnter={() => setHoverKey(col.key)}
                 onMouseLeave={() => setHoverKey((k) => (k === col.key ? null : k))}
-                title={multi ? 'Click to sort · Shift-click to add as a secondary sort' : undefined}
+                title={multi ? 'Click to sort by this column too · click again to reverse · click a third time to remove it' : undefined}
               >
                 <span style={{ color: labelColor }}>{col.label}</span>
                 {priority >= 0 && <span style={s.priorityBadge}>{priority + 1}</span>}
