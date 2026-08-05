@@ -284,6 +284,24 @@ type OutreachSkill = {
   created_at: string
 }
 
+// Mirrors process-skill-upload's error codes with an actionable message per
+// cause, instead of one generic "could not process" string for every failure
+// mode — a missing SKILL.md and a corrupt zip need different next steps.
+const SKILL_UPLOAD_ERROR_MESSAGES: Record<string, string> = {
+  invalid_skill_file: "That file isn't a valid zip archive — re-download or re-export the .skill bundle and try again.",
+  missing_skill_md: 'That zip doesn\'t have a SKILL.md file at its root (or inside a single top-level folder). Check the bundle structure.',
+  download_failed: 'Uploaded, but the server could not read it back from storage. Try again.',
+  save_failed: 'Parsed the file but could not save it. Try again.',
+  invalid_storage_path: 'Something went wrong queuing the upload. Try again.',
+  not_authenticated: 'Your session expired — refresh the page and sign in again.',
+  not_allowed: 'Your account does not have permission to upload skills.',
+}
+
+function processSkillErrorMessage(code: string | undefined): string {
+  if (!code) return 'Could not process that skill file. Please try again.'
+  return SKILL_UPLOAD_ERROR_MESSAGES[code] ?? `Could not process that skill file (${code}).`
+}
+
 // Skill files are .skill bundles (a zip of SKILL.md + optional references —
 // the same format Claude Code's own Skill system uses). Unzipping needs a
 // real zip library, so the browser just uploads the raw file to storage and
@@ -318,8 +336,19 @@ function SkillsPanel() {
     setUploading(true)
     try {
       const path = `skills/${Date.now()}-${sanitizeFilename(file.name)}.skill`
-      const { error: uploadErr } = await supabase.storage.from('outreach-skills').upload(path, file)
-      if (uploadErr) throw uploadErr
+      // .skill files carry no registered MIME type, so browsers guess
+      // inconsistently (application/octet-stream on some systems, empty
+      // string or application/zip on others) — an unlucky guess can fall
+      // outside the bucket's allowed_mime_types and fail before this even
+      // reaches process-skill-upload. Force it explicitly since we've
+      // already validated the .skill extension above.
+      const { error: uploadErr } = await supabase.storage
+        .from('outreach-skills')
+        .upload(path, file, { contentType: 'application/zip' })
+      if (uploadErr) {
+        setError(`Upload failed: ${uploadErr.message}`)
+        return
+      }
 
       const { data: sessionData } = await supabase.auth.getSession()
       const token = sessionData?.session?.access_token ?? ''
@@ -328,12 +357,13 @@ function SkillsPanel() {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       })
       if (fnErr || !data || data.error) {
-        throw new Error(data?.error ?? 'process_failed')
+        setError(processSkillErrorMessage(data?.error))
+        return
       }
       showToast('Skill uploaded', 'success', 2000)
       await loadSkills()
-    } catch {
-      setError('Could not process that skill file. Make sure it\'s a valid .skill bundle with a SKILL.md inside.')
+    } catch (e) {
+      setError(e instanceof Error ? `Upload failed: ${e.message}` : 'Could not upload that file. Please try again.')
     } finally {
       setUploading(false)
     }

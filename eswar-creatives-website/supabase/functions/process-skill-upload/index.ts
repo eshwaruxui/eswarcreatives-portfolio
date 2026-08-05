@@ -34,7 +34,13 @@ function fail(code: string, status = 400) {
   });
 }
 
-const MAX_CONTENT_CHARS = 8000;
+// Generous headroom, not a tight budget: real skill bundles (SKILL.md +
+// several references/*.md files) commonly land well past 15-18k characters
+// once uncompressed — human-writing-style.skill alone is ~18k across its 3
+// files. Claude's context window makes even several such skills combined
+// trivial, so the priority here is "never silently drop information the
+// admin uploaded," not context economy.
+const MAX_CONTENT_CHARS = 60000;
 
 // Hand-rolled frontmatter reader — only needs two fields (name, description)
 // out of a YAML block, so a full YAML parser would be overkill. Handles both
