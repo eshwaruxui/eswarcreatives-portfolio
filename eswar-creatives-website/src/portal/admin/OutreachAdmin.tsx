@@ -40,12 +40,14 @@ export function OutreachAdmin() {
   }
 
   function loadDueCount() {
-    const today = new Date().toISOString().slice(0, 10)
+    // scheduled_for is timestamptz (migration 0092) — "due" means anything
+    // up through the end of today, not just before midnight.
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
     supabase
       .from('outreach_touches')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'scheduled')
-      .lte('scheduled_for', today)
+      .lt('scheduled_for', `${tomorrow}T00:00:00.000Z`)
       .then(({ count }) => setDueCount(count ?? 0))
   }
 

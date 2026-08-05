@@ -80,6 +80,7 @@ export function AdminDashboard() {
     ;(async () => {
       try {
         const today = new Date().toISOString().slice(0, 10)
+        const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
         const [proposalsRes, invoicesRes, campaignsRes, clientsRes, dueTodayRes, overdueRes, repliesRes] = await Promise.all([
           supabase
@@ -99,8 +100,11 @@ export function AdminDashboard() {
             .select('id', { count: 'exact', head: true })
             .eq('status', 'active'),
           supabase.from('clients').select('id', { count: 'exact', head: true }),
-          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').eq('scheduled_for', today),
-          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').lt('scheduled_for', today),
+          // scheduled_for is timestamptz (migration 0092) — "due today" is a
+          // range (today's midnight through tomorrow's), not exact equality
+          // against a bare date, since a real send time carries an hour now.
+          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').gte('scheduled_for', `${today}T00:00:00.000Z`).lt('scheduled_for', `${tomorrow}T00:00:00.000Z`),
+          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').lt('scheduled_for', `${today}T00:00:00.000Z`),
           supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').eq('skipped_reason', 'lead_replied').gte('created_at', sevenDaysAgo),
         ])
         if (proposalsRes.error) throw proposalsRes.error

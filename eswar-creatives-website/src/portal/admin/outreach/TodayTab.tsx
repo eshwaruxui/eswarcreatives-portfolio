@@ -114,7 +114,11 @@ function tomorrowStr(): string {
 
 function daysOverdue(scheduled: string): number {
   const today = new Date(todayStr())
-  const sched = new Date(scheduled)
+  // scheduled_for is timestamptz (migration 0092) now, so `scheduled` may
+  // carry a specific hour — keep this a whole-calendar-day count (matching
+  // pre-migration behavior, when the column had no hour at all) by comparing
+  // just the date portion, not the precise instant.
+  const sched = new Date(scheduled.slice(0, 10))
   const diff = Math.floor((today.getTime() - sched.getTime()) / 86400000)
   return diff > 0 ? diff : 0
 }
@@ -264,7 +268,10 @@ export function TodayTab({
             )
           `)
           .in('status', ['scheduled', 'held'])
-          .lte('scheduled_for', today)
+          // scheduled_for is timestamptz (migration 0092) — "due" (Overdue +
+          // Due Today combined) means anything up through end of today, not
+          // just before midnight, since a real send time now carries an hour.
+          .lt('scheduled_for', `${tomorrowStr()}T00:00:00.000Z`)
           .order('scheduled_for', { ascending: true })
           .order('created_at', { ascending: true }),
         supabase
@@ -331,11 +338,16 @@ export function TodayTab({
 
       if (queueRes.error) throw queueRes.error
       const rows = dedupeByEnrollment((queueRes.data ?? []) as TouchRow[])
+      // scheduled_for is timestamptz (migration 0092), so this is now an
+      // instant comparison rather than a bare-date string match — the query
+      // above already bounds everything to <= end of today, so Overdue is
+      // just "before today started."
+      const todayStartMs = new Date(`${today}T00:00:00.000Z`).getTime()
       // Fix 9: 'held' touches (LinkedIn steps gated behind an accepted
       // connection) are blocked, not late — they always land in Due Today,
       // never Overdue, regardless of how far past their scheduled_for date.
-      setOverdue(rows.filter((r) => r.status !== 'held' && r.scheduled_for < today))
-      setDueToday(rows.filter((r) => r.status === 'held' || r.scheduled_for === today))
+      setOverdue(rows.filter((r) => r.status !== 'held' && new Date(r.scheduled_for).getTime() < todayStartMs))
+      setDueToday(rows.filter((r) => r.status === 'held' || new Date(r.scheduled_for).getTime() >= todayStartMs))
       setMotionStats({
         emailsToday: emailTodayRes.count ?? 0,
         liTodayCount: liTodayRes.count ?? 0,
@@ -841,7 +853,10 @@ function TouchRowCard({
     if (dow === 0) current.setDate(current.getDate() + 1)
     await supabase
       .from('outreach_touches')
-      .update({ scheduled_for: current.toISOString().slice(0, 10) })
+      // scheduled_for is timestamptz (migration 0092) — write the full
+      // instant, preserving whatever time-of-day was already set, instead
+      // of truncating back to a bare date.
+      .update({ scheduled_for: current.toISOString() })
       .eq('id', touch.id)
     setSnoozing(false)
     onRefresh()
