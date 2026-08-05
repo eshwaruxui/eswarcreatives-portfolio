@@ -140,8 +140,12 @@ export function Lightbox({ images, index, theme, labels, getTransformUrl, render
     justifyContent: 'center',
     borderRadius: 999,
     border: 'none',
-    background: 'rgba(255,255,255,0.1)',
-    color: theme.accentForeground,
+    background: 'rgba(255,255,255,0.12)',
+    // theme.text (readable-on-dark foreground), not theme.accentForeground
+    // (meant for content sitting ON a filled accent chip, e.g. black on
+    // gold) -- same near-invisible-icon bug as the thumbnail strip/fallback
+    // view, applied here to the close/prev/next buttons.
+    color: theme.text,
     cursor: enabled ? 'pointer' : 'default',
     opacity: enabled ? 1 : 0.3,
   })
@@ -191,8 +195,8 @@ export function Lightbox({ images, index, theme, labels, getTransformUrl, render
           justifyContent: 'center',
           borderRadius: 999,
           border: 'none',
-          background: 'rgba(255,255,255,0.1)',
-          color: theme.accentForeground,
+          background: 'rgba(255,255,255,0.12)',
+          color: theme.text,
           cursor: 'pointer',
         }}
       >
@@ -304,7 +308,10 @@ export function Lightbox({ images, index, theme, labels, getTransformUrl, render
 
       {title && (
         <div style={{ flexShrink: 0, padding: '16px 16px 12px', textAlign: 'center' }}>
-          <p style={{ fontFamily: theme.fontHeading, fontSize: 18, color: theme.accentForeground }}>{title}</p>
+          {/* theme.text, not theme.accentForeground -- same fix as the nav
+              buttons and fallback view above; this caption has always sat
+              directly on the dark backdrop, never on a filled accent chip. */}
+          <p style={{ fontFamily: theme.fontHeading, fontSize: 18, color: theme.text }}>{title}</p>
           {item.description && (
             <p style={{ fontStyle: 'italic', fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
               {item.description}
