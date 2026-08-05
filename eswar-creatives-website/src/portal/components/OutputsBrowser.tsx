@@ -105,9 +105,12 @@ export function OutputsBrowser({
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [moveError, setMoveError] = useState<string | null>(null)
+  const [draggingFiles, setDraggingFiles] = useState(false)
+  const [zoneHovered, setZoneHovered] = useState(false)
 
   const dragSrcRef = useRef<DragNode | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileDragDepth = useRef(0)
 
   async function load() {
     setLoading(true)
@@ -209,52 +212,122 @@ export function OutputsBrowser({
     setFiles((prev) => prev.filter((f) => f.id !== file.id))
   }
 
-  async function handleFileSelect(file: File) {
-    if (file.size > MAX_BYTES) {
-      setUploadError('File too large (max 50MB).')
-      return
-    }
+  // Uploads one or more files into the folder currently being browsed.
+  // Shared by the toolbar's file picker, dropping OS files anywhere on the
+  // panel, and pasting (Cmd+V) an image/file from the clipboard. sort_order
+  // is tracked with a local counter (not re-read from state per file) so a
+  // multi-file batch never assigns two files the same order.
+  async function handleFiles(fileList: FileList | File[]) {
+    if (!canEdit) return
+    const list = Array.from(fileList)
+    if (list.length === 0) return
+
     setUploadError(null)
     setUploading(true)
 
     const { data: sess } = await supabase.auth.getUser()
     const uid = sess.user?.id ?? null
-    const randomId = crypto.randomUUID().slice(0, 8)
-    const storagePath = `${projectId}/${randomId}_${file.name}`
-
-    const { error: upErr } = await supabase.storage.from('project-outputs').upload(storagePath, file)
-    if (upErr) {
-      setUploading(false)
-      setUploadError('Upload failed. Please try again.')
-      return
-    }
-
     const siblings = files.filter((f) => f.folder_id === currentFolderId)
-    const nextOrder = siblings.length > 0 ? Math.max(...siblings.map((f) => f.sort_order)) + 1 : 0
+    let nextOrder = siblings.length > 0 ? Math.max(...siblings.map((f) => f.sort_order)) + 1 : 0
 
-    const { data: row, error: insErr } = await supabase
-      .from('project_output_files')
-      .insert({
-        project_id: projectId,
-        folder_id: currentFolderId,
-        file_name: file.name,
-        storage_path: storagePath,
-        file_size: file.size,
-        file_type: file.type || null,
-        sort_order: nextOrder,
-        uploaded_by: uid,
-      })
-      .select('id, project_id, folder_id, file_name, storage_path, file_size, file_type, sort_order, uploaded_at')
-      .single()
+    const uploaded: OutputFile[] = []
+    for (const file of list) {
+      if (file.size > MAX_BYTES) {
+        setUploadError(`"${file.name}" is too large (max 50MB).`)
+        continue
+      }
+      const randomId = crypto.randomUUID().slice(0, 8)
+      const storagePath = `${projectId}/${randomId}_${file.name}`
+
+      const { error: upErr } = await supabase.storage.from('project-outputs').upload(storagePath, file)
+      if (upErr) {
+        setUploadError(`"${file.name}" failed to upload. Please try again.`)
+        continue
+      }
+
+      const { data: row, error: insErr } = await supabase
+        .from('project_output_files')
+        .insert({
+          project_id: projectId,
+          folder_id: currentFolderId,
+          file_name: file.name,
+          storage_path: storagePath,
+          file_size: file.size,
+          file_type: file.type || null,
+          sort_order: nextOrder++,
+          uploaded_by: uid,
+        })
+        .select('id, project_id, folder_id, file_name, storage_path, file_size, file_type, sort_order, uploaded_at')
+        .single()
+
+      if (insErr || !row) {
+        setUploadError(`"${file.name}" uploaded but could not be saved. Refresh to verify.`)
+        continue
+      }
+      uploaded.push(row as OutputFile)
+    }
 
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
+    if (uploaded.length > 0) setFiles((prev) => [...prev, ...uploaded])
+  }
 
-    if (insErr || !row) {
-      setUploadError('File uploaded but could not be saved. Refresh to verify.')
-      return
+  // Paste support: listens while the pointer is over the panel, mirroring
+  // AttachmentSection's pattern. Wrapped in a ref so the listener always
+  // calls the latest handleFiles/currentFolderId without needing to
+  // resubscribe on every render.
+  const handleFilesRef = useRef(handleFiles)
+  handleFilesRef.current = handleFiles
+
+  useEffect(() => {
+    if (!canEdit || !zoneHovered) return
+    function onPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items
+      if (!items) return
+      const pasted: File[] = []
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file') {
+          const file = item.getAsFile()
+          if (file) pasted.push(file)
+        }
+      }
+      if (pasted.length > 0) void handleFilesRef.current(pasted)
     }
-    setFiles((prev) => [...prev, row as OutputFile])
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [canEdit, zoneHovered])
+
+  // OS-file drag-and-drop over the whole panel, uploading into whichever
+  // folder is currently being browsed. Gated on dataTransfer.types
+  // containing "Files" so it never fires for the internal folder/file
+  // move-between-directories drag (that one never calls setData, so its
+  // dataTransfer carries no "Files" type) -- the two drag systems coexist
+  // without needing stopPropagation. depth-counted so nested row elements
+  // don't cause flicker as the pointer crosses child boundaries.
+  function isOsFileDrag(e: DragEvent): boolean {
+    return Array.from(e.dataTransfer.types).includes('Files')
+  }
+  function onPanelDragEnter(e: DragEvent) {
+    if (!canEdit || !isOsFileDrag(e)) return
+    e.preventDefault()
+    fileDragDepth.current += 1
+    setDraggingFiles(true)
+  }
+  function onPanelDragOver(e: DragEvent) {
+    if (!canEdit || !isOsFileDrag(e)) return
+    e.preventDefault()
+  }
+  function onPanelDragLeave(e: DragEvent) {
+    if (!canEdit || !isOsFileDrag(e)) return
+    fileDragDepth.current = Math.max(0, fileDragDepth.current - 1)
+    if (fileDragDepth.current === 0) setDraggingFiles(false)
+  }
+  async function onPanelDrop(e: DragEvent) {
+    if (!canEdit || !isOsFileDrag(e)) return
+    e.preventDefault()
+    fileDragDepth.current = 0
+    setDraggingFiles(false)
+    await handleFiles(e.dataTransfer.files)
   }
 
   async function copyShareLink(file: OutputFile) {
@@ -309,7 +382,22 @@ export function OutputsBrowser({
   }
 
   return (
-    <div style={s.root}>
+    <div
+      style={{ ...s.root, ...(draggingFiles ? s.rootDragActive : {}) }}
+      onMouseEnter={() => setZoneHovered(true)}
+      onMouseLeave={() => setZoneHovered(false)}
+      onDragEnter={onPanelDragEnter}
+      onDragOver={onPanelDragOver}
+      onDragLeave={onPanelDragLeave}
+      onDrop={(e) => void onPanelDrop(e)}
+    >
+      {draggingFiles && (
+        <div style={s.dropOverlay}>
+          <Upload size={20} />
+          <span>Drop to upload</span>
+        </div>
+      )}
+
       {/* Breadcrumb */}
       <div
         style={s.breadcrumbRow}
@@ -350,24 +438,27 @@ export function OutputsBrowser({
       </div>
 
       {canEdit && (
-        <div style={s.toolbar}>
-          <button type="button" style={s.toolbarBtn} onClick={() => setAddingFolder(true)}>
-            <FolderPlus size={14} /> New folder
-          </button>
-          <button type="button" style={s.toolbarBtn} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            <Upload size={14} /> {uploading ? 'Uploading...' : 'Upload file'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ACCEPT}
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) void handleFileSelect(file)
-            }}
-          />
-        </div>
+        <>
+          <div style={s.toolbar}>
+            <button type="button" style={s.toolbarBtn} onClick={() => setAddingFolder(true)}>
+              <FolderPlus size={14} /> New folder
+            </button>
+            <button type="button" style={s.toolbarBtn} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              <Upload size={14} /> {uploading ? 'Uploading...' : 'Upload file'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPT}
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                if (e.target.files) void handleFiles(e.target.files)
+              }}
+            />
+          </div>
+          <p style={s.dropHint}>Drop files anywhere here, paste with Cmd+V, or click Upload file</p>
+        </>
       )}
 
       {uploadError && <p style={s.errorText}>{uploadError}</p>}
@@ -512,7 +603,16 @@ export function OutputsBrowser({
 }
 
 const s: Record<string, CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', gap: 12 },
+  root: { display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', minHeight: 120 },
+  rootDragActive: { outline: `2px dashed ${tokens.primary}`, outlineOffset: 4, borderRadius: 12 },
+  dropOverlay: {
+    position: 'absolute', inset: 0, zIndex: 5, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12,
+    background: tokens.tealLight, color: tokens.primary,
+    fontFamily: fonts.body, fontSize: 14, fontWeight: 600,
+    pointerEvents: 'none',
+  },
+  dropHint: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, margin: 0 },
   breadcrumbRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, padding: '4px 0' },
   crumbSegment: { display: 'flex', alignItems: 'center', gap: 2 },
   crumbBtn: {
