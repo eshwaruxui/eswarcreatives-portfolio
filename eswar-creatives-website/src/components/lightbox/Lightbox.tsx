@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useSwipe } from './hooks/useSwipe'
 import { ImageRenderer } from './ImageRenderer'
 import { LightboxThumbnailStrip } from './LightboxThumbnailStrip'
@@ -145,7 +146,13 @@ export function Lightbox({ images, index, theme, labels, getTransformUrl, render
     opacity: enabled ? 1 : 0.3,
   })
 
-  return (
+  // Portaled straight into document.body so the fixed-position dialog always
+  // covers the full viewport, even when a caller renders <Lightbox> nested
+  // inside an ancestor with an inline `transform` (e.g. a slide-in drawer's
+  // translateX animation) -- a CSS transform on any ancestor creates a new
+  // containing block for position:fixed descendants, which would otherwise
+  // trap the dialog inside that ancestor's box instead of the viewport.
+  return createPortal(
     <div
       ref={dialogRef}
       role="dialog"
@@ -305,6 +312,7 @@ export function Lightbox({ images, index, theme, labels, getTransformUrl, render
           />
         </>
       )}
-    </div>
+    </div>,
+    document.body
   )
 }
