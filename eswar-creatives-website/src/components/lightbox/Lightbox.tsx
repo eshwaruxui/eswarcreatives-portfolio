@@ -95,8 +95,12 @@ export function Lightbox({ images, index, theme, labels, getTransformUrl, render
   }, [index, navImages.length])
 
   useEffect(() => {
+    // Preloading only makes sense for images -- new window.Image() is
+    // meaningless for PDFs/video/other kinds, which the browser streams
+    // on demand via the iframe/video element instead.
     const neighbors = [navImages[navIndex - 1], navImages[navIndex + 1]].filter(
-      (neighbor): neighbor is GalleryImage => Boolean(neighbor)
+      (neighbor): neighbor is GalleryImage =>
+        Boolean(neighbor) && (!neighbor?.kind || neighbor.kind === 'image')
     )
     const preloaded = neighbors.map((neighbor) => {
       const preloadSrc = getTransformUrl
@@ -116,7 +120,12 @@ export function Lightbox({ images, index, theme, labels, getTransformUrl, render
   if (!item) return null
 
   const title = item.localizedTitle ?? item.alt
-  const src = getTransformUrl ? getTransformUrl(item.src, { width: 1600, quality: 80, format: 'webp' }) : item.src
+  const kind = item.kind ?? 'image'
+  // getTransformUrl is an image-CDN transform hook -- only meaningful for the
+  // image kind. PDFs/video/other render straight from item.src.
+  const src = kind === 'image' && getTransformUrl
+    ? getTransformUrl(item.src, { width: 1600, quality: 80, format: 'webp' })
+    : item.src
 
   const navButtonStyle = (enabled: boolean): CSSProperties => ({
     position: 'absolute',
@@ -209,17 +218,65 @@ export function Lightbox({ images, index, theme, labels, getTransformUrl, render
 
       <div style={{ display: 'flex', minHeight: 200, flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '16px 16px 0' }}>
         <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%', minHeight: 300, maxWidth: '90vw', alignItems: 'center', justifyContent: 'center' }}>
-          <ImageRenderer
-            key={item.id}
-            src={src}
-            alt={item.alt}
-            width={item.width}
-            height={item.height}
-            blurDataUrl={item.blurDataUrl}
-            placeholderColor={theme.surface}
-            renderImage={renderImage}
-            style={{ maxHeight: '100%', maxWidth: '90vw', borderRadius: theme.radius, objectFit: 'contain' }}
-          />
+          {kind === 'image' && (
+            <ImageRenderer
+              key={item.id}
+              src={src}
+              alt={item.alt}
+              width={item.width}
+              height={item.height}
+              blurDataUrl={item.blurDataUrl}
+              placeholderColor={theme.surface}
+              renderImage={renderImage}
+              style={{ maxHeight: '100%', maxWidth: '90vw', borderRadius: theme.radius, objectFit: 'contain' }}
+            />
+          )}
+          {kind === 'pdf' && (
+            <iframe
+              key={item.id}
+              src={src}
+              title={item.alt}
+              style={{ width: '100%', height: '100%', border: 'none', borderRadius: theme.radius, background: '#fff' }}
+            />
+          )}
+          {kind === 'video' && (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <video
+              key={item.id}
+              src={src}
+              controls
+              style={{ maxHeight: '100%', maxWidth: '90vw', borderRadius: theme.radius }}
+            />
+          )}
+          {kind === 'other' && (
+            <div
+              key={item.id}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+                color: theme.accentForeground, textAlign: 'center', padding: 24,
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} style={{ height: 64, width: 64, opacity: 0.6 }}>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+              </svg>
+              <span style={{ fontSize: 15 }}>{item.alt}</span>
+              {item.fileSizeLabel && (
+                <span style={{ fontSize: 12, opacity: 0.65 }}>{item.fileSizeLabel}</span>
+              )}
+              <a
+                href={src}
+                download
+                style={{
+                  marginTop: 4, padding: '8px 18px', borderRadius: 999,
+                  background: 'rgba(255,255,255,0.1)', color: theme.accentForeground,
+                  textDecoration: 'none', fontSize: 13, fontWeight: 500,
+                }}
+              >
+                Download
+              </a>
+            </div>
+          )}
         </div>
       </div>
 

@@ -5,11 +5,19 @@
 // projectLevel=true writes to project_attachments table instead of project_stage_attachments.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Download, File, FileText, Image, Trash2 } from 'lucide-react'
+import { Download, File, FileText, Image, Trash2, Video } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
+import { fileKind } from '../utils/fileKind'
+import { formatBytes } from '../utils/formatBytes'
 
 export type AttachmentCategory = 'design_brief' | 'development' | 'output_delivery'
+
+export const ATTACHMENT_CATEGORIES: AttachmentCategory[] = [
+  'design_brief',
+  'development',
+  'output_delivery',
+]
 
 export type ProjectStageAttachment = {
   id: string
@@ -32,27 +40,19 @@ const CATEGORY_LABELS: Record<AttachmentCategory, string> = {
 const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.mp4,.zip'
 const MAX_BYTES = 10 * 1024 * 1024
 
-function formatBytes(n: number | null): string {
-  if (n == null) return ''
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
-}
-
 function FileIcon({ mimeType }: { mimeType: string | null }) {
-  const isPdf   = mimeType === 'application/pdf'
-  const isImage = mimeType?.startsWith('image/') ?? false
-  const color   = isPdf ? tokens.ruby : isImage ? tokens.accent : t.text.muted
-  const Icon    = isPdf ? FileText : isImage ? Image : File
+  const kind = fileKind(mimeType)
+  const color = kind === 'pdf' ? tokens.ruby : kind === 'image' ? tokens.accent : t.text.muted
+  const Icon  = kind === 'pdf' ? FileText : kind === 'image' ? Image : kind === 'video' ? Video : File
   return (
     <span
       style={{
         width: 28,
         height: 28,
         borderRadius: 6,
-        background: isPdf
+        background: kind === 'pdf'
           ? tokens.rubyLight
-          : isImage
+          : kind === 'image'
           ? tokens.tealLight
           : t.background.muted,
         display: 'flex',

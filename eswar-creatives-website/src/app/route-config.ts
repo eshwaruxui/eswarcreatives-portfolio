@@ -24,6 +24,7 @@ import { AccountPage } from "../portal/AccountPage";
 import { PublicVotePage } from "../portal/PublicVotePage";
 import { PublicInvoicePage } from "../portal/PublicInvoicePage";
 import { PublicProposalPage } from "../portal/PublicProposalPage";
+import { PublicOutputFilePage } from "../portal/PublicOutputFilePage";
 import { UnsubscribePage } from "../portal/UnsubscribePage";
 import { AdminShell } from "../portal/admin/AdminShell";
 import { AdminDashboard } from "../portal/admin/AdminDashboard";
@@ -41,6 +42,8 @@ import { SettingsPage } from "../portal/admin/settings/SettingsPage";
 import { MockupsPage } from "../portal/client/MockupsPage";
 import { ClientShell } from "../portal/client/ClientShell";
 import { ClientDashboardPage } from "../portal/ClientDashboard";
+import { ProjectsListPage } from "../portal/client/ProjectsList";
+import { ProjectDetailPage } from "../portal/client/ProjectDetailPage";
 import { ClientProposalsPage } from "../portal/client/ClientProposals";
 import { ClientInvoicesPage } from "../portal/client/ClientInvoices";
 import { ClientCampaignsPage } from "../portal/client/ClientCampaigns";
@@ -55,7 +58,9 @@ export const routeConfig = [
   {
     Component: ClientShell,
     children: [
-      { path: "/portal/projects",   Component: ClientDashboardPage },
+      { path: "/portal/dashboard",     Component: ClientDashboardPage },
+      { path: "/portal/projects",      Component: ProjectsListPage },
+      { path: "/portal/projects/:id",  Component: ProjectDetailPage },
       { path: "/portal/proposals",  Component: ClientProposalsPage },
       { path: "/portal/invoices",   Component: ClientInvoicesPage },
       { path: "/portal/mockups",    Component: MockupsPage },
@@ -72,6 +77,8 @@ export const routeConfig = [
   { path: "/invoice/:token",        Component: PublicInvoicePage },
   // Public proposal view — no auth required; token enforced server-side (0071).
   { path: "/proposal/:token",       Component: PublicProposalPage },
+  // Public Outputs file share view — no auth required; token enforced server-side (0088).
+  { path: "/output/:token",         Component: PublicOutputFilePage },
   // Public unsubscribe page — no auth required; calls unsubscribe_by_token RPC.
   { path: "/unsubscribe/:token",    Component: UnsubscribePage },
   // Phase 3 admin portal — persistent shell (sidebar + Outlet), admin-gated.

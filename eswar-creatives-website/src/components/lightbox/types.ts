@@ -14,6 +14,13 @@ export interface GalleryImage {
   description?: string
   priority?: boolean
   groupKey?: string
+  // Optional, backward-compatible: every existing image-gallery caller
+  // leaves these undefined and gets the original image-only behavior.
+  // Set by non-gallery callers (e.g. the Outputs file browser) so the
+  // Lightbox can render a PDF/video/generic-file preview instead of an
+  // image element.
+  kind?: 'image' | 'pdf' | 'video' | 'other'
+  fileSizeLabel?: string
 }
 
 export interface GalleryTheme {

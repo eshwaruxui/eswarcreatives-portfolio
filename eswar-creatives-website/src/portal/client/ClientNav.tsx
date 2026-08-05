@@ -5,7 +5,7 @@
 // Theme tokens only; no raw hex; no em dashes.
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { NavLink, useLocation } from 'react-router'
-import { FolderKanban, FileText, Receipt, Images, Megaphone, User } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, FileText, Receipt, Images, Megaphone, User } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { PortalProfile } from '../PortalGuard'
@@ -41,7 +41,8 @@ type NavItem = {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/portal/projects',  label: 'Projects',  badge: 'projects',  Icon: FolderKanban },
+  { to: '/portal/dashboard', label: 'Dashboard', badge: 'projects',  Icon: LayoutDashboard },
+  { to: '/portal/projects',  label: 'Projects',  badge: null,        Icon: FolderKanban },
   { to: '/portal/proposals', label: 'Proposals', badge: 'proposals', Icon: FileText },
   { to: '/portal/invoices',  label: 'Invoices',  badge: 'invoices',  Icon: Receipt },
   { to: '/portal/mockups',   label: 'Mockups',   badge: 'mockups',   Icon: Images },
@@ -50,7 +51,7 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 const SECTION_BY_PATH: Record<string, BadgeSection> = {
-  '/portal/projects':  'projects',
+  '/portal/dashboard': 'projects',
   '/portal/proposals': 'proposals',
   '/portal/invoices':  'invoices',
   '/portal/mockups':   'mockups',

@@ -1,11 +1,11 @@
-// Client dashboard at /portal/projects. Shows a single contextual banner (the
+// Client dashboard at /portal/dashboard. Shows a single contextual banner (the
 // highest-priority action the client should take), the client's active project
 // as a hi-fi project card (header + progress ring + data-driven stage stepper
 // from project_stages), the project documents, and quick links to the other
 // sections. Layout, spacing and typography follow the EC Design System master
 // (Figma node 4149:31). Theme tokens only; no raw hex; no em dashes; plain
 // errors only.
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
@@ -15,33 +15,25 @@ import { getBadges, subscribeBadges } from './client/clientNotifications'
 import { DocumentChips } from './client/DocumentChips'
 import type { ClientDocument } from './client/DocumentChips'
 import { formatPortalDate } from './utils/formatDate'
-import { tokens, t, fonts, motionTokens, phaseUI } from './theme'
+import { tokens, t, fonts, motionTokens } from './theme'
 import { useBreakpoint } from './hooks/useBreakpoint'
 import { SidePanel } from './admin/SidePanel'
 import { StageLabel } from './components/StageLabel'
 import { TaskList } from './components/TaskList'
 import type { ProjectStageTask } from './components/TaskList'
 import { AttachmentSection } from './components/AttachmentSection'
-import type { ProjectStageAttachment, AttachmentCategory } from './components/AttachmentSection'
+import type { ProjectStageAttachment } from './components/AttachmentSection'
 import { ProposalLinkPicker } from './components/ProposalLinkPicker'
 import type { ProjectStageProposalLink } from './components/ProposalLinkPicker'
 import { ClientNotes } from './components/ClientNotes'
+import { ProgressRing } from './components/ProgressRing'
+import { StageColumn } from './components/StageColumn'
+import type { ProjectStage } from './components/StageColumn'
+import { StageCarousel } from './components/StageCarousel'
+import { StageContent } from './components/StageContent'
 
 // Kept only for the "Phase X of Y" progress ring caption. Never used for stage data.
 const PHASES = ['Discovery', 'Design', 'Review', 'Delivery'] as const
-
-const ATTACHMENT_CATEGORIES: AttachmentCategory[] = [
-  'design_brief',
-  'development',
-  'output_delivery',
-]
-
-// Map stage status to phaseUI status keys for node/pill styling.
-const STAGE_STATUS_TO_PHASE: Record<string, 'done' | 'active' | 'pending'> = {
-  done: 'done',
-  in_progress: 'active',
-  pending: 'pending',
-}
 
 type ProjectRow = {
   id: string
@@ -49,15 +41,6 @@ type ProjectRow = {
   current_phase: string | null
   phase_number: number | null
   status: string
-}
-
-type ProjectStage = {
-  id: string
-  project_id: string
-  stage_number: number
-  name: string
-  status: 'pending' | 'in_progress' | 'done'
-  sort_order: number
 }
 
 type TimelineExtension = {
@@ -244,7 +227,7 @@ function Dashboard({ profile }: { profile: PortalProfile }) {
     setExtensions((prev) => {
       const remaining = prev.filter((e) => e.id !== extId)
       if (remaining.length === 0) {
-        setBanner((b) => (b && b.to === '/portal/projects' ? null : b))
+        setBanner((b) => (b && b.to === '/portal/dashboard' ? null : b))
       }
       return remaining
     })
@@ -504,7 +487,7 @@ async function computeBanner(clientId: string, profileId: string): Promise<Banne
   if (pendingExt && pendingExt.length > 0) {
     return {
       text: 'Your project timeline has been updated. Please review and respond.',
-      to: '/portal/projects',
+      to: '/portal/dashboard',
       variant: 'ruby',
     }
   }
@@ -594,226 +577,6 @@ function BannerCard({ banner }: { banner: Banner }) {
       <span style={styles.bannerText}>{banner.text}</span>
       <span aria-hidden="true" style={styles.bannerArrow}>&rarr;</span>
     </Link>
-  )
-}
-
-function ProgressRing({ percent, caption }: { percent: number; caption: string }) {
-  const size = 64
-  const stroke = 6
-  const r = (size - stroke) / 2
-  const circumference = 2 * Math.PI * r
-  const clamped = Math.max(0, Math.min(100, percent))
-  const offset = circumference * (1 - clamped / 100)
-  return (
-    <div style={styles.ring}>
-      <div style={styles.ringSvgWrap}>
-        <svg width={size} height={size} role="img" aria-label={`${clamped} percent complete`}>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={t.border.default} strokeWidth={stroke} />
-          <circle
-            cx={size / 2} cy={size / 2} r={r} fill="none"
-            stroke={phaseUI.nodeFill} strokeWidth={stroke} strokeLinecap="round"
-            strokeDasharray={circumference} strokeDashoffset={offset}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            style={{ transition: `stroke-dashoffset ${motionTokens.durationSlow} ${motionTokens.easeEnter}` }}
-          />
-        </svg>
-        <span style={styles.ringPct}>{clamped}%</span>
-      </div>
-      <span style={styles.ringCaption}>{caption}</span>
-    </div>
-  )
-}
-
-// Desktop stage column: compact node + name + pill. Click to open detail drawer.
-function StageColumn({
-  stage, index, isFirst, isLast, onClick
-}: {
-  stage: ProjectStage
-  index: number
-  isFirst: boolean
-  isLast: boolean
-  onClick: () => void
-}) {
-  const phaseState = STAGE_STATUS_TO_PHASE[stage.status] ?? 'pending'
-  const pill = phaseUI.status[phaseState]
-  const filled = stage.status !== 'pending'
-
-  return (
-    <div
-      style={{
-        ...styles.phaseCol,
-        paddingLeft: isFirst ? 0 : 16,
-        paddingRight: isLast ? 0 : 16,
-        borderRight: isLast ? 'none' : `1px solid ${t.border.overlayStrong}`,
-        cursor: 'pointer',
-      }}
-      onClick={onClick}
-    >
-      <div style={styles.phaseNodeRow}>
-        <span style={{ ...styles.phaseNode, ...(filled ? styles.phaseNodeFilled : styles.phaseNodeIdle) }}>
-          {stage.status === 'done' ? '✓' : index + 1}
-        </span>
-        <span style={{
-          ...styles.connector,
-          background: stage.status === 'done' ? phaseUI.nodeFill : t.background.overlayNormal,
-        }} />
-      </div>
-      <div style={styles.phaseBody}>
-        <div style={styles.phaseNameRow}>
-          <span style={{ ...styles.phaseName, color: stage.status === 'pending' ? t.text.muted : t.text.primary }}>
-            {stage.name}
-          </span>
-          <span style={{ ...styles.statusPill, background: pill.bg, borderColor: pill.border }}>
-            {pill.label}
-          </span>
-        </div>
-        <span style={styles.toggleHint}>View details</span>
-      </div>
-    </div>
-  )
-}
-
-// Full expanded stage content (read-only). Used in both desktop panel + mobile card.
-function StageContent({
-  stage, tasks, attachments, link
-}: {
-  stage: ProjectStage
-  tasks: ProjectStageTask[]
-  attachments: ProjectStageAttachment[]
-  link: ProjectStageProposalLink | null
-}) {
-  const hasContent = tasks.length > 0
-    || attachments.length > 0
-    || link != null
-
-  if (!hasContent) {
-    return (
-      <p style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.muted, margin: 0 }}>
-        No details added yet.
-      </p>
-    )
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {link && (
-        <ProposalLinkPicker
-          projectId={stage.project_id}
-          stageNumber={stage.stage_number}
-          link={link}
-          canEdit={false}
-          onLinkChange={() => {}}
-        />
-      )}
-      {tasks.length > 0 && (
-        <TaskList
-          projectId={stage.project_id}
-          stageNumber={stage.stage_number}
-          tasks={tasks}
-          canEdit={false}
-          onTasksChange={() => {}}
-        />
-      )}
-      {ATTACHMENT_CATEGORIES.map((cat) => (
-        <AttachmentSection
-          key={cat}
-          projectId={stage.project_id}
-          stageNumber={stage.stage_number}
-          category={cat}
-          attachments={attachments.filter((a) => a.category === cat)}
-          canUpload={false}
-          onAttachmentsChange={() => {}}
-        />
-      ))}
-    </div>
-  )
-}
-
-// Mobile snap-scroll stage carousel. Tap a card to open the detail drawer.
-function StageCarousel({
-  stages, onStageClick
-}: {
-  stages: ProjectStage[]
-  onStageClick: (stage: ProjectStage) => void
-}) {
-  const trackRef = useRef<HTMLDivElement>(null)
-  const activeIdx = stages.findIndex((sg) => sg.status === 'in_progress')
-  const [activeDot, setActiveDot] = useState(Math.max(0, activeIdx))
-
-  useEffect(() => {
-    const track = trackRef.current
-    if (!track) return
-    const cardWidth = window.innerWidth * 0.85
-    const idx = Math.max(0, activeIdx)
-    track.scrollLeft = idx * (cardWidth + 12)
-    setActiveDot(idx)
-  }, [activeIdx])
-
-  useEffect(() => {
-    const track = trackRef.current
-    if (!track) return
-    const onScroll = () => {
-      const cardWidth = window.innerWidth * 0.85
-      const idx = Math.round(track.scrollLeft / (cardWidth + 12))
-      setActiveDot(Math.max(0, Math.min(stages.length - 1, idx)))
-    }
-    track.addEventListener('scroll', onScroll, { passive: true })
-    return () => track.removeEventListener('scroll', onScroll)
-  }, [stages.length])
-
-  return (
-    <div style={styles.carouselOuter}>
-      <div ref={trackRef} className="ec-phase-track" style={styles.carouselTrack} aria-label="Project stages">
-        {stages.map((stage) => {
-          const phaseState = STAGE_STATUS_TO_PHASE[stage.status] ?? 'pending'
-          const pill = phaseUI.status[phaseState]
-          const filled = stage.status !== 'pending'
-          return (
-            <div key={stage.id} style={styles.carouselCardWrap}>
-              <button
-                type="button"
-                style={{
-                  ...styles.phaseCardInner,
-                  ...(stage.status === 'in_progress' ? styles.phaseCardActive : {}),
-                  width: '100%',
-                  textAlign: 'left' as const,
-                  cursor: 'pointer',
-                }}
-                onClick={() => onStageClick(stage)}
-              >
-                <div style={styles.phaseCardNodeRow}>
-                  <span style={{ ...styles.phaseNode, ...(filled ? styles.phaseNodeFilled : styles.phaseNodeIdle) }}>
-                    {stage.status === 'done' ? '✓' : stage.stage_number}
-                  </span>
-                </div>
-                <div style={styles.phaseCardBody}>
-                  <div style={styles.phaseNameRow}>
-                    <span style={{ ...styles.phaseName, color: stage.status === 'pending' ? t.text.muted : t.text.primary }}>
-                      {stage.name}
-                    </span>
-                    <span style={{ ...styles.statusPill, background: pill.bg, borderColor: pill.border }}>
-                      {pill.label}
-                    </span>
-                  </div>
-                  <span style={styles.carouselToggleBtn}>Tap to view details</span>
-                </div>
-              </button>
-            </div>
-          )
-        })}
-      </div>
-      <div style={styles.dots} aria-hidden="true">
-        {stages.map((_, i) => (
-          <span
-            key={i}
-            style={i === activeDot
-              ? { ...styles.dot, ...styles.dotActive }
-              : { ...styles.dot, ...styles.dotIdle }
-            }
-          />
-        ))}
-      </div>
-    </div>
   )
 }
 
@@ -915,72 +678,8 @@ const styles: Record<string, CSSProperties> = {
   metaStrong: { fontFamily: fonts.body, fontWeight: 600, color: t.text.secondary },
   metaDot: { color: t.text.muted },
   metaLabel: { fontFamily: fonts.body, fontWeight: 400, color: t.text.secondary },
-  ring: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 },
-  ringSvgWrap: {
-    position: 'relative', width: 64, height: 64, display: 'flex',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  ringPct: {
-    position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-    justifyContent: 'center', fontFamily: fonts.body, fontSize: 14, fontWeight: 600, color: t.text.primary,
-  },
-  ringCaption: { fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: t.text.secondary, whiteSpace: 'nowrap' },
-
   // Stage grid (replaces phaseGrid — same CSS grid approach, now dynamic column count)
   stageGrid: { display: 'grid', alignItems: 'stretch' },
-  stageDetailPanel: {
-    marginTop: 16,
-    padding: '16px 20px',
-    background: t.background.subtle,
-    border: `1px solid ${t.border.subtle}`,
-    borderRadius: 10,
-  },
-  phaseCol: { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 },
-  phaseNodeRow: { display: 'flex', alignItems: 'center', width: '100%' },
-  phaseNode: {
-    width: 32, height: 32, borderRadius: 16, border: '2px solid',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontFamily: fonts.body, fontSize: 14, fontWeight: 600, flexShrink: 0,
-  },
-  phaseNodeFilled: { background: phaseUI.nodeFill, color: tokens.surface, borderColor: t.border.overlayStrong },
-  phaseNodeIdle: { background: tokens.surface, color: tokens.textMuted, borderColor: t.background.overlayNormal },
-  connector: { flex: 1, height: 2, minWidth: 0 },
-  phaseBody: { display: 'flex', flexDirection: 'column', gap: 8 },
-  phaseNameRow: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
-  phaseName: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, lineHeight: '20px', letterSpacing: 0.27 },
-  statusPill: {
-    display: 'inline-flex', alignItems: 'center', padding: '2px 8px',
-    borderRadius: 999, border: '1px solid', fontFamily: fonts.body, fontSize: 12,
-    fontWeight: 500, color: t.text.primary, whiteSpace: 'nowrap',
-  },
-  toggleHint: {
-    fontFamily: fonts.body, fontSize: 12, fontWeight: 500,
-    color: t.text.urlLink, textDecoration: 'none', whiteSpace: 'nowrap',
-  },
-
-  // Mobile carousel
-  carouselOuter: { marginLeft: -16, marginRight: -16, marginBottom: 24 },
-  carouselTrack: {
-    display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory',
-    paddingLeft: 16, paddingRight: 16, paddingBottom: 4, gap: 12,
-  },
-  carouselCardWrap: { scrollSnapAlign: 'start', flexShrink: 0, width: '85vw' },
-  phaseCardInner: {
-    background: tokens.surface, border: `1px solid ${t.border.overlayStrong}`,
-    borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column',
-    gap: 12, boxSizing: 'border-box',
-  },
-  phaseCardActive: { border: `1px solid ${tokens.primary}`, background: tokens.tealLight },
-  phaseCardNodeRow: { display: 'flex', alignItems: 'center' },
-  phaseCardBody: { display: 'flex', flexDirection: 'column', gap: 8 },
-  carouselToggleBtn: {
-    fontFamily: fonts.body, fontSize: 12, fontWeight: 500,
-    color: t.text.urlLink, display: 'block', marginTop: 4,
-  },
-  dots: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 12 },
-  dot: { height: 6, borderRadius: 999, flexShrink: 0, transition: `all ${motionTokens.durationFast} ${motionTokens.easeDefault}` },
-  dotActive: { width: 16, background: tokens.primary },
-  dotIdle: { width: 6, background: t.border.default },
 
   // Docs + milestones (unchanged)
   docsBlock: { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${t.border.subtle}` },

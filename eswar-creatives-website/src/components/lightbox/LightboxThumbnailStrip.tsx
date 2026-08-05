@@ -53,8 +53,9 @@ export function LightboxThumbnailStrip({ images, index, theme, getTransformUrl, 
       >
         {images.map((image, i) => {
           const isActive = i === index
+          const kind = image.kind ?? 'image'
           const { w, h } = getThumbSize(image.width, image.height)
-          const src = getTransformUrl
+          const src = kind === 'image' && getTransformUrl
             ? getTransformUrl(image.src, { width: w * 2, quality: 60, format: 'webp' })
             : image.src
           return (
@@ -84,24 +85,34 @@ export function LightboxThumbnailStrip({ images, index, theme, getTransformUrl, 
             >
               <span
                 style={{
-                  display: 'block',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   overflow: 'hidden',
                   borderRadius: 6,
                   width: w,
                   height: h,
                   opacity: isActive ? 1 : 0.45,
                   border: isActive ? `2px solid ${theme.accent}` : '2px solid transparent',
+                  background: kind === 'image' ? undefined : 'rgba(255,255,255,0.08)',
                   transition: 'opacity 150ms ease-in-out, border-color 150ms ease-in-out',
                 }}
               >
-                <ImageRenderer
-                  src={src}
-                  alt=""
-                  width={w}
-                  height={h}
-                  placeholderColor={theme.surface}
-                  style={{ height: '100%', width: '100%', objectFit: 'cover' }}
-                />
+                {kind === 'image' ? (
+                  <ImageRenderer
+                    src={src}
+                    alt=""
+                    width={w}
+                    height={h}
+                    placeholderColor={theme.surface}
+                    style={{ height: '100%', width: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke={theme.accentForeground} strokeWidth={1.5} style={{ height: '40%', width: '40%', opacity: 0.7 }}>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                  </svg>
+                )}
               </span>
               <span
                 aria-hidden="true"
