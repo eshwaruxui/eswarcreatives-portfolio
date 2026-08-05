@@ -1,13 +1,13 @@
 # Eswar Creatives — Portal Architecture and Execution Handbook
 
-Last updated: 5 August 2026 (LinkedIn content calendar redesign — Pending Posts, week-grouped History, drawer composer/view; This-Week-pinning fix + Next Week + Drafts sections, migration 0086; CSV lead import Apollo-header fix — all merged staging → main). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
+Last updated: 6 August 2026 (client Dashboard/Projects split + Outputs folder/file library, migrations 0087-0088, merged staging → main). Keep this in the repo at `docs/PORTAL_ARCHITECTURE.md` and point Claude Code at it before starting any portal work.
 
 ---
 
 ## 1. Current branch state
 
 **Active branch:** `main`
-**Status:** Stable. LinkedIn content calendar redesign (Pending Posts, week-grouped History, drawer composer/view, This Week pinning fix, Next Week + Drafts sections — migration 0086) and a CSV lead import fix (Apollo/export-tool header aliasing) merged to main on 5 August 2026 — see the dedicated entries below. Outreach footer/link-embedding fix and the "Review in Advance" hold-to-next-business-day + cron auto-send feature (`staging` branch) merged to main on 4 August 2026 — see the dedicated entries below. ICP lead scoring + portal UX consistency work (`staging` branch, ten commits) merged to main on 3 August 2026, same day as PR #18 — see the dedicated entry below for the full list and the merge-conflict note. PR #18 (`fix/linkedin-planner-save-and-attachments`) merged to main on 3 August 2026. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
+**Status:** Stable. Client Dashboard/Projects split + new Outputs folder/file library (migrations 0087-0088, `get-output-file-url` edge function) merged to main on 6 August 2026 — see the dedicated entry below for the full list, including a series of Lightbox contrast/centering/z-index fixes found during testing. LinkedIn content calendar redesign (Pending Posts, week-grouped History, drawer composer/view, This Week pinning fix, Next Week + Drafts sections — migration 0086) and a CSV lead import fix (Apollo/export-tool header aliasing) merged to main on 5 August 2026 — see the dedicated entries below. Outreach footer/link-embedding fix and the "Review in Advance" hold-to-next-business-day + cron auto-send feature (`staging` branch) merged to main on 4 August 2026 — see the dedicated entries below. ICP lead scoring + portal UX consistency work (`staging` branch, ten commits) merged to main on 3 August 2026, same day as PR #18 — see the dedicated entry below for the full list and the merge-conflict note. PR #18 (`fix/linkedin-planner-save-and-attachments`) merged to main on 3 August 2026. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
 
 **Shipped and merged to main (chronological):**
 
@@ -283,9 +283,25 @@ _CSV lead import — Apollo/export-tool header fix (`CsvImportModal.tsx` — mer
 - Related bug fixed in the same parser: naive `line.split(',')` misaligned columns on any quoted field containing a comma (e.g. a title like "VP, Product") — very likely the cause of a company name landing in the EMAIL column for a couple of rows in the original bug report. Replaced with a quote-aware `splitCsvLine()` (handles quoted fields + escaped `""`), plus `\r\n` line-ending normalization for Windows-exported files.
 - Live-verified against real production leads data: pasted a synthetic Apollo-style row with a quoted comma in the title (testing both fixes at once) — company/title/LinkedIn URL resolved correctly, and an already-existing lead's email was correctly caught as a duplicate. Did not click Import during the test to avoid writing fake data.
 
+_Client Dashboard/Projects split + Outputs folder/file library (migrations 0087-0088 — merged to main 6 Aug 2026, `db151ec8`):_
+- Client nav "Projects" split in two: **Dashboard** (`/portal/dashboard`, exact same content as the old single-project view, just renamed) and a new **Projects** tab (`/portal/projects`) listing every project the client has — the old screen only ever showed the single most-recently-created one. Each project drills into `/portal/projects/:id`, the client portal's first route with a `:id` param and its first real tab bar (Overview/Stages/Notes/Outputs), mirroring the admin `ProjectPanel`'s tab pattern.
+- Extracted `StageColumn`, `StageCarousel`, `StageContent`, `ProgressRing` out of `ClientDashboard.tsx` into `src/portal/components/` (previously page-local) so both Dashboard and the new per-project drill-in share one implementation. New shared `TabBar`/`TabFadeIn` (`src/portal/components/TabBar.tsx`) extracted from `ProjectPanel.tsx`'s inline tab-strip styles for the same reason — admin and the new client drill-in now render pixel-identical tabs from one source.
+- New **Outputs** tab — a folder/file library for completed deliverables, separate from the existing stage-scoped attachments and the legacy `assets` table. Migration 0087: `project_output_folders` (self-referencing tree, arbitrary nesting, a `prevent_output_folder_cycle` trigger blocks dropping a folder into its own subtree), `project_output_files` (`folder_id` nullable — files can sit at project root), private `project-outputs` storage bucket (admin all, client read-own). Migration 0088: `get_output_file_by_token`/`regenerate_output_file_token` RPCs, mirroring the invoice public-link pattern (0068/0074) exactly.
+  - Admin: full folder/file CRUD, rename, delete (folder delete reparents contained files to root via `ON DELETE SET NULL`, never silently deletes them), drag-to-move between directories (native HTML5 DnD, a `dataTransfer.types` check keeps this fully separate from the also-new OS-file-drop-to-upload without needing `stopPropagation`), OS drag-and-drop + clipboard paste upload (multi-file), real per-file upload-progress percentage via a new `uploadWithProgress()` helper (`src/portal/utils/uploadWithProgress.ts`) that hits Storage's REST endpoint directly with `XMLHttpRequest` — `supabase-js`'s own `storage.upload()` is fetch-based and exposes no progress events at all.
+  - Client: same breadcrumb browser read-only (no CRUD), plus **Download** and **Share** on every file row — initially shipped admin-only, corrected same day once live-tested: without these a client can't actually use their own deliverables. Client's Share button copies the file's already-issued `public_token` as-is (every row has one by default, `gen_random_uuid()` at insert); only admin can rotate/revoke via the RPC.
+  - New public share page `/output/:token` + `get-output-file-url` edge function (v2, `verify_jwt: false`) — Postgres RPCs can't mint a Storage signed URL, so `get_output_file_by_token` supplies metadata and this function supplies the URL. Returns two separate signed URLs, not one reused for both: `signed_url` (plain, for the inline image/PDF/video preview) and `download_url` (Storage's `download` option, `Content-Disposition: attachment`) — applying the attachment header to the same URL the PDF `<iframe>` uses risked the iframe trying to download instead of render.
+  - **Found and fixed same day:** the admin `/portal/admin/projects` route uses a second, hand-rolled `ProjectPanel` embedded inside `ProjectsList.tsx`, separate from the standalone `ProjectPanel.tsx` used via `ClientPanel` (known drift, see PR #13's note below) — the Outputs tab initially only reached the standalone one, so it was invisible from the main Projects screen until wired into both. Both now have full feature parity; the underlying duplication itself is unconsolidated still (Section 11).
+- **Download fixed portal-wide**, not just for Outputs: `AttachmentSection.tsx` had the identical bug. `window.open()` on a plain Supabase signed URL just navigates to it, and browsers render images/PDFs inline instead of downloading — only file types the browser can't display ever triggered a real download before. The HTML `download` attribute doesn't help either since signed URLs are cross-origin and browsers ignore that attribute cross-origin. Fixed via Storage's `download` option on `createSignedUrl()`, which sets `Content-Disposition: attachment` server-side regardless of file type or origin.
+- **Lightbox** (`src/components/lightbox/`, shared with the branding case-study gallery) extended to preview PDF (`<iframe>`)/video (`<video>`)/other files (icon + Download), not just images — `GalleryImage` gained optional `kind`/`fileSizeLabel` fields, backward compatible (existing gallery callers leave them undefined). A cluster of bugs found and fixed while testing this on real files:
+  - **Portal/z-index:** `Lightbox` now renders via `createPortal(..., document.body)` — without it, the dialog got trapped inside whichever drawer it was opened from, because a CSS `transform` on any ancestor (both `SidePanel.tsx` and `ProjectsList.tsx`'s own hand-rolled drawer animate their slide-in with `transform: translateX(...)`) creates a new containing block for `position:fixed` descendants. z-index raised 50 → 9999 to match the app's other lightbox (`src/portal/mockups/ClientLightbox.tsx`)'s existing convention for "must render above every drawer/modal."
+  - **Contrast:** close/prev/next buttons, non-image thumbnail-strip icons, the image title caption, and the "other-kind" fallback view (icon, filename, size, Download button) all used `theme.accentForeground` — the color meant for content sitting *on* a filled accent chip (e.g. black text on gold) — directly against the dark backdrop instead of `theme.text` (the actual readable-on-dark foreground). Rendered as black-on-near-black, functionally invisible. The caption bug predates the Outputs feature entirely — present since the original branding gallery usage, just never reported. Non-image thumbnails also gained distinct shapes per kind (PDF/video/other) instead of one generic icon for all of them.
+  - **Centering:** `ImageRenderer.tsx`'s wrapper was a plain block div with no centering of its own; an `<img>` with no `width`/`height` hint (never set for Outputs files, unlike cataloged portfolio images) renders at its natural pixel size and sits flush-left in a block parent's line box. Lightbox.tsx's caller-side centering had no visible effect once that wrapper got stretched to 100% width by its own flex parent. Fixed by making the `ImageRenderer` wrapper itself `display:flex` + centered — same latent bug in the original branding gallery, just less visible there since cataloged images are typically closer to their container's max width.
+- Both migrations applied manually via the Supabase SQL Editor by the user (explained beforehand per the standing step-by-step migration preference, Section 13); `get-output-file-url` deployed and smoke-tested (all 4 response branches + function logs checked) before wiring the public page to it. Full manual pass on the `staging` Cloudflare preview, including Incognito, before merging — per Section 13's "never merge to main without Cloudflare preview + incognito test" rule.
+- Folder-level sharing is out of scope for this pass — only file-level share links exist (Section 11).
+
 **Supabase plan:** Pro ($25/month, upgraded 24 Jul 2026). Project ref: `urrinqwcrpivmvenupiu` (Mumbai, ap-south-1).
 
-**Next migration number: 0087**
+**Next migration number: 0089**
 
 ---
 
@@ -360,7 +376,11 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 
 **Migration 0086 — LinkedIn current-week fix + drafts:** `CREATE OR REPLACE FUNCTION get_upcoming_linkedin_week()` — pins Mon-Fri to the actual current week instead of always resolving to "the upcoming Monday" (weekend rollover behavior unchanged). `linkedin_posts.scheduled_for` — `DROP NOT NULL` (nullable, for drafts). `linkedin_posts` status CHECK constraint — extended to `('pending','published','failed','draft')` (existing constraint discovered dynamically via `pg_constraint`/`pg_get_constraintdef` rather than a hardcoded guessed name, since it was an unnamed inline column CHECK). New `linkedin_posts_draft_scheduled_for_check` CHECK: `status = 'draft' OR scheduled_for IS NOT NULL`. Applied manually via the Supabase SQL Editor by the user; live-verified afterward — see Section 1's LinkedIn current-week entry.
 
-- Next migration must be `0087`.
+**Migration 0087 — Outputs schema:** `project_output_folders` (id, project_id → projects CASCADE, parent_folder_id → self CASCADE nullable, name, sort_order, created_by, created_at, updated_at) + `prevent_output_folder_cycle` trigger (before insert/update of parent_folder_id, walks the ancestor chain, raises `OUTPUT_FOLDER_CYCLE`). `project_output_files` (id, project_id → projects CASCADE, folder_id → project_output_folders SET NULL nullable, file_name, storage_path, file_size, file_type, sort_order, uploaded_by, uploaded_at, public_token uuid default gen_random_uuid(), public_token_expires_at). RLS on both: admin full via `is_admin()`, client SELECT-only via `clients.profile_id = auth.uid()`. New private storage bucket `project-outputs` (50MB limit) + matching `storage.objects` RLS. See Section 1's Outputs entry.
+
+**Migration 0088 — Outputs share-link RPCs:** `get_output_file_by_token(p_token uuid) → jsonb` (anon-callable, mirrors `get_invoice_by_token`, metadata only — never a signed URL, Postgres can't mint one) and `regenerate_output_file_token(p_output_file_id uuid) → text` (admin-only SECURITY DEFINER, mirrors `regenerate_invoice_token`, 30-day expiry). See Section 1's Outputs entry.
+
+- Next migration must be `0089`.
 
 **Outreach scheduling tables (migration 0076):**
 - `outreach_touches` — 3 new columns: `recipient_timezone text`, `draft_confirmed_at timestamptz`, `draft_confirmed_by uuid → auth.users`; status constraint extended: `('pending','sent','failed','skipped','scheduled','cancelled')` (further extended to add `'held'` in migration 0080, see below)
@@ -404,11 +424,15 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 - `is_admin()` — SECURITY DEFINER, used by all RLS policies
 - `get_upcoming_linkedin_week() → TABLE(monday date, wednesday date, friday date)` — STABLE SECURITY DEFINER; returns the Mon/Wed/Fri dates for the **current** week when today is Mon-Fri (pinned — fixed in migration 0086, previously always jumped to the next Monday from Tuesday onward), or the **upcoming** week's dates when today is Sat/Sun (unchanged, the Sunday reminder cron relies on this)
 - `mark_lead_connected(p_lead_id uuid)` — admin-only SECURITY DEFINER (migration 0080); sets `leads.linkedin_status = 'connected'` and promotes that lead's `held` touches to `scheduled` in one call
+- `get_output_file_by_token(p_token uuid) → jsonb` — anon callable, token+expiry enforced, metadata only (migration 0088)
+- `regenerate_output_file_token(p_output_file_id uuid) → text` — admin-only SECURITY DEFINER, 30-day expiry (migration 0088)
 
 **Invoice number sequence:** Starts at EC-I-2026-105 (via invoice_number_seq)
 
 **FK delete order (full):**
 `invoice_payments` → `nudge_log` → `invoices` → `invoice_line_items` → `project_stage_tasks` → `project_stage_attachments` → `project_stage_proposal_links` → `project_client_notes` → `project_stages` → `project_attachments` → `projects` → `orders` → `proposals` → `clients`
+
+`project_output_files` and `project_output_folders` are not in this list — both reference `projects` with `ON DELETE CASCADE` (files also `ON DELETE SET NULL` from `folder_id` on folder delete), so they clean up automatically and need no manual step.
 
 **Storage buckets:**
 
@@ -418,6 +442,7 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 | `payment_proofs` | Private; admin upload + client read own | `{invoice_id}/{filename}` |
 | `proposal-documents` | Private, admin + client read own | `{proposal_id}/{filename}` |
 | `icp-attachments` | Private, admin only | `icp/{vertical}/icp-{timestamp}.{ext}` / `icp/{vertical}/goal-{timestamp}.{ext}` |
+| `project-outputs` | Private, 50MB limit; admin all + client read own | `{project_id}/{random_id}_{filename}` — deliberately flat, no folder segment, so moving a file between folders is a single `folder_id` UPDATE, never a storage rename/copy |
 
 ---
 
@@ -427,16 +452,19 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 |---|---|---|
 | Admin portal | `/portal/admin/*` | is_admin() SECURITY DEFINER |
 | Settings page | `/portal/admin/settings` | is_admin() — ICP configuration for Smart Shortlist verticals |
-| Client portal | `/portal/projects`, `/portal/proposals`, `/portal/invoices`, `/portal/mockups`, `/portal/campaigns`, `/portal/account` | role = client |
+| Client portal | `/portal/dashboard`, `/portal/projects`, `/portal/projects/:id`, `/portal/proposals`, `/portal/invoices`, `/portal/mockups`, `/portal/campaigns`, `/portal/account` | role = client |
 | Reviewer portal | `/portal/review/:campaignId` | role = reviewer |
 | Public vote | `/portal/vote/:token` | No auth |
 | Public invoice | `/invoice/:token` | No auth, token+expiry via RPC |
 | Public proposal | `/proposal/:token` | No auth, token+expiry via RPC |
 | Public unsubscribe | `/unsubscribe/:token` | No auth |
+| Public Outputs file share | `/output/:token` | No auth, token+expiry via RPC + edge function |
+
+`/portal/dashboard` (`ClientDashboardPage` — file/component name unchanged, only the route moved) is the old single-most-recent-project view. `/portal/projects` lists every project the client has; `/portal/projects/:id` (first client route with a `:id` param) is the per-project drill-in with its own Overview/Stages/Notes/Outputs tab bar. See Section 1's 6 Aug entry.
 
 **Login redirects:**
 - `admin` / `owner` → `/portal/admin`
-- `client` → `/portal/projects`
+- `client` → `/portal/dashboard`
 - `reviewer` → `/portal/review/:firstCampaignId`
 
 **Marketing site routes** (`src/app/components/`, separate bundle from the portal — see Section 5's Marketing components note):
@@ -475,6 +503,10 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 | `SortableTableHeader` | `src/portal/components/shared/SortableTableHeader.tsx` | Shared sortable `<thead>` row + exported `nextSortState()` asc→desc→clear cycle helper. Used by `LeadsTab`, `EnquiriesTab`. Any new sortable admin table should import this rather than reimplementing the cycle. |
 | `Skeleton` | `src/portal/components/shared/Skeleton.tsx` | Shimmer placeholder block (consolidates the `.ec-shimmer` pattern previously duplicated in 6 client-facing files). Self-contained keyframes per instance, same pattern as `Spinner.tsx`. |
 | `useReloadableList` | `src/portal/hooks/useReloadableList.ts` | Distinguishes `initialLoading` (no data yet) from `refreshing` (data on screen, reload in background) so a list never collapses to a placeholder mid-refetch. Wrap an existing `load()` with its `start()`/`finish()`. Currently only `LeadsTab` uses it — `ActivityTab`/`EnquiriesTab` still have the older collapse-on-reload pattern. |
+| `TabBar` / `TabFadeIn` | `src/portal/components/TabBar.tsx` | Generic `<TabBar tabs active onChange>` + fade-in wrapper, extracted from `ProjectPanel.tsx`'s inline tab-strip styles. Used by both the admin `ProjectPanel` and the client per-project drill-in (`ProjectDetailPage.tsx`) so their tabs stay pixel-identical from one source. |
+| `StageColumn` / `StageCarousel` / `StageContent` / `ProgressRing` | `src/portal/components/` | Extracted out of `ClientDashboard.tsx` (previously page-local) so both Dashboard and the client per-project drill-in share one implementation. `StageColumn` = desktop stepper column, `StageCarousel` = mobile snap-scroll carousel, `StageContent` = read-only stage detail (link/tasks/attachments), `ProgressRing` = the % complete ring. |
+| `OutputsBrowser` | `src/portal/components/OutputsBrowser.tsx` | Folder/file browser for the Outputs tab, shared by admin (`canEdit`) and client. Breadcrumb drill-down (not a two-pane tree), full CRUD + drag-to-move + OS drag-drop/paste upload + real upload-progress bars when `canEdit`; Download + Share always visible for both roles. See Section 1's 6 Aug entry for the fixes found while building this. |
+| `uploadWithProgress` | `src/portal/utils/uploadWithProgress.ts` | Hits Supabase Storage's REST endpoint directly via `XMLHttpRequest` to get real `upload.onprogress` events — `supabase-js`'s own `storage.upload()` is fetch-based and exposes none. Same request contract, just a transport swap. |
 
 ### Marketing components (`src/components/marketing/`)
 
@@ -495,23 +527,37 @@ Public marketing pages (`/branding` and `/design-systems`) are a separate consum
 
 Candidates for Code Connect mapping once reuse across the Phase 2/3 marketing sections is confirmed (see Section 11/12 roadmap) — not yet wired up.
 
-### Admin ProjectPanel — 4-tab layout
+### Admin ProjectPanel — 5-tab layout
+
+**Two implementations, both kept in sync manually — see the duplication note in Section 11.** `src/portal/admin/ProjectPanel.tsx` (standalone, opened via `ClientPanel`) and a hand-rolled copy embedded inside `src/portal/admin/ProjectsList.tsx` (the main `/portal/admin/projects` route). Any tab-level change here must be applied to both files.
 
 | Tab | Contents |
 |---|---|
 | Overview | Project name (inline edit), start date, end date, client name, ProposalLinkPicker (project-level), AttachmentSection ×3 (project-level) |
 | Stages | Data-driven from project_stages. Per stage: StageLabel (editable name), status selector, ProposalLinkPicker, TaskList (with subtasks), AttachmentSection ×3. Stage delete: impact warning modal (counts tasks/files/links). "+ Add stage" at bottom. |
 | Notes | ClientNotes (admin role) |
+| **Outputs** | `OutputsBrowser` (`canEdit`) + Lightbox preview wiring. Added 6 Aug 2026, between Notes and Settings — see Section 1. |
 | Settings | Current stage selector (reads project_stages.name), status (active/on_hold/completed) |
 
-### Client dashboard — stage module
+### Client per-project view — Dashboard vs. drill-in
 
+**Dashboard** (`/portal/dashboard`, `ClientDashboard.tsx`) — unchanged since before the 6 Aug split, still single-page-with-sections, not tabbed:
 - Stepper driven from `project_stages` table (not hardcoded)
 - Progress ring: task-based % if tasks exist, else stage-based (done=1.0, in_progress=0.5)
 - Stage subtitle: "Stage [N] · [name from DB]" — never hardcoded
 - Stage click → right drawer (SidePanel): StageLabel, ProposalLinkPicker (read-only), TaskList (read-only), AttachmentSection ×3 (read-only)
 - Status banners: on_hold → neutral, completed → green
 - ClientNotes section below stepper (client role)
+- Documents (`assets` table) and Milestones (`public_campaigns`) sections — Dashboard-only, deliberately not part of the drill-in below (Section 11)
+
+**Projects drill-in** (`/portal/projects/:id`, `ProjectDetailPage.tsx`, new 6 Aug 2026) — a real 4-tab bar (`TabBar`), the client portal's first:
+
+| Tab | Contents |
+|---|---|
+| Overview | Project header, ProgressRing, timeline-extension approve/deny cards (scoped to this project, unlike Dashboard's client-wide query) |
+| Stages | Same StageColumn/StageCarousel + read-only drawer as Dashboard, copied verbatim |
+| Notes | ClientNotes (client role) |
+| Outputs | `OutputsBrowser` (`canEdit={false}`) + Lightbox — browse/preview/download/share, no CRUD |
 
 ---
 
@@ -539,8 +585,9 @@ Candidates for Code Connect mapping once reuse across the Phase 2/3 marketing se
 | score-single-lead | v1 | true | Admin JWT + explicit profiles.role check. Input `{ lead_id, vertical }`. Text-only (no screenshots) — fetches the lead's stored fields + the vertical's saved `icp_configs.icp_text`, one Claude call, synchronous response. Returns `{ icp_score, icp_match_reason }`; does not write to the DB itself, caller does. Errors: `invalid_lead_id`, `invalid_vertical`, `lead_not_found`, `no_icp`, `anthropic_timeout`, `scoring_failed`, `parse_failed`. |
 | receive-enquiry | v2 | false | Public endpoint for the marketing site's design systems enquiry form. Validates all fields server-side (400 + `fields` map on failure); inserts into enquiry_submissions via service role; best-effort Resend notification to eswar@eswarcreatives.in (never fails the request). CORS allowlist: eswarcreatives.in, www.eswarcreatives.in, localhost, and `*.eswarcreatives-portfolio.pages.dev` (Cloudflare Pages previews — v2 fix, v1 blocked preview submissions at the CORS preflight) |
 | send-enquiry-reply | v1 | true | Admin-only (is_admin() RPC). Emails the buyer via Resend first; only inserts into enquiry_replies and sets status='responded' (first reply only) once the email actually sends, so a Resend failure fails the whole request |
+| get-output-file-url | v2 | false | Public — the token itself is the credential, same model as the Razorpay/invoice functions. Re-validates token + expiry itself with the service-role client. Returns two signed URLs: `signed_url` (plain, inline preview) and `download_url` (Storage `download` option → `Content-Disposition: attachment`, for the Download button only). v2 added `download_url`/`file_name` lookup; v1 only returned one URL. See Section 1's Outputs entry |
 
-Edge function versions confirmed live via Supabase on 24 Jul 2026, except send-outreach-email/confirm-scheduled-touch/send-confirmed-outreach-touches confirmed live 4 Aug 2026 — check `list_edge_functions` before citing a version number elsewhere, they increment on every deploy.
+Edge function versions confirmed live via Supabase on 24 Jul 2026, except send-outreach-email/confirm-scheduled-touch/send-confirmed-outreach-touches confirmed live 4 Aug 2026 and get-output-file-url confirmed live (v2) 6 Aug 2026 — check `list_edge_functions` before citing a version number elsewhere, they increment on every deploy.
 
 **Secrets set:** `RESEND_API_KEY`, `PORTAL_URL`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `ANTHROPIC_API_KEY`, `CRON_SECRET` (added 4 Aug 2026 — must exactly match the `CRON_SECRET` Vault entry, see Section 1's cron entry)
 **Secrets pending:** `RESEND_WEBHOOK_SECRET` (required before resend-outreach-webhook goes live)
@@ -702,13 +749,16 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 | Smart Shortlist AI run — queue-based async architecture refactor (pg_net or dedicated worker) to fix edge function timeout; currently disabled in UI | High |
 | `ActivityTab.tsx` / `EnquiriesTab.tsx` list-collapses-on-reload bug — same root cause as the fixed `LeadsTab` scroll-reset issue (see Section 1), not yet migrated to `useReloadableList` | Medium |
 | RESEND_WEBHOOK_SECRET secret — set in Supabase before bounce/open tracking | High |
-| Invoice nudge automation (next available migration is `0086`): scheduled reminders at due date, +3d, +7d with PDF attachment | High |
+| Invoice nudge automation (next available migration is `0089`): scheduled reminders at due date, +3d, +7d with PDF attachment | High |
 | pg_cron + pg_net extensions: confirm the `linkedin-weekly-reminder` job is actually scheduled and firing (function itself confirmed working via direct probe) | Medium |
 | Per-campaign invite scoping for reviewers (RLS tightening) | Medium |
 | Portal UX writing pass (raw err.message strings) — standing gap across Proposals, Invoices admin, and all portal error states | Medium |
 | Reviewers / clients architecture separation — six logo review users currently added as clients with dummy projects; needs dedicated `reviewers` table separation | Medium |
 | Project status share button — one-click visual progress brief (stage stepper + summary) to client via email and WhatsApp | Medium |
-| Consolidate duplicate `ProjectPanel` implementations — one via ClientPanel+SidePanel, one hand-rolled in ProjectsList.tsx; deferred from PR #13 | Low |
+| Consolidate duplicate `ProjectPanel` implementations — one via ClientPanel+SidePanel, one hand-rolled in ProjectsList.tsx; deferred from PR #13. Both independently gained the Outputs tab 6 Aug 2026 (see Section 1) so they're at full feature parity again, but the underlying duplication itself is still unconsolidated — any future tab-level change has to be applied twice | Low |
+| Outputs folder-level sharing — only file-level share links exist; sharing an entire folder at once (one link, whole subtree) is not implemented | Low |
+| Outputs vs. the legacy `assets`-table "Documents" section on Dashboard — two separate, unreconciled systems by design for this pass. Not merged/migrated into each other | Low |
+| Client Dashboard badge (`SECTION_BY_PATH` in `ClientNav.tsx`) stays exact-match on `/portal/dashboard` — visiting the new `/portal/projects` list or a project's `:id` drill-in does not clear it, only visiting Dashboard itself does | Low |
 | Three admin modals desktop-only (DeleteProposalModal, DeleteInvoiceModal, OutreachSendModal) — not using shared Modal component; mobile treatment deferred | Low |
 | Public campaign responses pagination + filters | Low |
 | /branding landing page gallery/case showcase section — Vim Events and Newgen projects; `/branding/work` route, card grid + per-project case view | Low |
@@ -722,7 +772,9 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 **Smart Shortlist AI run fix:** Queue-based async processing via pg_net or dedicated worker to bypass edge function execution limits. Replaces current disabled synchronous flow.
 
-**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0087` (`0081` billing_title, `0082` used twice — see Section 3's Enquiry tables note — `0083` leads ICP score columns, `0084` outreach footer, `0085` outreach confirmed-send cron, `0086` LinkedIn current-week fix + drafts).
+**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0089` (`0081` billing_title, `0082` used twice — see Section 3's Enquiry tables note — `0083` leads ICP score columns, `0084` outreach footer, `0085` outreach confirmed-send cron, `0086` LinkedIn current-week fix + drafts, `0087`-`0088` Outputs schema + share-link RPCs).
+
+**Outputs folder-level sharing:** Extend the file-level `public_token` pattern (migration 0088) to folders — one link covering an entire subtree, not just a single file.
 
 **Branding landing Phase 2/3:** Visibility and Scale solution sections built from Figma hi-fi using same MCP + marketing component pattern as hero.
 
@@ -762,4 +814,4 @@ Response `{ scheduled: true, scheduled_for: ISO-string, message: string }` when 
 
 ## 14. One-line summary
 
-Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, marketing components in src/components/marketing/ not portal folder, Smart Shortlist bulk AI run disabled pending queue-based architecture fix (single-lead extraction via New Shortlist modal works instead, not yet live-verified), ICP score tiers unified at 75/50 everywhere, formatPortalDate is the one date formatter (documented exceptions apply), SortableTableHeader is the one sortable-table-header component, "Review in Advance" approvals hold to 9:30 AM ET next business day via cron (not yet live-tested end to end), next migration 0086.
+Three roles, three portals, reviews never need a project, accounts always through admin API, no raw hex, teal only on interactive elements, stages not phases, "Upcoming" not "Pending", Cloudflare Function vars unprefixed, React app vars VITE_ prefixed, marketing components in src/components/marketing/ not portal folder, Smart Shortlist bulk AI run disabled pending queue-based architecture fix (single-lead extraction via New Shortlist modal works instead, not yet live-verified), ICP score tiers unified at 75/50 everywhere, formatPortalDate is the one date formatter (documented exceptions apply), SortableTableHeader is the one sortable-table-header component, "Review in Advance" approvals hold to 9:30 AM ET next business day via cron (not yet live-tested end to end), client Dashboard (was "Projects") and Projects (new, all-projects list + `:id` drill-in) are two different routes now, Outputs tab is a folder/file library separate from the legacy assets-table Documents section, ProjectPanel still has two unconsolidated duplicate implementations (both kept in sync manually), Supabase Storage signed URLs need the `download` option to actually save to disk instead of opening inline, Lightbox is portaled to document.body and previews PDF/video/other files too, next migration 0089.
