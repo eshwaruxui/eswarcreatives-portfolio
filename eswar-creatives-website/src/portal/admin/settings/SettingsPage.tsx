@@ -6,7 +6,7 @@ import type { CSSProperties } from 'react'
 import { Upload, SlidersHorizontal, Sparkles, Trash2, FileText } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts } from '../../theme'
-import { mono, PageHeader } from '../ui'
+import { mono, PageHeader, Modal } from '../ui'
 import { showToast } from '../toast'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { sanitizeFilename } from '../../../lib/sanitizeFilename'
@@ -314,6 +314,19 @@ function SkillsPanel() {
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [viewingSkill, setViewingSkill] = useState<{ name: string; content: string } | null>(null)
+  const [loadingContent, setLoadingContent] = useState<string | null>(null)
+
+  async function handleViewContent(skill: OutreachSkill) {
+    setLoadingContent(skill.id)
+    const { data } = await supabase
+      .from('outreach_skills')
+      .select('content')
+      .eq('id', skill.id)
+      .single()
+    setLoadingContent(null)
+    if (data) setViewingSkill({ name: skill.name, content: data.content as string })
+  }
 
   async function loadSkills() {
     setLoading(true)
@@ -428,6 +441,14 @@ function SkillsPanel() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={s.skillName}>{skill.name}</div>
                 {skill.description && <div style={s.skillDescription}>{skill.description}</div>}
+                <button
+                  type="button"
+                  style={s.viewContentLink}
+                  onClick={() => handleViewContent(skill)}
+                  disabled={loadingContent === skill.id}
+                >
+                  {loadingContent === skill.id ? 'Loading...' : 'View full content'}
+                </button>
               </div>
               <button type="button" style={s.removeLink} onClick={() => handleDelete(skill)} aria-label={`Remove ${skill.name}`}>
                 <Trash2 size={14} />
@@ -436,6 +457,13 @@ function SkillsPanel() {
           ))
         )}
       </div>
+
+      {viewingSkill && (
+        <Modal title={viewingSkill.name} onClose={() => setViewingSkill(null)} size="lg">
+          <div style={s.viewContentMeta}>{viewingSkill.content.length.toLocaleString()} characters — this is exactly what gets fed into the AI prompt when this skill is selected.</div>
+          <pre style={s.viewContentBody}>{viewingSkill.content}</pre>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -498,6 +526,40 @@ const s: Record<string, CSSProperties> = {
   },
   skillName: { fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: t.text.primary },
   skillDescription: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted, marginTop: 2 },
+  viewContentLink: {
+    display: 'inline-block',
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    marginTop: 6,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    color: t.text.urlLink,
+    cursor: 'pointer',
+    textDecoration: 'underline',
+  },
+  viewContentMeta: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.muted,
+    marginBottom: 12,
+  },
+  viewContentBody: {
+    fontFamily: mono,
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: t.text.primary,
+    background: t.background.subtle,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+    padding: 16,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    maxHeight: '60vh',
+    overflowY: 'auto',
+    margin: 0,
+  },
   skillError: {
     fontFamily: fonts.body,
     fontSize: 12,
