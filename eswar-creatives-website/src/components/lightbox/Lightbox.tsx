@@ -161,7 +161,11 @@ export function Lightbox({ images, index, theme, labels, getTransformUrl, render
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 50,
+        // Matches the portal's other lightbox (src/portal/mockups/ClientLightbox.tsx,
+        // zIndex 9999) -- the established convention here for "must render above
+        // every drawer/modal," since the highest other overlay in the app
+        // (delete-confirmation modals) tops out at 500.
+        zIndex: 9999,
         display: 'flex',
         flexDirection: 'column',
         background: 'rgba(0,0,0,0.9)',
