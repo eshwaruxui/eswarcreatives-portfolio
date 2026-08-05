@@ -6,7 +6,7 @@
 // fits comfortably inside the admin SidePanel's fixed width.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, DragEvent } from 'react'
-import { ChevronRight, File, FileText, Folder, FolderPlus, Image, Link as LinkIcon, Pencil, Trash2, Upload, Video } from 'lucide-react'
+import { ChevronRight, Download, File, FileText, Folder, FolderPlus, Image, Link as LinkIcon, Pencil, Trash2, Upload, Video } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { formatPortalDate } from '../utils/formatDate'
@@ -32,6 +32,7 @@ export type OutputFile = {
   file_type: string | null
   sort_order: number
   uploaded_at: string
+  public_token: string
 }
 
 const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.mp4,.mov,.zip'
@@ -124,11 +125,14 @@ export function OutputsBrowser({
           .select('id, project_id, parent_folder_id, name, sort_order')
           .eq('project_id', projectId)
           .order('sort_order', { ascending: true }),
-        // public_token/public_token_expires_at are never selected here --
-        // the client role never needs to see a file's share token.
+        // public_token is selected for both roles now -- clients need it to
+        // share a file (see copyShareLink: client copies the existing token
+        // as-is, only admin rotates it via the regenerate_output_file_token
+        // RPC). public_token_expires_at is intentionally still not selected;
+        // nothing in the UI needs to display it.
         supabase
           .from('project_output_files')
-          .select('id, project_id, folder_id, file_name, storage_path, file_size, file_type, sort_order, uploaded_at')
+          .select('id, project_id, folder_id, file_name, storage_path, file_size, file_type, sort_order, uploaded_at, public_token')
           .eq('project_id', projectId)
           .order('sort_order', { ascending: true }),
       ])
@@ -269,7 +273,7 @@ export function OutputsBrowser({
           sort_order: nextOrder++,
           uploaded_by: uid,
         })
-        .select('id, project_id, folder_id, file_name, storage_path, file_size, file_type, sort_order, uploaded_at')
+        .select('id, project_id, folder_id, file_name, storage_path, file_size, file_type, sort_order, uploaded_at, public_token')
         .single()
 
       setUploadingFiles((prev) => prev.filter((u) => u.id !== placeholderId))
@@ -344,11 +348,33 @@ export function OutputsBrowser({
     await handleFiles(e.dataTransfer.files)
   }
 
+  // Download works for both roles -- clients already have RLS SELECT access
+  // to their own project's storage objects (client_read_own_project_outputs
+  // policy, migration 0087), same signed-URL pattern as AttachmentSection.
+  async function downloadFile(file: OutputFile) {
+    const { data, error } = await supabase.storage
+      .from('project-outputs')
+      .createSignedUrl(file.storage_path, 3600)
+    if (error || !data?.signedUrl) return
+    window.open(data.signedUrl, '_blank', 'noopener')
+  }
+
+  // Admin rotates the token via the admin-only RPC (fresh 30-day link every
+  // time, matches the invoice "Copy link" pattern). Clients can't call that
+  // RPC (it checks is_admin() and raises NOT_AUTHORIZED) and don't need
+  // link-rotation power anyway -- they just copy the file's already-issued
+  // token as-is (every row always has one: public_token defaults to
+  // gen_random_uuid() at insert time, and get_output_file_by_token treats a
+  // null expiry as "never expires").
   async function copyShareLink(file: OutputFile) {
-    const { data: token, error: rpcErr } = await supabase.rpc('regenerate_output_file_token', {
-      p_output_file_id: file.id,
-    })
-    if (rpcErr || !token) return
+    let token = file.public_token
+    if (canEdit) {
+      const { data: rotated, error: rpcErr } = await supabase.rpc('regenerate_output_file_token', {
+        p_output_file_id: file.id,
+      })
+      if (rpcErr || !rotated) return
+      token = rotated
+    }
     const url = `${window.location.origin}/output/${token}`
     await navigator.clipboard.writeText(url)
     setCopiedFileId(file.id)
@@ -611,19 +637,30 @@ export function OutputsBrowser({
                   <button type="button" style={s.confirmYes} onClick={() => void deleteFile(file)}>Delete</button>
                   <button type="button" style={s.confirmNo} onClick={() => setConfirmDelete(null)}>Cancel</button>
                 </span>
-              ) : canEdit ? (
-                <span style={{ ...s.rowActions, opacity: hoveredRow === file.id ? 1 : 0 }}>
+              ) : (
+                <span style={s.rowActions}>
+                  {/* Download + Share are always visible (not hover-gated,
+                      not canEdit-gated) -- clients need these to actually
+                      use the files, and hover-reveal alone fails on touch
+                      devices where there's no hover state at all. */}
+                  <button type="button" style={s.iconBtn} onClick={() => void downloadFile(file)} aria-label="Download file">
+                    <Download size={13} />
+                  </button>
                   <button type="button" style={s.iconBtn} onClick={() => void copyShareLink(file)} aria-label="Copy share link">
                     <LinkIcon size={13} />
                   </button>
-                  <button type="button" style={s.iconBtn} onClick={() => startRename({ type: 'file', id: file.id }, file.file_name)} aria-label="Rename file">
-                    <Pencil size={13} />
-                  </button>
-                  <button type="button" style={s.iconBtnDanger} onClick={() => setConfirmDelete({ type: 'file', id: file.id })} aria-label="Delete file">
-                    <Trash2 size={13} />
-                  </button>
+                  {canEdit && (
+                    <span style={{ ...s.editOnlyActions, opacity: hoveredRow === file.id ? 1 : 0 }}>
+                      <button type="button" style={s.iconBtn} onClick={() => startRename({ type: 'file', id: file.id }, file.file_name)} aria-label="Rename file">
+                        <Pencil size={13} />
+                      </button>
+                      <button type="button" style={s.iconBtnDanger} onClick={() => setConfirmDelete({ type: 'file', id: file.id })} aria-label="Delete file">
+                        <Trash2 size={13} />
+                      </button>
+                    </span>
+                  )}
                 </span>
-              ) : null}
+              )}
               {copiedFileId === file.id && <span style={s.copiedPill}>Copied!</span>}
             </div>
           ))}
@@ -713,6 +750,7 @@ const s: Record<string, CSSProperties> = {
     background: tokens.surface, outline: 'none',
   },
   rowActions: { display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0, transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}` },
+  editOnlyActions: { display: 'flex', alignItems: 'center', gap: 2, transition: `opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}` },
   iconBtn: { background: 'none', border: 'none', padding: 5, cursor: 'pointer', color: t.text.secondary, display: 'flex' },
   iconBtnDanger: { background: 'none', border: 'none', padding: 5, cursor: 'pointer', color: tokens.ruby, display: 'flex' },
   confirmRow: { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 },
