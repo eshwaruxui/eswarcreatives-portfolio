@@ -808,32 +808,38 @@ export function LeadDrawer({
             {skills.length > 0 && (() => {
               const hint = applySkillsHint()
               return (
-                <span style={{ ...styles.templateSourceHint, ...(hint.warn ? styles.templateSourceHintWarn : {}) }}>
-                  {hint.text}
-                </span>
+                <>
+                  <span style={{ ...styles.templateSourceHint, ...(hint.warn ? styles.templateSourceHintWarn : {}) }}>
+                    {hint.text}
+                  </span>
+                  <button
+                    type="button"
+                    style={{ ...styles.applySkillsBtn, opacity: generatingMessage ? 0.6 : 1 }}
+                    onClick={handleApplySkills}
+                    disabled={generatingMessage}
+                  >
+                    {generatingMessage ? (
+                      <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                    ) : (
+                      <Sparkles size={13} />
+                    )}
+                    {generatingMessage ? 'Generating...' : lead.draft_message ? 'Update message' : 'Apply skills'}
+                  </button>
+                  {generateError && <div style={styles.warnNote}>{generateError}</div>}
+                </>
               )
             })()}
-            <button
-              type="button"
-              style={{ ...styles.applySkillsBtn, opacity: generatingMessage ? 0.6 : 1 }}
-              onClick={handleApplySkills}
-              disabled={generatingMessage}
-            >
-              {generatingMessage ? (
-                <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-              ) : (
-                <Sparkles size={13} />
-              )}
-              {generatingMessage ? 'Generating...' : lead.draft_message ? 'Update message' : 'Apply skills'}
-            </button>
-            {generateError && <div style={styles.warnNote}>{generateError}</div>}
             <textarea
               key={lead.id + 'draft'}
               ref={draftRef}
               defaultValue={lead.draft_message ?? ''}
               style={styles.textarea}
               rows={4}
-              placeholder="Paste or write your next message here, or generate one with Apply skills above."
+              placeholder={
+                skills.length > 0
+                  ? 'Paste or write your next message here, or generate one with Apply skills above.'
+                  : 'Paste or write your next message here.'
+              }
               onBlur={async (e) => {
                 const val = e.target.value.trim()
                 if (val !== (lead.draft_message ?? '').trim()) saveLead({ draft_message: val || null })
