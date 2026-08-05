@@ -12,6 +12,7 @@ import { tokens, t, fonts, motionTokens } from '../theme'
 import { formatPortalDate } from '../utils/formatDate'
 import { formatBytes } from '../utils/formatBytes'
 import { fileKind } from '../utils/fileKind'
+import { uploadWithProgress } from '../utils/uploadWithProgress'
 
 export type OutputFolder = {
   id: string
@@ -103,6 +104,7 @@ export function OutputsBrowser({
   const [copiedFileId, setCopiedFileId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadingFiles, setUploadingFiles] = useState<{ id: string; name: string; pct: number }[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [moveError, setMoveError] = useState<string | null>(null)
   const [draggingFiles, setDraggingFiles] = useState(false)
@@ -236,11 +238,21 @@ export function OutputsBrowser({
         setUploadError(`"${file.name}" is too large (max 50MB).`)
         continue
       }
+
+      // Placeholder row so the file appears in the list immediately with a
+      // live percentage, instead of the list staying unchanged until the
+      // whole upload + DB insert finishes.
+      const placeholderId = crypto.randomUUID()
+      setUploadingFiles((prev) => [...prev, { id: placeholderId, name: file.name, pct: 0 }])
+
       const randomId = crypto.randomUUID().slice(0, 8)
       const storagePath = `${projectId}/${randomId}_${file.name}`
 
-      const { error: upErr } = await supabase.storage.from('project-outputs').upload(storagePath, file)
+      const { error: upErr } = await uploadWithProgress('project-outputs', storagePath, file, (pct) => {
+        setUploadingFiles((prev) => prev.map((u) => (u.id === placeholderId ? { ...u, pct } : u)))
+      })
       if (upErr) {
+        setUploadingFiles((prev) => prev.filter((u) => u.id !== placeholderId))
         setUploadError(`"${file.name}" failed to upload. Please try again.`)
         continue
       }
@@ -259,6 +271,8 @@ export function OutputsBrowser({
         })
         .select('id, project_id, folder_id, file_name, storage_path, file_size, file_type, sort_order, uploaded_at')
         .single()
+
+      setUploadingFiles((prev) => prev.filter((u) => u.id !== placeholderId))
 
       if (insErr || !row) {
         setUploadError(`"${file.name}" uploaded but could not be saved. Refresh to verify.`)
@@ -486,6 +500,27 @@ export function OutputsBrowser({
             </div>
           )}
 
+          {uploadingFiles.map((u) => {
+            const { base, ext } = splitFileName(u.name)
+            return (
+              <div key={u.id} style={s.row}>
+                <span style={s.rowIcon}>
+                  <Upload size={14} style={{ color: t.text.muted }} />
+                </span>
+                <div style={s.uploadingCol}>
+                  <span style={s.rowNameLine}>
+                    <span style={s.rowNameBase}>{base}</span>
+                    <span style={s.rowNameExt}>{ext}</span>
+                  </span>
+                  <div style={s.uploadTrack}>
+                    <div style={{ ...s.uploadFill, width: `${u.pct}%` }} />
+                  </div>
+                </div>
+                <span style={s.uploadPct}>{u.pct}%</span>
+              </div>
+            )
+          })}
+
           {foldersHere.map((folder) => (
             <div
               key={folder.id}
@@ -603,7 +638,12 @@ export function OutputsBrowser({
 }
 
 const s: Record<string, CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', minHeight: 120 },
+  // minHeight (viewport-relative, not a fixed px guess tied to current header
+  // chrome) makes the whole tab body a valid drag-and-drop/paste target even
+  // when the current folder has few or no items, not just a box hugging the
+  // toolbar -- the dropOverlay below is position:absolute;inset:0 against
+  // this same root, so it always covers exactly this height.
+  root: { display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', minHeight: '65vh' },
   rootDragActive: { outline: `2px dashed ${tokens.primary}`, outlineOffset: 4, borderRadius: 12 },
   dropOverlay: {
     position: 'absolute', inset: 0, zIndex: 5, display: 'flex', flexDirection: 'column',
@@ -657,6 +697,16 @@ const s: Record<string, CSSProperties> = {
   },
   rowNameExt: { flexShrink: 0, whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: t.text.primary },
   rowMetaLine: { fontWeight: 400, color: t.text.muted, fontSize: 12 },
+  uploadingCol: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 },
+  uploadTrack: { height: 4, background: t.background.muted, borderRadius: 999, overflow: 'hidden' },
+  uploadFill: {
+    height: '100%', background: tokens.accent, borderRadius: 999,
+    transition: `width ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  uploadPct: {
+    flexShrink: 0, fontFamily: fonts.body, fontSize: 12, fontWeight: 600,
+    color: t.text.secondary, minWidth: 32, textAlign: 'right',
+  },
   renameInput: {
     flex: 1, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, color: t.text.primary,
     border: `1.5px solid ${t.border.focus}`, borderRadius: 4, padding: '3px 8px',
