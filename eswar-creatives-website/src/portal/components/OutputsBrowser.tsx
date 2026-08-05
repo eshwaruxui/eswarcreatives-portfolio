@@ -350,11 +350,22 @@ export function OutputsBrowser({
 
   // Download works for both roles -- clients already have RLS SELECT access
   // to their own project's storage objects (client_read_own_project_outputs
-  // policy, migration 0087), same signed-URL pattern as AttachmentSection.
+  // policy, migration 0087).
+  //
+  // The `download` option asks Supabase Storage to respond with
+  // Content-Disposition: attachment for this signed URL. That's the part
+  // that actually matters here: plain window.open() on a signed URL just
+  // navigates to it, and browsers natively render images/PDFs inline
+  // instead of downloading them -- only file types the browser can't
+  // display (docx, zip, ...) happened to trigger a real download. The HTML
+  // `download` attribute on an <a> doesn't fix this either, since Supabase
+  // signed URLs are cross-origin and browsers ignore that attribute
+  // cross-origin -- only a server-sent Content-Disposition header works
+  // there, which is exactly what this option produces.
   async function downloadFile(file: OutputFile) {
     const { data, error } = await supabase.storage
       .from('project-outputs')
-      .createSignedUrl(file.storage_path, 3600)
+      .createSignedUrl(file.storage_path, 3600, { download: file.file_name })
     if (error || !data?.signedUrl) return
     window.open(data.signedUrl, '_blank', 'noopener')
   }

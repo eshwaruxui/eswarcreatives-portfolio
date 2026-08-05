@@ -120,9 +120,12 @@ export function AttachmentSection({
   }
 
   async function download(file: ProjectStageAttachment) {
+    // download option -> Content-Disposition: attachment, so images/PDFs
+    // actually save to disk instead of opening inline in the new tab (same
+    // fix applied to OutputsBrowser.tsx's downloadFile).
     const { data, error } = await supabase.storage
       .from('stage-attachments')
-      .createSignedUrl(file.storage_path, 3600)
+      .createSignedUrl(file.storage_path, 3600, { download: file.file_name })
     if (error || !data?.signedUrl) return
     window.open(data.signedUrl, '_blank', 'noopener')
   }

@@ -28,6 +28,7 @@ export function PublicOutputFilePage() {
   const [loading, setLoading] = useState(true)
   const [meta, setMeta] = useState<FileMeta | null>(null)
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
   const [expired, setExpired] = useState(false)
 
   useEffect(() => {
@@ -51,10 +52,11 @@ export function PublicOutputFilePage() {
         body: { token },
       })
       if (cancelled) return
-      if (urlErr || !urlData?.signed_url) {
+      if (urlErr || !urlData?.signed_url || !urlData?.download_url) {
         setExpired(true)
       } else {
         setSignedUrl(urlData.signed_url as string)
+        setDownloadUrl(urlData.download_url as string)
       }
       setLoading(false)
     })()
@@ -81,7 +83,7 @@ export function PublicOutputFilePage() {
       <main style={styles.main}>
         {loading && <p style={styles.muted}>Loading...</p>}
 
-        {!loading && (expired || !meta || !signedUrl) && (
+        {!loading && (expired || !meta || !signedUrl || !downloadUrl) && (
           <div style={styles.errorCard}>
             <div style={styles.errorTitle}>This link has expired</div>
             <p style={styles.errorBody}>Please contact Eswar Creatives for an updated link.</p>
@@ -89,7 +91,7 @@ export function PublicOutputFilePage() {
           </div>
         )}
 
-        {!loading && meta && signedUrl && (
+        {!loading && meta && signedUrl && downloadUrl && (
           <div style={styles.docCard}>
             <div style={styles.previewArea}>
               {kind === 'image' && (
@@ -122,7 +124,13 @@ export function PublicOutputFilePage() {
               </div>
             </div>
 
-            <a href={signedUrl} download={meta.file_name} style={styles.downloadBtn}>
+            {/* downloadUrl (Content-Disposition: attachment) not signedUrl --
+                the plain preview URL is what renders inline above; reusing
+                it here would just reopen the file inline. The `download`
+                attribute is kept as a filename hint, but does nothing on
+                its own for this cross-origin URL -- the server header from
+                the download option is what actually forces the save. */}
+            <a href={downloadUrl} download={meta.file_name} style={styles.downloadBtn}>
               Download
             </a>
           </div>

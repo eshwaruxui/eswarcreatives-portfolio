@@ -59,7 +59,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: file, error: lookupErr } = await db
     .from("project_output_files")
-    .select("id, storage_path, public_token_expires_at")
+    .select("id, file_name, storage_path, public_token_expires_at")
     .eq("public_token", token)
     .maybeSingle();
 
@@ -68,14 +68,23 @@ Deno.serve(async (req: Request) => {
     return fail("expired", 404);
   }
 
-  const { data: signed, error: signErr } = await db.storage
-    .from("project-outputs")
-    .createSignedUrl(file.storage_path, 3600);
+  // Two separate signed URLs, not one reused for both: the download link
+  // needs Content-Disposition: attachment (via the `download` option) so it
+  // actually saves to disk instead of the browser rendering it inline, but
+  // applying that same header to the *preview* URL risks breaking the PDF
+  // iframe specifically (an iframe navigating to an attachment-disposition
+  // response can try to download instead of render the viewer). img/video
+  // src usually ignore Content-Disposition, but iframe navigation does not
+  // reliably, so kept them fully separate rather than relying on that.
+  const [previewResult, downloadResult] = await Promise.all([
+    db.storage.from("project-outputs").createSignedUrl(file.storage_path, 3600),
+    db.storage.from("project-outputs").createSignedUrl(file.storage_path, 3600, { download: file.file_name }),
+  ]);
 
-  if (signErr || !signed?.signedUrl) {
-    console.error("get-output-file-url: signing failed", signErr);
+  if (previewResult.error || !previewResult.data?.signedUrl || downloadResult.error || !downloadResult.data?.signedUrl) {
+    console.error("get-output-file-url: signing failed", previewResult.error, downloadResult.error);
     return fail("sign_failed", 500);
   }
 
-  return ok({ signed_url: signed.signedUrl });
+  return ok({ signed_url: previewResult.data.signedUrl, download_url: downloadResult.data.signedUrl });
 });
