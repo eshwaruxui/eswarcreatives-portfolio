@@ -50,6 +50,16 @@ function isSelfOrDescendant(folders: OutputFolder[], candidateId: string, target
   return false
 }
 
+// Splits "long report file.pdf" into { base: "long report file", ext: ".pdf" }
+// so the row can truncate only the base with an ellipsis while always
+// keeping the extension visible -- otherwise a long name swallows the
+// extension entirely before CSS text-overflow ever reaches it.
+function splitFileName(name: string): { base: string; ext: string } {
+  const dot = name.lastIndexOf('.')
+  if (dot <= 0 || dot === name.length - 1) return { base: name, ext: '' }
+  return { base: name.slice(0, dot), ext: name.slice(dot) }
+}
+
 function RowIcon({ isFolder, mimeType }: { isFolder: boolean; mimeType: string | null }) {
   if (isFolder) {
     return (
@@ -459,10 +469,15 @@ export function OutputsBrowser({
                   style={s.renameInput}
                 />
               ) : (
-                <button type="button" style={s.rowName} onClick={() => onOpenPreview(filesHere, i, currentFolderId)}>
-                  {file.file_name}
-                  {file.file_size != null && <span style={s.rowMeta}> · {formatBytes(file.file_size)}</span>}
-                  <span style={s.rowMeta}> · {formatPortalDate(file.uploaded_at)}</span>
+                <button type="button" style={s.rowNameBtn} onClick={() => onOpenPreview(filesHere, i, currentFolderId)}>
+                  <span style={s.rowNameLine}>
+                    <span style={s.rowNameBase}>{splitFileName(file.file_name).base}</span>
+                    <span style={s.rowNameExt}>{splitFileName(file.file_name).ext}</span>
+                  </span>
+                  <span style={s.rowMetaLine}>
+                    {file.file_size != null ? `${formatBytes(file.file_size)} · ` : ''}
+                    {formatPortalDate(file.uploaded_at)}
+                  </span>
                 </button>
               )}
               {canEdit && confirmDelete?.type === 'file' && confirmDelete.id === file.id ? (
@@ -530,7 +545,18 @@ const s: Record<string, CSSProperties> = {
     color: t.text.primary, padding: 0, overflow: 'hidden', textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
-  rowMeta: { fontWeight: 400, color: t.text.muted, fontSize: 12 },
+  rowNameBtn: {
+    flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none',
+    cursor: 'pointer', fontFamily: fonts.body, padding: 0,
+    display: 'flex', flexDirection: 'column', gap: 2,
+  },
+  rowNameLine: { display: 'flex', minWidth: 0, alignItems: 'baseline' },
+  rowNameBase: {
+    minWidth: 0, flex: '0 1 auto', overflow: 'hidden', textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: t.text.primary,
+  },
+  rowNameExt: { flexShrink: 0, whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: t.text.primary },
+  rowMetaLine: { fontWeight: 400, color: t.text.muted, fontSize: 12 },
   renameInput: {
     flex: 1, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, color: t.text.primary,
     border: `1.5px solid ${t.border.focus}`, borderRadius: 4, padding: '3px 8px',
