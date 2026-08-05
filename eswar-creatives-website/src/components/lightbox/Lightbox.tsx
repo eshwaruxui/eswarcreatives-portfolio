@@ -264,24 +264,35 @@ export function Lightbox({ images, index, theme, labels, getTransformUrl, render
               key={item.id}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-                color: theme.accentForeground, textAlign: 'center', padding: 24,
+                // theme.text is the readable-on-dark foreground; theme.accentForeground
+                // (used here previously) is the color meant to sit ON a filled accent
+                // chip, e.g. black text on gold -- against the dark backdrop it made
+                // the filename, size, and Download label all but unreadable.
+                color: theme.text, textAlign: 'center', padding: 24,
               }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} style={{ height: 64, width: 64, opacity: 0.6 }}>
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <path d="M14 2v6h6" />
-              </svg>
+              <span
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 72, height: 72, borderRadius: 16, background: 'rgba(255,255,255,0.12)',
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke={theme.accent} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" style={{ height: 34, width: 34 }}>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6" />
+                </svg>
+              </span>
               <span style={{ fontSize: 15 }}>{item.alt}</span>
               {item.fileSizeLabel && (
-                <span style={{ fontSize: 12, opacity: 0.65 }}>{item.fileSizeLabel}</span>
+                <span style={{ fontSize: 12, color: theme.textMuted }}>{item.fileSizeLabel}</span>
               )}
               <a
                 href={src}
                 download
                 style={{
                   marginTop: 4, padding: '8px 18px', borderRadius: 999,
-                  background: 'rgba(255,255,255,0.1)', color: theme.accentForeground,
-                  textDecoration: 'none', fontSize: 13, fontWeight: 500,
+                  background: theme.accent, color: theme.accentForeground,
+                  textDecoration: 'none', fontSize: 13, fontWeight: 600,
                 }}
               >
                 Download

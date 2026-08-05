@@ -18,6 +18,39 @@ function getThumbSize(width?: number, height?: number): { w: number; h: number }
   return { w: 48, h: 48 }
 }
 
+// Distinct shape per non-image kind so a PDF/video/other-file thumbnail
+// reads at a glance instead of every non-image looking like the same blank
+// outline. Stroked in theme.accent -- theme.accentForeground (used by the
+// old single shared icon) is the color meant to sit ON a filled accent
+// background, e.g. black text on a gold chip; on a transparent tile over a
+// near-black strip it was nearly invisible.
+function NonImageThumbIcon({ kind, color }: { kind: 'pdf' | 'video' | 'other'; color: string }) {
+  const common = { viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, style: { height: '48%', width: '48%' } }
+  if (kind === 'pdf') {
+    return (
+      <svg {...common}>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6" />
+        <path d="M9 13h6M9 17h6" />
+      </svg>
+    )
+  }
+  if (kind === 'video') {
+    return (
+      <svg {...common}>
+        <rect x="2" y="5" width="15" height="14" rx="2" />
+        <path d="M22 8l-5 4 5 4V8z" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </svg>
+  )
+}
+
 export function LightboxThumbnailStrip({ images, index, theme, getTransformUrl, onSelect }: LightboxThumbnailStripProps) {
   const stripRef = useRef<HTMLDivElement>(null)
   const activeRef = useRef<HTMLButtonElement>(null)
@@ -92,9 +125,9 @@ export function LightboxThumbnailStrip({ images, index, theme, getTransformUrl, 
                   borderRadius: 6,
                   width: w,
                   height: h,
-                  opacity: isActive ? 1 : 0.45,
-                  border: isActive ? `2px solid ${theme.accent}` : '2px solid transparent',
-                  background: kind === 'image' ? undefined : 'rgba(255,255,255,0.08)',
+                  opacity: isActive ? 1 : 0.65,
+                  border: isActive ? `2px solid ${theme.accent}` : `1px solid ${theme.border}`,
+                  background: kind === 'image' ? undefined : 'rgba(255,255,255,0.16)',
                   transition: 'opacity 150ms ease-in-out, border-color 150ms ease-in-out',
                 }}
               >
@@ -108,10 +141,7 @@ export function LightboxThumbnailStrip({ images, index, theme, getTransformUrl, 
                     style={{ height: '100%', width: '100%', objectFit: 'cover' }}
                   />
                 ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke={theme.accentForeground} strokeWidth={1.5} style={{ height: '40%', width: '40%', opacity: 0.7 }}>
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <path d="M14 2v6h6" />
-                  </svg>
+                  <NonImageThumbIcon kind={kind === 'image' ? 'other' : kind} color={theme.accent} />
                 )}
               </span>
               <span
