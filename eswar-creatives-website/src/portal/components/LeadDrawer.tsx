@@ -377,12 +377,54 @@ export function LeadDrawer({
 
   // The lead's next actionable email touch — same one "Review and Send" would
   // open — found from the timeline already loaded for this drawer rather than
-  // a second query. Held/scheduled only; earliest scheduled_for first.
-  function findNextEmailStep(): TouchTimelineRow['step'] | null {
+  // a second query. Held/scheduled only; earliest scheduled_for first. Returns
+  // the full row (not just the step) so callers can name the sequence/step in
+  // copy, not just use the template text.
+  function findNextEmailTouch(): TouchTimelineRow | null {
     const candidates = timeline
       .filter((row) => row.channel === 'email' && (row.status === 'scheduled' || row.status === 'held') && row.step?.body_template)
       .sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for))
-    return candidates[0]?.step ?? null
+    return candidates[0] ?? null
+  }
+
+  function nextEmailTouchLabel(touch: TouchTimelineRow): string {
+    return `${touch.enrollment?.sequence?.name ?? 'Sequence'} · Step ${touch.step?.step_number ?? '?'}`
+  }
+
+  // Context-aware help text for the Apply skills / Update message button —
+  // names the exact step it's drawing from (traceable back to Review and
+  // Send), distinguishes a fresh generation from refining an existing draft,
+  // and flags the one state where the outcome meaningfully changes: zero
+  // skills selected means the rewrite pass still runs but has no style guide
+  // to apply, so the result reads close to the raw template.
+  function applySkillsHint(): { text: string; warn: boolean } {
+    const touch = findNextEmailTouch()
+    const hasDraft = !!lead?.draft_message
+    const skillCount = selectedSkillIds.length
+
+    if (!touch) {
+      return {
+        warn: false,
+        text: hasDraft
+          ? 'No pending email step for this lead — refining the current draft from lead details, not a template.'
+          : 'No pending email step for this lead — generating from lead details, not a template.',
+      }
+    }
+
+    const stepLabel = nextEmailTouchLabel(touch)
+    if (skillCount === 0) {
+      return {
+        warn: true,
+        text: `No skills selected — will rewrite the ${stepLabel} email as-is, without any style guide applied.`,
+      }
+    }
+    const skillWord = skillCount === 1 ? 'skill' : 'skills'
+    return {
+      warn: false,
+      text: hasDraft
+        ? `Refining the current draft using ${stepLabel} + ${skillCount} ${skillWord}.`
+        : `Generating from the ${stepLabel} email + ${skillCount} ${skillWord}.`,
+    }
   }
 
   // Applies the selected skills as a rewrite ON TOP OF the actual Review and
@@ -394,9 +436,9 @@ export function LeadDrawer({
     setGenerateError(null)
     setGeneratingMessage(true)
     try {
-      const nextStep = findNextEmailStep()
-      const baseMessage = nextStep?.body_template
-        ? renderReviewAndSendBody(nextStep.body_template, lead)
+      const nextTouch = findNextEmailTouch()
+      const baseMessage = nextTouch?.step?.body_template
+        ? renderReviewAndSendBody(nextTouch.step.body_template, lead)
         : draftRef.current?.value ?? ''
 
       const { data: sessionData } = await supabase.auth.getSession()
@@ -763,13 +805,14 @@ export function LeadDrawer({
                 })}
               </div>
             )}
-            {skills.length > 0 && (
-              <span style={styles.templateSourceHint}>
-                {findNextEmailStep()
-                  ? "Generating from this lead's next scheduled email + selected skills."
-                  : 'No pending email step for this lead — generating from lead details instead.'}
-              </span>
-            )}
+            {skills.length > 0 && (() => {
+              const hint = applySkillsHint()
+              return (
+                <span style={{ ...styles.templateSourceHint, ...(hint.warn ? styles.templateSourceHintWarn : {}) }}>
+                  {hint.text}
+                </span>
+              )
+            })()}
             <button
               type="button"
               style={{ ...styles.applySkillsBtn, opacity: generatingMessage ? 0.6 : 1 }}
@@ -1398,6 +1441,10 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 11,
     color: t.text.muted,
+  },
+  templateSourceHintWarn: {
+    color: tokens.goldDark,
+    fontWeight: 500,
   },
   applySkillsBtn: {
     display: 'inline-flex',

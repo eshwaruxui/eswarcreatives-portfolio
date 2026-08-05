@@ -111,6 +111,7 @@ export function SortableTableHeader({
                 onClick={(e) => onSort(col.key, e)}
                 onMouseEnter={() => setHoverKey(col.key)}
                 onMouseLeave={() => setHoverKey((k) => (k === col.key ? null : k))}
+                title={multi ? 'Click to sort · Shift-click to add as a secondary sort' : undefined}
               >
                 <span style={{ color: labelColor }}>{col.label}</span>
                 {priority >= 0 && <span style={s.priorityBadge}>{priority + 1}</span>}

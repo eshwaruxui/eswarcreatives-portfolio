@@ -11,7 +11,7 @@ import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useReloadableList } from '../../hooks/useReloadableList'
 import { SortableTableHeader, nextMultiSortState, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
 import { Skeleton } from '../../components/shared/Skeleton'
-import { SegmentSelect } from '../../components/shared/SegmentSelect'
+import { SegmentSelect, SEGMENT_LABELS } from '../../components/shared/SegmentSelect'
 import { AddLeadModal } from './AddLeadModal'
 import { CsvImportModal } from './CsvImportModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
@@ -173,6 +173,11 @@ function compareByKey(a: LeadRow, b: LeadRow, key: string, dir: 'asc' | 'desc'):
   } else if (key === 'status') {
     va = a.status
     vb = b.status
+  } else if (key === 'segment') {
+    // Sort by the displayed label, not the raw db value — matches what the
+    // user is actually looking at in the Segment column.
+    va = (SEGMENT_LABELS[a.segment] ?? a.segment).toLowerCase()
+    vb = (SEGMENT_LABELS[b.segment] ?? b.segment).toLowerCase()
   }
   if (!va && !vb) return 0
   if (!va) return dir === 'asc' ? 1 : -1
@@ -196,7 +201,7 @@ function applySorting(leads: LeadRow[], sorts: SortSpec[]): LeadRow[] {
 const LEAD_COLUMNS: SortableColumn[] = [
   { key: 'name', label: 'LEAD', sortable: true },
   { key: 'company', label: 'COMPANY', sortable: true },
-  { key: 'segment', label: 'SEGMENT', sortable: false },
+  { key: 'segment', label: 'SEGMENT', sortable: true },
   { key: 'status', label: 'STATUS', sortable: true },
   { key: 'icp_score', label: 'ICP', sortable: true, hideOnMobile: true },
   { key: 'linkedin', label: 'LINKEDIN', sortable: false, hideOnMobile: true },
