@@ -103,8 +103,11 @@ export function AdminDashboard() {
           // scheduled_for is timestamptz (migration 0092) — "due today" is a
           // range (today's midnight through tomorrow's), not exact equality
           // against a bare date, since a real send time carries an hour now.
-          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').gte('scheduled_for', `${today}T00:00:00.000Z`).lt('scheduled_for', `${tomorrow}T00:00:00.000Z`),
-          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').lt('scheduled_for', `${today}T00:00:00.000Z`),
+          // draft_confirmed_at excluded here too — a confirmed touch has
+          // already been sent/deferred and is waiting on the auto-send cron,
+          // not actually due (mirrors the TodayTab.tsx queue filter).
+          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').gte('scheduled_for', `${today}T00:00:00.000Z`).lt('scheduled_for', `${tomorrow}T00:00:00.000Z`).is('draft_confirmed_at', null),
+          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').lt('scheduled_for', `${today}T00:00:00.000Z`).is('draft_confirmed_at', null),
           supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').eq('skipped_reason', 'lead_replied').gte('created_at', sevenDaysAgo),
         ])
         if (proposalsRes.error) throw proposalsRes.error

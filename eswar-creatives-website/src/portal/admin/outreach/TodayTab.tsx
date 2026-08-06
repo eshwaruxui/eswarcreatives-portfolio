@@ -9,6 +9,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, Modal } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
+import { intentLabel, stepNumberLabel } from '../../utils/touchLabels'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
 import { showToast as showGlobalToast } from '../toast'
@@ -31,6 +32,7 @@ type ScheduledTouch = {
   step: {
     subject_template: string | null
     body_template: string | null
+    day_offset: number | null
   } | null
 }
 
@@ -46,6 +48,20 @@ function formatScheduledMeta(touch: ScheduledTouch): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+  }).format(new Date(touch.scheduled_for))
+}
+
+// Review in Advance touches haven't been approved yet, so scheduled_for is
+// only a placeholder day (midnight) — confirm-scheduled-touch doesn't pick
+// the real business-hours send time until Approve is clicked. Showing that
+// midnight placeholder as "12:00 AM" implied a send time that isn't real
+// yet, so this drops the time and says so explicitly instead.
+function formatPendingDate(touch: ScheduledTouch): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: touch.recipient_timezone ?? 'UTC',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
   }).format(new Date(touch.scheduled_for))
 }
 
@@ -268,7 +284,7 @@ export function TodayTab({
               specific_observation, unsubscribe_token, status, linkedin_status
             ),
             step:sequence_steps!step_id (
-              step_number, channel, subject_template, body_template, requires_connected
+              step_number, day_offset, channel, subject_template, body_template, requires_connected
             ),
             enrollment:lead_enrollments!enrollment_id (
               id, sequence:sequences!sequence_id (name)
@@ -279,6 +295,12 @@ export function TodayTab({
           // Due Today combined) means anything up through end of today, not
           // just before midnight, since a real send time now carries an hour.
           .lt('scheduled_for', `${tomorrowStr()}T00:00:00.000Z`)
+          // A non-null draft_confirmed_at means someone already clicked
+          // Send and the edge function deferred it to a later working-hours
+          // window (or it was Approved via Review in Advance) — it's no
+          // longer actionable, so it belongs in the Scheduled section below,
+          // not Due Today/Overdue, even though scheduled_for is still today.
+          .is('draft_confirmed_at', null)
           .order('scheduled_for', { ascending: true })
           .order('created_at', { ascending: true }),
         supabase
@@ -310,7 +332,7 @@ export function TodayTab({
           .select(`
             id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot,
             lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
-            step:sequence_steps!step_id (subject_template, body_template)
+            step:sequence_steps!step_id (subject_template, body_template, day_offset)
           `)
           .eq('status', 'scheduled')
           .eq('channel', 'email')
@@ -319,26 +341,24 @@ export function TodayTab({
           .lte('scheduled_for', `${tomorrowStr()}T23:59:59Z`)
           .order('scheduled_for', { ascending: true })
           .limit(20),
-        // Already approved from "Review in Advance" but not yet sent — preview
-        // only, no further action needed. No upper bound like pendingRes
-        // above: approval can push scheduled_for several days out (weekend
-        // rollover), and this list is naturally short. It DOES need a lower
-        // bound though — anything due today or earlier is already covered by
-        // the Overdue/Due Today queue above (which has the real Review and
-        // Send action, not just a read-only Preview), so without excluding
-        // it here every one of today's approved touches showed up twice on
-        // the same page.
+        // Already confirmed and not yet sent — either approved from "Review
+        // in Advance", or Sent-but-deferred to a later working-hours window
+        // by the send-outreach-email edge function — preview only, no
+        // further action needed. No date bound at all: the Overdue/Due
+        // Today queue above now excludes anything with draft_confirmed_at
+        // set (see .is('draft_confirmed_at', null) there), so a confirmed
+        // touch never appears in both places regardless of whether it's
+        // scheduled for later today or a future day.
         supabase
           .from('outreach_touches')
           .select(`
             id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot,
             lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
-            step:sequence_steps!step_id (subject_template, body_template)
+            step:sequence_steps!step_id (subject_template, body_template, day_offset)
           `)
           .eq('status', 'scheduled')
           .eq('channel', 'email')
           .not('draft_confirmed_at', 'is', null)
-          .gte('scheduled_for', `${tomorrowStr()}T00:00:00.000Z`)
           .order('scheduled_for', { ascending: true })
           .limit(20),
         supabase
@@ -531,7 +551,7 @@ export function TodayTab({
         />
       )}
       {previewTouch && (
-        <Modal title="Email preview" onClose={handlePreviewCloseRequest} maxWidth={600} closeOnBackdrop={false}>
+        <Modal title={`${intentLabel(previewTouch.step?.day_offset ?? null)} preview`} onClose={handlePreviewCloseRequest} maxWidth={600} closeOnBackdrop={false}>
           <div style={styles.previewBody}>
             <div style={styles.previewField}>
               <span style={styles.previewLabel}>To</span>
@@ -692,7 +712,14 @@ export function TodayTab({
                   avatarLabel={lead ? initials(lead.first_name, lead.last_name) : '?'}
                   title={lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
                   onOpenLead={lead ? () => setActiveLeadId(lead.id) : undefined}
-                  meta={<span style={styles.touchMeta}>Scheduled for {formatScheduledMeta(touch)}</span>}
+                  meta={
+                    <span
+                      style={styles.touchMeta}
+                      title="Exact send time is set once you approve — sends go out during business hours (9:30 AM–5:30 PM) in the recipient's local time."
+                    >
+                      {intentLabel(touch.step?.day_offset ?? null)} · {formatPendingDate(touch)} · Waiting for confirmation
+                    </span>
+                  }
                   error={err}
                   actions={
                     isConf ? (
@@ -741,7 +768,7 @@ export function TodayTab({
                   avatarLabel={lead ? initials(lead.first_name, lead.last_name) : '?'}
                   title={lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
                   onOpenLead={lead ? () => setActiveLeadId(lead.id) : undefined}
-                  meta={<span style={styles.touchMeta}>Sends {formatScheduledMeta(touch)}</span>}
+                  meta={<span style={styles.touchMeta}>{intentLabel(touch.step?.day_offset ?? null)} · Sends {formatScheduledMeta(touch)}</span>}
                   actions={
                     <button type="button" style={styles.previewBtn} onClick={() => openPreview(touch)}>
                       Preview
@@ -922,7 +949,7 @@ function TouchRowCard({
             {lead.first_name} {lead.last_name ?? ''} · {lead.company}
           </span>
           <span style={styles.touchMeta}>
-            {touch.enrollment?.sequence?.name ?? 'Sequence'} · Step {touch.step?.step_number ?? '?'}
+            {intentLabel(touch.step?.day_offset ?? null)} · {touch.enrollment?.sequence?.name ?? 'Sequence'} · {stepNumberLabel(touch.step?.step_number)}
           </span>
           {isOverdue && overdueCount > 0 && (
             <span style={styles.overdueLabel}>

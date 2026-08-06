@@ -7,6 +7,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
+import { stepNumberLabel } from '../../utils/touchLabels'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { LeadDrawer } from '../../components/LeadDrawer'
 
@@ -186,7 +187,7 @@ export function ActivityTab() {
                 </div>
                 <p style={styles.mobileCardSubject}>
                   {row.enrollment?.sequence?.name ?? 'Sequence'}
-                  {row.step ? ` · Step ${row.step.step_number}` : ''}
+                  {row.step ? ` · ${stepNumberLabel(row.step.step_number)}` : ''}
                 </p>
                 <div style={styles.mobileCardBottom}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -266,7 +267,7 @@ export function ActivityTab() {
                       <td style={styles.td}>
                         <span style={styles.seqCell}>
                           {row.enrollment?.sequence?.name ?? '-'}
-                          {row.step ? ` · Step ${row.step.step_number}` : ''}
+                          {row.step ? ` · ${stepNumberLabel(row.step.step_number)}` : ''}
                         </span>
                       </td>
                       <td style={styles.td}>

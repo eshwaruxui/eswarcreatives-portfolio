@@ -9,6 +9,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { showToast } from '../toast'
+import { stepNumberLabel } from '../../utils/touchLabels'
 
 export type TouchRow = {
   id: string
@@ -32,6 +33,7 @@ export type TouchRow = {
   }
   step: {
     step_number: number
+    day_offset: number | null
     channel: string
     subject_template: string | null
     body_template: string
@@ -158,7 +160,7 @@ function PreviousMessages({ enrollmentId, currentTouchId }: { enrollmentId: stri
 
   const firstPrior = priors[0]
   const collapseLabel = firstPrior
-    ? `Step ${firstPrior.step_number} sent ${new Date(firstPrior.sent_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — tap to review`
+    ? `${stepNumberLabel(firstPrior.step_number)} sent ${new Date(firstPrior.sent_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — tap to review`
     : 'Previous messages — tap to review'
 
   return (
@@ -178,7 +180,7 @@ function PreviousMessages({ enrollmentId, currentTouchId }: { enrollmentId: stri
             return (
               <div key={p.id} style={prevStyles.entry}>
                 <div style={prevStyles.entryHeader}>
-                  <span style={prevStyles.stepLabel}>Step {p.step_number}</span>
+                  <span style={prevStyles.stepLabel}>{stepNumberLabel(p.step_number)}</span>
                   <span style={prevStyles.sentDate}>
                     {new Date(p.sent_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
@@ -466,12 +468,8 @@ export function OutreachSendModal({
   const isLinkedInDm = touch.channel === 'linkedin_dm'
   const isLinkedIn = isLinkedInConnect || isLinkedInDm
 
-  // Never default an unknown step to 1 — that actively lies about progress
-  // (a final step 3 with no linked step_id would show as "Step 1", implying
-  // this is the first touch when it's actually the last). Show "?" instead,
-  // same convention as the Due Today list uses for the same unknown state.
   const stepNum = touch.step?.step_number ?? null
-  const stepLabel = stepNum !== null ? `Step ${stepNum}` : 'Step ?'
+  const stepLabel = stepNumberLabel(stepNum)
   const seqName = touch.enrollment?.sequence?.name ?? 'Sequence'
 
   // Email state — strip em dashes from initial render, track removal for warning
