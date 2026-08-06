@@ -14,6 +14,7 @@ import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useReloadableList } from '../../hooks/useReloadableList'
 import { LeadDrawer } from '../../components/LeadDrawer'
 import { TouchProgressLine } from '../../components/shared/TouchProgressLine'
+import { SortableTableHeader, toggleMultiSort, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
 
 type ActivityRow = {
   id: string
@@ -44,6 +45,55 @@ const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
   cancelled: { bg: t.background.muted, fg: t.text.tertiary },
   failed:    { bg: tokens.rubyLight, fg: tokens.ruby },
   scheduled: { bg: tokens.goldLight, fg: tokens.goldDark },
+}
+
+// Opened/Bounced aren't included here — both are still empty for every row
+// (the Resend webhook that would populate them isn't live yet), so sorting
+// on them wouldn't do anything useful yet.
+const ACTIVITY_COLUMNS: SortableColumn[] = [
+  { key: 'time', label: 'TIME', sortable: true },
+  { key: 'lead', label: 'LEAD', sortable: true },
+  { key: 'sequence', label: 'SEQUENCE / STEP', sortable: false },
+  { key: 'channel', label: 'CHANNEL', sortable: true },
+  { key: 'status', label: 'STATUS', sortable: true },
+  { key: 'opened', label: 'OPENED', sortable: false },
+  { key: 'bounced', label: 'BOUNCED', sortable: false },
+  { key: 'action', label: '', sortable: false },
+]
+
+function compareByKey(a: ActivityRow, b: ActivityRow, key: string, dir: 'asc' | 'desc'): number {
+  let va: string | null | undefined
+  let vb: string | null | undefined
+  if (key === 'time') {
+    va = a.sent_at ?? a.scheduled_for
+    vb = b.sent_at ?? b.scheduled_for
+  } else if (key === 'lead') {
+    va = a.lead ? (a.lead.last_name ?? a.lead.first_name).toLowerCase() : null
+    vb = b.lead ? (b.lead.last_name ?? b.lead.first_name).toLowerCase() : null
+  } else if (key === 'channel') {
+    va = a.channel
+    vb = b.channel
+  } else if (key === 'status') {
+    va = a.status
+    vb = b.status
+  }
+  if (!va && !vb) return 0
+  if (!va) return dir === 'asc' ? 1 : -1
+  if (!vb) return dir === 'asc' ? -1 : 1
+  return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+}
+
+// Multi-column: earlier entries in `sorts` take priority; ties fall through
+// to the next sort key, in order. Mirrors LeadsTab's applySorting exactly.
+function applySorting(rows: ActivityRow[], sorts: SortSpec[]): ActivityRow[] {
+  if (sorts.length === 0) return rows
+  return [...rows].sort((a, b) => {
+    for (const { key, dir } of sorts) {
+      const cmp = compareByKey(a, b, key, dir)
+      if (cmp !== 0) return cmp
+    }
+    return 0
+  })
 }
 
 // Approves a touch — does NOT send it. confirm-scheduled-touch only stamps
@@ -93,6 +143,7 @@ export function ActivityTab() {
   const { initialLoading, start: startLoad, finish: finishLoad } = useReloadableList()
   const [filterChannel, setFilterChannel] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [sorts, setSorts] = useState<SortSpec[]>([])
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -160,6 +211,16 @@ export function ActivityTab() {
     showToast(when ? `Approved — will send ${when}, their local time.` : 'Approved. Will send at the next business-day window.')
   })
 
+  // Every click is additive: a new column appends as the lowest-priority
+  // sort key, an already-active one cycles asc -> desc -> removed in place.
+  // "Clear sort" (next to the result count) is the way back to no sort at
+  // all. Mirrors LeadsTab's handleSort exactly.
+  function handleSort(key: string) {
+    setSorts((prev) => toggleMultiSort(prev, key))
+  }
+
+  const sorted = applySorting(rows, sorts)
+
   return (
     <>
       {openLeadId && (
@@ -187,6 +248,19 @@ export function ActivityTab() {
         </select>
       </div>
 
+      {!initialLoading && rows.length > 0 && (
+        <div style={styles.resultRow}>
+          <p style={styles.resultCount}>
+            {sorted.length} touch{sorted.length !== 1 ? 'es' : ''}
+          </p>
+          {!isMobile && sorts.length > 0 && (
+            <button type="button" style={styles.clearSortBtn} onClick={() => setSorts([])}>
+              Clear sort{sorts.length > 1 ? ` (${sorts.length})` : ''}
+            </button>
+          )}
+        </div>
+      )}
+
       {initialLoading ? (
         <p style={styles.loading}>Loading activity...</p>
       ) : rows.length === 0 ? (
@@ -197,7 +271,7 @@ export function ActivityTab() {
       ) : isMobile ? (
         <div style={styles.cardStack}>
           <style>{`.ec-tap-card:active { background: ${t.background.tint1}; }`}</style>
-          {rows.map((row) => {
+          {sorted.map((row) => {
             const tone = STATUS_TONES[row.status] ?? { bg: t.background.muted, fg: t.text.muted }
             const isScheduled = row.status === 'scheduled'
             // Already approved (draft_confirmed_at set) — waiting on the
@@ -270,19 +344,10 @@ export function ActivityTab() {
         <div style={{ overflowX: 'auto' }}>
           <table style={styles.table}>
             <thead>
-              <tr>
-                <th style={styles.th}>Time</th>
-                <th style={styles.th}>Lead</th>
-                <th style={styles.th}>Sequence / Step</th>
-                <th style={styles.th}>Channel</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Opened</th>
-                <th style={styles.th}>Bounced</th>
-                <th style={styles.th}></th>
-              </tr>
+              <SortableTableHeader columns={ACTIVITY_COLUMNS} sorts={sorts} onSort={handleSort} />
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {sorted.map((row) => {
                 const tone = STATUS_TONES[row.status] ?? { bg: t.background.muted, fg: t.text.muted }
                 const isScheduled = row.status === 'scheduled'
                 const isApprovable = isScheduled && row.channel === 'email' && !row.draft_confirmed_at
@@ -421,17 +486,28 @@ const styles: Record<string, CSSProperties> = {
   },
   emptyBody: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
   table: { width: '100%', borderCollapse: 'collapse', minWidth: 760 },
-  th: {
+  resultRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  resultCount: {
+    fontFamily: mono,
+    fontSize: 12,
+    color: t.text.muted,
+    margin: 0,
+  },
+  clearSortBtn: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
     fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: 600,
-    color: t.text.tertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    padding: '8px 12px',
-    textAlign: 'left',
-    borderBottom: `1px solid ${t.border.subtle}`,
-    whiteSpace: 'nowrap',
+    fontSize: 12,
+    fontWeight: 500,
+    color: t.text.urlLink,
+    textDecoration: 'underline',
+    cursor: 'pointer',
   },
   tr: { cursor: 'pointer' },
   td: {
