@@ -45,7 +45,14 @@ export const t = {
     primaryBrand: '#024C4F',  // interactive only: CTAs, links, active nav
     secondary:    '#555555',  // supporting text, subtitles — Figma text/secondary (neutral.600)
     tertiary:     '#717171',  // placeholder text, hints — Figma text/tertiary (neutral.500)
-    muted:        '#888888',  // timestamps, helper text, captions — Figma text/muted (neutral.450)
+    // Figma spec is neutral.450 #888888, but that's 3.5:1 on white / 3.3:1 on
+    // the cream `bg` — fails WCAG AA (4.5:1) at every size this role is
+    // actually used at (10-14px timestamps/captions, not large text).
+    // Darkened to the lightest grey that still clears AA on both surfaces;
+    // sits close to `tertiary` as a result since there isn't much room
+    // between AA-passing and `secondary` (#555555). Flagged for Eswar to
+    // reconcile with Figma (neutral.450 needs the same fix upstream).
+    muted:        '#707070',  // timestamps, helper text, captions — WCAG AA fix, was Figma text/muted (neutral.450) #888888
     disabled:     '#AAAAAA',  // disabled state text — Figma text/disabled (neutral.350)
     inverse:      '#FFFFFF',  // text on dark backgrounds
     onPrimary:    '#FFFFFF',  // text on teal primary buttons
