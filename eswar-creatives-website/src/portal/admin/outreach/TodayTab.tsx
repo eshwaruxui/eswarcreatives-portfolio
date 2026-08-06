@@ -184,8 +184,15 @@ function dedupeByEnrollment(rows: TouchRow[]): TouchRow[] {
     const key = row.enrollment?.id
     if (!key) { unkeyed.push(row); continue }
     const existing = byEnrollment.get(key)
-    const stepNum = row.step?.step_number ?? 0
-    if (!existing || stepNum < (existing.step?.step_number ?? 0)) {
+    // A touch with no linked step (step_id null — e.g. content was edited via
+    // Preview before that no longer nulls step_id, or a step was deleted)
+    // must never be treated as "earliest": falling back to 0 would make an
+    // unknown-step touch always win the earliest-touch comparison against a
+    // real step 1, hiding the correctly-numbered touch instead of the
+    // unknown one. Unknown sorts last, not first.
+    const stepNum = row.step?.step_number ?? Number.POSITIVE_INFINITY
+    const existingStepNum = existing?.step?.step_number ?? Number.POSITIVE_INFINITY
+    if (!existing || stepNum < existingStepNum) {
       byEnrollment.set(key, row)
     }
   }
@@ -410,11 +417,18 @@ export function TodayTab({
 
   const isEmpty = overdue.length === 0 && dueToday.length === 0
 
+  // subject_snapshot/body_snapshot only get written by handleSavePreview
+  // below (a still-scheduled touch has no snapshot until the admin edits and
+  // saves it) — so a non-null snapshot always means "this was manually
+  // edited," and must win over re-rendering the template, which would
+  // silently discard the edit. Snapshot is checked first, not last.
   function previewInitialSubject(touch: ScheduledTouch): string {
-    return touch.lead ? resolveTemplate(touch.step?.subject_template ?? touch.subject_snapshot ?? '', touch.lead) : ''
+    if (touch.subject_snapshot) return touch.subject_snapshot
+    return touch.lead ? resolveTemplate(touch.step?.subject_template ?? '', touch.lead) : ''
   }
   function previewInitialBody(touch: ScheduledTouch): string {
-    return touch.lead ? resolveTemplate(touch.step?.body_template ?? touch.body_snapshot ?? '', touch.lead) : ''
+    if (touch.body_snapshot) return touch.body_snapshot
+    return touch.lead ? resolveTemplate(touch.step?.body_template ?? '', touch.lead) : ''
   }
 
   function openPreview(touch: ScheduledTouch) {
@@ -469,15 +483,21 @@ export function TodayTab({
   async function handleSavePreview() {
     if (!previewTouch) return
     setPreviewSaving(true)
+    // step_id is deliberately left untouched — nulling it here used to be
+    // how this saved edit "won" over re-rendering the template on next open,
+    // but it also broke every other consumer of touch.step (the Due Today
+    // step-number label, the send modal's title, the earliest-touch dedupe)
+    // for the rest of that touch's life. previewInitialSubject/Body now
+    // prefer a non-null snapshot over the template directly, so step_id can
+    // stay intact and the edit is still preserved.
     await supabase
       .from('outreach_touches')
-      .update({ subject_snapshot: previewSubjectEdit, body_snapshot: previewBodyEdit, step_id: null })
+      .update({ subject_snapshot: previewSubjectEdit, body_snapshot: previewBodyEdit })
       .eq('id', previewTouch.id)
     const updatedTouch: ScheduledTouch = {
       ...previewTouch,
       subject_snapshot: previewSubjectEdit,
       body_snapshot: previewBodyEdit,
-      step: null,
     }
     setPreviewTouch(updatedTouch)
     const replace = (prev: ScheduledTouch[]) => prev.map((t) => (t.id === updatedTouch.id ? updatedTouch : t))

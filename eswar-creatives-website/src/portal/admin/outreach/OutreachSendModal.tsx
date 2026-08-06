@@ -466,7 +466,12 @@ export function OutreachSendModal({
   const isLinkedInDm = touch.channel === 'linkedin_dm'
   const isLinkedIn = isLinkedInConnect || isLinkedInDm
 
-  const stepNum = touch.step?.step_number ?? 1
+  // Never default an unknown step to 1 — that actively lies about progress
+  // (a final step 3 with no linked step_id would show as "Step 1", implying
+  // this is the first touch when it's actually the last). Show "?" instead,
+  // same convention as the Due Today list uses for the same unknown state.
+  const stepNum = touch.step?.step_number ?? null
+  const stepLabel = stepNum !== null ? `Step ${stepNum}` : 'Step ?'
   const seqName = touch.enrollment?.sequence?.name ?? 'Sequence'
 
   // Email state — strip em dashes from initial render, track removal for warning
@@ -674,10 +679,10 @@ export function OutreachSendModal({
   }
 
   const title = isEmail
-    ? `Email: Step ${stepNum}`
+    ? `Email: ${stepLabel}`
     : isLinkedInConnect
-    ? `LinkedIn Connect: Step ${stepNum}`
-    : `LinkedIn DM: Step ${stepNum}`
+    ? `LinkedIn Connect: ${stepLabel}`
+    : `LinkedIn DM: ${stepLabel}`
 
   return (
     <div style={styles.overlay} onClick={onClose}>
