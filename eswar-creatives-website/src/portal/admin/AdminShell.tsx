@@ -94,6 +94,10 @@ function Shell({ profile }: { profile: PortalProfile }) {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'scheduled')
       .lt('scheduled_for', `${tomorrow}T00:00:00.000Z`)
+      // Mirrors the Due Today/Overdue queue filter in TodayTab.tsx — a
+      // non-null draft_confirmed_at means it's already been sent/deferred
+      // and is waiting on the auto-send cron, not actually due.
+      .is('draft_confirmed_at', null)
       .then(({ count }) => setOutreachDue(count ?? 0))
   }, [])
 

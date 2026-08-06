@@ -279,6 +279,12 @@ export function TodayTab({
           // Due Today combined) means anything up through end of today, not
           // just before midnight, since a real send time now carries an hour.
           .lt('scheduled_for', `${tomorrowStr()}T00:00:00.000Z`)
+          // A non-null draft_confirmed_at means someone already clicked
+          // Send and the edge function deferred it to a later working-hours
+          // window (or it was Approved via Review in Advance) — it's no
+          // longer actionable, so it belongs in the Scheduled section below,
+          // not Due Today/Overdue, even though scheduled_for is still today.
+          .is('draft_confirmed_at', null)
           .order('scheduled_for', { ascending: true })
           .order('created_at', { ascending: true }),
         supabase
@@ -319,15 +325,14 @@ export function TodayTab({
           .lte('scheduled_for', `${tomorrowStr()}T23:59:59Z`)
           .order('scheduled_for', { ascending: true })
           .limit(20),
-        // Already approved from "Review in Advance" but not yet sent — preview
-        // only, no further action needed. No upper bound like pendingRes
-        // above: approval can push scheduled_for several days out (weekend
-        // rollover), and this list is naturally short. It DOES need a lower
-        // bound though — anything due today or earlier is already covered by
-        // the Overdue/Due Today queue above (which has the real Review and
-        // Send action, not just a read-only Preview), so without excluding
-        // it here every one of today's approved touches showed up twice on
-        // the same page.
+        // Already confirmed and not yet sent — either approved from "Review
+        // in Advance", or Sent-but-deferred to a later working-hours window
+        // by the send-outreach-email edge function — preview only, no
+        // further action needed. No date bound at all: the Overdue/Due
+        // Today queue above now excludes anything with draft_confirmed_at
+        // set (see .is('draft_confirmed_at', null) there), so a confirmed
+        // touch never appears in both places regardless of whether it's
+        // scheduled for later today or a future day.
         supabase
           .from('outreach_touches')
           .select(`
@@ -338,7 +343,6 @@ export function TodayTab({
           .eq('status', 'scheduled')
           .eq('channel', 'email')
           .not('draft_confirmed_at', 'is', null)
-          .gte('scheduled_for', `${tomorrowStr()}T00:00:00.000Z`)
           .order('scheduled_for', { ascending: true })
           .limit(20),
         supabase
