@@ -9,6 +9,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, Modal } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
+import { stepNumberLabel } from '../../utils/touchLabels'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
 import { showToast as showGlobalToast } from '../toast'
@@ -46,6 +47,20 @@ function formatScheduledMeta(touch: ScheduledTouch): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+  }).format(new Date(touch.scheduled_for))
+}
+
+// Review in Advance touches haven't been approved yet, so scheduled_for is
+// only a placeholder day (midnight) — confirm-scheduled-touch doesn't pick
+// the real business-hours send time until Approve is clicked. Showing that
+// midnight placeholder as "12:00 AM" implied a send time that isn't real
+// yet, so this drops the time and says so explicitly instead.
+function formatPendingDate(touch: ScheduledTouch): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: touch.recipient_timezone ?? 'UTC',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
   }).format(new Date(touch.scheduled_for))
 }
 
@@ -696,7 +711,14 @@ export function TodayTab({
                   avatarLabel={lead ? initials(lead.first_name, lead.last_name) : '?'}
                   title={lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
                   onOpenLead={lead ? () => setActiveLeadId(lead.id) : undefined}
-                  meta={<span style={styles.touchMeta}>Scheduled for {formatScheduledMeta(touch)}</span>}
+                  meta={
+                    <span
+                      style={styles.touchMeta}
+                      title="Exact send time is set once you approve — sends go out during business hours (9:30 AM–5:30 PM) in the recipient's local time."
+                    >
+                      {formatPendingDate(touch)} · Waiting for confirmation
+                    </span>
+                  }
                   error={err}
                   actions={
                     isConf ? (
@@ -926,7 +948,7 @@ function TouchRowCard({
             {lead.first_name} {lead.last_name ?? ''} · {lead.company}
           </span>
           <span style={styles.touchMeta}>
-            {touch.enrollment?.sequence?.name ?? 'Sequence'} · Step {touch.step?.step_number ?? '?'}
+            {touch.enrollment?.sequence?.name ?? 'Sequence'} · {stepNumberLabel(touch.step?.step_number)}
           </span>
           {isOverdue && overdueCount > 0 && (
             <span style={styles.overdueLabel}>

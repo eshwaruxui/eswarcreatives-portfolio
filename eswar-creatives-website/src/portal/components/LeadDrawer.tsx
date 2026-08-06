@@ -8,6 +8,7 @@ import { tokens, t, fonts, motionTokens } from '../theme'
 import { SidePanel } from '../admin/SidePanel'
 import { mono } from '../admin/ui'
 import { formatPortalDate } from '../utils/formatDate'
+import { intentLabel, stepNumberLabel } from '../utils/touchLabels'
 import { showToast } from '../admin/toast'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ScoreRing, type ScoringState } from './shared/ScoreRing'
@@ -122,13 +123,6 @@ function StatusChip({ status }: { status: string }) {
       {status.replace('_', ' ')}
     </span>
   )
-}
-
-function intentLabel(dayOffset: number | null): string {
-  if (dayOffset === null) return 'Touch'
-  if (dayOffset === 0) return 'First touch'
-  if (dayOffset >= 5) return 'Value drop'
-  return 'Follow-up'
 }
 
 // Current step = highest step_number among sent touches for this enrollment,
@@ -388,7 +382,7 @@ export function LeadDrawer({
   }
 
   function nextEmailTouchLabel(touch: TouchTimelineRow): string {
-    return `${touch.enrollment?.sequence?.name ?? 'Sequence'} · Step ${touch.step?.step_number ?? '?'}`
+    return `${touch.enrollment?.sequence?.name ?? 'Sequence'} · ${stepNumberLabel(touch.step?.step_number)}`
   }
 
   // Context-aware help text for the Apply skills / Update message button —
