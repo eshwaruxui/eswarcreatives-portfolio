@@ -278,11 +278,10 @@ export function ActivityTab() {
             // cron, not actionable here. Showing Approve again would let a
             // second click silently reschedule an already-correct send.
             const isApprovable = isScheduled && row.channel === 'email' && !row.draft_confirmed_at
-            // Went through the approve flow and either still waiting
-            // (scheduled) or already delivered (sent) — either way, show the
-            // Approved -> Queued -> Sent read instead of a bare timestamp.
-            const showsProgressLine = row.channel === 'email' && !!row.draft_confirmed_at
-              && (row.status === 'scheduled' || row.status === 'sent')
+            // Only while still pending — once status flips to 'sent' the
+            // status badge already says so, and repeating the progress line
+            // under every completed row read as clutter, not useful context.
+            const showsProgressLine = isScheduled && row.channel === 'email' && !!row.draft_confirmed_at
             const isConfirming = confirming === row.id
             const rowError = errors[row.id]
             return (
@@ -331,7 +330,6 @@ export function ActivityTab() {
                   <TouchProgressLine
                     draftConfirmedAt={row.draft_confirmed_at}
                     scheduledFor={row.scheduled_for}
-                    sentAt={row.sent_at}
                     recipientTimezone={row.recipient_timezone}
                   />
                 )}
@@ -351,8 +349,10 @@ export function ActivityTab() {
                 const tone = STATUS_TONES[row.status] ?? { bg: t.background.muted, fg: t.text.muted }
                 const isScheduled = row.status === 'scheduled'
                 const isApprovable = isScheduled && row.channel === 'email' && !row.draft_confirmed_at
-                const showsProgressLine = row.channel === 'email' && !!row.draft_confirmed_at
-                  && (row.status === 'scheduled' || row.status === 'sent')
+                // Only while still pending — once status flips to 'sent'
+                // the status badge already says so, and repeating the
+                // progress line under every completed row read as clutter.
+                const showsProgressLine = isScheduled && row.channel === 'email' && !!row.draft_confirmed_at
                 const isConfirming = confirming === row.id
                 const rowError = errors[row.id]
                 return (
@@ -402,7 +402,6 @@ export function ActivityTab() {
                             <TouchProgressLine
                               draftConfirmedAt={row.draft_confirmed_at}
                               scheduledFor={row.scheduled_for}
-                              sentAt={row.sent_at}
                               recipientTimezone={row.recipient_timezone}
                             />
                           </div>
