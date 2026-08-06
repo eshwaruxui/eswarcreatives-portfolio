@@ -9,7 +9,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono, Modal } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
-import { stepNumberLabel } from '../../utils/touchLabels'
+import { intentLabel, stepNumberLabel } from '../../utils/touchLabels'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
 import { showToast as showGlobalToast } from '../toast'
@@ -32,6 +32,7 @@ type ScheduledTouch = {
   step: {
     subject_template: string | null
     body_template: string | null
+    day_offset: number | null
   } | null
 }
 
@@ -331,7 +332,7 @@ export function TodayTab({
           .select(`
             id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot,
             lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
-            step:sequence_steps!step_id (subject_template, body_template)
+            step:sequence_steps!step_id (subject_template, body_template, day_offset)
           `)
           .eq('status', 'scheduled')
           .eq('channel', 'email')
@@ -353,7 +354,7 @@ export function TodayTab({
           .select(`
             id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot,
             lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
-            step:sequence_steps!step_id (subject_template, body_template)
+            step:sequence_steps!step_id (subject_template, body_template, day_offset)
           `)
           .eq('status', 'scheduled')
           .eq('channel', 'email')
@@ -550,7 +551,7 @@ export function TodayTab({
         />
       )}
       {previewTouch && (
-        <Modal title="Email preview" onClose={handlePreviewCloseRequest} maxWidth={600} closeOnBackdrop={false}>
+        <Modal title={`${intentLabel(previewTouch.step?.day_offset ?? null)} preview`} onClose={handlePreviewCloseRequest} maxWidth={600} closeOnBackdrop={false}>
           <div style={styles.previewBody}>
             <div style={styles.previewField}>
               <span style={styles.previewLabel}>To</span>
