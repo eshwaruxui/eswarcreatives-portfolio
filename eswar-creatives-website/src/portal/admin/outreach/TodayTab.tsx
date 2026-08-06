@@ -320,9 +320,14 @@ export function TodayTab({
           .order('scheduled_for', { ascending: true })
           .limit(20),
         // Already approved from "Review in Advance" but not yet sent — preview
-        // only, no further action needed. Not date-bounded like pendingRes
-        // above: approval can push scheduled_for a few days out (weekend
-        // rollover), and this list is naturally short.
+        // only, no further action needed. No upper bound like pendingRes
+        // above: approval can push scheduled_for several days out (weekend
+        // rollover), and this list is naturally short. It DOES need a lower
+        // bound though — anything due today or earlier is already covered by
+        // the Overdue/Due Today queue above (which has the real Review and
+        // Send action, not just a read-only Preview), so without excluding
+        // it here every one of today's approved touches showed up twice on
+        // the same page.
         supabase
           .from('outreach_touches')
           .select(`
@@ -333,6 +338,7 @@ export function TodayTab({
           .eq('status', 'scheduled')
           .eq('channel', 'email')
           .not('draft_confirmed_at', 'is', null)
+          .gte('scheduled_for', `${tomorrowStr()}T00:00:00.000Z`)
           .order('scheduled_for', { ascending: true })
           .limit(20),
         supabase
