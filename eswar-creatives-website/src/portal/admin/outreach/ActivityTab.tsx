@@ -11,7 +11,9 @@ import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
 import { stepNumberLabel } from '../../utils/touchLabels'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { useReloadableList } from '../../hooks/useReloadableList'
 import { LeadDrawer } from '../../components/LeadDrawer'
+import { TouchProgressLine } from '../../components/shared/TouchProgressLine'
 
 type ActivityRow = {
   id: string
@@ -42,23 +44,6 @@ const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
   cancelled: { bg: t.background.muted, fg: t.text.tertiary },
   failed:    { bg: tokens.rubyLight, fg: tokens.ruby },
   scheduled: { bg: tokens.goldLight, fg: tokens.goldDark },
-}
-
-function formatScheduledFor(isoString: string, tz: string | null): string {
-  const tzToUse = tz ?? 'UTC'
-  try {
-    return new Intl.DateTimeFormat('en-GB', {
-      timeZone: tzToUse,
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).format(new Date(isoString))
-  } catch {
-    return formatPortalDate(isoString)
-  }
 }
 
 // Approves a touch — does NOT send it. confirm-scheduled-touch only stamps
@@ -105,7 +90,7 @@ function useConfirmScheduledTouch(
 export function ActivityTab() {
   const { isMobile } = useBreakpoint()
   const [rows, setRows] = useState<ActivityRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const { initialLoading, start: startLoad, finish: finishLoad } = useReloadableList()
   const [filterChannel, setFilterChannel] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
@@ -117,7 +102,7 @@ export function ActivityTab() {
   }
 
   async function load() {
-    setLoading(true)
+    startLoad()
     let q = supabase
       .from('outreach_touches')
       .select(`
@@ -137,10 +122,22 @@ export function ActivityTab() {
 
     const { data } = await q
     setRows((data ?? []) as ActivityRow[])
-    setLoading(false)
+    finishLoad()
   }
 
   useEffect(() => { load() }, [filterChannel, filterStatus])
+
+  // A touch approved inside business hours still waits for the next
+  // send-confirmed-outreach-touches cron tick (up to 5 min) before it
+  // actually sends — without this, an approved row keeps showing "Queued"
+  // until a manual reload reveals it already went out. Silent background
+  // refresh, not a full reload — load() only shows the skeleton on the true
+  // first load (see useReloadableList). Re-created on filter change so it
+  // always polls with the currently selected filters, not stale ones.
+  useEffect(() => {
+    const id = setInterval(load, 30000)
+    return () => clearInterval(id)
+  }, [filterChannel, filterStatus])
 
   const { confirming, errors, confirm } = useConfirmScheduledTouch((id, holdUntil, recipientTimezone) => {
     // Status stays 'scheduled' — confirm-scheduled-touch never calls Resend,
@@ -190,7 +187,7 @@ export function ActivityTab() {
         </select>
       </div>
 
-      {loading ? (
+      {initialLoading ? (
         <p style={styles.loading}>Loading activity...</p>
       ) : rows.length === 0 ? (
         <div style={styles.emptyState}>
@@ -207,7 +204,11 @@ export function ActivityTab() {
             // cron, not actionable here. Showing Approve again would let a
             // second click silently reschedule an already-correct send.
             const isApprovable = isScheduled && row.channel === 'email' && !row.draft_confirmed_at
-            const isAwaitingSend = isScheduled && row.channel === 'email' && !!row.draft_confirmed_at
+            // Went through the approve flow and either still waiting
+            // (scheduled) or already delivered (sent) — either way, show the
+            // Approved -> Queued -> Sent read instead of a bare timestamp.
+            const showsProgressLine = row.channel === 'email' && !!row.draft_confirmed_at
+              && (row.status === 'scheduled' || row.status === 'sent')
             const isConfirming = confirming === row.id
             const rowError = errors[row.id]
             return (
@@ -252,10 +253,13 @@ export function ActivityTab() {
                     )}
                   </div>
                 )}
-                {isAwaitingSend && (
-                  <span style={styles.awaitingSend}>
-                    Approved — sends {formatScheduledFor(row.scheduled_for, row.recipient_timezone)}
-                  </span>
+                {showsProgressLine && (
+                  <TouchProgressLine
+                    draftConfirmedAt={row.draft_confirmed_at}
+                    scheduledFor={row.scheduled_for}
+                    sentAt={row.sent_at}
+                    recipientTimezone={row.recipient_timezone}
+                  />
                 )}
                 {rowError && <div style={styles.mobileCardError}>{rowError}</div>}
               </div>
@@ -282,7 +286,8 @@ export function ActivityTab() {
                 const tone = STATUS_TONES[row.status] ?? { bg: t.background.muted, fg: t.text.muted }
                 const isScheduled = row.status === 'scheduled'
                 const isApprovable = isScheduled && row.channel === 'email' && !row.draft_confirmed_at
-                const isAwaitingSend = isScheduled && row.channel === 'email' && !!row.draft_confirmed_at
+                const showsProgressLine = row.channel === 'email' && !!row.draft_confirmed_at
+                  && (row.status === 'scheduled' || row.status === 'sent')
                 const isConfirming = confirming === row.id
                 const rowError = errors[row.id]
                 return (
@@ -327,9 +332,14 @@ export function ActivityTab() {
                             {row.status}
                           </span>
                         </span>
-                        {isAwaitingSend && row.scheduled_for && (
+                        {showsProgressLine && (
                           <div style={styles.scheduledMeta}>
-                            Sends {formatScheduledFor(row.scheduled_for, row.recipient_timezone)}
+                            <TouchProgressLine
+                              draftConfirmedAt={row.draft_confirmed_at}
+                              scheduledFor={row.scheduled_for}
+                              sentAt={row.sent_at}
+                              recipientTimezone={row.recipient_timezone}
+                            />
                           </div>
                         )}
                         {/* Not yet approved: scheduled_for is still just a
@@ -452,12 +462,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 11,
     color: t.text.muted,
     marginTop: 2,
-  },
-  awaitingSend: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    color: t.text.muted,
-    whiteSpace: 'nowrap' as const,
   },
   bounced: {
     fontFamily: fonts.body,

@@ -12,12 +12,15 @@ import { formatPortalDate } from '../../utils/formatDate'
 import { intentLabel, stepNumberLabel } from '../../utils/touchLabels'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
+import { TouchProgressLine } from '../../components/shared/TouchProgressLine'
 import { showToast as showGlobalToast } from '../toast'
+import { useReloadableList } from '../../hooks/useReloadableList'
 
 type ScheduledTouch = {
   id: string
   recipient_timezone: string | null
   scheduled_for: string
+  draft_confirmed_at: string | null
   subject_snapshot: string | null
   body_snapshot: string | null
   lead: {
@@ -36,21 +39,6 @@ type ScheduledTouch = {
   } | null
 }
 
-// Mirrors the substitution + grammar fix applied by the confirm-scheduled-touch
-// edge function, so the preview shows exactly what will be sent (not the raw
-// template with unresolved {{variables}}).
-function formatScheduledMeta(touch: ScheduledTouch): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: touch.recipient_timezone ?? 'UTC',
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  }).format(new Date(touch.scheduled_for))
-}
-
 // Review in Advance touches haven't been approved yet, so scheduled_for is
 // only a placeholder day (midnight) — confirm-scheduled-touch doesn't pick
 // the real business-hours send time until Approve is clicked. Showing that
@@ -65,6 +53,9 @@ function formatPendingDate(touch: ScheduledTouch): string {
   }).format(new Date(touch.scheduled_for))
 }
 
+// Mirrors the substitution + grammar fix applied by the confirm-scheduled-touch
+// edge function, so the preview shows exactly what will be sent (not the raw
+// template with unresolved {{variables}}).
 function resolveTemplate(template: string, lead: NonNullable<ScheduledTouch['lead']>): string {
   const vars: Record<string, string> = {
     first_name: lead.first_name,
@@ -253,7 +244,7 @@ export function TodayTab({
 }: {
   onRefreshCount?: () => void
 }) {
-  const [loading, setLoading] = useState(true)
+  const { initialLoading, start: startLoad, finish: finishLoad } = useReloadableList()
   const [error, setError] = useState<string | null>(null)
   const [overdue, setOverdue] = useState<TouchRow[]>([])
   const [dueToday, setDueToday] = useState<TouchRow[]>([])
@@ -279,7 +270,7 @@ export function TodayTab({
   }
 
   async function load() {
-    setLoading(true)
+    startLoad()
     setError(null)
     try {
       const weekStart = new Date()
@@ -343,7 +334,7 @@ export function TodayTab({
         supabase
           .from('outreach_touches')
           .select(`
-            id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot,
+            id, recipient_timezone, scheduled_for, draft_confirmed_at, subject_snapshot, body_snapshot,
             lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
             step:sequence_steps!step_id (subject_template, body_template, day_offset)
           `)
@@ -365,7 +356,7 @@ export function TodayTab({
         supabase
           .from('outreach_touches')
           .select(`
-            id, recipient_timezone, scheduled_for, subject_snapshot, body_snapshot,
+            id, recipient_timezone, scheduled_for, draft_confirmed_at, subject_snapshot, body_snapshot,
             lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
             step:sequence_steps!step_id (subject_template, body_template, day_offset)
           `)
@@ -406,12 +397,23 @@ export function TodayTab({
     } catch {
       setError('Could not load the queue. Refresh to try again.')
     } finally {
-      setLoading(false)
+      finishLoad()
       onRefreshCount?.()
     }
   }
 
   useEffect(() => { load() }, [])
+
+  // A touch approved inside business hours still waits for the next
+  // send-confirmed-outreach-touches cron tick (up to 5 min) before it
+  // actually sends — without this, the Scheduled section looks stuck until
+  // a manual reload reveals it already went out. Silent background refresh,
+  // not a full reload — load() only shows the skeleton on the true first
+  // load (see useReloadableList).
+  useEffect(() => {
+    const id = setInterval(load, 30000)
+    return () => clearInterval(id)
+  }, [])
 
   function handleSent() {
     setActiveTouch(null)
@@ -440,10 +442,11 @@ export function TodayTab({
             scheduled_for: holdUntil ?? approved.scheduled_for,
             // Without this, the row just-added to Scheduled keeps whatever
             // (often null) recipient_timezone it had before approval, and
-            // formatScheduledMeta falls back to UTC — showing a different
-            // time than this same toast for the same instant, until a
-            // reload re-fetches the real value from the DB.
+            // falls back to UTC — showing a different time than this same
+            // toast for the same instant, until a reload re-fetches the
+            // real value from the DB.
             recipient_timezone: recipientTimezone ?? approved.recipient_timezone,
+            draft_confirmed_at: new Date().toISOString(),
           },
         ])
       }
@@ -685,9 +688,9 @@ export function TodayTab({
 
       {error && <div style={styles.errorBanner}>{error}</div>}
 
-      {!loading && <MotionTracker stats={motionStats} />}
+      {!initialLoading && <MotionTracker stats={motionStats} />}
 
-      {!loading && followUps.length > 0 && (
+      {!initialLoading && followUps.length > 0 && (
         <div style={styles.pendingSection}>
           <div style={styles.pendingSectionHeader}>
             <span style={styles.sectionTitle}>Follow-ups today</span>
@@ -724,7 +727,7 @@ export function TodayTab({
         </div>
       )}
 
-      {loading ? (
+      {initialLoading ? (
         <div style={styles.loadingText}>Loading queue...</div>
       ) : isEmpty ? (
         <EmptyQueue />
@@ -755,7 +758,7 @@ export function TodayTab({
         </div>
       )}
 
-      {!loading && pendingConfirmation.length > 0 && (
+      {!initialLoading && pendingConfirmation.length > 0 && (
         <div style={styles.pendingSection}>
           <div style={styles.pendingSectionHeader}>
             <span style={styles.sectionTitle}>Review in Advance</span>
@@ -813,7 +816,7 @@ export function TodayTab({
         </div>
       )}
 
-      {!loading && scheduledApproved.length > 0 && (
+      {!initialLoading && scheduledApproved.length > 0 && (
         <div style={styles.pendingSection}>
           <div style={styles.pendingSectionHeader}>
             <span style={styles.sectionTitle}>Scheduled</span>
@@ -830,7 +833,16 @@ export function TodayTab({
                   avatarLabel={lead ? initials(lead.first_name, lead.last_name) : '?'}
                   title={lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
                   onOpenLead={lead ? () => setActiveLeadId(lead.id) : undefined}
-                  meta={<span style={styles.touchMeta}>{intentLabel(touch.step?.day_offset ?? null)} · Sends {formatScheduledMeta(touch)}</span>}
+                  meta={
+                    <span style={styles.touchMeta}>
+                      {intentLabel(touch.step?.day_offset ?? null)} ·{' '}
+                      <TouchProgressLine
+                        draftConfirmedAt={touch.draft_confirmed_at}
+                        scheduledFor={touch.scheduled_for}
+                        recipientTimezone={touch.recipient_timezone}
+                      />
+                    </span>
+                  }
                   actions={
                     <button type="button" style={styles.previewBtn} onClick={() => openPreview(touch)}>
                       Preview
