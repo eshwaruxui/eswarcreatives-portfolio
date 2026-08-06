@@ -1042,7 +1042,10 @@ function SelectorLightbox({ isOpen, onClose, title, children, footer }: {
   footer: React.ReactNode;
 }) {
   const [visible, setVisible] = useState(false);
-  const isWide = typeof window !== "undefined" && window.innerWidth >= 680;
+  const [isWide, setIsWide] = useState(false);
+  useEffect(() => {
+    setIsWide(window.innerWidth >= 680);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1252,8 +1255,15 @@ function getTierFromSearch(search: string): { slug: string; name: string; price:
 
 // ── Main page ──────────────────────────────────────────────────────
 export function BrandIdentityDiscoveryPage() {
-  // Read ?pack= once on mount — defaults to creative (florist wording).
-  const search = typeof window !== "undefined" ? window.location.search : "";
+  // Server-rendered HTML always has an empty query string (routes are
+  // pre-rendered without params), so start from "" here too and only read
+  // the real query string after mount — otherwise the tier/pack-driven copy
+  // below diverges between server and client and React throws a hydration
+  // mismatch.
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    setSearch(window.location.search);
+  }, []);
   const pack = useMemo(() => getPackFromSearch(search), [search]);
   const packKey = useMemo(() => getPackKeyFromSearch(search), [search]);
   const selectedTier = useMemo(() => getTierFromSearch(search), [search]);
