@@ -76,7 +76,7 @@ Deno.serve(async (req: Request) => {
   const { data: touch, error: touchErr } = await db
     .from("outreach_touches")
     .select(`
-      id, channel, status, recipient_timezone,
+      id, channel, status, recipient_timezone, draft_confirmed_at,
       lead:leads!lead_id (
         id, email, specific_observation, status, country
       )
@@ -87,6 +87,11 @@ Deno.serve(async (req: Request) => {
   if (touchErr || !touch) return fail("invalid_touch");
   if (touch.channel !== "email") return fail("invalid_touch");
   if (touch.status !== "scheduled") return fail("not_scheduled");
+  // A second approve call on an already-approved touch (stale UI, a
+  // double-click, another tab) must not silently recompute scheduled_for —
+  // if the recipient's window has since closed, that would push back an
+  // already-correctly-scheduled send to the next business day.
+  if (touch.draft_confirmed_at) return fail("already_approved");
 
   const lead = touch.lead as {
     id: string; email: string | null; specific_observation: string | null; status: string; country: string | null;

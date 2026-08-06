@@ -91,11 +91,13 @@ type ThreadTouch = {
   body: string
 }
 
-function useConfirmScheduledTouch(onSuccess: (id: string, holdUntil?: string) => void) {
+function useConfirmScheduledTouch(
+  onSuccess: (id: string, holdUntil?: string, recipientTimezone?: string) => void
+) {
   const [confirming, setConfirming] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  async function confirm(touchId: string) {
+  async function confirm(touchId: string): Promise<boolean> {
     setConfirming(touchId)
     setErrors((e) => { const n = { ...e }; delete n[touchId]; return n })
     try {
@@ -106,12 +108,22 @@ function useConfirmScheduledTouch(onSuccess: (id: string, holdUntil?: string) =>
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       })
       if (fnErr || !data || data.error) {
-        setErrors((e) => ({ ...e, [touchId]: 'Could not approve. Please try again.' }))
-      } else {
-        onSuccess(touchId, data.hold_until as string | undefined)
+        // already_approved means someone else (another tab, a double-click)
+        // approved this touch first — its real scheduled_for is already set
+        // correctly, so a reload is the fix, not a retry.
+        setErrors((e) => ({
+          ...e,
+          [touchId]: data?.error === 'already_approved'
+            ? 'Already approved elsewhere. Refresh to see its send time.'
+            : 'Could not approve. Please try again.',
+        }))
+        return false
       }
+      onSuccess(touchId, data.hold_until as string | undefined, data.recipient_timezone as string | undefined)
+      return true
     } catch {
       setErrors((e) => ({ ...e, [touchId]: 'Network error. Please try again.' }))
+      return false
     } finally {
       setConfirming(null)
     }
@@ -254,6 +266,7 @@ export function TodayTab({
   const [previewSubjectEdit, setPreviewSubjectEdit] = useState('')
   const [previewBodyEdit, setPreviewBodyEdit] = useState('')
   const [previewSaving, setPreviewSaving] = useState(false)
+  const [previewApproving, setPreviewApproving] = useState(false)
   const [threadTouches, setThreadTouches] = useState<ThreadTouch[]>([])
   const [threadOpen, setThreadOpen] = useState(false)
   const [motionStats, setMotionStats] = useState<MotionStats>({ emailsToday: 0, liTodayCount: 0, repliesWeek: 0, callsWeek: 0 })
@@ -416,23 +429,35 @@ export function TodayTab({
     setDueToday(update)
   }
 
-  const { confirming: confirmingId, errors: confirmErrors, confirm } = useConfirmScheduledTouch((id, holdUntil) => {
+  const { confirming: confirmingId, errors: confirmErrors, confirm } = useConfirmScheduledTouch((id, holdUntil, recipientTimezone) => {
     setPendingConfirmation((prev) => {
       const approved = prev.find((t) => t.id === id)
       if (approved) {
         setScheduledApproved((sa) => [
           ...sa,
-          { ...approved, scheduled_for: holdUntil ?? approved.scheduled_for },
+          {
+            ...approved,
+            scheduled_for: holdUntil ?? approved.scheduled_for,
+            // Without this, the row just-added to Scheduled keeps whatever
+            // (often null) recipient_timezone it had before approval, and
+            // formatScheduledMeta falls back to UTC — showing a different
+            // time than this same toast for the same instant, until a
+            // reload re-fetches the real value from the DB.
+            recipient_timezone: recipientTimezone ?? approved.recipient_timezone,
+          },
         ])
       }
       return prev.filter((t) => t.id !== id)
     })
-    const when = holdUntil
+    // Use the recipient's actual resolved timezone, not a hardcoded one —
+    // Rena being US-based made "ET" look right by coincidence; any non-US
+    // lead would show the wrong hour under the old hardcoded America/New_York.
+    const when = holdUntil && recipientTimezone
       ? new Intl.DateTimeFormat('en-US', {
-          timeZone: 'America/New_York', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true,
+          timeZone: recipientTimezone, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true,
         }).format(new Date(holdUntil))
       : null
-    showToast(when ? `Approved — will send ${when} ET.` : 'Approved. Will send at the next business-day window.')
+    showToast(when ? `Approved — will send ${when}, their local time.` : 'Approved. Will send at the next business-day window.')
   })
 
   async function handleMarkFollowUpDone(leadId: string) {
@@ -506,22 +531,21 @@ export function TodayTab({
     setPreviewTouch(null)
   }
 
-  async function handleSavePreview() {
-    if (!previewTouch) return
-    setPreviewSaving(true)
-    // step_id is deliberately left untouched — nulling it here used to be
-    // how this saved edit "won" over re-rendering the template on next open,
-    // but it also broke every other consumer of touch.step (the Due Today
-    // step-number label, the send modal's title, the earliest-touch dedupe)
-    // for the rest of that touch's life. previewInitialSubject/Body now
-    // prefer a non-null snapshot over the template directly, so step_id can
-    // stay intact and the edit is still preserved.
+  // step_id is deliberately left untouched — nulling it here used to be
+  // how this saved edit "won" over re-rendering the template on next open,
+  // but it also broke every other consumer of touch.step (the Due Today
+  // step-number label, the send modal's title, the earliest-touch dedupe)
+  // for the rest of that touch's life. previewInitialSubject/Body now
+  // prefer a non-null snapshot over the template directly, so step_id can
+  // stay intact and the edit is still preserved. Shared by both "Save
+  // changes" and "Save and Approve" so the two never drift apart.
+  async function persistPreviewEdits(touch: ScheduledTouch): Promise<ScheduledTouch> {
     await supabase
       .from('outreach_touches')
       .update({ subject_snapshot: previewSubjectEdit, body_snapshot: previewBodyEdit })
-      .eq('id', previewTouch.id)
+      .eq('id', touch.id)
     const updatedTouch: ScheduledTouch = {
-      ...previewTouch,
+      ...touch,
       subject_snapshot: previewSubjectEdit,
       body_snapshot: previewBodyEdit,
     }
@@ -529,8 +553,28 @@ export function TodayTab({
     const replace = (prev: ScheduledTouch[]) => prev.map((t) => (t.id === updatedTouch.id ? updatedTouch : t))
     setPendingConfirmation(replace)
     setScheduledApproved(replace)
+    return updatedTouch
+  }
+
+  async function handleSavePreview() {
+    if (!previewTouch) return
+    setPreviewSaving(true)
+    await persistPreviewEdits(previewTouch)
     setPreviewSaving(false)
     showGlobalToast('Email content saved', 'success', 2000)
+  }
+
+  // Lets an admin edit and approve a Review in Advance touch in one step,
+  // instead of Save changes -> Close -> find the row again -> Approve.
+  const previewIsPending = !!previewTouch && pendingConfirmation.some((t) => t.id === previewTouch.id)
+
+  async function handleSaveAndApprove() {
+    if (!previewTouch) return
+    setPreviewApproving(true)
+    const touch = previewDirty ? await persistPreviewEdits(previewTouch) : previewTouch
+    const approved = await confirm(touch.id)
+    setPreviewApproving(false)
+    if (approved) setPreviewTouch(null)
   }
 
   return (
@@ -606,14 +650,32 @@ export function TodayTab({
               {previewDirty && (
                 <button
                   type="button"
-                  style={{ ...styles.previewSaveBtn, opacity: previewSaving ? 0.6 : 1 }}
+                  style={{
+                    ...(previewIsPending ? styles.previewSaveSecondaryBtn : styles.previewSaveBtn),
+                    opacity: previewSaving || previewApproving ? 0.6 : 1,
+                  }}
                   onClick={handleSavePreview}
-                  disabled={previewSaving}
+                  disabled={previewSaving || previewApproving}
                 >
-                  {previewSaving ? 'Saving...' : 'Save changes'}
+                  {previewSaving ? 'Saving...' : previewIsPending ? 'Save only' : 'Save changes'}
                 </button>
               )}
-              <button type="button" style={styles.previewCloseBtn} onClick={handlePreviewCloseRequest}>
+              {previewIsPending && (
+                <button
+                  type="button"
+                  style={{ ...styles.previewApproveBtn, opacity: previewApproving || previewSaving ? 0.6 : 1 }}
+                  onClick={handleSaveAndApprove}
+                  disabled={previewApproving || previewSaving}
+                >
+                  {previewApproving ? 'Approving...' : 'Save and Approve'}
+                </button>
+              )}
+              <button
+                type="button"
+                style={styles.previewCloseBtn}
+                onClick={handlePreviewCloseRequest}
+                disabled={previewSaving || previewApproving}
+              >
                 Close
               </button>
             </div>
@@ -1351,6 +1413,30 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
   },
   previewSaveBtn: {
+    background: tokens.primary,
+    color: t.text.onPrimary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+  },
+  // Secondary treatment for "Save only" once "Save and Approve" is present,
+  // so the filled/primary look is reserved for the one recommended action.
+  previewSaveSecondaryBtn: {
+    background: 'none',
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+  },
+  previewApproveBtn: {
     background: tokens.primary,
     color: t.text.onPrimary,
     fontFamily: fonts.body,
