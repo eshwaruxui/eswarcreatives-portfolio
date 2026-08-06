@@ -25,13 +25,40 @@ export const COUNTRY_TZ: Record<string, string> = {
   JP: "Asia/Tokyo",
 };
 
+// leads.country is free text, not a consistent ISO code — confirmed live:
+// the same field holds "United States", "US", "United Kingdom", and "India"
+// across real rows. Without this map, every full-name value silently missed
+// COUNTRY_TZ (which only has 2-letter keys) and fell through to the
+// America/New_York default — meaning UK/India leads were being scheduled
+// against US working hours. Covers the common full-name spellings for every
+// COUNTRY_TZ entry; anything still unrecognized falls through to the US
+// default same as before.
+const COUNTRY_NAME_TO_CODE: Record<string, string> = {
+  "UNITED STATES": "US",
+  "UNITED STATES OF AMERICA": "US",
+  USA: "US",
+  "UNITED KINGDOM": "GB",
+  "GREAT BRITAIN": "GB",
+  UK: "GB",
+  INDIA: "IN",
+  GERMANY: "DE",
+  FRANCE: "FR",
+  AUSTRALIA: "AU",
+  CANADA: "CA",
+  SINGAPORE: "SG",
+  "UNITED ARAB EMIRATES": "AE",
+  UAE: "AE",
+  JAPAN: "JP",
+};
+
 export function resolveTimezone(
   recipientTimezone: string | null | undefined,
   country: string | null | undefined
 ): string {
   if (recipientTimezone) return recipientTimezone;
-  const cc = (country ?? "US").toUpperCase();
-  return COUNTRY_TZ[cc] ?? "America/New_York";
+  const raw = (country ?? "US").toUpperCase().trim();
+  const code = COUNTRY_TZ[raw] ? raw : (COUNTRY_NAME_TO_CODE[raw] ?? raw);
+  return COUNTRY_TZ[code] ?? "America/New_York";
 }
 
 // Converts a wall-clock date/time in a given IANA zone to the equivalent UTC
