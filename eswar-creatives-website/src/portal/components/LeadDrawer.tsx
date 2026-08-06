@@ -1,7 +1,7 @@
 // Lead drawer: full lead detail, editable fields, enrollment, timeline, convert to client.
 // SidePanel on desktop, full-screen bottom sheet on mobile (handled by SidePanel itself).
 import { useEffect, useRef, useState } from 'react'
-import { ExternalLink, Clock, Mail, Linkedin, X, Reply, ChevronDown } from 'lucide-react'
+import { ExternalLink, Clock, Mail, Linkedin, X, Reply, ChevronDown, Sparkles, Loader2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../theme'
@@ -11,6 +11,7 @@ import { formatPortalDate } from '../utils/formatDate'
 import { showToast } from '../admin/toast'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ScoreRing, type ScoringState } from './shared/ScoreRing'
+import { SegmentSelect } from './shared/SegmentSelect'
 import type { Vertical } from './shortlist/types'
 
 type LeadStatus =
@@ -65,7 +66,12 @@ type TouchTimelineRow = {
   subject_snapshot: string | null
   body_snapshot: string | null
   enrollment_id: string
-  step: { step_number: number; day_offset: number | null } | null
+  step: {
+    step_number: number
+    day_offset: number | null
+    subject_template: string | null
+    body_template: string | null
+  } | null
   enrollment: { sequence: { name: string } | null } | null
 }
 
@@ -114,24 +120,6 @@ function StatusChip({ status }: { status: string }) {
       letterSpacing: 0.2,
     }}>
       {status.replace('_', ' ')}
-    </span>
-  )
-}
-
-function SegmentChip({ segment }: { segment: string }) {
-  const isSecAI = segment === 'security_ai'
-  return (
-    <span style={{
-      display: 'inline-block',
-      padding: '2px 10px',
-      borderRadius: 999,
-      background: isSecAI ? tokens.tealLight : tokens.goldLight,
-      color: isSecAI ? tokens.primary : tokens.goldDark,
-      fontFamily: fonts.body,
-      fontSize: 11,
-      fontWeight: 600,
-    }}>
-      {isSecAI ? 'Security / AI' : 'SaaS Product'}
     </span>
   )
 }
@@ -209,6 +197,32 @@ export function LeadDrawer({
   const [websiteWarn, setWebsiteWarn] = useState(false)
   const websiteInputRef = useRef<HTMLInputElement>(null)
 
+  // Outreach skills: multi-select applied when generating/refining the draft
+  // message. lastGenerated is the exact text last written by the AI — if the
+  // saved value later differs from it, that's a real human edit worth logging
+  // as feedback for future generations to learn from.
+  const [skills, setSkills] = useState<{ id: string; name: string }[]>([])
+  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([])
+  const [generatingMessage, setGeneratingMessage] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
+  const [lastGenerated, setLastGenerated] = useState<string | null>(null)
+  const draftRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    supabase
+      .from('outreach_skills')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => {
+        const rows = (data ?? []) as { id: string; name: string }[]
+        setSkills(rows)
+        // Every uploaded skill applies by default; the checkboxes below let
+        // an admin narrow it down for a specific message.
+        setSelectedSkillIds(rows.map((s) => s.id))
+      })
+  }, [])
+
   useEffect(() => {
     setStartDate(new Date().toISOString().split('T')[0])
   }, [leadId])
@@ -248,7 +262,7 @@ export function LeadDrawer({
       `).eq('lead_id', leadId).order('started_at', { ascending: false }),
       supabase.from('outreach_touches').select(`
         id, channel, status, scheduled_for, sent_at, opened_at, bounced_at, skipped_reason, subject_snapshot, body_snapshot, enrollment_id,
-        step:sequence_steps!step_id (step_number, day_offset),
+        step:sequence_steps!step_id (step_number, day_offset, subject_template, body_template),
         enrollment:lead_enrollments!enrollment_id (sequence:sequences!sequence_id (name))
       `).eq('lead_id', leadId).order('scheduled_for', { ascending: false }).limit(50),
       supabase.from('sequences').select('id, name, segment, is_active').eq('is_active', true).order('name'),
@@ -337,6 +351,115 @@ export function LeadDrawer({
         year: 'numeric',
       }).format(new Date(value))
       showToast(`We'll remind you on ${reminderDate}`, 'success')
+    }
+  }
+
+  // Mirrors OutreachSendModal's renderTemplate exactly (substitution + double
+  // -period collapse + em dash strip; no possessive fix, that one's applied
+  // server-side only in send-outreach-email) — so "Apply skills" starts from
+  // the same text a reviewer would see in "Review and Send", not a message
+  // invented independently from raw lead facts.
+  function renderReviewAndSendBody(template: string, leadForRender: LeadDetail): string {
+    const vars: Record<string, string> = {
+      first_name: leadForRender.first_name,
+      company: leadForRender.company,
+      specific_observation: leadForRender.specific_observation ?? '',
+      flow: 'product',
+      unsubscribe_url: `https://www.eswarcreatives.in/unsubscribe/${leadForRender.unsubscribe_token}`,
+      topic: '{{topic}}',
+    }
+    let out = template
+    for (const [key, val] of Object.entries(vars)) out = out.replaceAll(`{{${key}}}`, val)
+    out = out.replace(/\.\s*\./g, '.')
+    out = out.replace(/—/g, '')
+    return out
+  }
+
+  // The lead's next actionable email touch — same one "Review and Send" would
+  // open — found from the timeline already loaded for this drawer rather than
+  // a second query. Held/scheduled only; earliest scheduled_for first. Returns
+  // the full row (not just the step) so callers can name the sequence/step in
+  // copy, not just use the template text.
+  function findNextEmailTouch(): TouchTimelineRow | null {
+    const candidates = timeline
+      .filter((row) => row.channel === 'email' && (row.status === 'scheduled' || row.status === 'held') && row.step?.body_template)
+      .sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for))
+    return candidates[0] ?? null
+  }
+
+  function nextEmailTouchLabel(touch: TouchTimelineRow): string {
+    return `${touch.enrollment?.sequence?.name ?? 'Sequence'} · Step ${touch.step?.step_number ?? '?'}`
+  }
+
+  // Context-aware help text for the Apply skills / Update message button —
+  // names the exact step it's drawing from (traceable back to Review and
+  // Send), distinguishes a fresh generation from refining an existing draft,
+  // and flags the one state where the outcome meaningfully changes: zero
+  // skills selected means the rewrite pass still runs but has no style guide
+  // to apply, so the result reads close to the raw template.
+  function applySkillsHint(): { text: string; warn: boolean } {
+    const touch = findNextEmailTouch()
+    const hasDraft = !!lead?.draft_message
+    const skillCount = selectedSkillIds.length
+
+    if (!touch) {
+      return {
+        warn: false,
+        text: hasDraft
+          ? 'No pending email step for this lead — refining the current draft from lead details, not a template.'
+          : 'No pending email step for this lead — generating from lead details, not a template.',
+      }
+    }
+
+    const stepLabel = nextEmailTouchLabel(touch)
+    if (skillCount === 0) {
+      return {
+        warn: true,
+        text: `No skills selected — will rewrite the ${stepLabel} email as-is, without any style guide applied.`,
+      }
+    }
+    const skillWord = skillCount === 1 ? 'skill' : 'skills'
+    return {
+      warn: false,
+      text: hasDraft
+        ? `Refining the current draft using ${stepLabel} + ${skillCount} ${skillWord}.`
+        : `Generating from the ${stepLabel} email + ${skillCount} ${skillWord}.`,
+    }
+  }
+
+  // Applies the selected skills as a rewrite ON TOP OF the actual Review and
+  // Send email for this lead (same template, same rendering recipe) — not an
+  // independent generation from lead facts. Falls back to whatever's already
+  // in the draft box only when there's no pending email step to render from.
+  async function handleApplySkills() {
+    if (!lead) return
+    setGenerateError(null)
+    setGeneratingMessage(true)
+    try {
+      const nextTouch = findNextEmailTouch()
+      const baseMessage = nextTouch?.step?.body_template
+        ? renderReviewAndSendBody(nextTouch.step.body_template, lead)
+        : draftRef.current?.value ?? ''
+
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token ?? ''
+      const { data, error: fnErr } = await supabase.functions.invoke('generate-outreach-message', {
+        body: {
+          lead_id: lead.id,
+          skill_ids: selectedSkillIds,
+          current_draft: baseMessage,
+        },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
+      if (fnErr || !data || data.error || typeof data.message !== 'string') {
+        throw new Error(data?.error ?? 'generation_failed')
+      }
+      if (draftRef.current) draftRef.current.value = data.message
+      setLastGenerated(data.message)
+    } catch {
+      setGenerateError('Could not generate a message. Please try again.')
+    } finally {
+      setGeneratingMessage(false)
     }
   }
 
@@ -474,7 +597,7 @@ export function LeadDrawer({
       <div style={styles.drawerBody}>
         {/* Header chips */}
         <div style={styles.chipRow}>
-          <SegmentChip segment={lead.segment} />
+          <SegmentSelect value={lead.segment} onChange={(segment) => saveLead({ segment })} />
           <StatusChip status={lead.status} />
           <ScoreRing
             score={lead.icp_score}
@@ -661,15 +784,74 @@ export function LeadDrawer({
           </div>
           <div style={styles.followUpField}>
             <label style={styles.followUpLabel}>Draft message</label>
+            {skills.length > 0 && (
+              <div style={styles.skillPicker}>
+                {skills.map((skill) => {
+                  const checked = selectedSkillIds.includes(skill.id)
+                  return (
+                    <label key={skill.id} style={styles.skillPickerItem}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setSelectedSkillIds((prev) =>
+                            checked ? prev.filter((id) => id !== skill.id) : [...prev, skill.id]
+                          )
+                        }
+                      />
+                      {skill.name}
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+            {skills.length > 0 && (() => {
+              const hint = applySkillsHint()
+              return (
+                <>
+                  <span style={{ ...styles.templateSourceHint, ...(hint.warn ? styles.templateSourceHintWarn : {}) }}>
+                    {hint.text}
+                  </span>
+                  <button
+                    type="button"
+                    style={{ ...styles.applySkillsBtn, opacity: generatingMessage ? 0.6 : 1 }}
+                    onClick={handleApplySkills}
+                    disabled={generatingMessage}
+                  >
+                    {generatingMessage ? (
+                      <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                    ) : (
+                      <Sparkles size={13} />
+                    )}
+                    {generatingMessage ? 'Generating...' : lead.draft_message ? 'Update message' : 'Apply skills'}
+                  </button>
+                  {generateError && <div style={styles.warnNote}>{generateError}</div>}
+                </>
+              )
+            })()}
             <textarea
               key={lead.id + 'draft'}
+              ref={draftRef}
               defaultValue={lead.draft_message ?? ''}
               style={styles.textarea}
               rows={4}
-              placeholder="Paste or write your next message here."
-              onBlur={(e) => {
+              placeholder={
+                skills.length > 0
+                  ? 'Paste or write your next message here, or generate one with Apply skills above.'
+                  : 'Paste or write your next message here.'
+              }
+              onBlur={async (e) => {
                 const val = e.target.value.trim()
                 if (val !== (lead.draft_message ?? '').trim()) saveLead({ draft_message: val || null })
+                if (lastGenerated && val !== lastGenerated.trim()) {
+                  await supabase.from('outreach_message_feedback').insert({
+                    lead_id: lead.id,
+                    skill_ids: selectedSkillIds.length > 0 ? selectedSkillIds : null,
+                    generated_text: lastGenerated,
+                    edited_text: val,
+                  })
+                  setLastGenerated(null)
+                }
               }}
             />
           </div>
@@ -1241,6 +1423,49 @@ const styles: Record<string, CSSProperties> = {
     resize: 'vertical' as const,
     boxSizing: 'border-box' as const,
     lineHeight: 1.5,
+  },
+  skillPicker: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '4px 12px',
+    padding: '8px 10px',
+    background: t.background.subtle,
+    border: `1px solid ${t.border.subtle}`,
+    borderRadius: 8,
+  },
+  skillPickerItem: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: t.text.secondary,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  templateSourceHint: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: t.text.muted,
+  },
+  templateSourceHintWarn: {
+    color: tokens.goldDark,
+    fontWeight: 500,
+  },
+  applySkillsBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    background: tokens.tealLight,
+    color: tokens.primary,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 8,
+    padding: '6px 12px',
+    cursor: 'pointer',
   },
   select: {
     fontFamily: fonts.body,

@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveTimezone, computeSendDecision } from "../_shared/businessHours.ts";
 
 // Sends an outreach email for a scheduled touch.
 // Caller: admin portal (touch_id in body). Returns { error: code } on any failure.
@@ -32,24 +33,6 @@ function fail(code: string, status = 400) {
     status,
     headers: { ...CORS, "Content-Type": "application/json" },
   });
-}
-
-function getNextBusinessOpen(tz: string): Date {
-  const d = new Date();
-  d.setSeconds(0, 0);
-  for (let i = 0; i < 8; i++) {
-    d.setMinutes(d.getMinutes() + (i === 0 ? 1 : 60));
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz, hour: "numeric", hour12: false, weekday: "short",
-    }).formatToParts(d);
-    const h = parseInt(parts.find((p) => p.type === "hour")!.value);
-    const w = parts.find((p) => p.type === "weekday")!.value;
-    if (h >= 9 && h < 18 && w !== "Sat" && w !== "Sun") return d;
-  }
-  const fallback = new Date();
-  fallback.setDate(fallback.getDate() + ((8 - fallback.getDay()) % 7 || 7));
-  fallback.setHours(9, 0, 0, 0);
-  return fallback;
 }
 
 function substitute(template: string, vars: Record<string, string>): string {
@@ -230,62 +213,40 @@ Deno.serve(async (req: Request) => {
   // Guard: unresolved variables
   if (renderedBody.includes("{{")) return fail("unresolved_variables");
 
-  // ── Business hours check ──────────────────────────────────────────────
-  const COUNTRY_TZ: Record<string, string> = {
-    US: "America/New_York",
-    GB: "Europe/London",
-    IN: "Asia/Kolkata",
-    DE: "Europe/Berlin",
-    FR: "Europe/Paris",
-    AU: "Australia/Sydney",
-    CA: "America/Toronto",
-    SG: "Asia/Singapore",
-    AE: "Asia/Dubai",
-    JP: "Asia/Tokyo",
-  };
-
+  // ── Business hours check (9:30 AM-5:30 PM recipient local, Mon-Fri) ────
   const { data: touchForTz } = await db
     .from("outreach_touches")
     .select("recipient_timezone, lead:leads!lead_id (country)")
     .eq("id", touchId)
     .maybeSingle() as { data: { recipient_timezone: string | null; lead: { country: string | null } | null } | null };
 
-  const recipientCountry = ((touchForTz?.lead?.country) ?? "US").toUpperCase();
-  const tz = touchForTz?.recipient_timezone ?? COUNTRY_TZ[recipientCountry] ?? "America/New_York";
+  const tz = resolveTimezone(touchForTz?.recipient_timezone, touchForTz?.lead?.country);
+  const decision = computeSendDecision(new Date(), tz);
 
-  const now = new Date();
-  const localParts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hour: "numeric",
-    minute: "numeric",
-    hour12: false,
-    weekday: "short",
-  }).formatToParts(now);
-
-  const hour    = parseInt(localParts.find((p) => p.type === "hour")!.value);
-  const weekday = localParts.find((p) => p.type === "weekday")!.value;
-
-  const isWeekend      = weekday === "Sat" || weekday === "Sun";
-  const isTooEarly     = hour < 9;
-  const isTooLate      = hour >= 18;
-  const isOutsideHours = isWeekend || isTooEarly || isTooLate;
-
-  if (isOutsideHours) {
-    const nextOpen = getNextBusinessOpen(tz);
+  if (!decision.sendNow) {
     await db
       .from("outreach_touches")
       .update({
         status: "scheduled",
-        scheduled_for: nextOpen.toISOString(),
+        scheduled_for: decision.scheduledFor.toISOString(),
         recipient_timezone: tz,
+        // A human explicitly clicked Send — mark it approved so the existing
+        // 5-minute cron (send-confirmed-outreach-touches) picks this up and
+        // completes the send automatically once the window opens, the same
+        // way an early "Approve" in Review in Advance already does. Touches
+        // nobody has clicked Send/Approve on never get this stamp, so the
+        // cron never auto-sends anything that hasn't been reviewed.
+        draft_confirmed_at: new Date().toISOString(),
+        draft_confirmed_by: auth.user.id,
       })
       .eq("id", touchId);
 
     return new Response(
       JSON.stringify({
         scheduled: true,
-        scheduled_for: nextOpen.toISOString(),
-        message: "Outside business hours. Saved as draft. Pending admin confirmation before send.",
+        scheduled_for: decision.scheduledFor.toISOString(),
+        recipient_timezone: tz,
+        message: "Outside this recipient's working hours. Scheduled to send automatically once their local business hours open.",
       }),
       { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
     );

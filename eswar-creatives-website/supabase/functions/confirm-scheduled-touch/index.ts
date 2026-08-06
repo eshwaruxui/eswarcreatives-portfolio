@@ -1,12 +1,17 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveTimezone, computeSendDecision } from "../_shared/businessHours.ts";
 
 // Approves a touch early from "Review in Advance" (tomorrow's queue).
-// Does NOT send immediately: regardless of when the admin confirms, delivery
-// is held for 9:30 AM ET on the next business day (never same day, never a
-// weekend). This function just stamps the approval and moves scheduled_for
-// to that hold time; send-confirmed-outreach-touches (cron-invoked) does the
-// actual send once the window arrives, re-running these same safety checks.
+// Does NOT send directly here (no Resend call) — it stamps the approval and
+// sets scheduled_for using the same 9:30 AM-5:30 PM recipient-local-time
+// policy as send-outreach-email; send-confirmed-outreach-touches
+// (cron-invoked, every 5 min) does the actual send once that time arrives,
+// re-running these same safety checks. If the recipient's local time is
+// already within the window when the admin approves, scheduled_for is set
+// to "now" so the next cron tick (within 5 minutes) completes it — as close
+// to immediate as this architecture allows, since this function itself
+// never calls Resend.
 // Auth: admin JWT required.
 // POST body: { touch_id: string }
 
@@ -32,52 +37,6 @@ function fail(code: string, status = 400) {
     status,
     headers: { ...CORS, "Content-Type": "application/json" },
   });
-}
-
-function isWeekendInET(date: Date): boolean {
-  const wd = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" }).format(date);
-  return wd === "Sat" || wd === "Sun";
-}
-
-// Converts a wall-clock date/time in a given IANA zone to the equivalent UTC instant.
-function zonedWallTimeToUtc(y: number, m: number, d: number, hh: number, mm: number, timeZone: string): Date {
-  let utcGuess = Date.UTC(y, m - 1, d, hh, mm);
-  for (let i = 0; i < 2; i++) {
-    const dtf = new Intl.DateTimeFormat("en-US", {
-      timeZone, hour12: false,
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit",
-    });
-    const parts = dtf.formatToParts(new Date(utcGuess));
-    const get = (t: string) => parseInt(parts.find((p) => p.type === t)!.value, 10);
-    const asIfUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"));
-    utcGuess += Date.UTC(y, m - 1, d, hh, mm) - asIfUtc;
-  }
-  return new Date(utcGuess);
-}
-
-// Always advances at least one calendar day in US Eastern time, skipping
-// weekends, then returns that day's 9:30 AM ET as a UTC instant.
-function nextBusinessDay930ET(from: Date): Date {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
-  });
-  const parts = fmt.formatToParts(from);
-  const y = parseInt(parts.find((p) => p.type === "year")!.value, 10);
-  const m = parseInt(parts.find((p) => p.type === "month")!.value, 10);
-  const d = parseInt(parts.find((p) => p.type === "day")!.value, 10);
-
-  let anchor = new Date(Date.UTC(y, m - 1, d, 12));
-  do {
-    anchor = new Date(anchor.getTime() + 86400000);
-  } while (isWeekendInET(anchor));
-
-  const targetParts = fmt.formatToParts(anchor);
-  const ty = parseInt(targetParts.find((p) => p.type === "year")!.value, 10);
-  const tm = parseInt(targetParts.find((p) => p.type === "month")!.value, 10);
-  const td = parseInt(targetParts.find((p) => p.type === "day")!.value, 10);
-
-  return zonedWallTimeToUtc(ty, tm, td, 9, 30, "America/New_York");
 }
 
 Deno.serve(async (req: Request) => {
@@ -117,9 +76,9 @@ Deno.serve(async (req: Request) => {
   const { data: touch, error: touchErr } = await db
     .from("outreach_touches")
     .select(`
-      id, channel, status,
+      id, channel, status, recipient_timezone,
       lead:leads!lead_id (
-        id, email, specific_observation, status
+        id, email, specific_observation, status, country
       )
     `)
     .eq("id", touchId)
@@ -130,7 +89,7 @@ Deno.serve(async (req: Request) => {
   if (touch.status !== "scheduled") return fail("not_scheduled");
 
   const lead = touch.lead as {
-    id: string; email: string | null; specific_observation: string | null; status: string;
+    id: string; email: string | null; specific_observation: string | null; status: string; country: string | null;
   };
 
   if (!lead.email) return fail("no_email");
@@ -155,7 +114,9 @@ Deno.serve(async (req: Request) => {
     return fail("missing_observation");
   }
 
-  const holdUntil = nextBusinessDay930ET(new Date());
+  const tz = resolveTimezone(touch.recipient_timezone, lead.country);
+  const decision = computeSendDecision(new Date(), tz);
+  const holdUntil = decision.sendNow ? new Date() : decision.scheduledFor;
 
   await db
     .from("outreach_touches")
@@ -163,8 +124,9 @@ Deno.serve(async (req: Request) => {
       draft_confirmed_at: new Date().toISOString(),
       draft_confirmed_by: auth.user.id,
       scheduled_for: holdUntil.toISOString(),
+      recipient_timezone: tz,
     })
     .eq("id", touchId);
 
-  return ok({ approved: true, hold_until: holdUntil.toISOString() });
+  return ok({ approved: true, hold_until: holdUntil.toISOString(), recipient_timezone: tz });
 });

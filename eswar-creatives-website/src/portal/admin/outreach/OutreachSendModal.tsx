@@ -3,7 +3,7 @@
 // LinkedIn: read-only rendered message, Copy + Open LinkedIn + Mark sent.
 // All error states follow Nielsen H9: plain language, next step, no raw errors.
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Clock, Copy, ExternalLink, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
@@ -510,6 +510,11 @@ export function OutreachSendModal({
   })
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  // Distinct from `sent`: send-outreach-email deferred this touch to later
+  // (outside the recipient's working hours) instead of actually sending it.
+  // Previously this fell through to the same "Sent" checkmark state, which
+  // told the admin an email had gone out when nothing had.
+  const [scheduledInfo, setScheduledInfo] = useState<{ for: string; tz: string } | null>(null)
   const [emailError, setEmailError] = useState<EmailErrorCode | null>(null)
   const [obsValue, setObsValue] = useState(lead.specific_observation ?? '')
   const [savingObs, setSavingObs] = useState(false)
@@ -542,13 +547,18 @@ export function OutreachSendModal({
   const [copyLabel, setCopyLabel] = useState<'Copy message' | 'Copied'>('Copy message')
   const [markingSent, setMarkingSent] = useState(false)
 
-  // Auto-close on success after 1.5s
+  // Auto-close on success after 1.5s; scheduled state gets a bit longer
+  // since there's an actual message to read.
   useEffect(() => {
     if (sent) {
       const t = setTimeout(onSent, 1500)
       return () => clearTimeout(t)
     }
-  }, [sent, onSent])
+    if (scheduledInfo) {
+      const t = setTimeout(onSent, 3000)
+      return () => clearTimeout(t)
+    }
+  }, [sent, scheduledInfo, onSent])
 
   // Escape closes
   useEffect(() => {
@@ -607,8 +617,14 @@ export function OutreachSendModal({
         setSending(false)
         return
       }
-      // Clear draft on successful send
+      // Clear draft either way — sent, or deferred and no longer needs
+      // editing from this modal.
       try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
+      if (data?.scheduled) {
+        setScheduledInfo({ for: data.scheduled_for as string, tz: data.recipient_timezone as string })
+        setSending(false)
+        return
+      }
       setSent(true)
     } catch {
       setEmailError('network_error')
@@ -685,6 +701,24 @@ export function OutreachSendModal({
                 <div style={styles.successState}>
                   <Check size={32} color={tokens.green} />
                   <span style={styles.successLabel}>Sent</span>
+                </div>
+              ) : scheduledInfo ? (
+                <div style={styles.successState}>
+                  <Clock size={32} color={tokens.gold} />
+                  <span style={{ ...styles.successLabel, color: tokens.goldDark }}>Scheduled</span>
+                  <p style={styles.scheduledDetail}>
+                    Outside {lead.first_name}'s working hours. Will send automatically at{' '}
+                    {new Intl.DateTimeFormat('en-GB', {
+                      timeZone: scheduledInfo.tz,
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true,
+                    }).format(new Date(scheduledInfo.for))}{' '}
+                    their local time — no further action needed.
+                  </p>
                 </div>
               ) : emailError === 'daily_cap_reached' ? (
                 <div style={styles.cappedState}>
@@ -1137,6 +1171,14 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 20,
     fontWeight: 600,
     color: tokens.green,
+  },
+  scheduledDetail: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: t.text.secondary,
+    textAlign: 'center' as const,
+    margin: '0 24px',
+    lineHeight: 1.5,
   },
   liMessage: {
     background: tokens.bg,
