@@ -284,7 +284,7 @@ export function TodayTab({
               specific_observation, unsubscribe_token, status, linkedin_status
             ),
             step:sequence_steps!step_id (
-              step_number, channel, subject_template, body_template, requires_connected
+              step_number, day_offset, channel, subject_template, body_template, requires_connected
             ),
             enrollment:lead_enrollments!enrollment_id (
               id, sequence:sequences!sequence_id (name)
@@ -717,7 +717,7 @@ export function TodayTab({
                       style={styles.touchMeta}
                       title="Exact send time is set once you approve — sends go out during business hours (9:30 AM–5:30 PM) in the recipient's local time."
                     >
-                      {formatPendingDate(touch)} · Waiting for confirmation
+                      {intentLabel(touch.step?.day_offset ?? null)} · {formatPendingDate(touch)} · Waiting for confirmation
                     </span>
                   }
                   error={err}
@@ -768,7 +768,7 @@ export function TodayTab({
                   avatarLabel={lead ? initials(lead.first_name, lead.last_name) : '?'}
                   title={lead ? `${lead.first_name} ${lead.last_name ?? ''} · ${lead.company}` : 'Unknown lead'}
                   onOpenLead={lead ? () => setActiveLeadId(lead.id) : undefined}
-                  meta={<span style={styles.touchMeta}>Sends {formatScheduledMeta(touch)}</span>}
+                  meta={<span style={styles.touchMeta}>{intentLabel(touch.step?.day_offset ?? null)} · Sends {formatScheduledMeta(touch)}</span>}
                   actions={
                     <button type="button" style={styles.previewBtn} onClick={() => openPreview(touch)}>
                       Preview
@@ -949,7 +949,7 @@ function TouchRowCard({
             {lead.first_name} {lead.last_name ?? ''} · {lead.company}
           </span>
           <span style={styles.touchMeta}>
-            {touch.enrollment?.sequence?.name ?? 'Sequence'} · {stepNumberLabel(touch.step?.step_number)}
+            {intentLabel(touch.step?.day_offset ?? null)} · {touch.enrollment?.sequence?.name ?? 'Sequence'} · {stepNumberLabel(touch.step?.step_number)}
           </span>
           {isOverdue && overdueCount > 0 && (
             <span style={styles.overdueLabel}>

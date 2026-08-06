@@ -33,6 +33,7 @@ export type TouchRow = {
   }
   step: {
     step_number: number
+    day_offset: number | null
     channel: string
     subject_template: string | null
     body_template: string
