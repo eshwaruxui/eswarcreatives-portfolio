@@ -336,6 +336,10 @@ _Save and Approve, recipient-timezone display fix, ActivityTab approve-flow pari
 - **Multi-column sort on Activity tab:** the touch list grows daily with no way to reorder it beyond the fixed `sent_at desc` fetch order. Reused LeadsTab's exact shared sort machinery (`SortableTableHeader` + `toggleMultiSort` + `SortSpec`, no modifier key, "Clear sort" link) rather than building a one-off. Sortable: Time, Lead, Channel, Status. Left Sequence/Step unsortable (compound text) and Opened/Bounced unsortable — both are still empty for every row (see Section 11, the Resend webhook was never registered and `RESEND_WEBHOOK_SECRET` was never set — confirmed live via `get_logs`: zero invocations of `resend-outreach-webhook` in the last 24h) so sorting on them wouldn't do anything yet. Sorting applies to both the desktop table and the mobile card stack (one `sorted` array feeds both, matching `EnquiriesTab`'s existing pattern); only the desktop table gets clickable headers.
 - Live-verified on the Cloudflare `fix/outreach-scheduling-timezone-display` preview, incognito, before merging — per Section 13's rule.
 
+_SSG hydration fix (commit `0185c060`, merged to main 7 Aug 2026):_
+- `BrandIdentityDiscoveryPage.tsx` was reading `window.location.search` and `window.innerWidth` during render. Moved both into `useEffect`+`useState`. Fixes React errors #418/#423 affecting 38% of Clarity sessions.
+- Only file touched: `src/app/components/BrandIdentityDiscoveryPage.tsx`
+
 **Supabase plan:** Pro ($25/month, upgraded 24 Jul 2026). Project ref: `urrinqwcrpivmvenupiu` (Mumbai, ap-south-1).
 
 **Next migration number: 0093**
