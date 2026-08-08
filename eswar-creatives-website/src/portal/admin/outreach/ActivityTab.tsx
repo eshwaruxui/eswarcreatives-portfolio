@@ -3,7 +3,7 @@
 // holds for the recipient's business-hours window — the actual send happens
 // later via the cron, not on click).
 import { useEffect, useState } from 'react'
-import { Eye, Mail, Linkedin, Clock, Loader2 } from 'lucide-react'
+import { Eye, Mail, Linkedin, Clock, Loader2, MailCheck, MousePointerClick } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
@@ -35,7 +35,9 @@ type ActivityRow = {
   recipient_timezone: string | null
   draft_confirmed_at: string | null
   sent_at: string | null
+  delivered_at: string | null
   opened_at: string | null
+  clicked_at: string | null
   bounced_at: string | null
   skipped_reason: string | null
   lead: {
@@ -64,21 +66,35 @@ const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
   scheduled: { bg: tokens.goldLight, fg: tokens.goldDark },
 }
 
-// Opened/Bounced aren't included here — both are still empty for every row
-// (the Resend webhook that would populate them isn't live yet), so sorting
-// on them wouldn't do anything useful yet.
+// The four delivery columns stay unsortable. They were left out originally
+// because the Resend webhook was not live and every value was null; the
+// webhook went live 9 Aug 2026, so the reason now is different. Sorting on a
+// mostly-null timestamp column buries the populated rows behind whichever
+// nulls-first/last the comparator happens to pick, which is worse than the
+// chronological default this feed already has.
+//
 // Widths matter here: Status is the one cell whose content varies wildly in
 // length (a bare badge vs. an approved touch's two-line timestamp read), so
 // it's left to absorb the slack while Lead and the action column are pinned.
 // Without that, a long status pushed Preview/Approve out of the viewport at
 // 1280px and squeezed the lead name to nothing.
+//
+// Delivered, opened and clicked share ONE column rather than getting three.
+// Measured at a 1280px viewport before choosing: three separate date columns
+// put the table 32px over the 961px content area even at 6px gutters, and
+// none of the documented levers close that. The Status column is
+// `width: 100%`, so capping its content reclaims nothing at all, and the
+// binding constraint turns out to be the uppercase header labels themselves,
+// which is exactly the floor COMPONENT_PATTERNS warns about. Three headers
+// cost more than the three cells ever would. Collapsing them into one icon
+// cluster pays for one header instead of three.
 const ACTIVITY_COLUMNS: SortableColumn[] = [
   { key: 'time', label: 'TIME', sortable: true },
   { key: 'lead', label: 'LEAD', sortable: true, width: '140px' },
   { key: 'sequence', label: 'SEQUENCE / STEP', sortable: false },
   { key: 'channel', label: 'CHANNEL', sortable: true },
   { key: 'status', label: 'STATUS', sortable: true },
-  { key: 'opened', label: 'OPENED', sortable: false },
+  { key: 'engagement', label: 'ENGAGED', sortable: false },
   { key: 'bounced', label: 'BOUNCED', sortable: false },
   { key: 'action', label: '', sortable: false, width: '180px' },
 ]
@@ -196,7 +212,7 @@ export function ActivityTab() {
     let q = supabase
       .from('outreach_touches')
       .select(`
-        id, channel, status, scheduled_for, recipient_timezone, draft_confirmed_at, sent_at, opened_at, bounced_at, skipped_reason,
+        id, channel, status, scheduled_for, recipient_timezone, draft_confirmed_at, sent_at, delivered_at, opened_at, clicked_at, bounced_at, skipped_reason,
         lead:leads!lead_id (id, first_name, last_name, company),
         enrollment:lead_enrollments!enrollment_id (id, sequence:sequences!sequence_id (name)),
         step:sequence_steps!step_id (step_number)
@@ -419,7 +435,16 @@ export function ActivityTab() {
                     <span style={{ ...styles.statusBadge, background: tone.bg, color: tone.fg }}>
                       {row.status}
                     </span>
-                    {row.opened_at && <Eye size={13} color={tokens.green} />}
+                    {/* Same cluster as the desktop table. The mobile card has
+                        no width pressure, but splitting the two would mean two
+                        places to keep in step for no benefit. */}
+                    {(row.delivered_at || row.opened_at || row.clicked_at) && (
+                      <EngagementIcons
+                        deliveredAt={row.delivered_at}
+                        openedAt={row.opened_at}
+                        clickedAt={row.clicked_at}
+                      />
+                    )}
                     {row.bounced_at && <span style={styles.bounced}>Bounced</span>}
                   </span>
                   <span style={styles.mono}>{formatPortalDate(row.sent_at ?? row.scheduled_for)}</span>
@@ -469,13 +494,23 @@ export function ActivityTab() {
         <div style={{ overflowX: 'auto' }}>
           {/* Measured live at a 1280px viewport: eight columns at the shared
               header's default 12px horizontal padding totalled 1098px against
-              a ~992px content area, so the action column sat off-screen. This
-              trims the gutters to 8px — 8 columns x 8px = 64px reclaimed —
-              scoped to this table by class so LeadsTab and EnquiriesTab keep
-              the shared header's default spacing. */}
+              a ~992px content area, so the action column sat off-screen. The
+              first fix trimmed the gutters to 8px, which brought the table to
+              exactly 961px with nothing to spare.
+              Re-measured 9 Aug 2026 when OPENED became ENGAGED. Comparing
+              intrinsic widths of the old and new header sets over identical
+              rows, ENGAGED costs 9px more than OPENED, which put the table
+              9px over a budget that had no slack left. 6px gutters reclaim
+              8 columns x 2 sides x 2px = 32px, landing at 938px with 23px
+              spare. Measured alternatives, for the next person: ENGAGEMENT was
+              36px over at 8px gutters and still 4px over at 6px, so the longer
+              label genuinely does not fit; SIGNALS and OPENS both fit with
+              about 30px spare if this ever needs another few pixels.
+              6px matches what LeadsTab already uses. Scoped to this table by
+              class so EnquiriesTab keeps the shared 12px default. */}
           <style>{`
-            .ec-activity-table th { padding-left: 8px !important; padding-right: 8px !important; }
-            .ec-activity-table td { padding-left: 8px !important; padding-right: 8px !important; }
+            .ec-activity-table th { padding-left: 6px !important; padding-right: 6px !important; }
+            .ec-activity-table td { padding-left: 6px !important; padding-right: 6px !important; }
           `}</style>
           <table className="ec-activity-table" style={styles.table}>
             <thead>
@@ -566,7 +601,11 @@ export function ActivityTab() {
                         )}
                       </td>
                       <td style={styles.td}>
-                        {row.opened_at && <Eye size={14} color={tokens.green} />}
+                        <EngagementIcons
+                          deliveredAt={row.delivered_at}
+                          openedAt={row.opened_at}
+                          clickedAt={row.clicked_at}
+                        />
                       </td>
                       <td style={styles.td}>
                         {row.bounced_at && <span style={styles.bounced}>Bounced</span>}
@@ -645,6 +684,50 @@ function ChannelIcon({ channel }: { channel: string }) {
   return <Linkedin size={14} color={t.text.muted} />
 }
 
+// Delivered, opened and clicked in one cell. Each icon appears only once its
+// event has actually been received, so the cluster reads left to right as how
+// far down the funnel this email got: delivered, then opened, then clicked.
+// The exact time lives in the title attribute rather than on screen, which is
+// what buys back the width three date columns would have cost.
+//
+// tokens.green rather than a t.* role: `t` has no text/icon success token.
+// The nearest is t.border.success, which resolves to the identical #1B6B4A
+// but means "border", and the Eye here has always used tokens.green. Picking
+// a different source for one icon in a cluster of three would collide the two
+// token systems inside a single cell for no visual difference.
+function EngagementIcons({
+  deliveredAt,
+  openedAt,
+  clickedAt,
+}: {
+  deliveredAt: string | null
+  openedAt: string | null
+  clickedAt: string | null
+}) {
+  if (!deliveredAt && !openedAt && !clickedAt) {
+    return <span style={styles.engagementEmpty}>-</span>
+  }
+  return (
+    <span style={styles.engagementCell}>
+      {deliveredAt && (
+        <MailCheck size={14} color={t.text.muted} aria-label="Delivered">
+          <title>{`Delivered ${formatPortalDate(deliveredAt)}`}</title>
+        </MailCheck>
+      )}
+      {openedAt && (
+        <Eye size={14} color={tokens.green} aria-label="Opened">
+          <title>{`Opened ${formatPortalDate(openedAt)}`}</title>
+        </Eye>
+      )}
+      {clickedAt && (
+        <MousePointerClick size={14} color={tokens.green} aria-label="Clicked">
+          <title>{`Clicked ${formatPortalDate(clickedAt)}`}</title>
+        </MousePointerClick>
+      )}
+    </span>
+  )
+}
+
 const styles: Record<string, CSSProperties> = {
   filterBar: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
   filterBarMobile: { flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch' },
@@ -709,6 +792,8 @@ const styles: Record<string, CSSProperties> = {
   // inside the viewport at 1280px instead of being pushed off the right edge.
   tdAction: { minWidth: 180 },
   mono: { fontFamily: mono, fontSize: 12, color: t.text.muted },
+  engagementCell: { display: 'inline-flex', alignItems: 'center', gap: 6 },
+  engagementEmpty: { fontFamily: mono, fontSize: 12, color: t.text.muted },
   muted: { color: t.text.muted, fontStyle: 'italic' },
   leadCell: { display: 'flex', flexDirection: 'column', gap: 1 },
   leadName: { fontFamily: fonts.body, fontSize: 13, color: t.text.primary, fontWeight: 600 },
