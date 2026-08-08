@@ -11,6 +11,8 @@ import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useReloadableList } from '../../hooks/useReloadableList'
 import { SortableTableHeader, toggleMultiSort, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
 import { Skeleton } from '../../components/shared/Skeleton'
+import { Pagination } from '../../components/shared/Pagination'
+import { usePagination } from '../../hooks/usePagination'
 import { SegmentSelect, SEGMENT_LABELS } from '../../components/shared/SegmentSelect'
 import { AddLeadModal } from './AddLeadModal'
 import { CsvImportModal } from './CsvImportModal'
@@ -340,8 +342,11 @@ export function LeadsTab() {
   // key, an already-active one cycles asc -> desc -> removed in place. No
   // modifier key — "Clear sort" (rendered next to the result count) is the
   // way back to no sort at all.
+  // Back to page 1 on a sort change: a reordered list read from its middle is
+  // not the ordering the user just asked for.
   function handleSort(key: string) {
     setSorts((prev) => toggleMultiSort(prev, key))
+    resetPage()
   }
 
   function toggleStatusFilter(val: string) {
@@ -367,7 +372,24 @@ export function LeadsTab() {
     return true
   })
 
+  // Sort the whole filtered set first, then slice the page out of it. Slicing
+  // before sorting would order only the visible window.
   const sorted = applySorting(filtered, sorts)
+  const {
+    currentPage, pageSize, paginatedSlice, goToPage, changePageSize,
+    reset: resetPage, pageStart, pageEnd,
+  } = usePagination(sorted.length, 25)
+  const pageLeads = paginatedSlice(sorted)
+
+  // Any narrowing of the result set returns to page 1. Covers the four
+  // client-side filters and the search box as well as the two that refetch,
+  // since all of them change how many rows there are to page through and a
+  // page 4 that no longer exists would otherwise render empty. Declared here
+  // rather than beside the other effects because it needs resetPage, which
+  // usePagination above only just returned.
+  useEffect(() => {
+    resetPage()
+  }, [debouncedSearch, filterStatus, filterEnrollment, filterSource, filterMissingObs, resetPage])
 
   return (
     <>
@@ -461,15 +483,17 @@ export function LeadsTab() {
         </label>
       </div>
 
-      {/* Result count + mobile Sort trigger (desktop sorts via column headers) */}
+      {/* Sort controls only. The count moved into the Pagination bar below the
+          list, where it reads as a range against the whole set. */}
       {!initialLoading && (
-        <div style={styles.resultRow}>
-          <p style={styles.resultCount}>
-            {sorted.length} lead{sorted.length !== 1 ? 's' : ''}
-          </p>
+        <div style={{ ...styles.resultRow, justifyContent: 'flex-end' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {!isMobile && sorts.length > 0 && (
-              <button type="button" style={styles.clearSortBtn} onClick={() => setSorts([])}>
+              <button
+                type="button"
+                style={styles.clearSortBtn}
+                onClick={() => { setSorts([]); resetPage() }}
+              >
                 Clear sort{sorts.length > 1 ? ` (${sorts.length})` : ''}
               </button>
             )}
@@ -498,6 +522,7 @@ export function LeadsTab() {
                   style={styles.sheetRow}
                   onClick={() => {
                     setSorts([{ key: opt.key, dir: 'asc' }])
+                    resetPage()
                     setShowSortSheet(false)
                   }}
                 >
@@ -553,7 +578,7 @@ export function LeadsTab() {
             .ec-tap-card { background: ${tokens.surface}; transition: background ${motionTokens.durationFast} ${motionTokens.easeDefault}; }
             .ec-tap-card:active { background: ${t.background.tint1}; }
           `}</style>
-          {sorted.map((lead) => (
+          {pageLeads.map((lead) => (
             <MobileCard
               key={lead.id}
               lead={lead}
@@ -570,7 +595,7 @@ export function LeadsTab() {
               <SortableTableHeader columns={LEAD_COLUMNS} sorts={sorts} onSort={handleSort} />
             </thead>
             <tbody>
-              {sorted.map((lead) => (
+              {pageLeads.map((lead) => (
                 <tr key={lead.id} style={styles.tr} onClick={() => setOpenLeadId(lead.id)}>
                   <td style={styles.td}>
                     <div style={styles.leadCell}>
@@ -623,6 +648,21 @@ export function LeadsTab() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* One instance for both layouts. Hidden entirely on an empty result,
+          and reduced to the count line when everything fits on one page. */}
+      {!initialLoading && (
+        <Pagination
+          totalItems={sorted.length}
+          pageSize={pageSize}
+          currentPage={currentPage}
+          onPageChange={goToPage}
+          onPageSizeChange={changePageSize}
+          pageStart={pageStart}
+          pageEnd={pageEnd}
+          itemLabel={sorted.length === 1 ? 'lead' : 'leads'}
+        />
       )}
     </>
   )
@@ -775,12 +815,6 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
-  },
-  resultCount: {
-    fontFamily: mono,
-    fontSize: 12,
-    color: t.text.muted,
-    margin: 0,
   },
   clearSortBtn: {
     background: 'none',
