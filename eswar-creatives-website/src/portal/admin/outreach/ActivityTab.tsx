@@ -503,7 +503,12 @@ export function ActivityTab() {
                             approval" below is two short words and never
                             needs it. */}
                         {showsProgressLine && (
-                          <FadeOverflow style={{ ...styles.scheduledMeta, maxWidth: 200 }}>
+                          {/* 190 is measured, not guessed: at a 1280px
+                              viewport the table wrapper is 961px, and this cap
+                              is the widest value that brings the table to
+                              exactly 961 with zero horizontal scroll. 200 left
+                              6px of overflow. */}
+                          <FadeOverflow style={{ ...styles.scheduledMeta, maxWidth: 190 }}>
                             <TouchProgressLine
                               draftConfirmedAt={row.draft_confirmed_at}
                               scheduledFor={row.scheduled_for}
