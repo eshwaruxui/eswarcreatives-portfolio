@@ -116,7 +116,7 @@ export const t = {
     // primitive, which is deliberate and the same arrangement `t.text.muted`
     // and `t.text.tertiary` already have: two semantic names, one value, keep
     // both and pick by role. Do not collapse them into one token.
-    page:           '#FAFAF9',              // page background — Figma background/subtle (neutral.10)
+    page:           '#FAFAF9',              // page background, Figma background/subtle (neutral.10)
     subtle:         '#FAFAF9',              // subtle section bg — Figma background/subtle (neutral.10)
     muted:          '#F5F5F4',              // muted fills — Figma background/muted (neutral.50)
     surface:        '#FFFFFF',              // card/panel surfaces

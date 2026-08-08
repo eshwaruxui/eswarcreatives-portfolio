@@ -5,10 +5,12 @@ Last updated: 9 August 2026 (Pagination is now always wrapped in the new
 the single-page rule revised to keep both the count label and the page size
 selector, hiding only the nav, so a one-page result is neither a dead end nor
 silent about its total; and a Dense Table Width pattern added for the LeadsTab
-horizontal-scroll fix. Also added an Admin Shell Scroll and Sticky pattern,
-after finding that `overflow-x: hidden` on the shell root had been silently
-disabling `position: sticky` on TopBar and the sidebar across every admin
-route. All of it merged to `main`. Previously, 8 August: the Pagination stub
+horizontal-scroll fix; and an Admin Shell Scroll and Sticky pattern, after
+finding that `overflow-x: hidden` on the shell root had been silently disabling
+`position: sticky` on TopBar and the sidebar across every admin route. All of
+that is merged to `main`. Newest and not yet merged: a Page Canvas Token
+pattern, after the portal canvas moved off the warm cream `#FAF8F4` to Figma
+background/subtle `#FAFAF9`. Previously, 8 August: the Pagination stub
 replaced with the real pattern, the Table Skeleton Row pattern for
 `SkeletonRow`, the Overflow Fade pattern for `FadeOverflow`, the Outreach Touch
 Approve / Preview pattern, and `t.text.muted` aligned to #717171 / neutral/500,
@@ -148,8 +150,10 @@ helper text, which are normal text not large text): 3.5:1 on white and 3.3:1 on
 the cream page, against a 4.5:1 floor. History is #888888, then #707070 as an
 interim WCAG fix on 6 August 2026, then #717171 on 8 August.
 
-Measured contrast at #717171: 4.88:1 on surface white, 4.60:1 on the cream page
-(t.background.page), 4.67:1 on t.background.subtle/raised. All clear AA.
+Measured contrast at #717171: 4.88:1 on surface white, 4.67:1 on the page
+(t.background.page) and on t.background.subtle/raised. All clear AA. The page
+figure was 4.60:1 while the page was the cream #FAF8F4; it improved slightly
+when the canvas moved to #FAFAF9 on 9 August 2026.
 
 **Known exception:** on t.background.muted / t.background.sunken (#F5F5F4) it
 measures **4.47:1, which is 0.03 under the AA floor**. The interim #707070
@@ -207,7 +211,8 @@ include the token fallback. The `var()` form is kept anyway so the component
 defers to a custom property automatically if the portal ever grows one.
 
 ### Match the fallback to what is actually behind the element
-The default is `t.background.page` (the cream admin content area). On a white
+The default is `t.background.page` (the admin content area, #FAFAF9 since
+9 August 2026, the cream #FAF8F4 before that). On a white
 card, pass `t.background.surface` instead, or the fade will resolve to a
 near-miss colour that reads as a smudge.
 
@@ -550,6 +555,45 @@ Find the point where overflow returns and then back off. `LeadsTab` ships lead
 104px / company 86px, having measured that it starts overflowing again at 120 /
 100. Record the measured numbers in a comment so the next person does not
 re-derive them.
+
+---
+
+## Page Canvas Token
+
+### Rule
+The portal canvas is `#FAFAF9` (Figma background/subtle, neutral.10). It is not
+white and it is no longer the warm cream `#FAF8F4` it was until 9 August 2026.
+
+### Where it lives
+Three values in `theme.ts`, and nothing else:
+
+- `tokens.bg` — every page background in the portal, ~74 call sites
+- `tokens.inputBg` — input fills, which have always matched the canvas
+- `t.background.page` — read by `StickyBar` and `FadeOverflow`
+
+Change the canvas by editing those three, never by editing call sites. That is
+what makes it a single-value change instead of a 74-file sweep, and it is why
+`StickyBar` and `FadeOverflow` needed no code change when the canvas moved:
+both read the token rather than a literal.
+
+### page and subtle are the same value now
+`t.background.page` and `t.background.subtle` both resolve to `#FAFAF9`. That
+is deliberate, and it is the same arrangement `t.text.muted` and
+`t.text.tertiary` already have: two semantic names on one primitive, both kept,
+chosen by role. Do not collapse them into one token, and do not assume a visual
+difference between them.
+
+### Surfaces separate by border, not by fill
+A white card on this canvas measures **1.04:1**, which is imperceptible, and it
+was only 1.06:1 on the old cream. Card, table and panel separation therefore
+comes from `t.border.subtle` / `t.border.default`, not from the fill. Do not
+try to create surface contrast by nudging a background token a few points; at
+this end of the scale nothing you can pick will read.
+
+### The only cream left
+`t.background.cardWarm` (#F5F0E6) and `subtleWarm` (#E8DCC4) stay warm on
+purpose. They are the sole warm surfaces in the portal now. The marketing site
+keeps its own `#FAF8F4` independently and is not governed by these tokens.
 
 ---
 
