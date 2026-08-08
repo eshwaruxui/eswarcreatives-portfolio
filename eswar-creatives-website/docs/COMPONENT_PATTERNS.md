@@ -1,6 +1,7 @@
 # Eswar Creatives Portal - Component Patterns
 
-Last updated: 25 June 2026.
+Last updated: 8 August 2026 (added the Overflow Fade pattern for `FadeOverflow`,
+plus a Planned stub for Pagination / usePagination).
 
 ---
 
@@ -134,6 +135,87 @@ Note: the legacy flat tokens.text / tokens.textMuted are teal-tinted and must no
 be used for text; teal character belongs on interactive elements only. The
 ClientLightbox is an intentionally self-contained dark surface with its own local
 palette and is exempt.
+
+---
+
+## Overflow Fade Pattern
+
+### Rule
+When a value can outrun its container and clipping it mid-character would read as
+a bug rather than as truncation, wrap it in the shared FadeOverflow component.
+The trailing edge then fades into the surface behind it, which reads as
+"continues past here".
+
+### Component
+- `src/portal/components/shared/FadeOverflow.tsx`
+
+### Props
+- `direction`: `'horizontal' | 'vertical'`, default `'horizontal'`
+- `width`: number (px), default 48. Size of the fade on the horizontal axis.
+- `height`: number (px), default 32. Size of the fade on the vertical axis.
+- `surfaceVar`: string, default `'--surface-page'`. Name of a CSS custom
+  property to use as the gradient endpoint.
+- `style`: CSSProperties. Escape hatch for the wrapper, typically a `maxWidth`
+  so the fade has something to clip against.
+
+### Gradient endpoint
+The endpoint is emitted as `var(--surface-page, <t.background.page>)`: a CSS
+custom property with a JS token fallback. Never a hardcoded hex.
+
+### Gotcha: the portal has zero CSS custom properties
+`theme.ts` exports plain JS objects (`tokens`, `t`) and nothing under
+`src/portal` declares `--surface-page` or any other custom property. A bare
+`var(--surface-page)` is therefore an invalid gradient stop, and CSS drops the
+entire `background` declaration when any stop is invalid. The component would
+render with no fade at all, silently, with nothing in the console. Always
+include the token fallback. The `var()` form is kept anyway so the component
+defers to a custom property automatically if the portal ever grows one.
+
+### Match the fallback to what is actually behind the element
+The default is `t.background.page` (the cream admin content area). On a white
+card, pass `t.background.surface` instead, or the fade will resolve to a
+near-miss colour that reads as a smudge.
+
+### Current usages
+- `ActivityTab` status cell, horizontal only, on the **approved** variant. Both
+  of its lines are nowrap and the scheduled one can outrun a narrow Status
+  column. Capped at `maxWidth: 190`, a measured value: at a 1280px viewport the
+  table wrapper is 961px, and 190 is the widest cap that brings the table to
+  exactly 961px with zero horizontal scroll.
+- Do **not** apply it to the "Awaiting approval" rows in that same cell. That
+  string is two short words, never overflows, and a fade there is noise.
+
+### Usage
+```tsx
+<FadeOverflow style={{ maxWidth: 190 }}>
+  <span style={{ whiteSpace: 'nowrap' }}>{longValue}</span>
+</FadeOverflow>
+```
+
+---
+
+## Pagination Pattern (Planned)
+
+### Status
+**Not built yet.** Stub only, to be completed in a later session once
+`Pagination` and `usePagination` actually exist. Do not cite this section as a
+pattern to follow until it is filled in, and do not treat the paths below as
+real: nothing lives at them today.
+
+### Intended shape
+- `src/portal/components/shared/Pagination.tsx` (planned)
+- `src/portal/hooks/usePagination.ts` (planned)
+
+### To be decided when built
+- Page-number controls vs. load-more vs. infinite scroll, and whether one
+  component covers all three
+- Where page state lives: local state, URL query param, or both
+- How it composes with the existing `useReloadableList` hook, which already
+  distinguishes first load from background refresh
+- How it composes with `SortableTableHeader`'s multi-column sort, since sorting
+  currently happens client-side over an already-fetched window
+- Whether the row cap moves server-side. `ActivityTab` currently fetches a flat
+  `limit(200)` and filters client-side, which is the most likely first caller.
 
 ---
 
