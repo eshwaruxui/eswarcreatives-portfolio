@@ -124,7 +124,23 @@ function Shell({ profile }: { profile: PortalProfile }) {
   )
 
   return (
-    <div style={{ ...styles.layout, overflowX: 'hidden' }}>
+    <div className="ec-admin-shell" style={styles.layout}>
+      {/* overflow-x must clip, not hide. `overflow-x: hidden` with an implied
+          `overflow-y: visible` makes the browser compute overflow-y to `auto`
+          (CSS spec: visible alongside a non-visible, non-clip value becomes
+          auto). That turns this element into the nearest scrolling ancestor
+          for every `position: sticky` descendant. Because it is min-height
+          100vh and grows with content rather than scrolling internally, those
+          descendants were sticking to a box that never moves, which is to say
+          not sticking at all: TopBar and the sidebar both scrolled straight
+          off the top of the viewport on every admin route.
+          `overflow-x: clip` clips exactly the same horizontal overflow the
+          mobile pass added this for, but does not create a scroll container,
+          so overflow-y stays visible and sticky resolves against the viewport
+          again. The `hidden` line is kept first as a fallback for browsers
+          without `clip`, which land on today's behaviour rather than losing
+          the horizontal clipping entirely. */}
+      <style>{`.ec-admin-shell { overflow-x: hidden; overflow-x: clip; }`}</style>
       <ToastHost />
       <TopBar onMenuClick={() => setMobileNavOpen(true)} />
       <div style={styles.body}>

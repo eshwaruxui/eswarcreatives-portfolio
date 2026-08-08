@@ -5,7 +5,10 @@ Last updated: 9 August 2026 (Pagination is now always wrapped in the new
 the single-page rule revised to keep both the count label and the page size
 selector, hiding only the nav, so a one-page result is neither a dead end nor
 silent about its total; and a Dense Table Width pattern added for the LeadsTab
-horizontal-scroll fix. All of it now merged to `main`. Previously, 8 August: the Pagination stub
+horizontal-scroll fix. All of it merged to `main`. Also added an Admin Shell
+Scroll and Sticky pattern, after finding that `overflow-x: hidden` on the
+shell root had been silently disabling `position: sticky` on TopBar and the
+sidebar across every admin route. Previously, 8 August: the Pagination stub
 replaced with the real pattern, the Table Skeleton Row pattern for
 `SkeletonRow`, the Overflow Fade pattern for `FadeOverflow`, the Outreach Touch
 Approve / Preview pattern, and `t.text.muted` aligned to #717171 / neutral/500,
@@ -547,6 +550,59 @@ Find the point where overflow returns and then back off. `LeadsTab` ships lead
 104px / company 86px, having measured that it starts overflowing again at 120 /
 100. Record the measured numbers in a comment so the next person does not
 re-derive them.
+
+---
+
+## Admin Shell Scroll and Sticky Pattern
+
+### Rule
+The admin shell scrolls the **window**. There is no inner scroll container.
+`TopBar` and the sidebar hold their place with `position: sticky`; the page
+header and the tab bar scroll away with the content; the pagination bar is
+`position: fixed`. Do not introduce a nested scroll container to "fix"
+scrolling without reading the trap below first.
+
+### The trap: overflow-x on the shell root breaks every sticky descendant
+`AdminShell`'s root previously set `overflow-x: hidden` (added by the admin
+mobile pass to stop horizontal scrolling). Per the CSS overflow spec, a
+`visible` value on one axis computes to **`auto`** when the other axis is
+`hidden`, `scroll` or `auto`. So `overflow-x: hidden` silently produced
+`overflow-y: auto`, which made the shell root the nearest scrolling ancestor
+for every `position: sticky` descendant.
+
+That root is `min-height: 100vh` and grows with content rather than scrolling
+internally, so it never scrolls. Sticky elements were resolving against a box
+that never moves, which is the same as not sticking at all. Measured on
+production before the fix, at scrollY 800: `TopBar` at top **-800** and the
+sidebar at **-744**, both scrolled completely off screen, on every admin
+route.
+
+### The fix
+`overflow-x: clip`. It clips the same horizontal overflow but does **not**
+create a scroll container, so `overflow-y` stays `visible` and sticky resolves
+against the viewport again. Emitted with the old value first as a fallback:
+
+```css
+.ec-admin-shell { overflow-x: hidden; overflow-x: clip; }
+```
+
+A browser without `clip` support keeps the previous behaviour rather than
+losing horizontal clipping altogether.
+
+After the fix, same scroll position: `TopBar` at **0**, sidebar at **56**.
+
+### Symptoms that point back here
+If a `position: sticky` element anywhere in the admin portal does not stick,
+check the overflow on every ancestor before touching the element itself. The
+element's own CSS will look perfectly correct. `overflow: hidden` anywhere up
+the chain is the usual cause, and a `transform` on an ancestor is the other
+one (that one breaks `position: fixed` too, which is why `Lightbox` portals to
+`document.body`).
+
+### Heights, if you ever do need them
+`TopBar` 56px, the Outreach tab bar 45px, `StickyBar` 47px (measured, and it
+grows when the bar wraps on narrow viewports, which is why `StickyBar` sizes
+its own spacer with a `ResizeObserver` rather than a constant).
 
 ---
 
