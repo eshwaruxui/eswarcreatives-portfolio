@@ -111,12 +111,15 @@ export const t = {
     onDarkSubtle:       'rgba(210,212,217,0.30)',  // Figma border/on-dark-subtle
   },
   background: {
-    // Aligned to Figma background/subtle (neutral.10) on 9 August 2026, from
-    // the warm cream #FAF8F4. `page` and `subtle` now resolve to the same
-    // primitive, which is deliberate and the same arrangement `t.text.muted`
-    // and `t.text.tertiary` already have: two semantic names, one value, keep
-    // both and pick by role. Do not collapse them into one token.
-    page:           '#FAFAF9',              // page background, Figma background/subtle (neutral.10)
+    // The body canvas, and only the canvas. White since 9 August 2026, having
+    // been the warm cream #FAF8F4 and then briefly #FAFAF9 the same day.
+    // Component surfaces are a separate concern and stay on `tokens.bg`
+    // (#FAFAF9): chips, inputs and modal fills need to read as fills against
+    // this canvas, so moving them here would flatten them into it.
+    // `StickyBar` and `FadeOverflow` both resolve their colour from this
+    // token, which is what keeps the footer and the fade matching the canvas
+    // without either of them naming a hex.
+    page:           '#FFFFFF',              // body canvas, Figma background/page (neutral.0)
     subtle:         '#FAFAF9',              // subtle section bg — Figma background/subtle (neutral.10)
     muted:          '#F5F5F4',              // muted fills — Figma background/muted (neutral.50)
     surface:        '#FFFFFF',              // card/panel surfaces

@@ -281,7 +281,10 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     minHeight: '100vh',
-    background: tokens.bg,
+    // The body canvas, so it reads from the canvas token rather than
+    // `tokens.bg`. Those two used to be the same cream; they are now
+    // deliberately different, white here against #FAFAF9 component surfaces.
+    background: t.background.page,
   },
   body: {
     display: 'flex',
