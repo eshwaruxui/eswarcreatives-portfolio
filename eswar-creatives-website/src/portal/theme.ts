@@ -52,7 +52,18 @@ export const t = {
     // sits close to `tertiary` as a result since there isn't much room
     // between AA-passing and `secondary` (#555555). Flagged for Eswar to
     // reconcile with Figma (neutral.450 needs the same fix upstream).
-    muted:        '#707070',  // timestamps, helper text, captions — WCAG AA fix, was Figma text/muted (neutral.450) #888888
+    // Shares the neutral.500 primitive with `tertiary` above. That's
+    // intentional as of 8 Aug 2026 (Figma DS Master alignment) — two semantic
+    // tokens may resolve to one primitive; keep both names, since the
+    // distinction is semantic (role) not visual.
+    // History: was Figma text/muted (neutral.450) #888888, which fails WCAG AA
+    // at the 10-14px sizes this role is used at; darkened to #707070 on 6 Aug
+    // as an interim fix, then re-aligned to neutral.500 here.
+    // Contrast at #717171: 4.88:1 on surface white, 4.60:1 on the cream page,
+    // 4.67:1 on background.subtle/raised — all clear the 4.5:1 AA floor. It
+    // measures 4.47:1 on background.muted/sunken (#F5F5F4), 0.03 under the
+    // floor; see COMPONENT_PATTERNS.md for that known exception.
+    muted:        '#717171',  // timestamps, helper text, captions — Figma text/muted (neutral.500)
     disabled:     '#AAAAAA',  // disabled state text — Figma text/disabled (neutral.350)
     inverse:      '#FFFFFF',  // text on dark backgrounds
     onPrimary:    '#FFFFFF',  // text on teal primary buttons

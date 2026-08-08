@@ -1,8 +1,8 @@
 # Eswar Creatives Portal - Component Patterns
 
 Last updated: 8 August 2026 (added the Overflow Fade pattern for `FadeOverflow`,
-plus a Planned stub for Pagination / usePagination; corrected the stale
-`t.text.muted` value to #707070 after the 6 August WCAG AA fix).
+plus a Planned stub for Pagination / usePagination; aligned the
+`t.text.muted` token to #717171 / neutral/500, sharing a primitive with tertiary).
 
 ---
 
@@ -122,21 +122,32 @@ hex, no tokens.n* values for text.
 - t.text.primary (neutral/900): headings, labels, key data, amounts
 - t.text.secondary (neutral/600): body, descriptions
 - t.text.tertiary (neutral/500): supporting, metadata
-- t.text.muted (#707070, no longer a Figma neutral): hints, placeholders,
-  timestamps, captions
+- t.text.muted (#717171, neutral/500): hints, placeholders, timestamps, captions
 - t.text.disabled (neutral/350): disabled states only
 
-Note on t.text.muted: it was Figma text/muted (neutral/450, #888888) until
-6 August 2026. That value measures 3.5:1 on white and 3.3:1 on the cream page
-background, which fails the WCAG AA floor of 4.5:1 at every size this role is
-actually used at (10-14px timestamps and captions, not large text). It was
-darkened to #707070, the lightest grey that still clears AA on both surfaces.
-This is a deliberate deviation from Figma, which still specifies neutral/450 and
-needs the same fix upstream. Two consequences worth knowing: muted is now only
-one hex step from tertiary (#717171), so the two read as effectively identical
-and the choice between them is semantic rather than visual; and muted is the
-one entry in this hierarchy that no longer maps to a Figma neutral, so do not
-"restore" it to neutral/450 when reconciling against the design system.
+Note on t.text.muted: value #717171, primitive neutral/500. It **shares that
+primitive with t.text.tertiary**, which is intentional as of 8 August 2026
+(Figma DS Master alignment). Two semantic tokens resolving to one primitive is
+valid: keep both names and pick by role, because the distinction is semantic,
+not visual. The two are indistinguishable on screen, so never choose between
+them expecting a contrast difference.
+
+Do **not** "fix" muted back to neutral/450 (#888888). That value fails WCAG AA
+at the 10-14px sizes this role is actually used at (timestamps, captions,
+helper text, which are normal text not large text): 3.5:1 on white and 3.3:1 on
+the cream page, against a 4.5:1 floor. History is #888888, then #707070 as an
+interim WCAG fix on 6 August 2026, then #717171 on 8 August.
+
+Measured contrast at #717171: 4.88:1 on surface white, 4.60:1 on the cream page
+(t.background.page), 4.67:1 on t.background.subtle/raised. All clear AA.
+
+**Known exception:** on t.background.muted / t.background.sunken (#F5F5F4) it
+measures **4.47:1, which is 0.03 under the AA floor**. The interim #707070
+cleared it at 4.54:1, so aligning to neutral/500 gave this up. It is a hairline
+miss rather than a visible legibility problem, and it was accepted knowingly in
+exchange for design-system alignment. If muted text on a sunken or muted fill
+ever needs to be strictly compliant, the fix is to darken that one surface or
+use t.text.secondary there, not to un-align the token.
 
 White text on a teal/brand fill uses t.text.onPrimary (not a raw hex).
 
