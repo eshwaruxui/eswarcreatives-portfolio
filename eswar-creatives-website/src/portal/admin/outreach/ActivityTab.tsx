@@ -14,6 +14,7 @@ import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useReloadableList } from '../../hooks/useReloadableList'
 import { LeadDrawer } from '../../components/LeadDrawer'
 import { TouchProgressLine } from '../../components/shared/TouchProgressLine'
+import { FadeOverflow } from '../../components/shared/FadeOverflow'
 import {
   TouchPreviewModal,
   PREVIEW_TOUCH_SELECT,
@@ -486,15 +487,20 @@ export function ActivityTab() {
                             {row.status}
                           </span>
                         </span>
+                        {/* Only the approved variant gets the fade. Both of
+                            its lines are nowrap and the scheduled one can
+                            still outrun a narrow Status column; "Awaiting
+                            approval" below is two short words and never
+                            needs it. */}
                         {showsProgressLine && (
-                          <div style={styles.scheduledMeta}>
+                          <FadeOverflow style={styles.scheduledMeta}>
                             <TouchProgressLine
                               draftConfirmedAt={row.draft_confirmed_at}
                               scheduledFor={row.scheduled_for}
                               recipientTimezone={row.recipient_timezone}
                               layout="stacked"
                             />
-                          </div>
+                          </FadeOverflow>
                         )}
                         {/* Not yet approved: scheduled_for is still just a
                             placeholder day, not a real business-hours time
