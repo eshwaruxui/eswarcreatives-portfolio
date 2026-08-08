@@ -76,10 +76,35 @@ export function Pagination({
     </p>
   ) : null
 
-  // A single page needs no navigation. The count still earns its place, so the
-  // bar degrades to just that line rather than disappearing along with it.
+  const sizeSelector = showPageSizeSelector && onPageSizeChange ? (
+    <label style={styles.sizeLabel}>
+      <span style={styles.sizeLabelText}>Rows</span>
+      <select
+        style={{ ...styles.sizeSelect, ...(isLoading ? styles.btnDisabled : null) }}
+        value={pageSize}
+        disabled={isLoading}
+        onChange={(e) => onPageSizeChange(Number(e.target.value))}
+      >
+        {pageSizeOptions.map((size) => (
+          <option key={size} value={size}>{size}</option>
+        ))}
+      </select>
+    </label>
+  ) : null
+
+  // A single page needs no navigation, but everything else earns its place.
+  // The selector is the only route back to a paged view, so hiding it made a
+  // one-page result a dead end. The count stays too: with no nav to infer the
+  // total from, "Showing 1 to 4 of 4 leads" is the only thing on screen that
+  // says how much there is. Only the nav goes.
   if (totalPages <= 1) {
-    return countLabel ? <div style={styles.bar}>{countLabel}</div> : null
+    if (!countLabel && !sizeSelector) return null
+    return (
+      <div style={{ ...styles.bar, ...(countLabel ? null : { justifyContent: 'flex-end' }) }}>
+        {countLabel}
+        {sizeSelector}
+      </div>
+    )
   }
 
   const atFirst = currentPage <= 1
@@ -120,21 +145,7 @@ export function Pagination({
       {countLabel}
 
       <div style={styles.controls}>
-        {showPageSizeSelector && onPageSizeChange && (
-          <label style={styles.sizeLabel}>
-            <span style={styles.sizeLabelText}>Rows</span>
-            <select
-              style={{ ...styles.sizeSelect, ...(isLoading ? styles.btnDisabled : null) }}
-              value={pageSize}
-              disabled={isLoading}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            >
-              {pageSizeOptions.map((size) => (
-                <option key={size} value={size}>{size}</option>
-              ))}
-            </select>
-          </label>
-        )}
+        {sizeSelector}
 
         <div style={styles.pageNav}>
           {navBtn('first', 'First page', ChevronsLeft, 1, atFirst)}
@@ -179,15 +190,16 @@ export function Pagination({
 const transition = `background ${motionTokens.durationFast} ${motionTokens.easeDefault}, opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}, color ${motionTokens.durationFast} ${motionTokens.easeDefault}`
 
 const styles: Record<string, CSSProperties> = {
+  // Controls only, no chrome. The separator, background and spacing belong to
+  // whatever container the bar sits in (StickyBar today), so a non-sticky
+  // caller can frame it differently without fighting a border it did not ask
+  // for, and the two never double up.
   bar: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
     flexWrap: 'wrap',
-    marginTop: 14,
-    paddingTop: 12,
-    borderTop: `1px solid ${t.border.subtle}`,
   },
   barMobile: {
     justifyContent: 'center',

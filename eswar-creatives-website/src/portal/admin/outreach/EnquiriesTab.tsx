@@ -14,6 +14,7 @@ import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { SortableTableHeader, nextSortState, type SortableColumn, type SortDir } from '../../components/shared/SortableTableHeader'
 import { SkeletonRow } from '../../components/shared/SkeletonRow'
 import { Pagination } from '../../components/shared/Pagination'
+import { StickyBar } from '../../components/shared/StickyBar'
 import { usePagination } from '../../hooks/usePagination'
 import { EnquiryDrawer, type EnquiryStatus } from '../../components/EnquiryDrawer'
 
@@ -270,18 +271,21 @@ export function EnquiriesTab({ onRefreshCount }: { onRefreshCount: () => void })
         </div>
       )}
 
-      {/* One instance for both layouts. Reduces to the count line when
-          everything fits on a single page. */}
-      <Pagination
-        totalItems={sorted.length}
-        pageSize={pageSize}
-        currentPage={currentPage}
-        onPageChange={goToPage}
-        onPageSizeChange={changePageSize}
-        pageStart={pageStart}
-        pageEnd={pageEnd}
-        itemLabel={sorted.length === 1 ? 'enquiry' : 'enquiries'}
-      />
+      {/* Pinned to the viewport bottom, matching the other two outreach lists.
+          The zero-row case never reaches here: it returns the empty state
+          above. */}
+      <StickyBar>
+        <Pagination
+          totalItems={sorted.length}
+          pageSize={pageSize}
+          currentPage={currentPage}
+          onPageChange={goToPage}
+          onPageSizeChange={changePageSize}
+          pageStart={pageStart}
+          pageEnd={pageEnd}
+          itemLabel={sorted.length === 1 ? 'enquiry' : 'enquiries'}
+        />
+      </StickyBar>
 
       {openId && <EnquiryDrawer enquiryId={openId} onClose={handleDrawerClose} onChanged={handleChanged} />}
     </>
