@@ -14,6 +14,7 @@ import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useReloadableList } from '../../hooks/useReloadableList'
 import { LeadDrawer } from '../../components/LeadDrawer'
 import { TouchProgressLine } from '../../components/shared/TouchProgressLine'
+import { FadeOverflow } from '../../components/shared/FadeOverflow'
 import {
   TouchPreviewModal,
   PREVIEW_TOUCH_SELECT,
@@ -62,15 +63,20 @@ const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
 // Opened/Bounced aren't included here — both are still empty for every row
 // (the Resend webhook that would populate them isn't live yet), so sorting
 // on them wouldn't do anything useful yet.
+// Widths matter here: Status is the one cell whose content varies wildly in
+// length (a bare badge vs. an approved touch's two-line timestamp read), so
+// it's left to absorb the slack while Lead and the action column are pinned.
+// Without that, a long status pushed Preview/Approve out of the viewport at
+// 1280px and squeezed the lead name to nothing.
 const ACTIVITY_COLUMNS: SortableColumn[] = [
   { key: 'time', label: 'TIME', sortable: true },
-  { key: 'lead', label: 'LEAD', sortable: true },
+  { key: 'lead', label: 'LEAD', sortable: true, width: '140px' },
   { key: 'sequence', label: 'SEQUENCE / STEP', sortable: false },
   { key: 'channel', label: 'CHANNEL', sortable: true },
   { key: 'status', label: 'STATUS', sortable: true },
   { key: 'opened', label: 'OPENED', sortable: false },
   { key: 'bounced', label: 'BOUNCED', sortable: false },
-  { key: 'action', label: '', sortable: false },
+  { key: 'action', label: '', sortable: false, width: '180px' },
 ]
 
 function compareByKey(a: ActivityRow, b: ActivityRow, key: string, dir: 'asc' | 'desc'): number {
@@ -409,6 +415,9 @@ export function ActivityTab() {
                     draftConfirmedAt={row.draft_confirmed_at}
                     scheduledFor={row.scheduled_for}
                     recipientTimezone={row.recipient_timezone}
+                    // Same reason as the desktop table: the one-line version
+                    // is nowrap and overflows a phone-width card.
+                    layout="stacked"
                   />
                 )}
                 {rowError && <div style={styles.mobileCardError}>{rowError}</div>}
@@ -418,7 +427,17 @@ export function ActivityTab() {
         </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={styles.table}>
+          {/* Measured live at a 1280px viewport: eight columns at the shared
+              header's default 12px horizontal padding totalled 1098px against
+              a ~992px content area, so the action column sat off-screen. This
+              trims the gutters to 8px — 8 columns x 8px = 64px reclaimed —
+              scoped to this table by class so LeadsTab and EnquiriesTab keep
+              the shared header's default spacing. */}
+          <style>{`
+            .ec-activity-table th { padding-left: 8px !important; padding-right: 8px !important; }
+            .ec-activity-table td { padding-left: 8px !important; padding-right: 8px !important; }
+          `}</style>
+          <table className="ec-activity-table" style={styles.table}>
             <thead>
               <SortableTableHeader columns={ACTIVITY_COLUMNS} sorts={sorts} onSort={handleSort} />
             </thead>
@@ -448,7 +467,7 @@ export function ActivityTab() {
                           {formatPortalDate(row.sent_at ?? row.scheduled_for)}
                         </span>
                       </td>
-                      <td style={styles.td}>
+                      <td style={{ ...styles.td, ...styles.tdLead }}>
                         {row.lead ? (
                           <span style={styles.leadCell}>
                             <strong style={styles.leadName}>{row.lead.first_name} {row.lead.last_name ?? ''}</strong>
@@ -467,7 +486,7 @@ export function ActivityTab() {
                       <td style={styles.td}>
                         <ChannelIcon channel={row.channel} />
                       </td>
-                      <td style={styles.td}>
+                      <td style={{ ...styles.td, ...styles.tdStatus }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                           {isScheduled && <Clock size={12} color={tokens.goldDark} />}
                           <span style={{
@@ -478,14 +497,24 @@ export function ActivityTab() {
                             {row.status}
                           </span>
                         </span>
+                        {/* Only the approved variant gets the fade. Both of
+                            its lines are nowrap and the scheduled one can
+                            still outrun a narrow Status column; "Awaiting
+                            approval" below is two short words and never
+                            needs it. */}
+                        {/* maxWidth 190 is measured, not guessed: at a 1280px
+                            viewport the table wrapper is 961px, and 190 is the
+                            widest cap that brings the table to exactly 961
+                            with zero horizontal scroll. 200 left 6px over. */}
                         {showsProgressLine && (
-                          <div style={styles.scheduledMeta}>
+                          <FadeOverflow style={{ ...styles.scheduledMeta, maxWidth: 190 }}>
                             <TouchProgressLine
                               draftConfirmedAt={row.draft_confirmed_at}
                               scheduledFor={row.scheduled_for}
                               recipientTimezone={row.recipient_timezone}
+                              layout="stacked"
                             />
-                          </div>
+                          </FadeOverflow>
                         )}
                         {/* Not yet approved: scheduled_for is still just a
                             placeholder day, not a real business-hours time
@@ -502,7 +531,7 @@ export function ActivityTab() {
                       <td style={styles.td}>
                         {row.bounced_at && <span style={styles.bounced}>Bounced</span>}
                       </td>
-                      <td style={styles.td} onClick={(e) => e.stopPropagation()}>
+                      <td style={{ ...styles.td, ...styles.tdAction }} onClick={(e) => e.stopPropagation()}>
                         <div style={styles.actionCell}>
                           {/* Offered on approved rows too, not just
                               approvable ones — reading what's about to go out
@@ -581,7 +610,11 @@ const styles: Record<string, CSSProperties> = {
     margin: '0 0 8px',
   },
   emptyBody: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
-  table: { width: '100%', borderCollapse: 'collapse', minWidth: 760 },
+  // 860 is a floor, not a target: below it the wrapper scrolls rather than
+  // crushing the action column. It must stay *under* the real content area at
+  // 1280px (~992px) — an earlier 960 was itself forcing the overflow it was
+  // meant to prevent, since the table could never shrink to fit.
+  table: { width: '100%', borderCollapse: 'collapse', minWidth: 860 },
   resultRow: {
     display: 'flex',
     alignItems: 'center',
@@ -614,6 +647,14 @@ const styles: Record<string, CSSProperties> = {
     borderBottom: `1px solid ${t.border.subtle}`,
     verticalAlign: 'middle',
   },
+  // Pinned so a long status can never squeeze the lead name to nothing.
+  tdLead: { minWidth: 140 },
+  // The flexible column: everything else is pinned or sized to its content,
+  // so Status absorbs whatever width is left over.
+  tdStatus: { width: '100%', minWidth: 180 },
+  // Pinned so Preview + Approve always fit side by side on one line and stay
+  // inside the viewport at 1280px instead of being pushed off the right edge.
+  tdAction: { minWidth: 180 },
   mono: { fontFamily: mono, fontSize: 12, color: t.text.muted },
   muted: { color: t.text.muted, fontStyle: 'italic' },
   leadCell: { display: 'flex', flexDirection: 'column', gap: 1 },
