@@ -1,7 +1,8 @@
 # Eswar Creatives Portal - Component Patterns
 
 Last updated: 8 August 2026 (added the Overflow Fade pattern for `FadeOverflow`,
-plus a Planned stub for Pagination / usePagination).
+plus a Planned stub for Pagination / usePagination; corrected the stale
+`t.text.muted` value to #707070 after the 6 August WCAG AA fix).
 
 ---
 
@@ -121,8 +122,21 @@ hex, no tokens.n* values for text.
 - t.text.primary (neutral/900): headings, labels, key data, amounts
 - t.text.secondary (neutral/600): body, descriptions
 - t.text.tertiary (neutral/500): supporting, metadata
-- t.text.muted (neutral/450): hints, placeholders, timestamps, captions
+- t.text.muted (#707070, no longer a Figma neutral): hints, placeholders,
+  timestamps, captions
 - t.text.disabled (neutral/350): disabled states only
+
+Note on t.text.muted: it was Figma text/muted (neutral/450, #888888) until
+6 August 2026. That value measures 3.5:1 on white and 3.3:1 on the cream page
+background, which fails the WCAG AA floor of 4.5:1 at every size this role is
+actually used at (10-14px timestamps and captions, not large text). It was
+darkened to #707070, the lightest grey that still clears AA on both surfaces.
+This is a deliberate deviation from Figma, which still specifies neutral/450 and
+needs the same fix upstream. Two consequences worth knowing: muted is now only
+one hex step from tertiary (#717171), so the two read as effectively identical
+and the choice between them is semantic rather than visual; and muted is the
+one entry in this hierarchy that no longer maps to a Figma neutral, so do not
+"restore" it to neutral/450 when reconciling against the design system.
 
 White text on a teal/brand fill uses t.text.onPrimary (not a raw hex).
 
