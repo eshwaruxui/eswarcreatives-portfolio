@@ -34,10 +34,16 @@ type ActivityRow = {
     company: string
   } | null
   enrollment: {
+    id: string
     sequence: { name: string } | null
   } | null
   step: { step_number: number } | null
 }
+
+// A touch is still waiting to happen. Anything else ('sent', 'skipped',
+// 'cancelled', 'failed') has reached a terminal state and is history — it
+// always stays visible in this feed.
+const PENDING_STATUSES = new Set(['scheduled', 'held'])
 
 const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
   sent:      { bg: tokens.greenLight, fg: tokens.green },
@@ -93,6 +99,51 @@ function applySorting(rows: ActivityRow[], sorts: SortSpec[]): ActivityRow[] {
       if (cmp !== 0) return cmp
     }
     return 0
+  })
+}
+
+// enroll_lead inserts a touch for *every* step of a sequence at enrollment
+// time (migration 0080), all of them 'scheduled' except requires_connected
+// steps which start 'held' — nothing is generated progressively as earlier
+// steps send, and there's no per-row "blocked by previous step" column. So a
+// lead enrolled today immediately produced three rows here, all reading
+// "Scheduled / Awaiting approval" at once, implying three emails were lined
+// up and actionable when only step 1 actually is.
+//
+// Only the earliest still-pending step per enrollment is real work; later
+// ones are contingent on it. Keep that one and drop the rest. Terminal rows
+// (sent/skipped/cancelled/failed) are untouched — this is the Activity feed,
+// history is the point — which also means a step 1 that got skipped or
+// cancelled correctly promotes step 2 to earliest-pending rather than
+// hiding the whole enrollment behind a step that will never send.
+//
+// Enrollment, not lead, is the grain: a lead enrolled in two sequences has
+// two independent progressions and should show the next due step of each.
+// Same rule as TodayTab's dedupeByEnrollment, but applied to a mixed feed
+// where terminal rows have to survive the filter.
+function hideBlockedFutureSteps(rows: ActivityRow[]): ActivityRow[] {
+  const earliestPendingId = new Map<string, { id: string; stepNumber: number }>()
+  for (const row of rows) {
+    if (!PENDING_STATUSES.has(row.status)) continue
+    const key = row.enrollment?.id
+    if (!key) continue
+    // A touch with no linked step (step_id null — a deleted step, or an
+    // older edited touch from before Preview stopped nulling step_id) must
+    // never win the earliest comparison: falling back to 0 would hide a
+    // correctly-numbered step 1 behind an unknown-step row. Unknown sorts
+    // last, exactly as in TodayTab's dedupe.
+    const stepNumber = row.step?.step_number ?? Number.POSITIVE_INFINITY
+    const current = earliestPendingId.get(key)
+    if (!current || stepNumber < current.stepNumber) {
+      earliestPendingId.set(key, { id: row.id, stepNumber })
+    }
+  }
+  return rows.filter((row) => {
+    if (!PENDING_STATUSES.has(row.status)) return true
+    const key = row.enrollment?.id
+    // No enrollment means no preceding step to be blocked by (one-off touch).
+    if (!key) return true
+    return earliestPendingId.get(key)?.id === row.id
   })
 }
 
@@ -159,7 +210,7 @@ export function ActivityTab() {
       .select(`
         id, channel, status, scheduled_for, recipient_timezone, draft_confirmed_at, sent_at, opened_at, bounced_at, skipped_reason,
         lead:leads!lead_id (id, first_name, last_name, company),
-        enrollment:lead_enrollments!enrollment_id (sequence:sequences!sequence_id (name)),
+        enrollment:lead_enrollments!enrollment_id (id, sequence:sequences!sequence_id (name)),
         step:sequence_steps!step_id (step_number)
       `)
       .order('sent_at', { ascending: false, nullsFirst: false })
@@ -172,7 +223,11 @@ export function ActivityTab() {
     }
 
     const { data } = await q
-    setRows((data ?? []) as ActivityRow[])
+    // Filter after fetching, not in the query: deciding whether a pending
+    // touch is the earliest of its enrollment needs that enrollment's *other*
+    // pending rows to compare against, which a single PostgREST filter can't
+    // express.
+    setRows(hideBlockedFutureSteps((data ?? []) as ActivityRow[]))
     finishLoad()
   }
 
