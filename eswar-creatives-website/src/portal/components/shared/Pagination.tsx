@@ -76,10 +76,30 @@ export function Pagination({
     </p>
   ) : null
 
-  // A single page needs no navigation. The count still earns its place, so the
-  // bar degrades to just that line rather than disappearing along with it.
+  const sizeSelector = showPageSizeSelector && onPageSizeChange ? (
+    <label style={styles.sizeLabel}>
+      <span style={styles.sizeLabelText}>Rows</span>
+      <select
+        style={{ ...styles.sizeSelect, ...(isLoading ? styles.btnDisabled : null) }}
+        value={pageSize}
+        disabled={isLoading}
+        onChange={(e) => onPageSizeChange(Number(e.target.value))}
+      >
+        {pageSizeOptions.map((size) => (
+          <option key={size} value={size}>{size}</option>
+        ))}
+      </select>
+    </label>
+  ) : null
+
+  // A single page needs no navigation, but it must not become a dead end. The
+  // page size selector is the only route back to a paged view, and hiding it
+  // along with the nav left no way to get from "39 rows at 50 per page" to a
+  // smaller page size. The selector stays; the nav and the count go.
   if (totalPages <= 1) {
-    return countLabel ? <div style={styles.bar}>{countLabel}</div> : null
+    return sizeSelector
+      ? <div style={{ ...styles.bar, justifyContent: 'flex-end' }}>{sizeSelector}</div>
+      : null
   }
 
   const atFirst = currentPage <= 1
@@ -120,21 +140,7 @@ export function Pagination({
       {countLabel}
 
       <div style={styles.controls}>
-        {showPageSizeSelector && onPageSizeChange && (
-          <label style={styles.sizeLabel}>
-            <span style={styles.sizeLabelText}>Rows</span>
-            <select
-              style={{ ...styles.sizeSelect, ...(isLoading ? styles.btnDisabled : null) }}
-              value={pageSize}
-              disabled={isLoading}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            >
-              {pageSizeOptions.map((size) => (
-                <option key={size} value={size}>{size}</option>
-              ))}
-            </select>
-          </label>
-        )}
+        {sizeSelector}
 
         <div style={styles.pageNav}>
           {navBtn('first', 'First page', ChevronsLeft, 1, atFirst)}
