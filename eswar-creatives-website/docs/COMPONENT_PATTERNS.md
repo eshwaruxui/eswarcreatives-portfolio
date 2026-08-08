@@ -5,10 +5,10 @@ Last updated: 9 August 2026 (Pagination is now always wrapped in the new
 the single-page rule revised to keep both the count label and the page size
 selector, hiding only the nav, so a one-page result is neither a dead end nor
 silent about its total; and a Dense Table Width pattern added for the LeadsTab
-horizontal-scroll fix. All of it merged to `main`. Also added an Admin Shell
-Scroll and Sticky pattern, after finding that `overflow-x: hidden` on the
-shell root had been silently disabling `position: sticky` on TopBar and the
-sidebar across every admin route. Previously, 8 August: the Pagination stub
+horizontal-scroll fix. Also added an Admin Shell Scroll and Sticky pattern,
+after finding that `overflow-x: hidden` on the shell root had been silently
+disabling `position: sticky` on TopBar and the sidebar across every admin
+route. All of it merged to `main`. Previously, 8 August: the Pagination stub
 replaced with the real pattern, the Table Skeleton Row pattern for
 `SkeletonRow`, the Overflow Fade pattern for `FadeOverflow`, the Outreach Touch
 Approve / Preview pattern, and `t.text.muted` aligned to #717171 / neutral/500,
