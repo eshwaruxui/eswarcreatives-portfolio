@@ -557,6 +557,58 @@ Find the point where overflow returns and then back off. `LeadsTab` ships lead
 100. Record the measured numbers in a comment so the next person does not
 re-derive them.
 
+### A new column costs its header, not its cells
+Before adding a column to `ActivityTab`, price it. The budget is 961px at a
+1280px viewport and the table has historically sat at exactly that, so a new
+column starts from zero slack. What you pay is the uppercase header label,
+which is the floor described above, and that is usually far more than the cell
+content. Three date columns for `delivered_at` / `opened_at` / `clicked_at`
+measured **32px over even at 6px gutters**, and capping the status cell
+reclaimed nothing at all, because `tdStatus` is `width: 100%` and simply
+absorbs whatever is left rather than contributing to intrinsic width.
+
+Measured on `ActivityTab`, 9 August 2026, all against the same shipped
+reference layout:
+
+| Change | Result at 961px |
+|---|---|
+| 3 separate date columns, 6px gutters | 32px over |
+| `ENGAGEMENT` header replacing `OPENED`, 8px gutters | 36px over |
+| `ENGAGEMENT`, 6px gutters | 4px over |
+| **`ENGAGED`, 6px gutters** | **938px, 23px spare** |
+| `SIGNALS` or `OPENS`, 6px gutters | about 30px spare |
+
+The lesson is to collapse related signals into one column rather than adding
+several. `ENGAGED` renders delivered, opened and clicked as an icon cluster,
+each icon present only once its event arrived, with the timestamp in the
+icon's `title`. One header instead of three. If a column truly cannot be
+collapsed and will not fit, the options are to cut an existing column or to
+gate the new one behind a wider breakpoint added to `useBreakpoint`. Note that
+`isDesktop` is `>1024px` and so does **not** help here: 1280px is already
+desktop, and 1280px is exactly where the overflow happens.
+
+### Measuring without an admin session
+The portal needs an admin session that browser tooling has repeatedly failed
+to hold, so table widths are measured with a standalone HTML harness instead.
+Two rules make it trustworthy:
+
+1. **Pin the wrapper, or set `table { width: auto }`.** A table at `width:
+   100%` inside an unconstrained wrapper reports the *window* width from
+   `scrollWidth`, not its intrinsic width. This silently invalidated a first
+   attempt where every variant measured identically.
+2. **Measure deltas against the shipped layout, never absolutes.** Render the
+   current header set and the proposed one over identical rows and compare.
+   The harness's absolute numbers drift with font loading and mock content,
+   but the delta holds, and the shipped layout's real width is already known.
+
+### formatPortalDate in table cells
+`formatPortalDate` returns `'-'` for `null`, `undefined` and unparseable
+input, so an unrecorded timestamp renders as a dash with no caller-side
+fallback. Do not write `value ? formatPortalDate(value) : '-'`; that is the
+function's own behaviour. Where the value is shown in a `title` rather than as
+text, as with the `ENGAGED` icons, guard on the raw value instead, since a
+tooltip reading "Opened -" is worse than no tooltip.
+
 ---
 
 ## Page Canvas Token
