@@ -12,6 +12,9 @@ import { mono, EmptyState } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { SortableTableHeader, nextSortState, type SortableColumn, type SortDir } from '../../components/shared/SortableTableHeader'
+import { SkeletonRow } from '../../components/shared/SkeletonRow'
+import { Pagination } from '../../components/shared/Pagination'
+import { usePagination } from '../../hooks/usePagination'
 import { EnquiryDrawer, type EnquiryStatus } from '../../components/EnquiryDrawer'
 
 type EnquiryRow = {
@@ -139,17 +142,46 @@ export function EnquiriesTab({ onRefreshCount }: { onRefreshCount: () => void })
     }, { replace: true })
   }
 
+  // Sort the whole set first, then slice the page out of it. Computed above
+  // the early returns below because usePagination is a hook and cannot be
+  // called conditionally.
+  const sorted = applySorting(enquiries, sortKey, sortDir)
+  const {
+    currentPage, pageSize, paginatedSlice, goToPage, changePageSize,
+    reset: resetPage, pageStart, pageEnd,
+  } = usePagination(sorted.length, 25)
+  const pageRows = paginatedSlice(sorted)
+
+  // Back to page 1 on a sort change: a reordered list read from its middle is
+  // not the ordering the user just asked for.
   function handleSort(key: string) {
     const next = nextSortState(sortKey, sortDir, key)
     setSortKey(next.key)
     setSortDir(next.dir)
+    resetPage()
   }
 
   if (loading) {
-    return (
+    // Desktop gets a shaped placeholder table so the header and column rhythm
+    // are already in place when the real rows arrive. The mobile card stack
+    // has no columns to hold still, so it keeps the spinner.
+    return isMobile ? (
       <div style={styles.loading}>
         <Loader2 size={20} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    ) : (
+      <div style={{ overflowX: 'auto' }}>
+        <table style={styles.table}>
+          <thead>
+            <SortableTableHeader columns={ENQUIRY_COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+          </thead>
+          <tbody>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonRow key={i} columns={ENQUIRY_COLUMNS.length} />
+            ))}
+          </tbody>
+        </table>
       </div>
     )
   }
@@ -163,13 +195,11 @@ export function EnquiriesTab({ onRefreshCount }: { onRefreshCount: () => void })
     )
   }
 
-  const sorted = applySorting(enquiries, sortKey, sortDir)
-
   return (
     <>
       {isMobile ? (
         <div style={styles.list}>
-          {sorted.map((enquiry) => (
+          {pageRows.map((enquiry) => (
             <div key={enquiry.id} style={styles.row}>
               <div style={styles.rowTop}>
                 <p style={styles.company}>{enquiry.company_name}</p>
@@ -204,7 +234,7 @@ export function EnquiriesTab({ onRefreshCount }: { onRefreshCount: () => void })
               <SortableTableHeader columns={ENQUIRY_COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
             </thead>
             <tbody>
-              {sorted.map((enquiry) => (
+              {pageRows.map((enquiry) => (
                 <tr key={enquiry.id} style={styles.tr} onClick={() => setOpenId(enquiry.id)}>
                   <td style={styles.td}>
                     <div style={styles.companyCell}>
@@ -239,6 +269,19 @@ export function EnquiriesTab({ onRefreshCount }: { onRefreshCount: () => void })
           </table>
         </div>
       )}
+
+      {/* One instance for both layouts. Reduces to the count line when
+          everything fits on a single page. */}
+      <Pagination
+        totalItems={sorted.length}
+        pageSize={pageSize}
+        currentPage={currentPage}
+        onPageChange={goToPage}
+        onPageSizeChange={changePageSize}
+        pageStart={pageStart}
+        pageEnd={pageEnd}
+        itemLabel={sorted.length === 1 ? 'enquiry' : 'enquiries'}
+      />
 
       {openId && <EnquiryDrawer enquiryId={openId} onClose={handleDrawerClose} onChanged={handleChanged} />}
     </>
