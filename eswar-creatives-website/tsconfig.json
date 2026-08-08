@@ -1,0 +1,62 @@
+{
+  // Type checking only. Vite compiles the app with esbuild, which strips
+  // types without checking them, so nothing here feeds the build: `npm run
+  // build` does not read this file and is unaffected by any error it reports.
+  // Run `npm run typecheck` to use it.
+  "compilerOptions": {
+    // Required by the task: check, never emit.
+    "noEmit": true,
+    // Do not type check inside node_modules. The app pulls in a large
+    // dependency tree (MUI, Radix, recharts) whose own type errors are not
+    // actionable here and would dominate the output.
+    "skipLibCheck": true,
+    // Off deliberately. This is the first time the codebase has been type
+    // checked, so the point of the first run is to find real breakage, not to
+    // surface every implicit `any` across 238 files at once. Turning it on is
+    // the natural follow-up once the list below is dealt with.
+    "strict": false,
+
+    // --- What Vite actually needs -------------------------------------
+    // `tsc --init` defaults module/moduleResolution to "nodenext", which
+    // requires explicit file extensions on relative imports and would report
+    // an error on essentially every import in the project. "bundler" matches
+    // how Vite resolves.
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+
+    // import.meta.env is used in 9 files. Without vite/client each one
+    // reports "Property 'env' does not exist on type 'ImportMeta'".
+    "types": ["vite/client"],
+
+    // Mirrors the `@` alias in vite.config.ts so the two agree. No `baseUrl`:
+    // TypeScript 7 removed it (TS5102) and resolves `paths` relative to this
+    // file instead.
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+
+    // Deliberately NOT enabled, all of which `tsc --init` turns on and all of
+    // which would fill this first report with style rather than bugs:
+    //   verbatimModuleSyntax - demands `import type` on every type-only
+    //     import. Hundreds of hits, no runtime meaning.
+    //   noUncheckedIndexedAccess, exactOptionalPropertyTypes - strict-family
+    //     checks that belong with `strict` when it is turned on, not before.
+    //   declaration, declarationMap, sourceMap - emit settings, pointless
+    //     under noEmit.
+  },
+
+  // src only. supabase/functions is Deno: it imports from `jsr:` and `https:`
+  // specifiers and uses the `Deno` global, none of which resolve under a
+  // browser/bundler config. Including those 25 files would add a pile of
+  // errors that say nothing about the app. Deno checks them on deploy.
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "supabase", "scripts", "functions"]
+}

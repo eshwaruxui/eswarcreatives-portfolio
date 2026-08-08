@@ -76,7 +76,7 @@ Previously: shared pagination and its follow-up fixes merged to `main` on 9 Augu
 
 Previously: `t.text.muted` re-aligned to `#717171` (neutral/500) on 8 August 2026 with contrast re-verified across four surfaces, plus documentation catch-up in COMPONENT_PATTERNS.md, both direct to `main`. Before that the same day, two branches merged to `main`, in dependency order — `fix/activity-tab-step-visibility-and-preview` (3 commits) first, since the second branch fixes the layout of the Preview/Approve buttons the first one added and could not stand on `main` alone; then `fix/activity-tab-layout-and-fade-overflow` (4 commits) on top. One `--no-ff` merge commit each, no migrations, build verified clean after both. Both were live-verified under a real admin session before merging, per Section 13's rule — see the two dedicated entries below for what each pass actually checked.
 
-**Two process notes worth keeping.** (1) This repo has **no `tsc` installed** — `npm run build` is Vite/esbuild transpile-only and does no typechecking, so a browser pass is the only real check on a refactor. (2) A commit that did not build was pushed during this work, because only the *tail* of `npm run build` output was read and a stack trace was mistaken for success; the fix is to check the **exit code**, never the trailing lines. Both are why the smoke tests below were treated as load-bearing rather than a formality.
+**Two process notes worth keeping.** (1) This repo had **no `tsc` installed** — `npm run build` is Vite/esbuild transpile-only and does no typechecking, so a browser pass was the only real check on a refactor. **Superseded 9 Aug 2026:** `npm run typecheck` now exists (see Section 13's dev tooling table). The build is still transpile-only and still cannot fail on a type error, so the browser pass remains necessary; the typecheck is an addition to it, not a replacement. (2) A commit that did not build was pushed during this work, because only the *tail* of `npm run build` output was read and a stack trace was mistaken for success; the fix is to check the **exit code**, never the trailing lines. Both are why the smoke tests below were treated as load-bearing rather than a formality.
 
 Previously — **`main`:** Stable. PR #21 (`fix/outreach-scheduling-timezone-display` → `main`, no migrations, 4 commits) merged to main on 7 August 2026 — added a "Save and Approve" button to the Follow-up preview modal; fixed the approve toast hardcoding `America/New_York` and the newly-approved row losing `recipient_timezone` (fell back to UTC), which together made the same touch show two different times on screen — root-caused live via a real Rena/PreVeil screenshot walkthrough (her country really is United States, confirming the scheduling decision itself was correct — only the display was wrong); brought ActivityTab's separately-implemented approve flow to parity (relabeled "Confirm and Send" → "Approve", stopped claiming a false "Email sent successfully" when the touch is still only approved-and-held, hid the action once already approved); added a server-side `already_approved` guard to `confirm-scheduled-touch` (deployed v11) so a stale UI or double-click can't silently reschedule an already-correct send; added a shared `TouchProgressLine` (Approved → Queued, later scoped to hide once a touch actually sends — an initial version kept showing all 3 steps after completion and read as redundant clutter under the Sent badge) plus silent 30s background polling on TodayTab/ActivityTab so a completed send clears itself without a manual reload; and added multi-column sort to Activity tab, reusing LeadsTab's `SortableTableHeader`/`toggleMultiSort` verbatim — see the dedicated entry below for the full list. PR #20 (`staging` → `main`, no migrations) merged to main on 6 August 2026 — fixed confirmed/deferred sends still showing as actionable "Due Today", extracted a shared `intentLabel`/`stepNumberLabel` source of truth (First touch/Follow-up/Value drop, Step N) that five previously-independent inline implementations now all point at, surfaced that intent label on the Outreach preview modal title and on every Today Due/Review in Advance/Scheduled row, replaced Review in Advance's misleading "12:00 AM" placeholder with a "Waiting for confirmation" label, and darkened `t.text.muted` from `#888888` to `#707070` to clear WCAG AA contrast (was 3.5:1, fails the 4.5:1 floor) — see the dedicated entry below for the full list. PR #19 (`staging` → `main`, migrations 0089-0092) merged to main on 6 August 2026 — Review in Advance redesign, editable Leads segments (7 new values + colors), a fully-additive multi-column sort rewrite, the Outreach Skills feature (upload + apply + learning-feedback loop), and a unified recipient-local-time business-hours scheduling engine that replaced two previously-inconsistent implementations, plus the `scheduled_for` date→timestamptz fix that made precise scheduling actually reach storage — see the dedicated entries below for the full list, including two real bugs (a migration-timing data-corruption window and a country-name timezone-resolution gap) found and fixed the same day via a live user report. Client Dashboard/Projects split + new Outputs folder/file library (migrations 0087-0088, `get-output-file-url` edge function) merged to main on 6 August 2026 — see the dedicated entry below for the full list, including a series of Lightbox contrast/centering/z-index fixes found during testing. LinkedIn content calendar redesign (Pending Posts, week-grouped History, drawer composer/view, This Week pinning fix, Next Week + Drafts sections — migration 0086) and a CSV lead import fix (Apollo/export-tool header aliasing) merged to main on 5 August 2026 — see the dedicated entries below. Outreach footer/link-embedding fix and the "Review in Advance" hold-to-next-business-day + cron auto-send feature (`staging` branch) merged to main on 4 August 2026 — see the dedicated entries below. ICP lead scoring + portal UX consistency work (`staging` branch, ten commits) merged to main on 3 August 2026, same day as PR #18 — see the dedicated entry below for the full list and the merge-conflict note. PR #18 (`fix/linkedin-planner-save-and-attachments`) merged to main on 3 August 2026. `feature/invoice-billing-title-and-proof-attachments` merged to main on 24 July 2026 (no-ff, no conflicts). `feature/smart-shortlist` and `feature/outreach-shortlist-fixes` merged to main on 24 July 2026. PR #16 (`fix/invoice-og-precedence`) merged to main on 22 July 2026.
 
@@ -1011,6 +1011,45 @@ There is a **gap between steps 1 and 2 during which every event 401s**, because 
 ---
 
 ## 13. Execution rules
+
+### Dev tooling
+
+| Script | Command | Notes |
+|---|---|---|
+| `npm run dev` | `vite` | Dev server |
+| `npm run build` | `vite build && node prerender.mjs` | Transpile only. esbuild strips types without checking them, so **the build cannot fail on a type error** |
+| `npm run typecheck` | `tsc --noEmit` | Added 9 Aug 2026. Dev-only, **deliberately not wired into the build** |
+
+`npm run typecheck` is the answer to the long-standing note that this repo had no `tsc` at all and that a browser pass was therefore the only real check on a refactor. It is advisory: it reports, it never blocks, and `npm run build` neither reads `tsconfig.json` nor fails on anything the typecheck finds.
+
+Three configuration decisions in `tsconfig.json` are worth knowing before changing it:
+
+- **`strict: false`.** This is the first time the codebase has been type checked. The first run should surface real breakage, not every implicit `any` across 238 files. Turning `strict` on is the natural follow-up once the current list is dealt with, and it will produce a much longer one.
+- **`include: ["src"]` only.** `supabase/functions` is Deno: it imports from `jsr:` and `https:` specifiers and uses the `Deno` global, none of which resolve under a bundler config. Those 25 files are checked by Deno at deploy time, not here.
+- **Not the `tsc --init` defaults.** The generated config uses `module: nodenext`, which demands explicit file extensions on relative imports and would report an error on nearly every import in the project. It is set to `bundler` to match Vite. `verbatimModuleSyntax`, `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are also off for the same signal-over-noise reason. Note that TypeScript 7 **removed `baseUrl`** (TS5102); `paths` resolves relative to the config file instead.
+
+`typescript`, `@types/react` and `@types/react-dom` are devDependencies. The React types were not optional: without them every `.tsx` file fails on JSX and the report is worthless.
+
+**First run: 39 errors across 19 files, and the build still passes.** None of them block anything today. Grouped by cause rather than by file, because four causes account for 36 of the 39:
+
+| Cause | Count | Files |
+|---|---|---|
+| lucide-react icons vs local `ComponentType<{size,color}>` nav-item types | 18 | `AdminShell` (9), `ClientNav` (7), `SettingsPage` (2) |
+| Supabase nested relations typed as arrays, declared as single objects | 9 | `TodayTab` (3), `LeadDrawer` (2), `ActivityTab`, `TouchPreviewModal`, `ProposalDetail` (2) |
+| `onClick` on a component typed as both anchor and button | 4 | `AboutPage` (2), `DsAuditCaseStudy`, `SecureVaultCaseStudy` |
+| `Dispatch<SetStateAction<Tab>>` passed where `(id: string) => void` is expected | 2 | `ProjectPanel`, `ProjectDetailPage` |
+
+The Supabase group is the largest false alarm: PostgREST returns a single object for a many-to-one embed, so the code is right at runtime and the generated types are wrong. Those are `as` casts that TypeScript will not accept without an `unknown` hop.
+
+**Three look like actual defects and are worth reading before the next release:**
+
+- `DesignSystemPage.tsx:613` (TS2367) compares `"typography"` with `"colors"`. No overlap, so the branch is dead and something is not rendering.
+- `LightboxThumbnailStrip.tsx:144` (TS2367) compares `"other" | "pdf" | "video"` with `"image"`. Same shape, same conclusion.
+- `DesignSystemsCaseStudy.tsx:878` passes variant `"outline"` where the union is `accent | brand | ghost | inverse | primary | secondary`. The button is silently falling back to default styling.
+
+One is pure configuration: `main.tsx:3` imports with an explicit `.tsx` extension, which Vite allows and `tsc` does not without `allowImportingTsExtensions`.
+
+**Also surfaced, unrelated to types:** `react` and `react-dom` are **not declared in `package.json`** at all. They resolve at 18.3.1 transitively through another dependency. That works until the intermediate package changes its own React range. Left alone here, since this branch was scoped to not touch the build.
 
 - One branch per feature. One commit per logical layer.
 - Never merge to main without Cloudflare preview + incognito test.
