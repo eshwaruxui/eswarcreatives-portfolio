@@ -2,9 +2,10 @@
 
 Last updated: 9 August 2026 (Pagination is now always wrapped in the new
 `StickyBar`, with the z-index rationale and the AdminShell offsets it tracks;
-the single-page rule revised to keep the page size selector so a one-page
-result is no longer a dead end; and a Dense Table Width pattern added for the
-LeadsTab horizontal-scroll fix. Previously, 8 August: the Pagination stub
+the single-page rule revised to keep both the count label and the page size
+selector, hiding only the nav, so a one-page result is neither a dead end nor
+silent about its total; and a Dense Table Width pattern added for the LeadsTab
+horizontal-scroll fix. All of it now merged to `main`. Previously, 8 August: the Pagination stub
 replaced with the real pattern, the Table Skeleton Row pattern for
 `SkeletonRow`, the Overflow Fade pattern for `FadeOverflow`, the Outreach Touch
 Approve / Preview pattern, and `t.text.muted` aligned to #717171 / neutral/500,
@@ -412,12 +413,16 @@ a future non-sticky caller can frame it however it likes.
 - **0 items:** the component returns `null` and the caller skips `StickyBar`
   entirely, so the bar disappears with it. The caller's own empty state shows
   instead. Do not wrap it in a second emptiness check.
-- **Fits on one page:** the bar stays, and keeps **the page size selector**.
-  The nav buttons and the count label are hidden. This is deliberate: hiding the
-  selector too made a single page a dead end, with no route from "39 rows at 50
-  per page" back to a paged view except widening the result set, which is not
-  what the user was trying to do. Verified live by dropping from 50 to 10 on a
-  single-page result and watching it become paged.
+- **Fits on one page:** the bar stays and keeps **both the count label and the
+  page size selector**. Only the nav buttons are hidden. Two separate reasons,
+  and both were learned by getting it wrong first. Hiding the selector made a
+  single page a dead end, with no route from "39 rows at 50 per page" back to a
+  paged view except widening the result set, which is not what the user was
+  trying to do. Hiding the count removed the only thing on screen stating the
+  total, which matters *more* here than on a paged view, because there are no
+  page numbers left to infer it from. Verified live: "Showing 1 to 4 of 4
+  leads" renders with the selector beside it, and dropping 50 to 10 on a
+  single-page result turns it back into a paged one.
 - **Last page short:** renders only the real rows. Never pad with placeholders.
 - **Filter applied while deep in the list:** `reset()` handles it; the derived
   `currentPage` clamp is the backstop if a caller forgets.
