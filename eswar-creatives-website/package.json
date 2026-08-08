@@ -8,7 +8,8 @@
     "postbuild": "node scripts/generate-og-pages.mjs",
     "dev": "vite",
     "optimise-images": "node scripts/optimise-images.mjs",
-    "seed:phase1": "node --env-file=.env scripts/seed-phase1.mjs"
+    "seed:phase1": "node --env-file=.env scripts/seed-phase1.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -72,9 +73,12 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "4.7.0",
     "sharp": "^0.34.5",
     "tailwindcss": "4.1.12",
+    "typescript": "^7.0.2",
     "vite": "6.3.5"
   },
   "peerDependencies": {
