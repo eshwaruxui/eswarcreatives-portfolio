@@ -1,0 +1,34 @@
+project_id = "urrinqwcrpivmvenupiu"
+
+# Edge functions called by machines, not by a logged-in user.
+#
+# These MUST stay verify_jwt = false: the caller (Resend, pg_cron/pg_net, the
+# public marketing site) never presents a Supabase JWT, so leaving the gateway
+# check on rejects every request with a 401 *before* the function body runs.
+# Each one authenticates by its own means instead — see the comments below.
+#
+# Functions not listed here default to verify_jwt = true, which is correct for
+# every admin/client endpoint (they are called from the portal with a user JWT).
+#
+# This file exists because resend-outreach-webhook was deployed with
+# verify_jwt = true and silently rejected 100% of Resend's webhook calls at the
+# gateway. Recording the flag here keeps a future `supabase functions deploy`
+# from reintroducing that class of bug.
+
+[functions.resend-outreach-webhook]
+# Authenticates via svix HMAC signature against RESEND_WEBHOOK_SECRET.
+verify_jwt = false
+
+[functions.send-confirmed-outreach-touches]
+# Invoked by pg_cron/pg_net; authenticates via the shared x-cron-secret header.
+verify_jwt = false
+
+[functions.receive-enquiry]
+# Public endpoint for the marketing site's enquiry form; validates server-side.
+verify_jwt = false
+
+[functions.notify-submission]
+verify_jwt = false
+
+[functions.get-output-file-url]
+verify_jwt = false
