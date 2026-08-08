@@ -14,7 +14,13 @@ import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useReloadableList } from '../../hooks/useReloadableList'
 import { LeadDrawer } from '../../components/LeadDrawer'
 import { TouchProgressLine } from '../../components/shared/TouchProgressLine'
+import {
+  TouchPreviewModal,
+  PREVIEW_TOUCH_SELECT,
+  type PreviewTouch,
+} from '../../components/shared/TouchPreviewModal'
 import { SortableTableHeader, toggleMultiSort, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
+import { useConfirmScheduledTouch } from '../../hooks/useConfirmScheduledTouch'
 
 type ActivityRow = {
   id: string
@@ -34,10 +40,16 @@ type ActivityRow = {
     company: string
   } | null
   enrollment: {
+    id: string
     sequence: { name: string } | null
   } | null
   step: { step_number: number } | null
 }
+
+// A touch is still waiting to happen. Anything else ('sent', 'skipped',
+// 'cancelled', 'failed') has reached a terminal state and is history — it
+// always stays visible in this feed.
+const PENDING_STATUSES = new Set(['scheduled', 'held'])
 
 const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
   sent:      { bg: tokens.greenLight, fg: tokens.green },
@@ -96,45 +108,49 @@ function applySorting(rows: ActivityRow[], sorts: SortSpec[]): ActivityRow[] {
   })
 }
 
-// Approves a touch — does NOT send it. confirm-scheduled-touch only stamps
-// draft_confirmed_at and sets scheduled_for to the recipient's next
-// business-hours window; the actual Resend call happens later via the
-// 5-minute send-confirmed-outreach-touches cron. Mirrors TodayTab.tsx's
-// copy of this hook so both screens report the same outcome.
-function useConfirmScheduledTouch(
-  onSuccess: (id: string, holdUntil?: string, recipientTimezone?: string) => void
-) {
-  const [confirming, setConfirming] = useState<string | null>(null)
-  const [errors, setErrors] = useState<Record<string, string>>({})
-
-  async function confirm(touchId: string) {
-    setConfirming(touchId)
-    setErrors((e) => { const n = { ...e }; delete n[touchId]; return n })
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData?.session?.access_token ?? ''
-      const { data, error: fnErr } = await supabase.functions.invoke('confirm-scheduled-touch', {
-        body: { touch_id: touchId },
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      })
-      if (fnErr || !data || data.error) {
-        setErrors((e) => ({
-          ...e,
-          [touchId]: data?.error === 'already_approved'
-            ? 'Already approved elsewhere. Refresh to see its send time.'
-            : 'Could not approve. Please try again.',
-        }))
-      } else {
-        onSuccess(touchId, data.hold_until as string | undefined, data.recipient_timezone as string | undefined)
-      }
-    } catch {
-      setErrors((e) => ({ ...e, [touchId]: 'Network error. Please try again.' }))
-    } finally {
-      setConfirming(null)
+// enroll_lead inserts a touch for *every* step of a sequence at enrollment
+// time (migration 0080), all of them 'scheduled' except requires_connected
+// steps which start 'held' — nothing is generated progressively as earlier
+// steps send, and there's no per-row "blocked by previous step" column. So a
+// lead enrolled today immediately produced three rows here, all reading
+// "Scheduled / Awaiting approval" at once, implying three emails were lined
+// up and actionable when only step 1 actually is.
+//
+// Only the earliest still-pending step per enrollment is real work; later
+// ones are contingent on it. Keep that one and drop the rest. Terminal rows
+// (sent/skipped/cancelled/failed) are untouched — this is the Activity feed,
+// history is the point — which also means a step 1 that got skipped or
+// cancelled correctly promotes step 2 to earliest-pending rather than
+// hiding the whole enrollment behind a step that will never send.
+//
+// Enrollment, not lead, is the grain: a lead enrolled in two sequences has
+// two independent progressions and should show the next due step of each.
+// Same rule as TodayTab's dedupeByEnrollment, but applied to a mixed feed
+// where terminal rows have to survive the filter.
+function hideBlockedFutureSteps(rows: ActivityRow[]): ActivityRow[] {
+  const earliestPendingId = new Map<string, { id: string; stepNumber: number }>()
+  for (const row of rows) {
+    if (!PENDING_STATUSES.has(row.status)) continue
+    const key = row.enrollment?.id
+    if (!key) continue
+    // A touch with no linked step (step_id null — a deleted step, or an
+    // older edited touch from before Preview stopped nulling step_id) must
+    // never win the earliest comparison: falling back to 0 would hide a
+    // correctly-numbered step 1 behind an unknown-step row. Unknown sorts
+    // last, exactly as in TodayTab's dedupe.
+    const stepNumber = row.step?.step_number ?? Number.POSITIVE_INFINITY
+    const current = earliestPendingId.get(key)
+    if (!current || stepNumber < current.stepNumber) {
+      earliestPendingId.set(key, { id: row.id, stepNumber })
     }
   }
-
-  return { confirming, errors, confirm }
+  return rows.filter((row) => {
+    if (!PENDING_STATUSES.has(row.status)) return true
+    const key = row.enrollment?.id
+    // No enrollment means no preceding step to be blocked by (one-off touch).
+    if (!key) return true
+    return earliestPendingId.get(key)?.id === row.id
+  })
 }
 
 export function ActivityTab() {
@@ -145,6 +161,9 @@ export function ActivityTab() {
   const [filterStatus, setFilterStatus] = useState('')
   const [sorts, setSorts] = useState<SortSpec[]>([])
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
+  const [previewTouch, setPreviewTouch] = useState<PreviewTouch | null>(null)
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
   function showToast(msg: string) {
@@ -159,7 +178,7 @@ export function ActivityTab() {
       .select(`
         id, channel, status, scheduled_for, recipient_timezone, draft_confirmed_at, sent_at, opened_at, bounced_at, skipped_reason,
         lead:leads!lead_id (id, first_name, last_name, company),
-        enrollment:lead_enrollments!enrollment_id (sequence:sequences!sequence_id (name)),
+        enrollment:lead_enrollments!enrollment_id (id, sequence:sequences!sequence_id (name)),
         step:sequence_steps!step_id (step_number)
       `)
       .order('sent_at', { ascending: false, nullsFirst: false })
@@ -172,7 +191,11 @@ export function ActivityTab() {
     }
 
     const { data } = await q
-    setRows((data ?? []) as ActivityRow[])
+    // Filter after fetching, not in the query: deciding whether a pending
+    // touch is the earliest of its enrollment needs that enrollment's *other*
+    // pending rows to compare against, which a single PostgREST filter can't
+    // express.
+    setRows(hideBlockedFutureSteps((data ?? []) as ActivityRow[]))
     finishLoad()
   }
 
@@ -211,6 +234,34 @@ export function ActivityTab() {
     showToast(when ? `Approved — will send ${when}, their local time.` : 'Approved. Will send at the next business-day window.')
   })
 
+  // This tab's list query is deliberately narrow (it renders 200 rows), so it
+  // doesn't carry the lead email/observation/unsubscribe token or the step
+  // templates the preview needs. Top those up on demand, using the modal's
+  // own exported select so the shape can't drift from TodayTab's.
+  async function openPreview(touchId: string) {
+    setPreviewLoadingId(touchId)
+    setPreviewError(null)
+    const { data, error } = await supabase
+      .from('outreach_touches')
+      .select(PREVIEW_TOUCH_SELECT)
+      .eq('id', touchId)
+      .single()
+    setPreviewLoadingId(null)
+    if (error || !data) {
+      setPreviewError('Could not load this email. Please try again.')
+      return
+    }
+    setPreviewTouch(data as unknown as PreviewTouch)
+  }
+
+  // Mirror a saved edit back onto the open modal's own copy. Nothing in this
+  // tab's row rendering shows subject/body, so the list itself needs no
+  // update — unlike TodayTab, whose Review in Advance rows do.
+  function handlePreviewSaved(updated: PreviewTouch) {
+    setPreviewTouch(updated)
+    showToast('Email content saved')
+  }
+
   // Every click is additive: a new column appends as the lowest-priority
   // sort key, an already-active one cycles asc -> desc -> removed in place.
   // "Clear sort" (next to the result count) is the way back to no sort at
@@ -229,7 +280,22 @@ export function ActivityTab() {
           onClose={() => { setOpenLeadId(null); load() }}
         />
       )}
+      {previewTouch && (
+        <TouchPreviewModal
+          key={previewTouch.id}
+          touch={previewTouch}
+          // Same rule the row-level Approve button uses: an already-approved
+          // touch (draft_confirmed_at set) is waiting on the cron, and
+          // confirm-scheduled-touch v11 would reject a second call anyway.
+          canApprove={!previewTouch.draft_confirmed_at}
+          approveError={errors[previewTouch.id]}
+          onApprove={confirm}
+          onSaved={handlePreviewSaved}
+          onClose={() => setPreviewTouch(null)}
+        />
+      )}
       {toast && <div style={styles.toast}>{toast}</div>}
+      {previewError && <div style={styles.previewLoadError}>{previewError}</div>}
 
       <div style={{ ...styles.filterBar, ...(isMobile ? styles.filterBarMobile : null) }}>
         <select style={styles.filterSelect} value={filterChannel} onChange={(e) => setFilterChannel(e.target.value)}>
@@ -283,6 +349,8 @@ export function ActivityTab() {
             // under every completed row read as clutter, not useful context.
             const showsProgressLine = isScheduled && row.channel === 'email' && !!row.draft_confirmed_at
             const isConfirming = confirming === row.id
+            const canPreview = isScheduled && row.channel === 'email'
+            const isPreviewLoading = previewLoadingId === row.id
             const rowError = errors[row.id]
             return (
               <div key={row.id} style={styles.mobileCard}>
@@ -310,19 +378,29 @@ export function ActivityTab() {
                   </span>
                   <span style={styles.mono}>{formatPortalDate(row.sent_at ?? row.scheduled_for)}</span>
                 </div>
-                {isApprovable && (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    {isConfirming ? (
-                      <Loader2 size={15} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
-                    ) : (
-                      <button
-                        type="button"
-                        style={styles.confirmBtnMobile}
-                        disabled={!!confirming}
-                        onClick={() => confirm(row.id)}
-                      >
-                        Approve
-                      </button>
+                {canPreview && (
+                  <div style={styles.mobileActions} onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      style={{ ...styles.previewBtnMobile, opacity: isPreviewLoading ? 0.6 : 1 }}
+                      disabled={isPreviewLoading}
+                      onClick={() => openPreview(row.id)}
+                    >
+                      {isPreviewLoading ? 'Opening...' : 'Preview'}
+                    </button>
+                    {isApprovable && (
+                      isConfirming ? (
+                        <Loader2 size={15} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
+                      ) : (
+                        <button
+                          type="button"
+                          style={styles.confirmBtnMobile}
+                          disabled={!!confirming}
+                          onClick={() => confirm(row.id)}
+                        >
+                          Approve
+                        </button>
+                      )
                     )}
                   </div>
                 )}
@@ -354,6 +432,9 @@ export function ActivityTab() {
                 // progress line under every completed row read as clutter.
                 const showsProgressLine = isScheduled && row.channel === 'email' && !!row.draft_confirmed_at
                 const isConfirming = confirming === row.id
+                // Any scheduled email touch can be previewed, approved or not.
+                const canPreview = isScheduled && row.channel === 'email'
+                const isPreviewLoading = previewLoadingId === row.id
                 const rowError = errors[row.id]
                 return (
                   <>
@@ -422,20 +503,36 @@ export function ActivityTab() {
                         {row.bounced_at && <span style={styles.bounced}>Bounced</span>}
                       </td>
                       <td style={styles.td} onClick={(e) => e.stopPropagation()}>
-                        {isApprovable && (
-                          isConfirming ? (
-                            <Loader2 size={15} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
-                          ) : (
+                        <div style={styles.actionCell}>
+                          {/* Offered on approved rows too, not just
+                              approvable ones — reading what's about to go out
+                              is useful right up until it sends, and TodayTab's
+                              Scheduled section behaves the same way. */}
+                          {canPreview && (
                             <button
                               type="button"
-                              style={styles.confirmBtn}
-                              disabled={!!confirming}
-                              onClick={() => confirm(row.id)}
+                              style={{ ...styles.previewBtn, opacity: isPreviewLoading ? 0.6 : 1 }}
+                              disabled={isPreviewLoading}
+                              onClick={() => openPreview(row.id)}
                             >
-                              Approve
+                              {isPreviewLoading ? 'Opening...' : 'Preview'}
                             </button>
-                          )
-                        )}
+                          )}
+                          {isApprovable && (
+                            isConfirming ? (
+                              <Loader2 size={15} color={t.text.muted} style={{ animation: 'spin 1s linear infinite' }} />
+                            ) : (
+                              <button
+                                type="button"
+                                style={styles.confirmBtn}
+                                disabled={!!confirming}
+                                onClick={() => confirm(row.id)}
+                              >
+                                Approve
+                              </button>
+                            )
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {rowError && (
@@ -544,6 +641,33 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.ruby,
     fontWeight: 600,
   },
+  actionCell: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  // Ghost treatment, matching TodayTab's row-level Preview button — the
+  // filled/primary look stays reserved for Approve, the one action that
+  // changes state.
+  previewBtn: {
+    background: 'none',
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 6,
+    padding: '5px 10px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  previewLoadError: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: tokens.ruby,
+    marginBottom: 12,
+  },
   confirmBtn: {
     background: tokens.primary,
     color: t.text.onPrimary,
@@ -595,6 +719,7 @@ const styles: Record<string, CSSProperties> = {
   },
   mobileCardBottom: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   mobileCardError: { fontFamily: fonts.body, fontSize: 12, color: tokens.ruby },
+  mobileActions: { display: 'flex', gap: 8 },
   // 44px min tap target per the portal-wide rule (spec suggested 32px to match
   // the desktop table's inline button, but the 44px minimum takes precedence).
   confirmBtnMobile: {
@@ -608,7 +733,20 @@ const styles: Record<string, CSSProperties> = {
     padding: '8px 14px',
     minHeight: 44,
     cursor: 'pointer',
-    width: '100%',
+    flex: 1,
+  },
+  previewBtnMobile: {
+    background: 'none',
+    color: t.text.secondary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: 600,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    padding: '8px 14px',
+    minHeight: 44,
+    cursor: 'pointer',
+    flex: 1,
   },
   toast: {
     position: 'fixed',

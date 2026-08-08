@@ -1,43 +1,31 @@
 // Today queue tab for the Outreach admin module.
 // Shows Overdue (scheduled_for < today) then Due Today sections.
 // Handles all edge cases: no email, linkedin awaiting connection, suppressed.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { Mail, Linkedin, Clock, AlertTriangle, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Mail, Linkedin, Clock, AlertTriangle, Loader2 } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
-import { mono, Modal } from '../ui'
+import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
 import { intentLabel, stepNumberLabel } from '../../utils/touchLabels'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
 import { TouchProgressLine } from '../../components/shared/TouchProgressLine'
+import {
+  TouchPreviewModal,
+  PREVIEW_TOUCH_SELECT,
+  type PreviewTouch,
+} from '../../components/shared/TouchPreviewModal'
 import { showToast as showGlobalToast } from '../toast'
 import { useReloadableList } from '../../hooks/useReloadableList'
+import { useConfirmScheduledTouch } from '../../hooks/useConfirmScheduledTouch'
 
-type ScheduledTouch = {
-  id: string
-  recipient_timezone: string | null
-  scheduled_for: string
-  draft_confirmed_at: string | null
-  subject_snapshot: string | null
-  body_snapshot: string | null
-  lead: {
-    id: string
-    first_name: string
-    last_name: string | null
-    company: string
-    email: string | null
-    specific_observation: string | null
-    unsubscribe_token: string
-  } | null
-  step: {
-    subject_template: string | null
-    body_template: string | null
-    day_offset: number | null
-  } | null
-}
+// The preview modal, its template resolution, and the prior-email thread all
+// moved to components/shared/TouchPreviewModal so ActivityTab's "Awaiting
+// approval" rows can open the same modal rather than growing a second one.
+type ScheduledTouch = PreviewTouch
 
 // Review in Advance touches haven't been approved yet, so scheduled_for is
 // only a placeholder day (midnight) — confirm-scheduled-touch doesn't pick
@@ -51,76 +39,6 @@ function formatPendingDate(touch: ScheduledTouch): string {
     day: 'numeric',
     month: 'short',
   }).format(new Date(touch.scheduled_for))
-}
-
-// Mirrors the substitution + grammar fix applied by the confirm-scheduled-touch
-// edge function, so the preview shows exactly what will be sent (not the raw
-// template with unresolved {{variables}}).
-function resolveTemplate(template: string, lead: NonNullable<ScheduledTouch['lead']>): string {
-  const vars: Record<string, string> = {
-    first_name: lead.first_name,
-    company: lead.company,
-    specific_observation: lead.specific_observation ?? '',
-    flow: 'product',
-    unsubscribe_url: `https://www.eswarcreatives.in/unsubscribe/${lead.unsubscribe_token}`,
-    topic: '{{topic}}',
-  }
-  let out = template
-  for (const [key, val] of Object.entries(vars)) {
-    out = out.replaceAll(`{{${key}}}`, val)
-  }
-  if (lead.company.slice(-1).toLowerCase() === 's') {
-    out = out.replaceAll(`${lead.company}'s`, `${lead.company}'`)
-  }
-  return out
-}
-
-type ThreadTouch = {
-  id: string
-  sent_at: string
-  subject: string
-  body: string
-}
-
-function useConfirmScheduledTouch(
-  onSuccess: (id: string, holdUntil?: string, recipientTimezone?: string) => void
-) {
-  const [confirming, setConfirming] = useState<string | null>(null)
-  const [errors, setErrors] = useState<Record<string, string>>({})
-
-  async function confirm(touchId: string): Promise<boolean> {
-    setConfirming(touchId)
-    setErrors((e) => { const n = { ...e }; delete n[touchId]; return n })
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData?.session?.access_token ?? ''
-      const { data, error: fnErr } = await supabase.functions.invoke('confirm-scheduled-touch', {
-        body: { touch_id: touchId },
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      })
-      if (fnErr || !data || data.error) {
-        // already_approved means someone else (another tab, a double-click)
-        // approved this touch first — its real scheduled_for is already set
-        // correctly, so a reload is the fix, not a retry.
-        setErrors((e) => ({
-          ...e,
-          [touchId]: data?.error === 'already_approved'
-            ? 'Already approved elsewhere. Refresh to see its send time.'
-            : 'Could not approve. Please try again.',
-        }))
-        return false
-      }
-      onSuccess(touchId, data.hold_until as string | undefined, data.recipient_timezone as string | undefined)
-      return true
-    } catch {
-      setErrors((e) => ({ ...e, [touchId]: 'Network error. Please try again.' }))
-      return false
-    } finally {
-      setConfirming(null)
-    }
-  }
-
-  return { confirming, errors, confirm }
 }
 
 function todayStr(): string {
@@ -254,12 +172,6 @@ export function TodayTab({
   const [activeTouch, setActiveTouch] = useState<TouchRow | null>(null)
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
   const [previewTouch, setPreviewTouch] = useState<ScheduledTouch | null>(null)
-  const [previewSubjectEdit, setPreviewSubjectEdit] = useState('')
-  const [previewBodyEdit, setPreviewBodyEdit] = useState('')
-  const [previewSaving, setPreviewSaving] = useState(false)
-  const [previewApproving, setPreviewApproving] = useState(false)
-  const [threadTouches, setThreadTouches] = useState<ThreadTouch[]>([])
-  const [threadOpen, setThreadOpen] = useState(false)
   const [motionStats, setMotionStats] = useState<MotionStats>({ emailsToday: 0, liTodayCount: 0, repliesWeek: 0, callsWeek: 0 })
   const [toast, setToast] = useState<string | null>(null)
   const today = todayStr()
@@ -333,11 +245,7 @@ export function TodayTab({
           .gte('updated_at', `${weekStartStr}T00:00:00Z`),
         supabase
           .from('outreach_touches')
-          .select(`
-            id, recipient_timezone, scheduled_for, draft_confirmed_at, subject_snapshot, body_snapshot,
-            lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
-            step:sequence_steps!step_id (subject_template, body_template, day_offset)
-          `)
+          .select(PREVIEW_TOUCH_SELECT)
           .eq('status', 'scheduled')
           .eq('channel', 'email')
           .is('draft_confirmed_at', null)
@@ -355,11 +263,7 @@ export function TodayTab({
         // scheduled for later today or a future day.
         supabase
           .from('outreach_touches')
-          .select(`
-            id, recipient_timezone, scheduled_for, draft_confirmed_at, subject_snapshot, body_snapshot,
-            lead:leads!lead_id (id, first_name, last_name, company, email, specific_observation, unsubscribe_token),
-            step:sequence_steps!step_id (subject_template, body_template, day_offset)
-          `)
+          .select(PREVIEW_TOUCH_SELECT)
           .eq('status', 'scheduled')
           .eq('channel', 'email')
           .not('draft_confirmed_at', 'is', null)
@@ -471,113 +375,17 @@ export function TodayTab({
 
   const isEmpty = overdue.length === 0 && dueToday.length === 0
 
-  // subject_snapshot/body_snapshot only get written by handleSavePreview
-  // below (a still-scheduled touch has no snapshot until the admin edits and
-  // saves it) — so a non-null snapshot always means "this was manually
-  // edited," and must win over re-rendering the template, which would
-  // silently discard the edit. Snapshot is checked first, not last.
-  function previewInitialSubject(touch: ScheduledTouch): string {
-    if (touch.subject_snapshot) return touch.subject_snapshot
-    return touch.lead ? resolveTemplate(touch.step?.subject_template ?? '', touch.lead) : ''
-  }
-  function previewInitialBody(touch: ScheduledTouch): string {
-    if (touch.body_snapshot) return touch.body_snapshot
-    return touch.lead ? resolveTemplate(touch.step?.body_template ?? '', touch.lead) : ''
-  }
-
-  function openPreview(touch: ScheduledTouch) {
-    setPreviewTouch(touch)
-    setPreviewSubjectEdit(previewInitialSubject(touch))
-    setPreviewBodyEdit(previewInitialBody(touch))
-    setThreadOpen(false)
-    setThreadTouches([])
-    if (touch.lead) loadThread(touch.lead.id, touch.lead)
-  }
-
-  async function loadThread(leadId: string, lead: NonNullable<ScheduledTouch['lead']>) {
-    const { data } = await supabase
-      .from('outreach_touches')
-      .select(`
-        id, sent_at, subject_snapshot, body_snapshot,
-        step:sequence_steps!step_id (subject_template, body_template)
-      `)
-      .eq('lead_id', leadId)
-      .eq('status', 'sent')
-      .order('sent_at', { ascending: false })
-    type ThreadRow = {
-      id: string
-      sent_at: string | null
-      subject_snapshot: string | null
-      body_snapshot: string | null
-      step: { subject_template: string | null; body_template: string | null } | null
-    }
-    const rows = (data ?? []) as ThreadRow[]
-    setThreadTouches(rows.map((r) => ({
-      id: r.id,
-      sent_at: r.sent_at ?? '',
-      // Sent touches already carry the exact content that went out (the
-      // edge function writes the resolved snapshot at send time) — prefer
-      // that historical record over re-resolving the template with current
-      // lead data, which could differ from what was actually sent.
-      subject: r.subject_snapshot ?? (r.step?.subject_template ? resolveTemplate(r.step.subject_template, lead) : ''),
-      body: r.body_snapshot ?? (r.step?.body_template ? resolveTemplate(r.step.body_template, lead) : ''),
-    })))
-  }
-
-  const previewDirty = !!previewTouch && (
-    previewSubjectEdit !== previewInitialSubject(previewTouch) ||
-    previewBodyEdit !== previewInitialBody(previewTouch)
-  )
-
-  function handlePreviewCloseRequest() {
-    if (previewDirty && !window.confirm('You have unsaved changes. Close anyway?')) return
-    setPreviewTouch(null)
-  }
-
-  // step_id is deliberately left untouched — nulling it here used to be
-  // how this saved edit "won" over re-rendering the template on next open,
-  // but it also broke every other consumer of touch.step (the Due Today
-  // step-number label, the send modal's title, the earliest-touch dedupe)
-  // for the rest of that touch's life. previewInitialSubject/Body now
-  // prefer a non-null snapshot over the template directly, so step_id can
-  // stay intact and the edit is still preserved. Shared by both "Save
-  // changes" and "Save and Approve" so the two never drift apart.
-  async function persistPreviewEdits(touch: ScheduledTouch): Promise<ScheduledTouch> {
-    await supabase
-      .from('outreach_touches')
-      .update({ subject_snapshot: previewSubjectEdit, body_snapshot: previewBodyEdit })
-      .eq('id', touch.id)
-    const updatedTouch: ScheduledTouch = {
-      ...touch,
-      subject_snapshot: previewSubjectEdit,
-      body_snapshot: previewBodyEdit,
-    }
-    setPreviewTouch(updatedTouch)
-    const replace = (prev: ScheduledTouch[]) => prev.map((t) => (t.id === updatedTouch.id ? updatedTouch : t))
-    setPendingConfirmation(replace)
-    setScheduledApproved(replace)
-    return updatedTouch
-  }
-
-  async function handleSavePreview() {
-    if (!previewTouch) return
-    setPreviewSaving(true)
-    await persistPreviewEdits(previewTouch)
-    setPreviewSaving(false)
-    showGlobalToast('Email content saved', 'success', 2000)
-  }
-
-  // Lets an admin edit and approve a Review in Advance touch in one step,
-  // instead of Save changes -> Close -> find the row again -> Approve.
+  // The modal owns its own edit/save/thread state now — this tab only says
+  // which touch is open, whether it's still approvable, and what to do with a
+  // saved edit or a successful approve.
   const previewIsPending = !!previewTouch && pendingConfirmation.some((t) => t.id === previewTouch.id)
 
-  async function handleSaveAndApprove() {
-    if (!previewTouch) return
-    setPreviewApproving(true)
-    const touch = previewDirty ? await persistPreviewEdits(previewTouch) : previewTouch
-    const approved = await confirm(touch.id)
-    setPreviewApproving(false)
-    if (approved) setPreviewTouch(null)
+  function handlePreviewSaved(updated: ScheduledTouch) {
+    setPreviewTouch(updated)
+    const replace = (prev: ScheduledTouch[]) => prev.map((t) => (t.id === updated.id ? updated : t))
+    setPendingConfirmation(replace)
+    setScheduledApproved(replace)
+    showGlobalToast('Email content saved', 'success', 2000)
   }
 
   return (
@@ -598,92 +406,15 @@ export function TodayTab({
         />
       )}
       {previewTouch && (
-        <Modal title={`${intentLabel(previewTouch.step?.day_offset ?? null)} preview`} onClose={handlePreviewCloseRequest} maxWidth={600} closeOnBackdrop={false}>
-          <div style={styles.previewBody}>
-            <div style={styles.previewField}>
-              <span style={styles.previewLabel}>To</span>
-              <span style={styles.previewValue}>
-                {previewTouch.lead
-                  ? `${previewTouch.lead.first_name} ${previewTouch.lead.last_name ?? ''} <${previewTouch.lead.email ?? 'no email on file'}>`
-                  : 'Unknown lead'}
-              </span>
-            </div>
-            <div style={styles.previewField}>
-              <span style={styles.previewLabel}>Subject</span>
-              <input
-                type="text"
-                style={styles.previewInput}
-                value={previewSubjectEdit}
-                onChange={(e) => setPreviewSubjectEdit(e.target.value)}
-              />
-            </div>
-            <div style={styles.previewField}>
-              <span style={styles.previewLabel}>Body</span>
-              <textarea
-                style={styles.previewTextarea}
-                value={previewBodyEdit}
-                onChange={(e) => setPreviewBodyEdit(e.target.value)}
-              />
-            </div>
-            {threadTouches.length > 0 && (
-              <>
-                <div style={styles.previewDivider} />
-                <button
-                  type="button"
-                  style={styles.threadToggle}
-                  onClick={() => setThreadOpen((o) => !o)}
-                >
-                  <span style={styles.threadToggleLabel}>Previous emails ({threadTouches.length})</span>
-                  {threadOpen ? (
-                    <ChevronUp size={16} color={t.text.muted} />
-                  ) : (
-                    <ChevronDown size={16} color={t.text.muted} />
-                  )}
-                </button>
-                {threadOpen && (
-                  <div style={styles.threadList}>
-                    {threadTouches.map((pt) => (
-                      <PriorEmailCard key={pt.id} touch={pt} />
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-            <div style={styles.previewActions}>
-              {previewDirty && (
-                <button
-                  type="button"
-                  style={{
-                    ...(previewIsPending ? styles.previewSaveSecondaryBtn : styles.previewSaveBtn),
-                    opacity: previewSaving || previewApproving ? 0.6 : 1,
-                  }}
-                  onClick={handleSavePreview}
-                  disabled={previewSaving || previewApproving}
-                >
-                  {previewSaving ? 'Saving...' : previewIsPending ? 'Save only' : 'Save changes'}
-                </button>
-              )}
-              {previewIsPending && (
-                <button
-                  type="button"
-                  style={{ ...styles.previewApproveBtn, opacity: previewApproving || previewSaving ? 0.6 : 1 }}
-                  onClick={handleSaveAndApprove}
-                  disabled={previewApproving || previewSaving}
-                >
-                  {previewApproving ? 'Approving...' : 'Save and Approve'}
-                </button>
-              )}
-              <button
-                type="button"
-                style={styles.previewCloseBtn}
-                onClick={handlePreviewCloseRequest}
-                disabled={previewSaving || previewApproving}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </Modal>
+        <TouchPreviewModal
+          key={previewTouch.id}
+          touch={previewTouch}
+          canApprove={previewIsPending}
+          approveError={confirmErrors[previewTouch.id]}
+          onApprove={confirm}
+          onSaved={handlePreviewSaved}
+          onClose={() => setPreviewTouch(null)}
+        />
       )}
 
       {error && <div style={styles.errorBanner}>{error}</div>}
@@ -794,7 +525,7 @@ export function TodayTab({
                         <button
                           type="button"
                           style={styles.previewBtn}
-                          onClick={() => openPreview(touch)}
+                          onClick={() => setPreviewTouch(touch)}
                         >
                           Preview
                         </button>
@@ -844,7 +575,7 @@ export function TodayTab({
                     </span>
                   }
                   actions={
-                    <button type="button" style={styles.previewBtn} onClick={() => openPreview(touch)}>
+                    <button type="button" style={styles.previewBtn} onClick={() => setPreviewTouch(touch)}>
                       Preview
                     </button>
                   }
@@ -1167,35 +898,6 @@ function EmptyQueue() {
 // Read-only card for a previously sent email in the thread history. Clamps
 // the body to 4 lines and only reveals "Show more" when the text actually
 // overflows that clamp (checked via scrollHeight vs clientHeight).
-function PriorEmailCard({ touch }: { touch: ThreadTouch }) {
-  const [expanded, setExpanded] = useState(false)
-  const [overflowing, setOverflowing] = useState(false)
-  const bodyRef = useRef<HTMLParagraphElement>(null)
-
-  useEffect(() => {
-    const el = bodyRef.current
-    if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1)
-  }, [touch.body])
-
-  return (
-    <div style={styles.threadCard}>
-      <span style={styles.threadDate}>{formatPortalDate(touch.sent_at)}</span>
-      <span style={styles.threadSubject}>{touch.subject || '(no subject)'}</span>
-      <p
-        ref={bodyRef}
-        style={{ ...styles.threadBody, ...(expanded ? null : styles.threadBodyClamped) }}
-      >
-        {touch.body || '(no content)'}
-      </p>
-      {!expanded && overflowing && (
-        <button type="button" style={styles.threadShowMore} onClick={() => setExpanded(true)}>
-          Show more
-        </button>
-      )}
-    </div>
-  )
-}
-
 const styles: Record<string, CSSProperties> = {
   motionStrip: {
     display: 'flex',
@@ -1366,178 +1068,6 @@ const styles: Record<string, CSSProperties> = {
     padding: '8px 14px',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
-  },
-  previewBody: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
-    maxHeight: '70vh',
-    overflowY: 'auto' as const,
-  },
-  previewField: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-  },
-  previewLabel: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: 600,
-    color: t.text.tertiary,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.4,
-  },
-  previewValue: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: t.text.primary,
-  },
-  previewInput: {
-    width: '100%',
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: t.text.primary,
-    background: t.background.subtle,
-    border: `1px solid ${t.border.default}`,
-    borderRadius: 4,
-    padding: 8,
-    outline: 'none',
-    boxSizing: 'border-box' as const,
-  },
-  previewTextarea: {
-    width: '100%',
-    fontFamily: fonts.body,
-    fontSize: 14,
-    lineHeight: 1.6,
-    color: t.text.primary,
-    background: t.background.subtle,
-    border: `1px solid ${t.border.default}`,
-    borderRadius: 4,
-    padding: 8,
-    outline: 'none',
-    minHeight: 200,
-    resize: 'vertical' as const,
-    boxSizing: 'border-box' as const,
-  },
-  previewActions: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  previewSaveBtn: {
-    background: tokens.primary,
-    color: t.text.onPrimary,
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: 600,
-    border: 'none',
-    borderRadius: 8,
-    padding: '8px 16px',
-    cursor: 'pointer',
-  },
-  // Secondary treatment for "Save only" once "Save and Approve" is present,
-  // so the filled/primary look is reserved for the one recommended action.
-  previewSaveSecondaryBtn: {
-    background: 'none',
-    color: t.text.secondary,
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: 600,
-    border: `1px solid ${t.border.default}`,
-    borderRadius: 8,
-    padding: '8px 16px',
-    cursor: 'pointer',
-  },
-  previewApproveBtn: {
-    background: tokens.primary,
-    color: t.text.onPrimary,
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: 600,
-    border: 'none',
-    borderRadius: 8,
-    padding: '8px 16px',
-    cursor: 'pointer',
-  },
-  previewCloseBtn: {
-    background: tokens.surface,
-    color: t.text.secondary,
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: 600,
-    border: `1px solid ${t.border.default}`,
-    borderRadius: 8,
-    padding: '8px 16px',
-    cursor: 'pointer',
-  },
-  previewDivider: {
-    height: 1,
-    background: t.border.subtle,
-  },
-  threadToggle: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    background: 'none',
-    border: 'none',
-    padding: 0,
-    cursor: 'pointer',
-  },
-  threadToggleLabel: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: t.text.secondary,
-  },
-  threadList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-  },
-  threadCard: {
-    background: t.background.subtle,
-    borderRadius: 8,
-    padding: 12,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-  },
-  threadDate: {
-    alignSelf: 'flex-end' as const,
-    fontFamily: mono,
-    fontSize: 11,
-    color: t.text.muted,
-  },
-  threadSubject: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: 600,
-    color: t.text.primary,
-  },
-  threadBody: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: t.text.secondary,
-    lineHeight: 1.5,
-    whiteSpace: 'pre-wrap' as const,
-    margin: 0,
-  },
-  threadBodyClamped: {
-    display: '-webkit-box' as const,
-    WebkitLineClamp: 4,
-    WebkitBoxOrient: 'vertical' as const,
-    overflow: 'hidden',
-  },
-  threadShowMore: {
-    alignSelf: 'flex-start' as const,
-    background: 'none',
-    border: 'none',
-    padding: 0,
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: t.text.urlLink,
-    cursor: 'pointer',
-    textDecoration: 'underline',
   },
   overflowBtn: {
     background: tokens.surface,
