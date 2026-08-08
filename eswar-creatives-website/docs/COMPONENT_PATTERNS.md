@@ -1,8 +1,9 @@
 # Eswar Creatives Portal - Component Patterns
 
 Last updated: 8 August 2026 (added the Overflow Fade pattern for `FadeOverflow`,
-plus a Planned stub for Pagination / usePagination; aligned the
-`t.text.muted` token to #717171 / neutral/500, sharing a primitive with tertiary).
+plus the Outreach Touch Approve / Preview pattern and a Planned stub for
+Pagination / usePagination; aligned the `t.text.muted` token to #717171 /
+neutral/500, sharing a primitive with tertiary).
 
 ---
 
@@ -216,6 +217,61 @@ near-miss colour that reads as a smudge.
   <span style={{ whiteSpace: 'nowrap' }}>{longValue}</span>
 </FadeOverflow>
 ```
+
+---
+
+## Outreach Touch Approve / Preview Pattern
+
+### Rule
+There is exactly **one** approve path and **one** email preview modal in the
+outreach module. Never reimplement either per tab. Any surface that needs to
+approve or preview a scheduled touch imports these:
+
+- `src/portal/hooks/useConfirmScheduledTouch.ts`
+- `src/portal/components/shared/TouchPreviewModal.tsx`
+- `src/portal/components/shared/TouchProgressLine.tsx`
+
+### Why this is a rule and not a suggestion
+TodayTab and ActivityTab each carried their own private copy of the approve
+hook, and the copies silently drifted. ActivityTab kept a "Confirm and Send"
+label and toasted "Email sent successfully" for weeks after TodayTab was
+corrected, and it rendered Approve on rows that were already approved, so a
+second click could reschedule a correct send. Consolidated 8 August 2026. If
+you find yourself writing a second copy, that is the bug.
+
+### useConfirmScheduledTouch
+Returns `{ confirming, errors, confirm }`; `confirm(touchId)` resolves to a
+boolean so a caller knows whether to close a modal.
+
+**Critical:** `confirm-scheduled-touch` **approves and holds. It never sends.**
+It stamps `draft_confirmed_at` and moves `scheduled_for` to the recipient's
+next business-hours window; the Resend call happens later, on the 5 minute
+`send-confirmed-outreach-touches` cron tick. No caller may report "sent" here.
+That false claim is exactly what the consolidation removed.
+
+### TouchPreviewModal
+Callers pass `touch`, `canApprove`, `onApprove`, and optionally `onSaved` /
+`approveError`. It deliberately does **not** own the approve call: the caller
+supplies its own `onApprove` (from the hook above) so results land in that
+screen's row state and toast, and the server-side `already_approved` guard
+stays the single authority on double approves.
+
+Gate `canApprove` on `draft_confirmed_at` being null, the same condition a
+row-level Approve button uses. `PREVIEW_TOUCH_SELECT` is exported so every
+caller fetches the same column shape; a narrow list query must top up through
+it before opening the modal.
+
+Behaviour that must not be "simplified" away: a non-null `subject_snapshot` /
+`body_snapshot` beats re-rendering the template (otherwise a manual edit is
+silently discarded), and `step_id` stays intact on save (nulling it once broke
+every other consumer of `touch.step`, including step labels and the next due
+step filter).
+
+### TouchProgressLine
+`layout` prop: `'inline'` (default, single line) or `'stacked'` (two lines, no
+arrow). Use `'stacked'` in table rows and narrow cards; the inline variant is
+nowrap and will set the row width, which is what pushed ActivityTab's action
+buttons off screen. Stop rendering it once a touch reaches `status: 'sent'`.
 
 ---
 
