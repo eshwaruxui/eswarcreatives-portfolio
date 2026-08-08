@@ -23,6 +23,7 @@ import {
 import { SortableTableHeader, toggleMultiSort, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
 import { SkeletonRow } from '../../components/shared/SkeletonRow'
 import { Pagination } from '../../components/shared/Pagination'
+import { StickyBar } from '../../components/shared/StickyBar'
 import { useConfirmScheduledTouch } from '../../hooks/useConfirmScheduledTouch'
 import { usePagination } from '../../hooks/usePagination'
 
@@ -616,20 +617,23 @@ export function ActivityTab() {
         </div>
       )}
 
-      {/* One instance for both layouts, below the rows either way. Renders
-          nothing at all on an empty result, and collapses to just the count
-          line when everything fits on a single page. */}
-      {!initialLoading && (
-        <Pagination
-          totalItems={sorted.length}
-          pageSize={pageSize}
-          currentPage={currentPage}
-          onPageChange={goToPage}
-          onPageSizeChange={changePageSize}
-          pageStart={pageStart}
-          pageEnd={pageEnd}
-          itemLabel={sorted.length === 1 ? 'touch' : 'touches'}
-        />
+      {/* Pinned to the viewport bottom so paging a 174-row feed does not mean
+          scrolling to the end of the table first. Guarded on a non-empty
+          result: with no rows there is nothing to page and the empty state
+          should own the screen. */}
+      {!initialLoading && sorted.length > 0 && (
+        <StickyBar>
+          <Pagination
+            totalItems={sorted.length}
+            pageSize={pageSize}
+            currentPage={currentPage}
+            onPageChange={goToPage}
+            onPageSizeChange={changePageSize}
+            pageStart={pageStart}
+            pageEnd={pageEnd}
+            itemLabel={sorted.length === 1 ? 'touch' : 'touches'}
+          />
+        </StickyBar>
       )}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </>

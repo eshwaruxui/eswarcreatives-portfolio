@@ -12,6 +12,7 @@ import { useReloadableList } from '../../hooks/useReloadableList'
 import { SortableTableHeader, toggleMultiSort, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
 import { Skeleton } from '../../components/shared/Skeleton'
 import { Pagination } from '../../components/shared/Pagination'
+import { StickyBar } from '../../components/shared/StickyBar'
 import { usePagination } from '../../hooks/usePagination'
 import { SegmentSelect, SEGMENT_LABELS } from '../../components/shared/SegmentSelect'
 import { AddLeadModal } from './AddLeadModal'
@@ -650,19 +651,22 @@ export function LeadsTab() {
         </div>
       )}
 
-      {/* One instance for both layouts. Hidden entirely on an empty result,
-          and reduced to the count line when everything fits on one page. */}
-      {!initialLoading && (
-        <Pagination
-          totalItems={sorted.length}
-          pageSize={pageSize}
-          currentPage={currentPage}
-          onPageChange={goToPage}
-          onPageSizeChange={changePageSize}
-          pageStart={pageStart}
-          pageEnd={pageEnd}
-          itemLabel={sorted.length === 1 ? 'lead' : 'leads'}
-        />
+      {/* Pinned to the viewport bottom, so paging 267 leads does not require
+          scrolling past every row first. Hidden on an empty result, where the
+          empty state should own the screen. */}
+      {!initialLoading && sorted.length > 0 && (
+        <StickyBar>
+          <Pagination
+            totalItems={sorted.length}
+            pageSize={pageSize}
+            currentPage={currentPage}
+            onPageChange={goToPage}
+            onPageSizeChange={changePageSize}
+            pageStart={pageStart}
+            pageEnd={pageEnd}
+            itemLabel={sorted.length === 1 ? 'lead' : 'leads'}
+          />
+        </StickyBar>
       )}
     </>
   )

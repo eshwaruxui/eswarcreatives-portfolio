@@ -179,15 +179,16 @@ export function Pagination({
 const transition = `background ${motionTokens.durationFast} ${motionTokens.easeDefault}, opacity ${motionTokens.durationFast} ${motionTokens.easeDefault}, color ${motionTokens.durationFast} ${motionTokens.easeDefault}`
 
 const styles: Record<string, CSSProperties> = {
+  // Controls only, no chrome. The separator, background and spacing belong to
+  // whatever container the bar sits in (StickyBar today), so a non-sticky
+  // caller can frame it differently without fighting a border it did not ask
+  // for, and the two never double up.
   bar: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
     flexWrap: 'wrap',
-    marginTop: 14,
-    paddingTop: 12,
-    borderTop: `1px solid ${t.border.subtle}`,
   },
   barMobile: {
     justifyContent: 'center',
