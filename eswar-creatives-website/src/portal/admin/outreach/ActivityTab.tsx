@@ -502,12 +502,11 @@ export function ActivityTab() {
                             still outrun a narrow Status column; "Awaiting
                             approval" below is two short words and never
                             needs it. */}
+                        {/* maxWidth 190 is measured, not guessed: at a 1280px
+                            viewport the table wrapper is 961px, and 190 is the
+                            widest cap that brings the table to exactly 961
+                            with zero horizontal scroll. 200 left 6px over. */}
                         {showsProgressLine && (
-                          {/* 190 is measured, not guessed: at a 1280px
-                              viewport the table wrapper is 961px, and this cap
-                              is the widest value that brings the table to
-                              exactly 961 with zero horizontal scroll. 200 left
-                              6px of overflow. */}
                           <FadeOverflow style={{ ...styles.scheduledMeta, maxWidth: 190 }}>
                             <TouchProgressLine
                               draftConfirmedAt={row.draft_confirmed_at}
