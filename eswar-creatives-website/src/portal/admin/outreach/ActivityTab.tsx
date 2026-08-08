@@ -427,7 +427,17 @@ export function ActivityTab() {
         </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={styles.table}>
+          {/* Measured live at a 1280px viewport: eight columns at the shared
+              header's default 12px horizontal padding totalled 1098px against
+              a ~992px content area, so the action column sat off-screen. This
+              trims the gutters to 8px — 8 columns x 8px = 64px reclaimed —
+              scoped to this table by class so LeadsTab and EnquiriesTab keep
+              the shared header's default spacing. */}
+          <style>{`
+            .ec-activity-table th { padding-left: 8px !important; padding-right: 8px !important; }
+            .ec-activity-table td { padding-left: 8px !important; padding-right: 8px !important; }
+          `}</style>
+          <table className="ec-activity-table" style={styles.table}>
             <thead>
               <SortableTableHeader columns={ACTIVITY_COLUMNS} sorts={sorts} onSort={handleSort} />
             </thead>
@@ -493,7 +503,7 @@ export function ActivityTab() {
                             approval" below is two short words and never
                             needs it. */}
                         {showsProgressLine && (
-                          <FadeOverflow style={styles.scheduledMeta}>
+                          <FadeOverflow style={{ ...styles.scheduledMeta, maxWidth: 200 }}>
                             <TouchProgressLine
                               draftConfirmedAt={row.draft_confirmed_at}
                               scheduledFor={row.scheduled_for}
@@ -596,11 +606,11 @@ const styles: Record<string, CSSProperties> = {
     margin: '0 0 8px',
   },
   emptyBody: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
-  // 960 is the sum of the pinned/content-sized columns (Lead 140 + Status 180
-  // + Action 180 + the rest). Below that the wrapper scrolls rather than
-  // crushing the action column — but at 1280px the content area is ~1040px,
-  // so it fits without scrolling, which is the point of the fix.
-  table: { width: '100%', borderCollapse: 'collapse', minWidth: 960 },
+  // 860 is a floor, not a target: below it the wrapper scrolls rather than
+  // crushing the action column. It must stay *under* the real content area at
+  // 1280px (~992px) — an earlier 960 was itself forcing the overflow it was
+  // meant to prevent, since the table could never shrink to fit.
+  table: { width: '100%', borderCollapse: 'collapse', minWidth: 860 },
   resultRow: {
     display: 'flex',
     alignItems: 'center',
