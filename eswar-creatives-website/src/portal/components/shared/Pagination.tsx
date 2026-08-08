@@ -92,14 +92,19 @@ export function Pagination({
     </label>
   ) : null
 
-  // A single page needs no navigation, but it must not become a dead end. The
-  // page size selector is the only route back to a paged view, and hiding it
-  // along with the nav left no way to get from "39 rows at 50 per page" to a
-  // smaller page size. The selector stays; the nav and the count go.
+  // A single page needs no navigation, but everything else earns its place.
+  // The selector is the only route back to a paged view, so hiding it made a
+  // one-page result a dead end. The count stays too: with no nav to infer the
+  // total from, "Showing 1 to 4 of 4 leads" is the only thing on screen that
+  // says how much there is. Only the nav goes.
   if (totalPages <= 1) {
-    return sizeSelector
-      ? <div style={{ ...styles.bar, justifyContent: 'flex-end' }}>{sizeSelector}</div>
-      : null
+    if (!countLabel && !sizeSelector) return null
+    return (
+      <div style={{ ...styles.bar, ...(countLabel ? null : { justifyContent: 'flex-end' }) }}>
+        {countLabel}
+        {sizeSelector}
+      </div>
+    )
   }
 
   const atFirst = currentPage <= 1
