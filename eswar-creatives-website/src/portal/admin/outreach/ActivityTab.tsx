@@ -62,15 +62,20 @@ const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
 // Opened/Bounced aren't included here — both are still empty for every row
 // (the Resend webhook that would populate them isn't live yet), so sorting
 // on them wouldn't do anything useful yet.
+// Widths matter here: Status is the one cell whose content varies wildly in
+// length (a bare badge vs. an approved touch's two-line timestamp read), so
+// it's left to absorb the slack while Lead and the action column are pinned.
+// Without that, a long status pushed Preview/Approve out of the viewport at
+// 1280px and squeezed the lead name to nothing.
 const ACTIVITY_COLUMNS: SortableColumn[] = [
   { key: 'time', label: 'TIME', sortable: true },
-  { key: 'lead', label: 'LEAD', sortable: true },
+  { key: 'lead', label: 'LEAD', sortable: true, width: '140px' },
   { key: 'sequence', label: 'SEQUENCE / STEP', sortable: false },
   { key: 'channel', label: 'CHANNEL', sortable: true },
   { key: 'status', label: 'STATUS', sortable: true },
   { key: 'opened', label: 'OPENED', sortable: false },
   { key: 'bounced', label: 'BOUNCED', sortable: false },
-  { key: 'action', label: '', sortable: false },
+  { key: 'action', label: '', sortable: false, width: '180px' },
 ]
 
 function compareByKey(a: ActivityRow, b: ActivityRow, key: string, dir: 'asc' | 'desc'): number {
@@ -409,6 +414,9 @@ export function ActivityTab() {
                     draftConfirmedAt={row.draft_confirmed_at}
                     scheduledFor={row.scheduled_for}
                     recipientTimezone={row.recipient_timezone}
+                    // Same reason as the desktop table: the one-line version
+                    // is nowrap and overflows a phone-width card.
+                    layout="stacked"
                   />
                 )}
                 {rowError && <div style={styles.mobileCardError}>{rowError}</div>}
@@ -448,7 +456,7 @@ export function ActivityTab() {
                           {formatPortalDate(row.sent_at ?? row.scheduled_for)}
                         </span>
                       </td>
-                      <td style={styles.td}>
+                      <td style={{ ...styles.td, ...styles.tdLead }}>
                         {row.lead ? (
                           <span style={styles.leadCell}>
                             <strong style={styles.leadName}>{row.lead.first_name} {row.lead.last_name ?? ''}</strong>
@@ -467,7 +475,7 @@ export function ActivityTab() {
                       <td style={styles.td}>
                         <ChannelIcon channel={row.channel} />
                       </td>
-                      <td style={styles.td}>
+                      <td style={{ ...styles.td, ...styles.tdStatus }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                           {isScheduled && <Clock size={12} color={tokens.goldDark} />}
                           <span style={{
@@ -484,6 +492,7 @@ export function ActivityTab() {
                               draftConfirmedAt={row.draft_confirmed_at}
                               scheduledFor={row.scheduled_for}
                               recipientTimezone={row.recipient_timezone}
+                              layout="stacked"
                             />
                           </div>
                         )}
@@ -502,7 +511,7 @@ export function ActivityTab() {
                       <td style={styles.td}>
                         {row.bounced_at && <span style={styles.bounced}>Bounced</span>}
                       </td>
-                      <td style={styles.td} onClick={(e) => e.stopPropagation()}>
+                      <td style={{ ...styles.td, ...styles.tdAction }} onClick={(e) => e.stopPropagation()}>
                         <div style={styles.actionCell}>
                           {/* Offered on approved rows too, not just
                               approvable ones — reading what's about to go out
@@ -581,7 +590,11 @@ const styles: Record<string, CSSProperties> = {
     margin: '0 0 8px',
   },
   emptyBody: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
-  table: { width: '100%', borderCollapse: 'collapse', minWidth: 760 },
+  // 960 is the sum of the pinned/content-sized columns (Lead 140 + Status 180
+  // + Action 180 + the rest). Below that the wrapper scrolls rather than
+  // crushing the action column — but at 1280px the content area is ~1040px,
+  // so it fits without scrolling, which is the point of the fix.
+  table: { width: '100%', borderCollapse: 'collapse', minWidth: 960 },
   resultRow: {
     display: 'flex',
     alignItems: 'center',
@@ -614,6 +627,14 @@ const styles: Record<string, CSSProperties> = {
     borderBottom: `1px solid ${t.border.subtle}`,
     verticalAlign: 'middle',
   },
+  // Pinned so a long status can never squeeze the lead name to nothing.
+  tdLead: { minWidth: 140 },
+  // The flexible column: everything else is pinned or sized to its content,
+  // so Status absorbs whatever width is left over.
+  tdStatus: { width: '100%', minWidth: 180 },
+  // Pinned so Preview + Approve always fit side by side on one line and stay
+  // inside the viewport at 1280px instead of being pushed off the right edge.
+  tdAction: { minWidth: 180 },
   mono: { fontFamily: mono, fontSize: 12, color: t.text.muted },
   muted: { color: t.text.muted, fontStyle: 'italic' },
   leadCell: { display: 'flex', flexDirection: 'column', gap: 1 },

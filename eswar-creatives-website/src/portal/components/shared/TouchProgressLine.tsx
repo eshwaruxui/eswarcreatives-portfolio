@@ -32,10 +32,18 @@ export function TouchProgressLine({
   draftConfirmedAt,
   scheduledFor,
   recipientTimezone,
+  layout = 'inline',
 }: {
   draftConfirmedAt: string | null
   scheduledFor: string
   recipientTimezone: string | null
+  // 'inline' is the original single-line "Approved … → Scheduled …" read, kept
+  // as the default so TodayTab's Scheduled cards are unchanged. 'stacked'
+  // splits it over two lines for ActivityTab, whose table row has to fit a
+  // lead, a sequence, a status *and* two action buttons — as one line the
+  // full string ran ~65 characters and pushed Preview/Approve off-screen at
+  // 1280px. See Section 1's 8 Aug entry.
+  layout?: 'inline' | 'stacked'
 }) {
   if (!draftConfirmedAt) return null
 
@@ -46,6 +54,28 @@ export function TouchProgressLine({
   const secondStepLabel = isDue
     ? 'Queued — sending shortly'
     : `Scheduled ${formatStepTime(scheduledFor, recipientTimezone)}, their local time`
+
+  if (layout === 'stacked') {
+    return (
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <span style={{ fontFamily: mono, fontSize: 11, color: tokens.green, whiteSpace: 'nowrap' }}>
+          ✓ Approved {formatStepTime(draftConfirmedAt, recipientTimezone)}
+        </span>
+        {/* A genuine future hold is passive context and recedes to muted. An
+            already-due touch waiting on the cron keeps the gold in-flight
+            treatment — that's the state PR #21 added this component to make
+            visible in the first place, and muting it would undo that. */}
+        <span style={{
+          fontFamily: mono,
+          fontSize: 10,
+          color: isDue ? tokens.goldDark : t.text.muted,
+          whiteSpace: 'nowrap',
+        }}>
+          {secondStepLabel}
+        </span>
+      </span>
+    )
+  }
 
   return (
     <span style={{ fontFamily: mono, fontSize: 11, whiteSpace: 'nowrap' }}>
