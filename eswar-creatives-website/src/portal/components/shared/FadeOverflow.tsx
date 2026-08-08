@@ -7,10 +7,11 @@
 // src/portal defines a `--surface-page`. A bare `var(--surface-page)` would
 // therefore be an invalid gradient stop, which drops the whole `background`
 // declaration and leaves no fade at all. So the var is emitted *with* a
-// theme-token fallback: `var(--surface-page, #FAF8F4)`. It works today off
+// theme-token fallback: `var(--surface-page, #FAFAF9)`. It works today off
 // `t.background.page`, and defers to the custom property automatically if the
 // portal ever grows one. No hex is written here — the fallback is read from
-// the token.
+// the token, so it followed the page canvas automatically when that moved off
+// the old cream #FAF8F4 on 9 August 2026.
 import type { CSSProperties, ReactNode } from 'react'
 import { t } from '../../theme'
 

@@ -3,11 +3,15 @@
 // loading screen so the palette lives in exactly one place.
 
 export const tokens = {
-  bg:         '#FAF8F4',  // cream
+  // Page canvas. Was the warm cream #FAF8F4 ("Atelier cream") until 9 August
+  // 2026, now Figma background/subtle (neutral.10). This is the single value
+  // every page background in the portal resolves through, so changing it here
+  // is what removes the cream everywhere rather than editing 74 call sites.
+  bg:         '#FAFAF9',  // Figma background/subtle (neutral.10)
   surface:    '#FFFFFF',
   // Overlay-based neutral border (was a low-contrast teal tint #D8E8E8). A
   // semi-transparent near-black reads with consistent contrast on both the
-  // white surfaces and the cream page. See t.border.* for the full scale.
+  // white surfaces and the neutral page. See t.border.* for the full scale.
   border:     'rgba(10, 10, 23, 0.12)',
   primary:    '#024C4F',  // deep teal
   accent:     '#007872',  // teal-mid
@@ -28,7 +32,9 @@ export const tokens = {
   dangerText: '#ee98a8',  // Figma: state/danger-text (Dark mode) / ruby.300
   green:      '#1B6B4A',  // Figma: state/success, border/success, status/accepted-text (success.600)
   greenLight: '#E8F8F0',  // Figma: state/success-subtle, status/accepted-bg, status/paid-bg (success.50)
-  inputBg:    '#FAF8F4',
+  // Matches the page canvas above, as it always has. Both were the cream
+  // #FAF8F4 before 9 August 2026.
+  inputBg:    '#FAFAF9',  // Figma background/subtle (neutral.10)
 } as const
 
 // EC Design System semantic tokens (canonical Figma mapping).
@@ -105,7 +111,15 @@ export const t = {
     onDarkSubtle:       'rgba(210,212,217,0.30)',  // Figma border/on-dark-subtle
   },
   background: {
-    page:           '#FAF8F4',              // page background
+    // The body canvas, and only the canvas. White since 9 August 2026, having
+    // been the warm cream #FAF8F4 and then briefly #FAFAF9 the same day.
+    // Component surfaces are a separate concern and stay on `tokens.bg`
+    // (#FAFAF9): chips, inputs and modal fills need to read as fills against
+    // this canvas, so moving them here would flatten them into it.
+    // `StickyBar` and `FadeOverflow` both resolve their colour from this
+    // token, which is what keeps the footer and the fade matching the canvas
+    // without either of them naming a hex.
+    page:           '#FFFFFF',              // body canvas, Figma background/page (neutral.0)
     subtle:         '#FAFAF9',              // subtle section bg — Figma background/subtle (neutral.10)
     muted:          '#F5F5F4',              // muted fills — Figma background/muted (neutral.50)
     surface:        '#FFFFFF',              // card/panel surfaces
@@ -130,7 +144,8 @@ export const t = {
     dark1:      '#555555',  // Figma background/dark-1 (neutral.600)
     dark2:      '#3A3A3A',  // Figma background/dark-2 (neutral.700)
     dark3:      '#222222',  // Figma background/dark-3 (neutral.800)
-    // Warm-cream card surfaces, distinct from the page's own cream (page/inputBg).
+    // Warm-cream card surfaces. These stay warm deliberately: they are the
+    // only cream left in the portal now that page/inputBg are neutral.
     cardWarm:   '#F5F0E6',  // Figma background/card-warm (warm.50)
     subtleWarm: '#E8DCC4',  // Figma background/subtle-warm (warm.200)
     success:    tokens.greenLight,  // success/confirmation surfaces, alias of tokens.greenLight
