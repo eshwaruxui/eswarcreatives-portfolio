@@ -21,7 +21,10 @@ import {
   type PreviewTouch,
 } from '../../components/shared/TouchPreviewModal'
 import { SortableTableHeader, toggleMultiSort, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
+import { SkeletonRow } from '../../components/shared/SkeletonRow'
+import { Pagination } from '../../components/shared/Pagination'
 import { useConfirmScheduledTouch } from '../../hooks/useConfirmScheduledTouch'
+import { usePagination } from '../../hooks/usePagination'
 
 type ActivityRow = {
   id: string
@@ -177,6 +180,16 @@ export function ActivityTab() {
     setTimeout(() => setToast(null), 2500)
   }
 
+  // Sort runs over the whole feed, then the page is sliced out of the result.
+  // The other order would sort only the visible window, so page 2 would hold
+  // touches that belong on page 1.
+  const sorted = applySorting(rows, sorts)
+  const {
+    currentPage, pageSize, paginatedSlice, goToPage, changePageSize,
+    reset: resetPage, pageStart, pageEnd,
+  } = usePagination(sorted.length, 25)
+  const pageRows = paginatedSlice(sorted)
+
   async function load() {
     startLoad()
     let q = supabase
@@ -205,7 +218,11 @@ export function ActivityTab() {
     finishLoad()
   }
 
-  useEffect(() => { load() }, [filterChannel, filterStatus])
+  // Page 1 on every filter change: staying on page 4 of the previous, wider
+  // result set would land on a page the narrowed one no longer has. Kept here
+  // rather than inside load() on purpose, since the 30s poll below calls
+  // load() too and must never yank the user back to page 1 mid-read.
+  useEffect(() => { resetPage(); load() }, [filterChannel, filterStatus])
 
   // A touch approved inside business hours still waits for the next
   // send-confirmed-outreach-touches cron tick (up to 5 min) before it
@@ -272,11 +289,12 @@ export function ActivityTab() {
   // sort key, an already-active one cycles asc -> desc -> removed in place.
   // "Clear sort" (next to the result count) is the way back to no sort at
   // all. Mirrors LeadsTab's handleSort exactly.
+  // Re-sorting from page 3 has to return to page 1: a reordered list read from
+  // its middle is not the ordering the user just asked for.
   function handleSort(key: string) {
     setSorts((prev) => toggleMultiSort(prev, key))
+    resetPage()
   }
-
-  const sorted = applySorting(rows, sorts)
 
   return (
     <>
@@ -320,21 +338,42 @@ export function ActivityTab() {
         </select>
       </div>
 
-      {!initialLoading && rows.length > 0 && (
-        <div style={styles.resultRow}>
-          <p style={styles.resultCount}>
-            {sorted.length} touch{sorted.length !== 1 ? 'es' : ''}
-          </p>
-          {!isMobile && sorts.length > 0 && (
-            <button type="button" style={styles.clearSortBtn} onClick={() => setSorts([])}>
-              Clear sort{sorts.length > 1 ? ` (${sorts.length})` : ''}
-            </button>
-          )}
+      {/* The bare total that used to sit here now lives in the Pagination bar
+          below the table, where it reads as a range against the whole set
+          ("Showing 1 to 25 of 34 touches") rather than a count with no
+          relationship to what is on screen. */}
+      {!initialLoading && rows.length > 0 && !isMobile && sorts.length > 0 && (
+        <div style={{ ...styles.resultRow, justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            style={styles.clearSortBtn}
+            onClick={() => { setSorts([]); resetPage() }}
+          >
+            Clear sort{sorts.length > 1 ? ` (${sorts.length})` : ''}
+          </button>
         </div>
       )}
 
       {initialLoading ? (
-        <p style={styles.loading}>Loading activity...</p>
+        // Desktop gets a shaped placeholder table so the header and column
+        // rhythm are already in place when the real rows arrive. The mobile
+        // card stack has no columns to hold still, so it keeps the text.
+        isMobile ? (
+          <p style={styles.loading}>Loading activity...</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={styles.table}>
+              <thead>
+                <SortableTableHeader columns={ACTIVITY_COLUMNS} sorts={sorts} onSort={handleSort} />
+              </thead>
+              <tbody>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonRow key={i} columns={ACTIVITY_COLUMNS.length} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       ) : rows.length === 0 ? (
         <div style={styles.emptyState}>
           <p style={styles.emptyHeading}>No activity yet</p>
@@ -343,7 +382,7 @@ export function ActivityTab() {
       ) : isMobile ? (
         <div style={styles.cardStack}>
           <style>{`.ec-tap-card:active { background: ${t.background.tint1}; }`}</style>
-          {sorted.map((row) => {
+          {pageRows.map((row) => {
             const tone = STATUS_TONES[row.status] ?? { bg: t.background.muted, fg: t.text.muted }
             const isScheduled = row.status === 'scheduled'
             // Already approved (draft_confirmed_at set) — waiting on the
@@ -442,7 +481,7 @@ export function ActivityTab() {
               <SortableTableHeader columns={ACTIVITY_COLUMNS} sorts={sorts} onSort={handleSort} />
             </thead>
             <tbody>
-              {sorted.map((row) => {
+              {pageRows.map((row) => {
                 const tone = STATUS_TONES[row.status] ?? { bg: t.background.muted, fg: t.text.muted }
                 const isScheduled = row.status === 'scheduled'
                 const isApprovable = isScheduled && row.channel === 'email' && !row.draft_confirmed_at
@@ -576,6 +615,22 @@ export function ActivityTab() {
           </table>
         </div>
       )}
+
+      {/* One instance for both layouts, below the rows either way. Renders
+          nothing at all on an empty result, and collapses to just the count
+          line when everything fits on a single page. */}
+      {!initialLoading && (
+        <Pagination
+          totalItems={sorted.length}
+          pageSize={pageSize}
+          currentPage={currentPage}
+          onPageChange={goToPage}
+          onPageSizeChange={changePageSize}
+          pageStart={pageStart}
+          pageEnd={pageEnd}
+          itemLabel={sorted.length === 1 ? 'touch' : 'touches'}
+        />
+      )}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </>
   )
@@ -620,12 +675,6 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
-  },
-  resultCount: {
-    fontFamily: mono,
-    fontSize: 12,
-    color: t.text.muted,
-    margin: 0,
   },
   clearSortBtn: {
     background: 'none',
