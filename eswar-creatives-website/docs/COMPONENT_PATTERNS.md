@@ -1,10 +1,13 @@
 # Eswar Creatives Portal - Component Patterns
 
-Last updated: 8 August 2026 (the Pagination stub replaced with the real
-Pagination pattern now that `Pagination` and `usePagination` exist, plus a new
-Table Skeleton Row pattern for `SkeletonRow`. Earlier the same day: the
-Overflow Fade pattern for `FadeOverflow`, the Outreach Touch Approve / Preview
-pattern, and the `t.text.muted` token aligned to #717171 / neutral/500,
+Last updated: 9 August 2026 (Pagination is now always wrapped in the new
+`StickyBar`, with the z-index rationale and the AdminShell offsets it tracks;
+the single-page rule revised to keep the page size selector so a one-page
+result is no longer a dead end; and a Dense Table Width pattern added for the
+LeadsTab horizontal-scroll fix. Previously, 8 August: the Pagination stub
+replaced with the real pattern, the Table Skeleton Row pattern for
+`SkeletonRow`, the Overflow Fade pattern for `FadeOverflow`, the Outreach Touch
+Approve / Preview pattern, and `t.text.muted` aligned to #717171 / neutral/500,
 sharing a primitive with tertiary).
 
 ---
@@ -287,6 +290,7 @@ screen.
 ### Components
 - `src/portal/components/shared/Pagination.tsx`
 - `src/portal/hooks/usePagination.ts`
+- `src/portal/components/shared/StickyBar.tsx`
 
 ### The one ordering rule: sort first, then slice
 `paginatedSlice()` takes an **already sorted** array. Slicing before sorting
@@ -361,13 +365,59 @@ Always shows first, last, current and current +/- 1, collapsing the rest. That
 caps the run at five number buttons: `1 ... 4 5 6 ... 12`. Near an end there
 are simply fewer buttons (`1 2 ... 7`); five is a ceiling, not a quota.
 
+### Always sticky: wrap it in StickyBar
+
+Every caller renders `Pagination` inside `StickyBar`, which pins it to the
+bottom of the content area. Paging a 174-row feed otherwise meant scrolling
+past every row to reach the controls.
+
+```tsx
+{!initialLoading && sorted.length > 0 && (
+  <StickyBar>
+    <Pagination ... />
+  </StickyBar>
+)}
+```
+
+`StickyBar` reuses the existing admin sticky-footer treatment from
+`InvoicesAdmin` / `ProposalsAdmin` / `ClientsList` verbatim: `position: fixed`,
+`bottom: 0`, **z-index 40**, a `t.border.subtle` top border, `t.background.page`
+fill, and safe-area-aware bottom padding.
+
+**On z-index 40.** The portal's rule is that a sticky bar sits *below* every
+overlay so it can never paint over an open dialog. `TopBar` states the same at
+z-index 90. 40 clears page content while staying under modals at 100+,
+`SidePanel` at 201, the mobile nav drawer at 300, the shared `Modal` scrim at
+400, and the lightbox and toasts at 9999. Verified live: `LeadDrawer` opens at
+z-index 10000 and paints over the bar.
+
+**It tracks AdminShell, in two places.** The left offset matches the sidebar
+(240 desktop, 180 tablet, 0 mobile) so the bar starts at the content column
+rather than running under the nav. The horizontal padding matches the shell's
+own content padding (32px desktop, 16px mobile and tablet) so the first control
+lines up with the table above it. An earlier flat 24px left the count label 8px
+adrift, which read as a misaligned bar rather than a deliberate inset. If
+AdminShell's sidebar or padding ever changes, both values here must follow.
+
+**The spacer is measured, not hardcoded.** The bar is out of flow, so
+`StickyBar` renders a spacer of exactly the bar's height ahead of it, sized by a
+`ResizeObserver`. The bar wraps to two lines on narrow viewports, so a constant
+would either clip the last row or leave a visible gap.
+
+**Chrome belongs to the container, not the component.** `Pagination` itself
+carries no border, background or outer margin, so the two cannot double up and
+a future non-sticky caller can frame it however it likes.
+
 ### Edge cases, all verified live
-- **0 items:** the component returns `null`. The caller's own empty state shows
+- **0 items:** the component returns `null` and the caller skips `StickyBar`
+  entirely, so the bar disappears with it. The caller's own empty state shows
   instead. Do not wrap it in a second emptiness check.
-- **Fits on one page:** the bar collapses to the count line only. No nav
-  buttons, no page size selector. **Consequence worth knowing:** with 39 rows
-  at 50 per page you cannot reduce the page size, because the selector is part
-  of the hidden bar. Widen the result set first.
+- **Fits on one page:** the bar stays, and keeps **the page size selector**.
+  The nav buttons and the count label are hidden. This is deliberate: hiding the
+  selector too made a single page a dead end, with no route from "39 rows at 50
+  per page" back to a paged view except widening the result set, which is not
+  what the user was trying to do. Verified live by dropping from 50 to 10 on a
+  single-page result and watching it become paged.
 - **Last page short:** renders only the real rows. Never pad with placeholders.
 - **Filter applied while deep in the list:** `reset()` handles it; the derived
   `currentPage` clamp is the backstop if a caller forgets.
@@ -438,6 +488,60 @@ already uses.
   generic row. Leave them.
 - Mobile card stacks keep their existing spinner. A `<tr>` cannot render into a
   card list, and a card stack has no columns to hold still.
+
+---
+
+## Dense Table Width Pattern
+
+### Rule
+An admin table must not scroll horizontally at a 1280px viewport, where the
+content column is 961px. Two tables have now needed the same fix
+(`ActivityTab` on 8 August, `LeadsTab` on 9 August), so the method is written
+down rather than rediscovered a third time.
+
+### Diagnose before cutting
+Measure at more than one viewport width first. If the column widths are
+identical at, say, a 753px and a 1016px wrapper, every column is already at its
+intrinsic minimum and the table cannot compress: the overflow is content-driven
+and no amount of shrinking the container will help. Also measure at more than
+one page size, because intrinsic width grows with row count (`LeadsTab`
+measured 178px over at 10 rows and 261px at 100). A `minWidth` on the table is
+usually not the binding constraint; check before blaming it.
+
+### The three levers, in order of yield
+1. **Gutters.** The shared `SortableTableHeader` uses 12px. Trimming to 8px or
+   6px, scoped by class, reclaims `columns x 2 x delta` px. `ActivityTab` uses
+   8px, `LeadsTab` 6px, `EnquiriesTab` keeps the shared 12px.
+2. **Cap the widest cell's content.** A `max-width` on a `<td>` is **ignored**
+   under auto table layout. The cap has to go on a block inside the cell, with
+   `overflow: hidden` and `text-overflow: ellipsis`, and the full value moved to
+   a `title` attribute so nothing is actually lost.
+3. **Cap embedded controls.** A `<select>` sizes to its longest option.
+   `LeadsTab` caps `SegmentSelect` from the table's own scoped CSS rather than
+   inside the shared component, which is also used by `LeadDrawer` where the
+   longest label has room to render in full.
+
+### Scope every rule by class
+Gutter and control rules go in a `<style>` block scoped to that table's own
+class (`.ec-activity-table`, `.ec-leads-table`). An unscoped `table td` rule
+would silently reflow every other admin table. Verify after: `EnquiriesTab`'s
+cells were re-measured at 12px to confirm the `LeadsTab` rule had not leaked.
+
+### There is a floor, and it is the headers
+Once the cells are capped, the uppercase column labels plus their sort icons
+become the binding minimum, and further text trimming stops helping.
+`LeadsTab` at 8px gutters was still 9px over no matter how far the lead and
+company caps came down; 6px is what actually closed it. If you are trimming
+text to illegibility for the last few pixels, take them from the gutters, or
+question whether the column earns its place at all. (`LeadsTab`'s COMPANY
+column duplicates the company already shown under the lead name; dropping it
+would free 102px outright.)
+
+### Pick values with headroom, and measure them
+Find the point where overflow returns and then back off. `LeadsTab` ships lead
+104px / company 86px, having measured that it starts overflowing again at 120 /
+100. Record the measured numbers in a comment so the next person does not
+re-derive them.
 
 ---
 
