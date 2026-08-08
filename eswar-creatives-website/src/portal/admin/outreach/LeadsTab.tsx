@@ -590,8 +590,28 @@ export function LeadsTab() {
         </div>
       ) : (
         <div style={{ overflowX: 'auto', ...styles.fadeContent, opacity: refreshing ? 0.6 : 1 }}>
-          <style>{`@keyframes ecFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
-          <table style={styles.table}>
+          {/* Ten columns at the shared header's default 12px gutters totalled
+              1167px against a 961px content area at 1280px, so the table
+              scrolled sideways by 206px. Gutters, the lead and company text
+              caps below, and this segment cap together bring it to exactly
+              961 with zero overflow.
+              6px rather than 8px is measured, not chosen: at 8px the table
+              still ran 9px over, because once the cells are capped the column
+              headers ("LAST TOUCH", "NEXT TOUCH") become the binding floor
+              and no further text trimming helps. Verified at every page size
+              (10, 25, 50, 100), since intrinsic width grows with row count.
+              Scoped by class so ActivityTab (its own 8px) and EnquiriesTab
+              (the shared 12px) are both untouched.
+              The segment cap lives here rather than in SegmentSelect because
+              that component is shared with LeadDrawer, where the dropdown has
+              room to render its longest label in full. */}
+          <style>{`
+            @keyframes ecFadeIn { from { opacity: 0; } to { opacity: 1; } }
+            .ec-leads-table th { padding-left: 6px !important; padding-right: 6px !important; }
+            .ec-leads-table td { padding-left: 6px !important; padding-right: 6px !important; }
+            .ec-leads-table td select { max-width: 114px; }
+          `}</style>
+          <table className="ec-leads-table" style={styles.table}>
             <thead>
               <SortableTableHeader columns={LEAD_COLUMNS} sorts={sorts} onSort={handleSort} />
             </thead>
@@ -601,16 +621,23 @@ export function LeadsTab() {
                   <td style={styles.td}>
                     <div style={styles.leadCell}>
                       <div style={styles.avatar}>{initials(lead.first_name, lead.last_name)}</div>
-                      <div>
-                        <div style={styles.leadName}>
+                      <div style={styles.leadText}>
+                        <div
+                          style={{ ...styles.leadName, ...styles.ellipsis }}
+                          title={`${lead.first_name} ${lead.last_name ?? ''}`.trim()}
+                        >
                           {lead.first_name} {lead.last_name ?? ''}
                         </div>
-                        <div style={styles.leadCompany}>{lead.company}</div>
+                        <div style={{ ...styles.leadCompany, ...styles.ellipsis }} title={lead.company}>
+                          {lead.company}
+                        </div>
                       </div>
                     </div>
                   </td>
                   <td style={styles.td}>
-                    <span style={styles.monoCell}>{lead.company}</span>
+                    <span style={{ ...styles.monoCell, ...styles.companyCellText }} title={lead.company}>
+                      {lead.company}
+                    </span>
                   </td>
                   <td style={styles.td}>
                     <SegmentSelect value={lead.segment} onChange={(v) => handleSegmentChange(lead.id, v)} />
@@ -962,6 +989,25 @@ const styles: Record<string, CSSProperties> = {
     verticalAlign: 'middle',
   },
   leadCell: { display: 'flex', alignItems: 'center', gap: 10 },
+  // The lead column was the single widest cell at 235px, because the avatar
+  // plus two nowrap text lines could grow without limit. Capping the text
+  // block (not the cell: a max-width on a <td> is ignored under auto table
+  // layout) is what actually holds the column down. 104 and the 86 below are
+  // measured: the table starts overflowing again at 120 and 100.
+  leadText: { minWidth: 0, maxWidth: 104 },
+  ellipsis: {
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  companyCellText: {
+    display: 'block',
+    maxWidth: 86,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   avatar: {
     width: 32,
     height: 32,
