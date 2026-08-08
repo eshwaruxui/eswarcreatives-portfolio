@@ -43,10 +43,24 @@ export function StickyBar({ children }: { children: ReactNode }) {
   // column instead of running under the nav.
   const left = isMobile ? 0 : isTablet ? 180 : 240
 
+  // Horizontal padding mirrors AdminShell's own content padding (16px on
+  // mobile and tablet, 32px on desktop) so the bar's first control lines up
+  // with the table above it. An earlier 24px left the count label 8px adrift
+  // of the table's left edge, which read as a misaligned bar rather than as a
+  // deliberate inset.
+  const padX = isMobile || isTablet ? 16 : 32
+
   return (
     <>
       <div style={{ height: barHeight }} aria-hidden="true" />
-      <div ref={barRef} style={{ ...styles.bar, left }}>
+      <div
+        ref={barRef}
+        style={{
+          ...styles.bar,
+          left,
+          padding: `8px ${padX}px calc(8px + env(safe-area-inset-bottom, 0px))`,
+        }}
+      >
         {children}
       </div>
     </>
@@ -61,9 +75,10 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 40,
     background: t.background.page,
     borderTop: `1px solid ${t.border.subtle}`,
-    // Safe-area clearance matches the existing admin sticky footers, so the
-    // bar clears the home indicator on iOS rather than sitting under it.
-    padding: '8px 24px calc(8px + env(safe-area-inset-bottom, 0px))',
+    // Horizontal padding is applied inline so it can track the breakpoint;
+    // the safe-area bottom clearance matches the existing admin sticky
+    // footers, so the bar clears the iOS home indicator rather than sitting
+    // under it.
     boxSizing: 'border-box',
   },
 }
