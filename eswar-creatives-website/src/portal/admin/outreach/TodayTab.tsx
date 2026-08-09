@@ -20,6 +20,7 @@ import {
 } from '../../components/shared/TouchPreviewModal'
 import { Pagination } from '../../components/shared/Pagination'
 import { Skeleton } from '../../components/shared/Skeleton'
+import { StickyBar } from '../../components/shared/StickyBar'
 import { showToast as showGlobalToast } from '../toast'
 import { useReloadableList } from '../../hooks/useReloadableList'
 import { useConfirmScheduledTouch } from '../../hooks/useConfirmScheduledTouch'
@@ -507,6 +508,61 @@ export function TodayTab({
     return () => observer.disconnect()
   }, [dueRendered, pendingRendered, approvedRendered])
 
+  // Exactly one pagination bar on this tab, carrying the controls for whichever
+  // section is currently in view. The other two sections keep their page state
+  // in full (usePagination above) and simply render no bar while inactive, so
+  // paging one list still never disturbs another.
+  //
+  // Returns null when there is nothing to page, so the caller can skip
+  // StickyBar entirely rather than pin an empty bar to the viewport.
+  function activePaginationBar() {
+    if (activeSection === 'due' && dueRendered) {
+      return (
+        <Pagination
+          totalItems={dueQueue.length}
+          pageSize={duePageSize}
+          currentPage={duePage}
+          onPageChange={goToDuePage}
+          onPageSizeChange={changeDuePageSize}
+          pageStart={dueStart}
+          pageEnd={dueEnd}
+          itemLabel="touches"
+        />
+      )
+    }
+    if (activeSection === 'pending' && pendingRendered) {
+      return (
+        <Pagination
+          totalItems={pendingConfirmation.length}
+          pageSize={pendingPageSize}
+          currentPage={pendingPage}
+          onPageChange={goToPendingPage}
+          onPageSizeChange={changePendingPageSize}
+          pageStart={pendingStart}
+          pageEnd={pendingEnd}
+          itemLabel="touches"
+        />
+      )
+    }
+    if (activeSection === 'approved' && approvedRendered) {
+      return (
+        <Pagination
+          totalItems={scheduledApproved.length}
+          pageSize={approvedPageSize}
+          currentPage={approvedPage}
+          onPageChange={goToApprovedPage}
+          onPageSizeChange={changeApprovedPageSize}
+          pageStart={approvedStart}
+          pageEnd={approvedEnd}
+          itemLabel="touches"
+        />
+      )
+    }
+    return null
+  }
+
+  const paginationBar = activePaginationBar()
+
   // The modal owns its own edit/save/thread state now — this tab only says
   // which touch is open, whether it's still approvable, and what to do with a
   // saved edit or a successful approve.
@@ -611,8 +667,7 @@ export function TodayTab({
       ) : isEmpty ? (
         <EmptyQueue />
       ) : (
-        <>
-          <div ref={dueSectionRef} style={styles.sections}>
+        <div ref={dueSectionRef} style={styles.sections}>
             {/* Each section renders its slice of the shared page, but its count
                 badge stays the section total. The badge answers "how much is
                 overdue", which the page you happen to be on should not change;
@@ -639,20 +694,7 @@ export function TodayTab({
                 onRefresh={load}
               />
             )}
-          </div>
-          <div style={styles.sectionPagination}>
-            <Pagination
-              totalItems={dueQueue.length}
-              pageSize={duePageSize}
-              currentPage={duePage}
-              onPageChange={goToDuePage}
-              onPageSizeChange={changeDuePageSize}
-              pageStart={dueStart}
-              pageEnd={dueEnd}
-              itemLabel="touches"
-            />
-          </div>
-        </>
+        </div>
       )}
 
       {!initialLoading && pendingConfirmation.length > 0 && (
@@ -710,18 +752,6 @@ export function TodayTab({
               )
             })}
           </div>
-          <div style={styles.sectionPagination}>
-            <Pagination
-              totalItems={pendingConfirmation.length}
-              pageSize={pendingPageSize}
-              currentPage={pendingPage}
-              onPageChange={goToPendingPage}
-              onPageSizeChange={changePendingPageSize}
-              pageStart={pendingStart}
-              pageEnd={pendingEnd}
-              itemLabel="touches"
-            />
-          </div>
         </div>
       )}
 
@@ -761,20 +791,13 @@ export function TodayTab({
               )
             })}
           </div>
-          <div style={styles.sectionPagination}>
-            <Pagination
-              totalItems={scheduledApproved.length}
-              pageSize={approvedPageSize}
-              currentPage={approvedPage}
-              onPageChange={goToApprovedPage}
-              onPageSizeChange={changeApprovedPageSize}
-              pageStart={approvedStart}
-              pageEnd={approvedEnd}
-              itemLabel="touches"
-            />
-          </div>
         </div>
       )}
+
+      {/* One bar for the whole tab, pinned to the bottom of the content area by
+          the same shared StickyBar every other admin list uses. Which section's
+          controls it carries is decided by the IntersectionObserver above. */}
+      {paginationBar && <StickyBar>{paginationBar}</StickyBar>}
     </>
   )
 }
@@ -1144,17 +1167,6 @@ const styles: Record<string, CSSProperties> = {
   },
   sections: { display: 'flex', flexDirection: 'column', gap: 32 },
   section: { display: 'flex', flexDirection: 'column', gap: 0 },
-  // Inline pagination container, one per paginated section on this tab.
-  // Deliberately not StickyBar: that one is position:fixed at bottom 0, so the
-  // three bars this tab needs would superimpose at identical coordinates rather
-  // than stack, and each would inject its own measured spacer at a different
-  // point in the flow. Pagination carries no chrome of its own precisely so a
-  // non-sticky caller can frame it, which is what this does.
-  sectionPagination: {
-    marginTop: 16,
-    paddingTop: 12,
-    borderTop: `1px solid ${t.border.subtle}`,
-  },
   sectionHeader: {
     display: 'flex',
     alignItems: 'center',
