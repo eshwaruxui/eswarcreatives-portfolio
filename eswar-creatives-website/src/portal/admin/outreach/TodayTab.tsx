@@ -167,7 +167,12 @@ type FollowUpLead = {
 // section's controls.
 type SectionKey = 'due' | 'pending' | 'approved'
 
-const SECTION_ORDER: SectionKey[] = ['due', 'pending', 'approved']
+// IntersectionObserver only calls back when a threshold is crossed, so the
+// granularity of these steps is the granularity of the whole decision. 2% of a
+// 3000px section is roughly 60px of scroll, fine against an 800px viewport.
+// A single threshold would fire twice per section (fully out, fully in) and
+// leave the boundary case with no callback at all.
+const SECTION_THRESHOLDS = Array.from({ length: 51 }, (_, i) => i / 50)
 
 export function TodayTab({
   onRefreshCount,
@@ -483,25 +488,43 @@ export function TodayTab({
       return
     }
 
-    const visible = new Set<SectionKey>()
     const observer = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) {
-          const match = targets.find(([, el]) => el === entry.target)
-          if (!match) continue
-          if (entry.isIntersecting) visible.add(match[0])
-          else visible.delete(match[0])
+        // rootBounds is the viewport rect the browser just measured against.
+        // Preferred over reading it back off the document, which would be a
+        // second measurement of the same thing and can disagree mid-scroll.
+        const viewportHeight =
+          entries[0]?.rootBounds?.height ?? document.documentElement.clientHeight
+
+        // Whichever section fills more of the viewport wins, measured in real
+        // pixels rather than by intersectionRatio. Ratio is relative to each
+        // section's own height, so a short section fully on screen would beat a
+        // long one covering three times as much of it.
+        //
+        // Every section is re-measured on every callback, not just the entries
+        // that changed: the comparison is only meaningful if both sides of it
+        // are current, and a stale rect for the section that did not cross a
+        // threshold is what would make the winner wrong.
+        let best: SectionKey | null = null
+        let bestVisible = 0
+        for (const [key, el] of targets) {
+          const rect = el.getBoundingClientRect()
+          const visible = Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0)
+          // Strictly greater, and targets are in render order, so an exact tie
+          // resolves to the upper section every time. Deterministic ties are
+          // what stop the bar oscillating when two sections are level.
+          if (visible > bestVisible) {
+            bestVisible = visible
+            best = key
+          }
         }
-        // First section in render order that is on screen at all. This is
-        // replaced by a visible-area comparison in a later commit, because
-        // first-match alone flickers at a section boundary.
-        const next = SECTION_ORDER.find((key) => visible.has(key))
-        // Never fall back to null while scrolling: between two sections there
-        // can be a frame with nothing intersecting, and blanking the bar there
-        // would read as it disappearing at random.
-        if (next) setActiveSection(next)
+
+        // Never fall back to null while sections exist: between two sections
+        // there can be a frame with nothing intersecting, and blanking the bar
+        // there would read as it disappearing at random.
+        if (best) setActiveSection(best)
       },
-      { threshold: 0 }
+      { threshold: SECTION_THRESHOLDS }
     )
 
     targets.forEach(([, el]) => observer.observe(el))
