@@ -1,6 +1,13 @@
 # Eswar Creatives Portal - Component Patterns
 
-Last updated: 9 August 2026 (Pagination is now always wrapped in the new
+Last updated: 9 August 2026 (a Variant Union Pattern added after
+`fix/ts-real-defects` found `PortfolioButton` being passed a variant outside
+its union: cva emits no variant classes at all for an unrecognised value rather
+than falling back to the default, so that CTA had no border width and rendered
+as bare text on a dark surface. The same section records why a TS2367 dead
+comparison is not automatically a rendering bug, since the other two findings
+that session were dead code sitting on the correct side of a narrowed union.
+Previously: Pagination is now always wrapped in the new
 `StickyBar`, with the z-index rationale and the AdminShell offsets it tracks;
 the single-page rule revised to keep both the count label and the page size
 selector, hiding only the nav, so a one-page result is neither a dead end nor
@@ -714,8 +721,68 @@ its own spacer with a `ResizeObserver` rather than a constant).
 
 ---
 
+## Variant Union Pattern (cva)
+
+### Rule
+Never pass a `variant` value that is not in the component's union. It does
+**not** fall back to the default variant. It falls back to nothing.
+
+### Why this is worth its own section
+`cva` applies `defaultVariants` only when a prop is `undefined`. A value that is
+*defined but unrecognised* matches no key in the variant map, so cva emits **no
+classes for that variant at all** and you are left with the base and size
+classes only. There is no warning, at build time or in the console.
+
+Found on `DesignSystemsCaseStudy:878` (9 August 2026), which passed
+`variant="outline"` to `PortfolioButton`, whose union is `accent | brand |
+ghost | inverse | primary | secondary`. The typecheck flagged it; nothing else
+did.
+
+### The failure is quieter than it sounds
+That call site sets `borderColor` in an inline `style`, so it read as a
+correctly specified outline button. But no variant meant no `border` class,
+which means no border *width*, and `border-color` alone paints nothing.
+Measured on the live page: `border-top-width` was `0px` before the fix and
+`1px` after. The button had been rendering as bare text on a dark teal surface.
+
+If a variant looks like it is being ignored, check the union before checking
+your CSS. And be careful with inline `style` overrides on a variant component:
+they can make a broken variant look deliberate, because the properties you
+named are all correct and it is the one you did not name that is missing.
+
+### Pick an existing variant over widening the union
+`inverse` already existed for exactly this case, documented in
+`portfolio-button.tsx` as "outlined on dark surface". Adding `outline` would
+have been a seventh near-duplicate of it. Widen the union only when no existing
+variant expresses the role, not to make a call site compile.
+
+`PortfolioButton` variants and their intended roles:
+
+| Variant | Role |
+|---|---|
+| `primary` | dark CTA |
+| `brand` | teal fill |
+| `accent` | gold CTA |
+| `secondary` | outlined ghost on a light surface |
+| `ghost` | text only |
+| `inverse` | **outlined on a dark surface** |
+
+### A TS2367 is not automatically a rendering bug
+Related, from the same audit. Two other findings that session compared string
+literals that could never be equal, and both turned out to be **dead code
+sitting on the correct side of a narrowed union**: a duplicated sub-nav whose
+inactive styling happened to be right, and a redundant `kind === 'image'` guard
+inside the else of a `kind === 'image'` ternary. Changing the comparison, which
+is what "fix the dead branch" implies, would have introduced a bug in the first
+case. Read what the narrowed branch actually renders before assuming something
+is missing from the screen. Only the cva variant above changed any pixels.
+
+---
+
 ## Standing rules
 - No em dashes in any component copy or code
 - No raw hex outside theme.ts
 - All colors from t.* semantic tokens or tokens.*
 - motionTokens for all transitions
+- Never pass a variant value outside a cva component's union: unrecognised
+  values emit no variant classes at all, they do not fall back to the default
