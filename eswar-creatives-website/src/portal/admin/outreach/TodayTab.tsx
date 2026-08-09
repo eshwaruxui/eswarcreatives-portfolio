@@ -1,7 +1,7 @@
 // Today queue tab for the Outreach admin module.
 // Shows Overdue (scheduled_for < today) then Due Today sections.
 // Handles all edge cases: no email, linkedin awaiting connection, suppressed.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Mail, Linkedin, Clock, AlertTriangle, Loader2 } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
@@ -159,6 +159,14 @@ type FollowUpLead = {
   company: string
   draft_message: string | null
 }
+
+// The three paginated sections on this tab, in the order they render. Each owns
+// its own usePagination instance; this key only says which one the reader is
+// currently looking at, so the single shared pagination bar can show that
+// section's controls.
+type SectionKey = 'due' | 'pending' | 'approved'
+
+const SECTION_ORDER: SectionKey[] = ['due', 'pending', 'approved']
 
 export function TodayTab({
   onRefreshCount,
@@ -437,6 +445,68 @@ export function TodayTab({
   } = usePagination(scheduledApproved.length, 25)
   const approvedPageRows = approvedSlice(scheduledApproved)
 
+  // Which section the reader is currently looking at, so one shared pagination
+  // bar can show that section's controls instead of three bars competing for
+  // the same fixed position at the bottom of the viewport.
+  //
+  // IntersectionObserver rather than a scroll handler: the browser computes the
+  // intersection off the main thread and only calls back when it changes, so
+  // there is nothing polling and nothing measuring on every scroll frame. No
+  // breakpoint logic is involved either, so no matchMedia and no innerWidth.
+  const [activeSection, setActiveSection] = useState<SectionKey | null>(null)
+  const dueSectionRef = useRef<HTMLDivElement>(null)
+  const pendingSectionRef = useRef<HTMLDivElement>(null)
+  const approvedSectionRef = useRef<HTMLDivElement>(null)
+
+  // Which sections exist in the DOM at all. A section that is empty renders
+  // nothing, so the observer must re-attach when one appears or disappears
+  // rather than holding a stale target.
+  const dueRendered = !initialLoading && !isEmpty
+  const pendingRendered = !initialLoading && pendingConfirmation.length > 0
+  const approvedRendered = !initialLoading && scheduledApproved.length > 0
+
+  useEffect(() => {
+    const targets: [SectionKey, HTMLElement][] = []
+    if (dueSectionRef.current) targets.push(['due', dueSectionRef.current])
+    if (pendingSectionRef.current) targets.push(['pending', pendingSectionRef.current])
+    if (approvedSectionRef.current) targets.push(['approved', approvedSectionRef.current])
+
+    if (targets.length === 0) {
+      setActiveSection(null)
+      return
+    }
+    // Only one section on the tab: it is always the active one, and no observer
+    // is needed to work that out.
+    if (targets.length === 1) {
+      setActiveSection(targets[0][0])
+      return
+    }
+
+    const visible = new Set<SectionKey>()
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const match = targets.find(([, el]) => el === entry.target)
+          if (!match) continue
+          if (entry.isIntersecting) visible.add(match[0])
+          else visible.delete(match[0])
+        }
+        // First section in render order that is on screen at all. This is
+        // replaced by a visible-area comparison in a later commit, because
+        // first-match alone flickers at a section boundary.
+        const next = SECTION_ORDER.find((key) => visible.has(key))
+        // Never fall back to null while scrolling: between two sections there
+        // can be a frame with nothing intersecting, and blanking the bar there
+        // would read as it disappearing at random.
+        if (next) setActiveSection(next)
+      },
+      { threshold: 0 }
+    )
+
+    targets.forEach(([, el]) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [dueRendered, pendingRendered, approvedRendered])
+
   // The modal owns its own edit/save/thread state now — this tab only says
   // which touch is open, whether it's still approvable, and what to do with a
   // saved edit or a successful approve.
@@ -542,7 +612,7 @@ export function TodayTab({
         <EmptyQueue />
       ) : (
         <>
-          <div style={styles.sections}>
+          <div ref={dueSectionRef} style={styles.sections}>
             {/* Each section renders its slice of the shared page, but its count
                 badge stays the section total. The badge answers "how much is
                 overdue", which the page you happen to be on should not change;
@@ -586,7 +656,7 @@ export function TodayTab({
       )}
 
       {!initialLoading && pendingConfirmation.length > 0 && (
-        <div style={styles.pendingSection}>
+        <div ref={pendingSectionRef} style={styles.pendingSection}>
           <div style={styles.pendingSectionHeader}>
             <span style={styles.sectionTitle}>Review in Advance</span>
             <span style={{ ...styles.sectionCount, color: tokens.goldDark, fontFamily: mono }}>
@@ -656,7 +726,7 @@ export function TodayTab({
       )}
 
       {!initialLoading && scheduledApproved.length > 0 && (
-        <div style={styles.pendingSection}>
+        <div ref={approvedSectionRef} style={styles.pendingSection}>
           <div style={styles.pendingSectionHeader}>
             <span style={styles.sectionTitle}>Scheduled</span>
             <span style={{ ...styles.sectionCount, color: tokens.green, fontFamily: mono }}>
