@@ -433,33 +433,103 @@ would either clip the last row or leave a visible gap.
 carries no border, background or outer margin, so the two cannot double up and
 a non-sticky caller can frame it however it likes.
 
-### More than one list on a page: inline, not sticky
+### More than one list on a page: one bar, scroll-driven active section
 
-`StickyBar` is `position: fixed; bottom: 0`, so **it does not stack**. Two
-instances land at identical coordinates and paint over each other, and each
-injects its own `ResizeObserver`-measured spacer at its own point in the flow.
-There is no per-instance offset and adding one would be a new layout pattern.
+**This supersedes the inline-container rule that stood here between 10 and 11
+August 2026.** That rule said a multi-list screen renders each `Pagination`
+inline under its own list, because `StickyBar` cannot stack. The first half was
+wrong in practice and is recorded below rather than deleted, because the
+constraint that produced it is still real and will be hit again.
 
-A screen with several lists therefore renders each `Pagination` inline, under
-the list it belongs to, in a plain container. This is the case the chrome-free
-component was built for. Do not invent a stacking variant of `StickyBar`.
+**Constraint one, still true: `StickyBar` does not stack.** It is
+`position: fixed; bottom: 0`. Two instances land at identical coordinates and
+paint over each other, and each injects its own `ResizeObserver`-measured
+spacer at its own point in the flow. There is no per-instance offset. Do not
+invent a stacking variant.
+
+**Constraint two, found on the live preview: inline bars are unusable.** With
+one bar sitting inline under each list, reaching Review in Advance's controls
+meant scrolling past all 53 of its rows, and Scheduled's past 41 more. That is
+the exact problem `StickyBar` was introduced to solve on single-list screens,
+reintroduced by the workaround for constraint one.
+
+**The shipped pattern satisfies both.** One `StickyBar` for the whole screen,
+rendered once at the end of the flow, containing exactly one `Pagination`: the
+one belonging to whichever section is currently in view. Inactive sections
+render no bar and keep their page state.
 
 ```tsx
-<div style={styles.sectionPagination}>
-  <Pagination ... />
-</div>
+// One instance per list, all independent, none of them shared.
+const due = usePagination(dueQueue.length, 25)
+const pending = usePagination(pendingConfirmation.length, 25)
+const approved = usePagination(scheduledApproved.length, 25)
 
-sectionPagination: {
-  marginTop: 16,
-  paddingTop: 12,
-  borderTop: `1px solid ${t.border.subtle}`,
-},
+// Returns null when there is nothing to page, so StickyBar is skipped
+// rather than pinned empty.
+const paginationBar = activePaginationBar()
+
+{paginationBar && <StickyBar>{paginationBar}</StickyBar>}
 ```
 
-`TodayTab` is the only such screen today, with three: the Overdue/Due Today
-queue, Review in Advance, and Scheduled. Each gets its **own** `usePagination`
-instance with its own `totalItems` and page state; one shared instance would
-move one list underneath the reader while they page another.
+#### Deciding which section is active
+
+`IntersectionObserver` on each section's wrapper. Not a scroll handler: the
+browser computes intersections off the main thread and calls back only on
+change, so nothing polls and nothing measures per scroll frame. No breakpoint
+logic, so no `matchMedia` and no `innerWidth`. No new dependency.
+
+Four rules, each learned by getting it wrong first:
+
+- **Compare visible pixels, not `intersectionRatio`.** Ratio is relative to
+  each section's own height, so a short section fully on screen outranks a long
+  one covering three times as much of the viewport.
+- **Re-measure every section on every callback**, not just the entries that
+  crossed a threshold. The comparison is only meaningful if both sides are
+  current; a stale rect for the section that did not move is what makes the
+  winner wrong.
+- **Never fall back to `null` while sections exist.** Scrolling across a
+  boundary can leave a frame with nothing intersecting, and blanking the bar
+  there reads as it vanishing at random.
+- **Use a dense threshold list**, not a single `0`. One threshold fires twice
+  per section and gives the boundary case no callback at all. `TodayTab` uses
+  51 steps; 2% of a 3000px section is about 60px of scroll.
+
+Picking by most-visible-area is what stops the flicker, and it needs no
+hysteresis on top: visible area is monotonic through a scroll, so the winner
+changes exactly once per boundary. Ties resolve to the upper section
+deterministically (strict greater-than over targets in render order), so two
+level sections cannot oscillate.
+
+#### A fixed-position bar displaces whatever else was pinned down there
+
+Adding the bar to a screen that already had something at `bottom: 0` will
+collide. `TodayTab`'s toast was fixed at `bottom: 24`, which put it on top of
+the new bar, and on mobile a 77px bar swallowed it whole.
+
+Offset by the bar's **measured** height, not a constant per breakpoint.
+`StickyBar` does not expose its height and should not be changed to; wrap it
+and measure the wrapper, which works because `StickyBar` renders a flow spacer
+of exactly the bar's height plus the bar itself out of flow:
+
+```tsx
+<div ref={stickyWrapRef}>
+  <StickyBar>{paginationBar}</StickyBar>
+</div>
+
+// wrapper height === bar height, and already includes both the two-line
+// wrap on narrow viewports and env(safe-area-inset-bottom).
+<div style={{ ...styles.toast, bottom: stickyBarHeight + TOAST_GAP }}>
+```
+
+Measuring is what makes it correct on mobile without the caller knowing
+anything about breakpoints. With no bar on screen the offset collapses to the
+original value, so a screen with nothing to page renders exactly as before.
+
+`TodayTab` is the only such screen today, with three lists: the Overdue/Due
+Today queue, Review in Advance, and Scheduled. Each gets its **own**
+`usePagination` instance with its own `totalItems` and page state; one shared
+instance would move one list underneath the reader while they page another.
+Which bar is visible is the only thing the active section changes.
 
 **Overdue and Due Today page as one list.** They come from one query and read
 as one queue, so `TodayTab` concatenates them, slices once, then splits the
@@ -506,9 +576,10 @@ rows, which is the point at which paging should move server-side.
 ### Current usages
 - `ActivityTab`, `LeadsTab`, `EnquiriesTab`, all at 25 per page, one instance
   each, inside `StickyBar`.
-- `TodayTab`, 25 per page, **three** instances, inline. Its Review in Advance
-  and Scheduled queries carried a silent `.limit(20)` until 10 Aug 2026, which
-  is what kept them under one page and hid the need for this.
+- `TodayTab`, 25 per page, **three** instances, one shared `StickyBar` showing
+  whichever section is in view (11 Aug 2026). Its Review in Advance and
+  Scheduled queries carried a silent `.limit(20)` until 10 Aug 2026, which is
+  what kept them under one page and hid the need for any of this.
 
 ---
 
