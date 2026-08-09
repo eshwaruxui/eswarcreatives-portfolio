@@ -353,7 +353,11 @@ State is pulled back in line by an effect, never during render.
 
 Call `reset()` on anything that changes how many rows there are: every filter,
 the search box, and both sort entry points (column headers and the mobile sort
-sheet). Two placement rules that are not obvious:
+sheet). A screen with none of those three has **no** `reset()` call site and
+should not grow one. `TodayTab` has no filter, search or sort, so its only
+row-count change is the 30s poll, where resetting is the first trap below. The
+derived `currentPage` clamp is what carries that screen. Two placement rules
+that are not obvious:
 
 - **Not inside `load()`.** `ActivityTab` and `TodayTab` call `load()` from a
   30s background poll. A reset there yanks the user back to page 1 every 30
@@ -386,11 +390,11 @@ Always shows first, last, current and current +/- 1, collapsing the rest. That
 caps the run at five number buttons: `1 ... 4 5 6 ... 12`. Near an end there
 are simply fewer buttons (`1 2 ... 7`); five is a ceiling, not a quota.
 
-### Always sticky: wrap it in StickyBar
+### Sticky by default: wrap it in StickyBar
 
-Every caller renders `Pagination` inside `StickyBar`, which pins it to the
-bottom of the content area. Paging a 174-row feed otherwise meant scrolling
-past every row to reach the controls.
+A screen with **one** list renders `Pagination` inside `StickyBar`, which pins
+it to the bottom of the content area. Paging a 174-row feed otherwise meant
+scrolling past every row to reach the controls.
 
 ```tsx
 {!initialLoading && sorted.length > 0 && (
@@ -427,7 +431,42 @@ would either clip the last row or leave a visible gap.
 
 **Chrome belongs to the container, not the component.** `Pagination` itself
 carries no border, background or outer margin, so the two cannot double up and
-a future non-sticky caller can frame it however it likes.
+a non-sticky caller can frame it however it likes.
+
+### More than one list on a page: inline, not sticky
+
+`StickyBar` is `position: fixed; bottom: 0`, so **it does not stack**. Two
+instances land at identical coordinates and paint over each other, and each
+injects its own `ResizeObserver`-measured spacer at its own point in the flow.
+There is no per-instance offset and adding one would be a new layout pattern.
+
+A screen with several lists therefore renders each `Pagination` inline, under
+the list it belongs to, in a plain container. This is the case the chrome-free
+component was built for. Do not invent a stacking variant of `StickyBar`.
+
+```tsx
+<div style={styles.sectionPagination}>
+  <Pagination ... />
+</div>
+
+sectionPagination: {
+  marginTop: 16,
+  paddingTop: 12,
+  borderTop: `1px solid ${t.border.subtle}`,
+},
+```
+
+`TodayTab` is the only such screen today, with three: the Overdue/Due Today
+queue, Review in Advance, and Scheduled. Each gets its **own** `usePagination`
+instance with its own `totalItems` and page state; one shared instance would
+move one list underneath the reader while they page another.
+
+**Overdue and Due Today page as one list.** They come from one query and read
+as one queue, so `TodayTab` concatenates them, slices once, then splits the
+slice back into the two rendered sections. Paging them separately would put a
+paginated half and an unpaginated half of the same result set side by side. A
+section's count badge stays the **section total**, not the page count: the
+badge answers "how much is overdue", which the current page should not change.
 
 ### Edge cases, all verified live
 - **0 items:** the component returns `null` and the caller skips `StickyBar`
@@ -465,7 +504,11 @@ touch in the database. That understates the total once the table passes 200
 rows, which is the point at which paging should move server-side.
 
 ### Current usages
-- `ActivityTab`, `LeadsTab`, `EnquiriesTab`, all at 25 per page.
+- `ActivityTab`, `LeadsTab`, `EnquiriesTab`, all at 25 per page, one instance
+  each, inside `StickyBar`.
+- `TodayTab`, 25 per page, **three** instances, inline. Its Review in Advance
+  and Scheduled queries carried a silent `.limit(20)` until 10 Aug 2026, which
+  is what kept them under one page and hid the need for this.
 
 ---
 
@@ -479,6 +522,19 @@ screen means nothing jumps when the real rows arrive.
 
 ### Component
 - `src/portal/components/shared/SkeletonRow.tsx`
+
+### Tables only, and that is a hard limit
+`SkeletonRow` returns a `<tr>` of `<td>`s. Outside a `<table>` that is not a
+row, so a div-based card list cannot use it; reach past it to the `Skeleton`
+block it composes and shape the placeholder like the card. `TodayTab` is that
+case: its three lists are `styles.touchList` → `SimpleTouchRow` →
+`styles.touchCard`, and its loading state is four card-shaped `Skeleton`
+placeholders. The shimmer is identical either way, since both paths end at the
+same block.
+
+Related: when several sections share one `initialLoading` gate, they share one
+placeholder too. Do not give each section its own, or a section that comes back
+empty will still have flashed a header during load.
 
 ### Props
 - `columns`: number. Pass the column array's length, never a literal.

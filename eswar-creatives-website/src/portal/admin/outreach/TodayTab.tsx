@@ -382,8 +382,8 @@ export function TodayTab({
   // separately would put a paginated half and an unpaginated half of the same
   // result set on screen next to each other.
   //
-  // The concatenation order is already the sort order — overdue first, then due
-  // today, each ordered by scheduled_for by the query — so this satisfies the
+  // The concatenation order is already the sort order (overdue first, then due
+  // today, each ordered by scheduled_for by the query), so this satisfies the
   // hook's sort-first-then-slice rule without a second sort.
   const dueQueue = [...overdue, ...dueToday]
   const {
