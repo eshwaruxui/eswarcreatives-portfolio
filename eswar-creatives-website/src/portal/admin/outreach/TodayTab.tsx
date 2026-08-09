@@ -174,6 +174,12 @@ type SectionKey = 'due' | 'pending' | 'approved'
 // leave the boundary case with no callback at all.
 const SECTION_THRESHOLDS = Array.from({ length: 51 }, (_, i) => i / 50)
 
+// Gap between the toast and whatever is below it: the pagination bar when one
+// is showing, otherwise the bottom of the viewport. Was the toast's flat
+// bottom offset before the bar existed, and stays the same on a tab with
+// nothing to page.
+const TOAST_GAP = 24
+
 export function TodayTab({
   onRefreshCount,
 }: {
@@ -586,6 +592,34 @@ export function TodayTab({
 
   const paginationBar = activePaginationBar()
 
+  // This tab's toast is fixed at the bottom of the viewport, which is now where
+  // the pagination bar lives too, so the toast has to sit above it rather than
+  // across it. StickyBar does not expose its own height, and it must not be
+  // modified to, so the height is read off the wrapper below instead: StickyBar
+  // renders a spacer of exactly the bar's height in normal flow plus the bar
+  // itself out of flow, so the wrapper's own height is the bar's height.
+  //
+  // Measured rather than a constant per breakpoint, which is what makes this
+  // correct on mobile for free. The bar wraps to two lines on a narrow viewport
+  // (47px at 1280, 77px at 570) and its padding already carries
+  // env(safe-area-inset-bottom), so both the wrap and the safe area are inside
+  // the number without this file knowing about either.
+  const stickyWrapRef = useRef<HTMLDivElement>(null)
+  const [stickyBarHeight, setStickyBarHeight] = useState(0)
+
+  useEffect(() => {
+    const el = stickyWrapRef.current
+    if (!el) {
+      setStickyBarHeight(0)
+      return
+    }
+    const sync = () => setStickyBarHeight(el.getBoundingClientRect().height)
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [!!paginationBar])
+
   // The modal owns its own edit/save/thread state now — this tab only says
   // which touch is open, whether it's still approvable, and what to do with a
   // saved edit or a successful approve.
@@ -601,7 +635,11 @@ export function TodayTab({
 
   return (
     <>
-      {toast && <div style={styles.toast}>{toast}</div>}
+      {toast && (
+        // Clears the pagination bar when one is showing, and falls back to the
+        // original flat 24px when there is nothing to page.
+        <div style={{ ...styles.toast, bottom: stickyBarHeight + TOAST_GAP }}>{toast}</div>
+      )}
       {activeTouch && (
         <OutreachSendModal
           touch={activeTouch}
@@ -820,7 +858,11 @@ export function TodayTab({
       {/* One bar for the whole tab, pinned to the bottom of the content area by
           the same shared StickyBar every other admin list uses. Which section's
           controls it carries is decided by the IntersectionObserver above. */}
-      {paginationBar && <StickyBar>{paginationBar}</StickyBar>}
+      {paginationBar && (
+        <div ref={stickyWrapRef}>
+          <StickyBar>{paginationBar}</StickyBar>
+        </div>
+      )}
     </>
   )
 }
@@ -1463,7 +1505,9 @@ const styles: Record<string, CSSProperties> = {
   },
   toast: {
     position: 'fixed',
-    bottom: 24,
+    // `bottom` is always supplied inline by the caller, which offsets it above
+    // the pagination bar when one is on screen. Deliberately absent here so the
+    // two cannot disagree.
     left: '50%',
     transform: 'translateX(-50%)',
     background: tokens.primary,
