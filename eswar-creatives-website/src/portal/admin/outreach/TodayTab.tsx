@@ -1,7 +1,7 @@
 // Today queue tab for the Outreach admin module.
 // Shows Overdue (scheduled_for < today) then Due Today sections.
 // Handles all edge cases: no email, linkedin awaiting connection, suppressed.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Mail, Linkedin, Clock, AlertTriangle, Loader2 } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
@@ -18,9 +18,13 @@ import {
   PREVIEW_TOUCH_SELECT,
   type PreviewTouch,
 } from '../../components/shared/TouchPreviewModal'
+import { Pagination } from '../../components/shared/Pagination'
+import { Skeleton } from '../../components/shared/Skeleton'
+import { StickyBar } from '../../components/shared/StickyBar'
 import { showToast as showGlobalToast } from '../toast'
 import { useReloadableList } from '../../hooks/useReloadableList'
 import { useConfirmScheduledTouch } from '../../hooks/useConfirmScheduledTouch'
+import { usePagination } from '../../hooks/usePagination'
 
 // The preview modal, its template resolution, and the prior-email thread all
 // moved to components/shared/TouchPreviewModal so ActivityTab's "Awaiting
@@ -157,6 +161,25 @@ type FollowUpLead = {
   draft_message: string | null
 }
 
+// The three paginated sections on this tab, in the order they render. Each owns
+// its own usePagination instance; this key only says which one the reader is
+// currently looking at, so the single shared pagination bar can show that
+// section's controls.
+type SectionKey = 'due' | 'pending' | 'approved'
+
+// IntersectionObserver only calls back when a threshold is crossed, so the
+// granularity of these steps is the granularity of the whole decision. 2% of a
+// 3000px section is roughly 60px of scroll, fine against an 800px viewport.
+// A single threshold would fire twice per section (fully out, fully in) and
+// leave the boundary case with no callback at all.
+const SECTION_THRESHOLDS = Array.from({ length: 51 }, (_, i) => i / 50)
+
+// Gap between the toast and whatever is below it: the pagination bar when one
+// is showing, otherwise the bottom of the viewport. Was the toast's flat
+// bottom offset before the bar existed, and stays the same on a tab with
+// nothing to page.
+const TOAST_GAP = 24
+
 export function TodayTab({
   onRefreshCount,
 }: {
@@ -251,8 +274,7 @@ export function TodayTab({
           .is('draft_confirmed_at', null)
           .gte('scheduled_for', `${tomorrowStr()}T00:00:00Z`)
           .lte('scheduled_for', `${tomorrowStr()}T23:59:59Z`)
-          .order('scheduled_for', { ascending: true })
-          .limit(20),
+          .order('scheduled_for', { ascending: true }),
         // Already confirmed and not yet sent — either approved from "Review
         // in Advance", or Sent-but-deferred to a later working-hours window
         // by the send-outreach-email edge function — preview only, no
@@ -267,8 +289,7 @@ export function TodayTab({
           .eq('status', 'scheduled')
           .eq('channel', 'email')
           .not('draft_confirmed_at', 'is', null)
-          .order('scheduled_for', { ascending: true })
-          .limit(20),
+          .order('scheduled_for', { ascending: true }),
         supabase
           .from('leads')
           .select('id, first_name, last_name, company, draft_message')
@@ -375,6 +396,230 @@ export function TodayTab({
 
   const isEmpty = overdue.length === 0 && dueToday.length === 0
 
+  // Overdue and Due Today come out of one query and read as one queue, so they
+  // page as one list: a single usePagination over the concatenation, sliced
+  // once, then split back into the two sections for rendering. Paging them
+  // separately would put a paginated half and an unpaginated half of the same
+  // result set on screen next to each other.
+  //
+  // The concatenation order is already the sort order (overdue first, then due
+  // today, each ordered by scheduled_for by the query), so this satisfies the
+  // hook's sort-first-then-slice rule without a second sort.
+  const dueQueue = [...overdue, ...dueToday]
+  const {
+    currentPage: duePage,
+    pageSize: duePageSize,
+    paginatedSlice: dueSlice,
+    goToPage: goToDuePage,
+    changePageSize: changeDuePageSize,
+    pageStart: dueStart,
+    pageEnd: dueEnd,
+  } = usePagination(dueQueue.length, 25)
+  // No reset() call site anywhere in this tab, deliberately. reset() belongs on
+  // filter, search and sort changes, and this tab has none of the three. The
+  // one thing that does change the row count is the 30s poll, and resetting
+  // there is exactly the trap the pattern warns about: it would yank the reader
+  // back to page 1 every 30 seconds mid-read. A queue that shrinks underneath
+  // the user is already covered by the hook's derived currentPage clamp.
+  const overdueIds = new Set(overdue.map((r) => r.id))
+  const duePageRows = dueSlice(dueQueue)
+  const pageOverdue = duePageRows.filter((r) => overdueIds.has(r.id))
+  const pageDueToday = duePageRows.filter((r) => !overdueIds.has(r.id))
+
+  // Review in Advance owns its own page state. Three lists on one page means
+  // three independent usePagination instances, never one shared between them:
+  // paging Scheduled must not move Review in Advance underneath the reader.
+  // Already ordered by scheduled_for by the query, so it is safe to slice.
+  const {
+    currentPage: pendingPage,
+    pageSize: pendingPageSize,
+    paginatedSlice: pendingSlice,
+    goToPage: goToPendingPage,
+    changePageSize: changePendingPageSize,
+    pageStart: pendingStart,
+    pageEnd: pendingEnd,
+  } = usePagination(pendingConfirmation.length, 25)
+  const pendingPageRows = pendingSlice(pendingConfirmation)
+
+  // Scheduled owns the third and last page state on this tab, independent of
+  // the other two for the same reason. Note this list also grows locally:
+  // approving a touch moves it out of Review in Advance and appends it here
+  // (see useConfirmScheduledTouch above), so its length changes without a
+  // refetch. The hook's derived currentPage handles that in both directions.
+  const {
+    currentPage: approvedPage,
+    pageSize: approvedPageSize,
+    paginatedSlice: approvedSlice,
+    goToPage: goToApprovedPage,
+    changePageSize: changeApprovedPageSize,
+    pageStart: approvedStart,
+    pageEnd: approvedEnd,
+  } = usePagination(scheduledApproved.length, 25)
+  const approvedPageRows = approvedSlice(scheduledApproved)
+
+  // Which section the reader is currently looking at, so one shared pagination
+  // bar can show that section's controls instead of three bars competing for
+  // the same fixed position at the bottom of the viewport.
+  //
+  // IntersectionObserver rather than a scroll handler: the browser computes the
+  // intersection off the main thread and only calls back when it changes, so
+  // there is nothing polling and nothing measuring on every scroll frame. No
+  // breakpoint logic is involved either, so no matchMedia and no innerWidth.
+  const [activeSection, setActiveSection] = useState<SectionKey | null>(null)
+  const dueSectionRef = useRef<HTMLDivElement>(null)
+  const pendingSectionRef = useRef<HTMLDivElement>(null)
+  const approvedSectionRef = useRef<HTMLDivElement>(null)
+
+  // Which sections exist in the DOM at all. A section that is empty renders
+  // nothing, so the observer must re-attach when one appears or disappears
+  // rather than holding a stale target.
+  const dueRendered = !initialLoading && !isEmpty
+  const pendingRendered = !initialLoading && pendingConfirmation.length > 0
+  const approvedRendered = !initialLoading && scheduledApproved.length > 0
+
+  useEffect(() => {
+    const targets: [SectionKey, HTMLElement][] = []
+    if (dueSectionRef.current) targets.push(['due', dueSectionRef.current])
+    if (pendingSectionRef.current) targets.push(['pending', pendingSectionRef.current])
+    if (approvedSectionRef.current) targets.push(['approved', approvedSectionRef.current])
+
+    if (targets.length === 0) {
+      setActiveSection(null)
+      return
+    }
+    // Only one section on the tab: it is always the active one, and no observer
+    // is needed to work that out.
+    if (targets.length === 1) {
+      setActiveSection(targets[0][0])
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // rootBounds is the viewport rect the browser just measured against.
+        // Preferred over reading it back off the document, which would be a
+        // second measurement of the same thing and can disagree mid-scroll.
+        const viewportHeight =
+          entries[0]?.rootBounds?.height ?? document.documentElement.clientHeight
+
+        // Whichever section fills more of the viewport wins, measured in real
+        // pixels rather than by intersectionRatio. Ratio is relative to each
+        // section's own height, so a short section fully on screen would beat a
+        // long one covering three times as much of it.
+        //
+        // Every section is re-measured on every callback, not just the entries
+        // that changed: the comparison is only meaningful if both sides of it
+        // are current, and a stale rect for the section that did not cross a
+        // threshold is what would make the winner wrong.
+        let best: SectionKey | null = null
+        let bestVisible = 0
+        for (const [key, el] of targets) {
+          const rect = el.getBoundingClientRect()
+          const visible = Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0)
+          // Strictly greater, and targets are in render order, so an exact tie
+          // resolves to the upper section every time. Deterministic ties are
+          // what stop the bar oscillating when two sections are level.
+          if (visible > bestVisible) {
+            bestVisible = visible
+            best = key
+          }
+        }
+
+        // Never fall back to null while sections exist: between two sections
+        // there can be a frame with nothing intersecting, and blanking the bar
+        // there would read as it disappearing at random.
+        if (best) setActiveSection(best)
+      },
+      { threshold: SECTION_THRESHOLDS }
+    )
+
+    targets.forEach(([, el]) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [dueRendered, pendingRendered, approvedRendered])
+
+  // Exactly one pagination bar on this tab, carrying the controls for whichever
+  // section is currently in view. The other two sections keep their page state
+  // in full (usePagination above) and simply render no bar while inactive, so
+  // paging one list still never disturbs another.
+  //
+  // Returns null when there is nothing to page, so the caller can skip
+  // StickyBar entirely rather than pin an empty bar to the viewport.
+  function activePaginationBar() {
+    if (activeSection === 'due' && dueRendered) {
+      return (
+        <Pagination
+          totalItems={dueQueue.length}
+          pageSize={duePageSize}
+          currentPage={duePage}
+          onPageChange={goToDuePage}
+          onPageSizeChange={changeDuePageSize}
+          pageStart={dueStart}
+          pageEnd={dueEnd}
+          itemLabel="touches"
+        />
+      )
+    }
+    if (activeSection === 'pending' && pendingRendered) {
+      return (
+        <Pagination
+          totalItems={pendingConfirmation.length}
+          pageSize={pendingPageSize}
+          currentPage={pendingPage}
+          onPageChange={goToPendingPage}
+          onPageSizeChange={changePendingPageSize}
+          pageStart={pendingStart}
+          pageEnd={pendingEnd}
+          itemLabel="touches"
+        />
+      )
+    }
+    if (activeSection === 'approved' && approvedRendered) {
+      return (
+        <Pagination
+          totalItems={scheduledApproved.length}
+          pageSize={approvedPageSize}
+          currentPage={approvedPage}
+          onPageChange={goToApprovedPage}
+          onPageSizeChange={changeApprovedPageSize}
+          pageStart={approvedStart}
+          pageEnd={approvedEnd}
+          itemLabel="touches"
+        />
+      )
+    }
+    return null
+  }
+
+  const paginationBar = activePaginationBar()
+
+  // This tab's toast is fixed at the bottom of the viewport, which is now where
+  // the pagination bar lives too, so the toast has to sit above it rather than
+  // across it. StickyBar does not expose its own height, and it must not be
+  // modified to, so the height is read off the wrapper below instead: StickyBar
+  // renders a spacer of exactly the bar's height in normal flow plus the bar
+  // itself out of flow, so the wrapper's own height is the bar's height.
+  //
+  // Measured rather than a constant per breakpoint, which is what makes this
+  // correct on mobile for free. The bar wraps to two lines on a narrow viewport
+  // (47px at 1280, 77px at 570) and its padding already carries
+  // env(safe-area-inset-bottom), so both the wrap and the safe area are inside
+  // the number without this file knowing about either.
+  const stickyWrapRef = useRef<HTMLDivElement>(null)
+  const [stickyBarHeight, setStickyBarHeight] = useState(0)
+
+  useEffect(() => {
+    const el = stickyWrapRef.current
+    if (!el) {
+      setStickyBarHeight(0)
+      return
+    }
+    const sync = () => setStickyBarHeight(el.getBoundingClientRect().height)
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [!!paginationBar])
+
   // The modal owns its own edit/save/thread state now — this tab only says
   // which touch is open, whether it's still approvable, and what to do with a
   // saved edit or a successful approve.
@@ -390,7 +635,11 @@ export function TodayTab({
 
   return (
     <>
-      {toast && <div style={styles.toast}>{toast}</div>}
+      {toast && (
+        // Clears the pagination bar when one is showing, and falls back to the
+        // original flat 24px when there is nothing to page.
+        <div style={{ ...styles.toast, bottom: stickyBarHeight + TOAST_GAP }}>{toast}</div>
+      )}
       {activeTouch && (
         <OutreachSendModal
           touch={activeTouch}
@@ -459,38 +708,58 @@ export function TodayTab({
       )}
 
       {initialLoading ? (
-        <div style={styles.loadingText}>Loading queue...</div>
+        // Card-shaped placeholders, not SkeletonRow: that one emits a <tr> of
+        // <td>s and only works inside a <table>, and every list on this tab is
+        // a div-based card list. Skeleton is the block SkeletonRow itself
+        // composes, so the shimmer is the same one either way.
+        //
+        // This is the tab's only loading gate. Review in Advance and Scheduled
+        // below both render behind !initialLoading, so they are covered by this
+        // one placeholder rather than each showing a header for a section that
+        // may turn out to be empty.
+        <div style={styles.touchList}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} style={styles.touchCard}>
+              <Skeleton height={14} width="45%" />
+              <Skeleton height={12} width="70%" />
+            </div>
+          ))}
+        </div>
       ) : isEmpty ? (
         <EmptyQueue />
       ) : (
-        <div style={styles.sections}>
-          {overdue.length > 0 && (
-            <Section
-              title="Overdue"
-              count={overdue.length}
-              isOverdue
-              touches={overdue}
-              onOpen={setActiveTouch}
-              onOpenLeadDrawer={setActiveLeadId}
-              onRefresh={load}
-            />
-          )}
-          {dueToday.length > 0 && (
-            <Section
-              title="Due Today"
-              count={dueToday.length}
-              isOverdue={false}
-              touches={dueToday}
-              onOpen={setActiveTouch}
-              onOpenLeadDrawer={setActiveLeadId}
-              onRefresh={load}
-            />
-          )}
+        <div ref={dueSectionRef} style={styles.sections}>
+            {/* Each section renders its slice of the shared page, but its count
+                badge stays the section total. The badge answers "how much is
+                overdue", which the page you happen to be on should not change;
+                the Showing X to Y label below covers the page itself. */}
+            {pageOverdue.length > 0 && (
+              <Section
+                title="Overdue"
+                count={overdue.length}
+                isOverdue
+                touches={pageOverdue}
+                onOpen={setActiveTouch}
+                onOpenLeadDrawer={setActiveLeadId}
+                onRefresh={load}
+              />
+            )}
+            {pageDueToday.length > 0 && (
+              <Section
+                title="Due Today"
+                count={dueToday.length}
+                isOverdue={false}
+                touches={pageDueToday}
+                onOpen={setActiveTouch}
+                onOpenLeadDrawer={setActiveLeadId}
+                onRefresh={load}
+              />
+            )}
         </div>
       )}
 
       {!initialLoading && pendingConfirmation.length > 0 && (
-        <div style={styles.pendingSection}>
+        <div ref={pendingSectionRef} style={styles.pendingSection}>
           <div style={styles.pendingSectionHeader}>
             <span style={styles.sectionTitle}>Review in Advance</span>
             <span style={{ ...styles.sectionCount, color: tokens.goldDark, fontFamily: mono }}>
@@ -498,7 +767,7 @@ export function TodayTab({
             </span>
           </div>
           <div style={styles.touchList}>
-            {pendingConfirmation.map((touch) => {
+            {pendingPageRows.map((touch) => {
               const lead = touch.lead
               const isConf = confirmingId === touch.id
               const err = confirmErrors[touch.id]
@@ -548,7 +817,7 @@ export function TodayTab({
       )}
 
       {!initialLoading && scheduledApproved.length > 0 && (
-        <div style={styles.pendingSection}>
+        <div ref={approvedSectionRef} style={styles.pendingSection}>
           <div style={styles.pendingSectionHeader}>
             <span style={styles.sectionTitle}>Scheduled</span>
             <span style={{ ...styles.sectionCount, color: tokens.green, fontFamily: mono }}>
@@ -556,7 +825,7 @@ export function TodayTab({
             </span>
           </div>
           <div style={styles.touchList}>
-            {scheduledApproved.map((touch) => {
+            {approvedPageRows.map((touch) => {
               const lead = touch.lead
               return (
                 <SimpleTouchRow
@@ -583,6 +852,15 @@ export function TodayTab({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* One bar for the whole tab, pinned to the bottom of the content area by
+          the same shared StickyBar every other admin list uses. Which section's
+          controls it carries is decided by the IntersectionObserver above. */}
+      {paginationBar && (
+        <div ref={stickyWrapRef}>
+          <StickyBar>{paginationBar}</StickyBar>
         </div>
       )}
     </>
@@ -1181,12 +1459,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     marginBottom: 16,
   },
-  loadingText: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: t.text.muted,
-    padding: '32px 0',
-  },
   emptyState: {
     display: 'flex',
     flexDirection: 'column',
@@ -1233,7 +1505,9 @@ const styles: Record<string, CSSProperties> = {
   },
   toast: {
     position: 'fixed',
-    bottom: 24,
+    // `bottom` is always supplied inline by the caller, which offsets it above
+    // the pagination bar when one is on screen. Deliberately absent here so the
+    // two cannot disagree.
     left: '50%',
     transform: 'translateX(-50%)',
     background: tokens.primary,

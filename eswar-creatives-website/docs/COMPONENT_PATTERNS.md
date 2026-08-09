@@ -353,7 +353,11 @@ State is pulled back in line by an effect, never during render.
 
 Call `reset()` on anything that changes how many rows there are: every filter,
 the search box, and both sort entry points (column headers and the mobile sort
-sheet). Two placement rules that are not obvious:
+sheet). A screen with none of those three has **no** `reset()` call site and
+should not grow one. `TodayTab` has no filter, search or sort, so its only
+row-count change is the 30s poll, where resetting is the first trap below. The
+derived `currentPage` clamp is what carries that screen. Two placement rules
+that are not obvious:
 
 - **Not inside `load()`.** `ActivityTab` and `TodayTab` call `load()` from a
   30s background poll. A reset there yanks the user back to page 1 every 30
@@ -386,11 +390,11 @@ Always shows first, last, current and current +/- 1, collapsing the rest. That
 caps the run at five number buttons: `1 ... 4 5 6 ... 12`. Near an end there
 are simply fewer buttons (`1 2 ... 7`); five is a ceiling, not a quota.
 
-### Always sticky: wrap it in StickyBar
+### Sticky by default: wrap it in StickyBar
 
-Every caller renders `Pagination` inside `StickyBar`, which pins it to the
-bottom of the content area. Paging a 174-row feed otherwise meant scrolling
-past every row to reach the controls.
+A screen with **one** list renders `Pagination` inside `StickyBar`, which pins
+it to the bottom of the content area. Paging a 174-row feed otherwise meant
+scrolling past every row to reach the controls.
 
 ```tsx
 {!initialLoading && sorted.length > 0 && (
@@ -427,7 +431,112 @@ would either clip the last row or leave a visible gap.
 
 **Chrome belongs to the container, not the component.** `Pagination` itself
 carries no border, background or outer margin, so the two cannot double up and
-a future non-sticky caller can frame it however it likes.
+a non-sticky caller can frame it however it likes.
+
+### More than one list on a page: one bar, scroll-driven active section
+
+**This supersedes the inline-container rule that stood here between 10 and 11
+August 2026.** That rule said a multi-list screen renders each `Pagination`
+inline under its own list, because `StickyBar` cannot stack. The first half was
+wrong in practice and is recorded below rather than deleted, because the
+constraint that produced it is still real and will be hit again.
+
+**Constraint one, still true: `StickyBar` does not stack.** It is
+`position: fixed; bottom: 0`. Two instances land at identical coordinates and
+paint over each other, and each injects its own `ResizeObserver`-measured
+spacer at its own point in the flow. There is no per-instance offset. Do not
+invent a stacking variant.
+
+**Constraint two, found on the live preview: inline bars are unusable.** With
+one bar sitting inline under each list, reaching Review in Advance's controls
+meant scrolling past all 53 of its rows, and Scheduled's past 41 more. That is
+the exact problem `StickyBar` was introduced to solve on single-list screens,
+reintroduced by the workaround for constraint one.
+
+**The shipped pattern satisfies both.** One `StickyBar` for the whole screen,
+rendered once at the end of the flow, containing exactly one `Pagination`: the
+one belonging to whichever section is currently in view. Inactive sections
+render no bar and keep their page state.
+
+```tsx
+// One instance per list, all independent, none of them shared.
+const due = usePagination(dueQueue.length, 25)
+const pending = usePagination(pendingConfirmation.length, 25)
+const approved = usePagination(scheduledApproved.length, 25)
+
+// Returns null when there is nothing to page, so StickyBar is skipped
+// rather than pinned empty.
+const paginationBar = activePaginationBar()
+
+{paginationBar && <StickyBar>{paginationBar}</StickyBar>}
+```
+
+#### Deciding which section is active
+
+`IntersectionObserver` on each section's wrapper. Not a scroll handler: the
+browser computes intersections off the main thread and calls back only on
+change, so nothing polls and nothing measures per scroll frame. No breakpoint
+logic, so no `matchMedia` and no `innerWidth`. No new dependency.
+
+Four rules, each learned by getting it wrong first:
+
+- **Compare visible pixels, not `intersectionRatio`.** Ratio is relative to
+  each section's own height, so a short section fully on screen outranks a long
+  one covering three times as much of the viewport.
+- **Re-measure every section on every callback**, not just the entries that
+  crossed a threshold. The comparison is only meaningful if both sides are
+  current; a stale rect for the section that did not move is what makes the
+  winner wrong.
+- **Never fall back to `null` while sections exist.** Scrolling across a
+  boundary can leave a frame with nothing intersecting, and blanking the bar
+  there reads as it vanishing at random.
+- **Use a dense threshold list**, not a single `0`. One threshold fires twice
+  per section and gives the boundary case no callback at all. `TodayTab` uses
+  51 steps; 2% of a 3000px section is about 60px of scroll.
+
+Picking by most-visible-area is what stops the flicker, and it needs no
+hysteresis on top: visible area is monotonic through a scroll, so the winner
+changes exactly once per boundary. Ties resolve to the upper section
+deterministically (strict greater-than over targets in render order), so two
+level sections cannot oscillate.
+
+#### A fixed-position bar displaces whatever else was pinned down there
+
+Adding the bar to a screen that already had something at `bottom: 0` will
+collide. `TodayTab`'s toast was fixed at `bottom: 24`, which put it on top of
+the new bar, and on mobile a 77px bar swallowed it whole.
+
+Offset by the bar's **measured** height, not a constant per breakpoint.
+`StickyBar` does not expose its height and should not be changed to; wrap it
+and measure the wrapper, which works because `StickyBar` renders a flow spacer
+of exactly the bar's height plus the bar itself out of flow:
+
+```tsx
+<div ref={stickyWrapRef}>
+  <StickyBar>{paginationBar}</StickyBar>
+</div>
+
+// wrapper height === bar height, and already includes both the two-line
+// wrap on narrow viewports and env(safe-area-inset-bottom).
+<div style={{ ...styles.toast, bottom: stickyBarHeight + TOAST_GAP }}>
+```
+
+Measuring is what makes it correct on mobile without the caller knowing
+anything about breakpoints. With no bar on screen the offset collapses to the
+original value, so a screen with nothing to page renders exactly as before.
+
+`TodayTab` is the only such screen today, with three lists: the Overdue/Due
+Today queue, Review in Advance, and Scheduled. Each gets its **own**
+`usePagination` instance with its own `totalItems` and page state; one shared
+instance would move one list underneath the reader while they page another.
+Which bar is visible is the only thing the active section changes.
+
+**Overdue and Due Today page as one list.** They come from one query and read
+as one queue, so `TodayTab` concatenates them, slices once, then splits the
+slice back into the two rendered sections. Paging them separately would put a
+paginated half and an unpaginated half of the same result set side by side. A
+section's count badge stays the **section total**, not the page count: the
+badge answers "how much is overdue", which the current page should not change.
 
 ### Edge cases, all verified live
 - **0 items:** the component returns `null` and the caller skips `StickyBar`
@@ -465,7 +574,12 @@ touch in the database. That understates the total once the table passes 200
 rows, which is the point at which paging should move server-side.
 
 ### Current usages
-- `ActivityTab`, `LeadsTab`, `EnquiriesTab`, all at 25 per page.
+- `ActivityTab`, `LeadsTab`, `EnquiriesTab`, all at 25 per page, one instance
+  each, inside `StickyBar`.
+- `TodayTab`, 25 per page, **three** instances, one shared `StickyBar` showing
+  whichever section is in view (11 Aug 2026). Its Review in Advance and
+  Scheduled queries carried a silent `.limit(20)` until 10 Aug 2026, which is
+  what kept them under one page and hid the need for any of this.
 
 ---
 
@@ -479,6 +593,19 @@ screen means nothing jumps when the real rows arrive.
 
 ### Component
 - `src/portal/components/shared/SkeletonRow.tsx`
+
+### Tables only, and that is a hard limit
+`SkeletonRow` returns a `<tr>` of `<td>`s. Outside a `<table>` that is not a
+row, so a div-based card list cannot use it; reach past it to the `Skeleton`
+block it composes and shape the placeholder like the card. `TodayTab` is that
+case: its three lists are `styles.touchList` → `SimpleTouchRow` →
+`styles.touchCard`, and its loading state is four card-shaped `Skeleton`
+placeholders. The shimmer is identical either way, since both paths end at the
+same block.
+
+Related: when several sections share one `initialLoading` gate, they share one
+placeholder too. Do not give each section its own, or a section that comes back
+empty will still have flashed a header during load.
 
 ### Props
 - `columns`: number. Pass the column array's length, never a literal.
