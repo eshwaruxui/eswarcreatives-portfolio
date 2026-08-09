@@ -302,6 +302,23 @@ export const ui: Record<string, CSSProperties> = {
     // AddLeadModal from LeadDrawer) always sits on top, backdrop included.
     zIndex: 400,
     overflowY: 'auto',
+    // The overlay IS the modal's scroll container. The panel below has no
+    // overflow of its own and `children` is rendered bare, so a modal taller
+    // than the viewport scrolls the scrim, not a body element. That makes this
+    // the one place the gutter belongs.
+    //
+    // `both-edges`, not plain `stable`, because this is a centring flex
+    // container: a gutter on the end edge only would hold the panel steady but
+    // leave it permanently off-centre by half the scrollbar width. Reserving
+    // both edges keeps the panel centred and stable at once.
+    //
+    // One rule here covers every modal: AddLeadModal, NudgeModal,
+    // ConfirmPaymentModal, ProposalNudgeModal, CsvImportModal and
+    // AddClientModal all render through this component and must not repeat it.
+    //
+    // No-op on touch, where scrollbars are overlays with no layout width, so
+    // the full-screen mobile variant below is unaffected in practice.
+    scrollbarGutter: 'stable both-edges',
   },
   // Mobile: no backdrop padding needed, the panel itself goes full-screen.
   modalOverlayMobile: {
