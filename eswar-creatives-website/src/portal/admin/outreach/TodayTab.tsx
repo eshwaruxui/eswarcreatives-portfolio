@@ -251,8 +251,7 @@ export function TodayTab({
           .is('draft_confirmed_at', null)
           .gte('scheduled_for', `${tomorrowStr()}T00:00:00Z`)
           .lte('scheduled_for', `${tomorrowStr()}T23:59:59Z`)
-          .order('scheduled_for', { ascending: true })
-          .limit(20),
+          .order('scheduled_for', { ascending: true }),
         // Already confirmed and not yet sent — either approved from "Review
         // in Advance", or Sent-but-deferred to a later working-hours window
         // by the send-outreach-email edge function — preview only, no
@@ -267,8 +266,7 @@ export function TodayTab({
           .eq('status', 'scheduled')
           .eq('channel', 'email')
           .not('draft_confirmed_at', 'is', null)
-          .order('scheduled_for', { ascending: true })
-          .limit(20),
+          .order('scheduled_for', { ascending: true }),
         supabase
           .from('leads')
           .select('id, first_name, last_name, company, draft_message')
