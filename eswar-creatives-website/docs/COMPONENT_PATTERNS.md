@@ -852,6 +852,89 @@ its own spacer with a `ResizeObserver` rather than a constant).
 
 ---
 
+## Scrollbar Gutter Pattern
+
+### Rule
+Every scroll container in the portal reserves its scrollbar track permanently
+with `scrollbar-gutter: stable`. A classic scrollbar takes layout width, so
+content that grows past its container's height narrows that container the
+instant the scrollbar appears. Switching between a short tab and a long one
+then shifts the layout sideways, which reads as the page jerking on tab
+change.
+
+### Where it is applied
+| Container | Where | Value |
+|---|---|---|
+| Window | `html` in `src/styles/index.css` | `stable` |
+| Drawers | `styles.body` in `src/portal/admin/SidePanel.tsx` | `stable` |
+| Modals | `ui.modalOverlay` in `src/portal/admin/ui.tsx` | `stable both-edges` |
+
+### Per shared component, not per screen
+The rule goes on the component that owns the scroll container, once. Fixing
+`SidePanel` covers `LeadDrawer`, `EnquiryDrawer`, `LinkedInPostComposer` and
+`ProjectPanel`. Fixing the shared `Modal` covers `AddLeadModal`, `NudgeModal`,
+`ConfirmPaymentModal`, `ProposalNudgeModal`, `CsvImportModal` and
+`AddClientModal`. Do not add the property to any of those files: a local copy
+is a second source of truth for a value that must not drift, and it hides the
+fact that the shared component already handles it.
+
+A global rule on `html` alone is **not** enough, which is the reason for the
+per-component half. `scrollbar-gutter` affects the element it is set on, and
+only if that element is a scroll container. A drawer body with `overflow-y:
+auto` has its own scrollbar and its own shift, and the window's gutter does
+nothing for it.
+
+### Find the real scroll container first
+The element that visually scrolls is often not the one with the overflow.
+Two cases from this portal:
+
+- **`SidePanel`**: the `<aside>` is `overflow: hidden` and the header is
+  `flexShrink: 0`, so everything scrolls in `styles.body`. The panel root
+  looks like the scroll container and is not.
+- **The shared `Modal`**: it has **no scrollable body at all**. `children` is
+  rendered bare and the panel declares no overflow, so a tall modal scrolls
+  `ui.modalOverlay`, the scrim. Anyone looking for a "modal body" to fix will
+  not find one.
+
+### `both-edges` on a centring container
+`ui.modalOverlay` is a flex container with `justifyContent: center`. Plain
+`stable` reserves the gutter on the end edge only, which holds the panel steady
+across the scroll transition but leaves it permanently off-centre by half the
+scrollbar width, trading one misalignment for another. `stable both-edges`
+reserves both sides, so the panel stays centred and stable at once. Use
+`both-edges` on any centring scroll container; plain `stable` everywhere else.
+
+### It is invisible on a default Mac
+macOS draws overlay scrollbars that take no layout space, so none of this
+changes anything there. The shift it fixes is visible on Windows and Linux,
+and on macOS with **System Settings > Appearance > Show scroll bars: Always**.
+Verify there. Testing on a default Mac will show no difference before or after
+and prove nothing either way.
+
+Same reason the mobile cases are unaffected in practice: touch scrollbars are
+overlays. `OutreachAdmin`'s mobile tab bar (`overflowX: auto`, a horizontal
+touch strip) needs no rule for this reason, and `SidePanel`'s `bodyMobile`
+inherits the desktop declaration by merging on top of `styles.body` rather
+than replacing it.
+
+### Not a scroll container, so not in scope
+`Lightbox` (`src/components/lightbox/Lightbox.tsx`) does **not** scroll
+internally. Its root is `position: fixed; inset: 0` with no overflow declared,
+its media area is `overflow: hidden`, and the thumbnail strip is `overflow-x:
+auto` with its scrollbar deliberately hidden
+(`scrollbar-width: none`). Checked and left alone on purpose, so it is not
+mistaken for an oversight.
+
+### Relationship to the Admin Shell Scroll and Sticky Pattern
+`scrollbar-gutter` does **not** create a scroll container and does not change
+any computed overflow value, so it cannot reproduce the sticky breakage
+documented above. It is safe on `html` alongside the shell's `overflow-x:
+clip`. It also stabilises `StickyBar`, whose `position: fixed; right: 0`
+resolves against an initial containing block that the reserved gutter now
+keeps the same width in both states.
+
+---
+
 ## Variant Union Pattern (cva)
 
 ### Rule

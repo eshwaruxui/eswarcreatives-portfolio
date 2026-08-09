@@ -218,9 +218,23 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: 'center',
     zIndex: 1,
   },
-  body: { padding: 24, overflowY: 'auto', flex: 1 },
+  // This is the panel's scroll container: the panel itself is overflow:hidden
+  // (see `panel` above) and the header is flexShrink:0, so everything that
+  // scrolls in a drawer scrolls here.
+  //
+  // scrollbarGutter reserves the track permanently, so a drawer whose content
+  // crosses the panel height does not narrow its own content by the scrollbar
+  // width the moment the scrollbar appears. Inside a fixed-width drawer that
+  // reflows the form fields, which is more visible than the equivalent shift
+  // on the page behind it.
+  //
+  // One rule here covers every drawer: LeadDrawer, EnquiryDrawer,
+  // LinkedInPostComposer and ProjectPanel all render through SidePanel and
+  // must not repeat it locally.
+  body: { padding: 24, overflowY: 'auto', scrollbarGutter: 'stable', flex: 1 },
   // Extra bottom clearance on mobile (safe-area / thumb reach for the last
-  // action in a long form) plus the same overflow behavior as desktop.
+  // action in a long form) plus the same overflow behavior as desktop. Merged
+  // on top of `body`, so it inherits the gutter and must not restate it.
   bodyMobile: {
     padding: '20px 16px',
     paddingBottom: 80,

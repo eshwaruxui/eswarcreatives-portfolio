@@ -2,6 +2,28 @@
 @import './tailwind.css';
 @import './theme.css';
 
+/* ── Scrollbar gutter ─────────────────────────────────────── */
+/* Reserve the scrollbar's track on the window's scroll container at all times,
+   so a page whose content crosses viewport height does not shrink the content
+   box the moment the scrollbar appears. Without this, switching between a
+   short tab and a long one shifts the whole layout horizontally by the
+   scrollbar width, which reads as the page jerking sideways on tab change.
+
+   Applied to `html`, not `body`: `html` is the window's scroll container here
+   (index.html sets `html, body { height: 100% }` and nothing overrides
+   overflow on either), so `body` would be the wrong element.
+
+   Note this is a no-op wherever the OS draws overlay scrollbars that take no
+   layout space, which is the macOS default. The shift it fixes is visible on
+   Windows and Linux, and on macOS with "Show scroll bars: Always" set. Test it
+   there, not on a default Mac, or it will look like nothing changed.
+
+   This is the window case only. Every internal scroll container needs its own
+   rule; see docs/COMPONENT_PATTERNS.md's Scrollbar Gutter Pattern. */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* Utility: hide scrollbar */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
