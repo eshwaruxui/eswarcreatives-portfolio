@@ -59,6 +59,26 @@
   100% { transform: translateX(0px);  opacity: 1; }
 }
 
+/* ── Reduced motion ───────────────────────────────────────── */
+/* Portal motion policy, principle 5: prefers-reduced-motion is honoured once,
+   at the CSS level, so no component can forget it. See docs/MOTION_SYSTEM.md
+   section 10. This stylesheet is app-wide (imported by src/main.tsx), so this
+   covers the marketing site as well as the portal, which is intended.
+   Known consequence: animation-iteration-count:1 stops looping spinners and
+   the shimmer. That is correct for the shimmer (a static placeholder block);
+   for spinners it means in-flight state must also be conveyed non-visually,
+   via aria-live, a disabled control, or a text label. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* ── Invoice print-to-PDF ─────────────────────────────────── */
 /* "Download PDF" buttons call handleDownloadPDF() which clones
    .ec-invoice-document to a #ec-print-root div at the body root,

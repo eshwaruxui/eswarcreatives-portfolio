@@ -1,6 +1,8 @@
 # Eswar Creatives Portal - Component Patterns
 
-Last updated: 9 August 2026 (a Variant Union Pattern added after
+Last updated: 9 August 2026 (a Token Sources section added, pointing at the new
+`docs/MOTION_SYSTEM.md` and `src/portal/motion.ts` and recording the collision
+between the two `motionTokens` exports. Previously the same day: a Variant Union Pattern added after
 `fix/ts-real-defects` found `PortfolioButton` being passed a variant outside
 its union: cva emits no variant classes at all for an unrecognised value rather
 than falling back to the default, so that CTA had no border width and rendered
@@ -779,10 +781,40 @@ is missing from the screen. Only the cva variant above changed any pixels.
 
 ---
 
+## Token Sources
+
+Where each kind of value comes from. Import from the source that owns the
+concern, and do not restate a value in a component.
+
+| Concern | Source of truth | Notes |
+|---|---|---|
+| Colour, text, border, background | `src/portal/theme.ts` | Two systems: legacy flat `tokens` and the nested semantic `t`. See the Text Color Token Rule and Page Canvas Token sections above. |
+| Motion values in current use | `src/portal/theme.ts`, the flat `motionTokens` | `durationFast` 120ms, `durationBase` 200ms, `durationSlow` 350ms, `easeDefault`/`easeEnter`/`easeExit`. Every existing call site uses this. |
+| Motion scale, patterns, accessibility | `docs/MOTION_SYSTEM.md` | The canonical motion reference: full duration/easing/distance/delay scale, per-component patterns, reduced-motion policy, and an audit of every animation live in `src/portal` as of 9 August 2026. |
+| Motion token object, new values | `src/portal/motion.ts` | Nested shape (`duration.fast`, `easing.enter`). Added 9 August 2026. Carries the values `theme.ts` lacks: `micro`, `moderate`, `slower`, `expressive`, `snap`, `emphasized`, `distance.*`, `delay.*`. |
+| Breakpoints | `src/portal/hooks/useBreakpoint.ts` | Sole authority. No `window.innerWidth`, no `matchMedia`. |
+
+**Both `theme.ts` and `motion.ts` export a symbol named `motionTokens`, with
+incompatible shapes.** Nothing imports `motion.ts` yet, so nothing is broken,
+but reading `motionTokens.durationFast` off the nested object returns
+`undefined`, which serializes into a CSS string as the literal text
+`"undefined"` and silently kills the transition with no console error. Until the
+one-pass migration in MOTION_SYSTEM.md's Phase 2: existing code keeps importing
+from `theme.ts`, never import both into the same file, and check which module
+you imported from before reading a key.
+
+`prefers-reduced-motion` is handled once globally in `src/styles/index.css`, not
+per component. There is no CSS file under `src/portal`, so that app-wide
+stylesheet is the only place it can live. Do not add a component-level
+reduced-motion check.
+
+---
+
 ## Standing rules
 - No em dashes in any component copy or code
 - No raw hex outside theme.ts
 - All colors from t.* semantic tokens or tokens.*
-- motionTokens for all transitions
+- motionTokens for all transitions. Never a raw ms or s value in a component;
+  see docs/MOTION_SYSTEM.md for the scale and the current audit
 - Never pass a variant value outside a cva component's union: unrecognised
   values emit no variant classes at all, they do not fall back to the default

@@ -11,6 +11,15 @@ Last updated: 9 August 2026 (`fix/ts-real-defects` merged to `main`: the three r
 
 `chore/ts-check` added `npm run typecheck` and left its 39 findings unfixed on purpose. See Section 13's dev tooling table for the breakdown.
 
+_Motion system documented and audited (`docs/motion-system`, 9 Aug 2026, no migrations, no component behaviour changed):_
+- **`docs/MOTION_SYSTEM.md` is the canonical motion reference**, and `src/portal/motion.ts` is its code counterpart. See Section 7. The doc includes a file-by-file audit of every transition, keyframe and duration live in `src/portal`, so it records what the portal does, not only what it should do.
+- **The audit found the portal split across two motion systems.** 79 transitions use `theme.ts`'s `motionTokens` (41 of them the single pattern `<property> durationFast easeDefault`), while 31 transitions and 15 animations use raw literals spread over 24 files. The raw duration set is `0.15s, 0.2s, 0.28s, 0.3s, 0.6s, 0.8s, 1s, 1.1s, 1.5s, 120ms, 600ms`, of which only `120ms` and `1.5s` correspond to anything in the token scale. `SwipeCard.tsx` additionally imports `motion/react` (Framer Motion) and is the only portal file that does.
+- **One live defect found: two `ecShimmer` keyframes with the same name sweep in opposite directions.** `Skeleton.tsx:22` goes `-200%` to `200%`; `ProgressiveImage.tsx:44` goes `200%` to `-200%`. Both inject a `<style>` tag, so on a screen rendering both, whichever is inserted last wins and one silently sweeps backwards. COMPONENT_PATTERNS.md predicted this exact drift when `Skeleton` was extracted. **Not fixed here** (this branch changed no component behaviour); it is item 1 of MOTION_SYSTEM.md's Phase 2.
+- **Three claims in the source specification were wrong against the code and were corrected in the doc rather than carried through.** (1) A pagination `tbody` opacity fade was listed as current implementation; `Pagination.tsx` animates only its own buttons, and COMPONENT_PATTERNS.md explicitly decides the opposite ("The bar does not animate on a page change"), so it is recorded as a proposal needing a design decision, not a gap. (2) A modal scrim-and-scale enter was listed as current; the shared `Modal` in `admin/ui.tsx` has **no motion at all**, and `TouchPreviewModal` inherits that. (3) The shimmer gradient was specified as `t.border.subtle` to `t.background.surface`, a pair COMPONENT_PATTERNS.md rules out by name as very nearly invisible on white; the live gradient is `t.background.subtle` to `t.background.muted`.
+- **Shimmer is 1.5s, not the 1.4s specified.** Identical across all nine call sites. The token records `shimmer: '1500ms'`, since changing nine files to 1400ms would be a cosmetic sweep with no defect behind it.
+- **`prefers-reduced-motion` now exists, for the first time anywhere in `src/`.** Global block in `src/styles/index.css`. Known consequence, documented rather than worked around: `animation-iteration-count: 1` freezes looping spinners, so in-flight state must also be conveyed non-visually. Giving spinners a reduced-motion-safe alternative is a Phase 2 item.
+- **Not browser-verified.** This branch adds two files and one CSS block and changes no component. The reduced-motion block is the only thing that alters rendering, and only for users who have asked for it. A preview pass with the OS reduced-motion setting on is still worth running before merge.
+
 _Three real typecheck defects closed (`fix/ts-real-defects`, 5 commits, no migrations, **merged to `main` 9 August 2026**):_
 - **39 errors down to 36.** The three flagged as genuine defects in Section 13 are fixed, one commit each; the 36 documented false alarms are untouched by design.
 - **Only one of the three was actually broken on screen.** `DesignSystemsCaseStudy`'s `variant="outline"` is not in `PortfolioButton`'s union, and cva emits no variant classes at all for an unrecognised value, so the button had no border width and its inline `borderColor` painted nothing. Measured live at `0px` before and `1px` after. The other two were dead comparisons sitting on the correct side of a narrowed union, so removing them changed no rendered output. See Section 13 for the full reasoning, and COMPONENT_PATTERNS.md for the cva rule this produced.
@@ -808,6 +817,37 @@ Edge function versions confirmed live via Supabase on 24 Jul 2026, except send-c
 ---
 
 ## 7. Theme and token system
+
+**Files:** `src/portal/theme.ts` (colour, type, and the motion tokens in current
+use), `src/portal/motion.ts` (the motion scale, added 9 Aug 2026).
+
+**Docs:** `docs/COMPONENT_PATTERNS.md` (per-component patterns, plus a Token
+Sources table mapping each concern to its owning file), `docs/MOTION_SYSTEM.md`
+(the canonical motion reference: full token scale, per-component motion
+patterns, choreography, accessibility, handoff format, governance, and a
+file-by-file audit of every animation live in `src/portal`).
+
+### Motion
+
+`src/portal/motion.ts` exports the full nested scale (`duration.fast`,
+`easing.enter`, `distance.md`, `delay.short`) including the values `theme.ts`
+lacks: `micro`, `moderate`, `slower`, `expressive`, `snap`, `emphasized`,
+distances and delays. **Nothing imports it yet, deliberately.** `theme.ts` also
+exports a symbol named `motionTokens`, flat-shaped, and that is what all ~60
+current call sites use. Migrating them is one atomic pass (MOTION_SYSTEM.md
+Phase 2), not opportunistic work, and it must reconcile three divergences:
+`durationSlow` is 350ms in `theme.ts` against 360ms in the scale, `easeDefault`
+is a different curve from `easing.standard`, and shimmer runs at 1.5s live
+against the 1.4s originally specified (the code value won). **Reading
+`motionTokens.durationFast` off the nested object returns `undefined`, which
+serializes into a CSS string as the text "undefined" and silently kills the
+transition with no console error.** Never import both into one file.
+
+`prefers-reduced-motion` is handled once globally in `src/styles/index.css`
+(added 9 Aug 2026, the first such handling anywhere in `src/`). That stylesheet
+is app-wide, imported by `src/main.tsx`, so it covers the marketing site too.
+There is no CSS file under `src/portal` at all, which is why it could not be
+scoped to the portal.
 
 **File:** `src/portal/theme.ts`
 
