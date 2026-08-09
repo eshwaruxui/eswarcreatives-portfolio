@@ -141,7 +141,7 @@ export function LightboxThumbnailStrip({ images, index, theme, getTransformUrl, 
                     style={{ height: '100%', width: '100%', objectFit: 'cover' }}
                   />
                 ) : (
-                  <NonImageThumbIcon kind={kind === 'image' ? 'other' : kind} color={theme.accent} />
+                  <NonImageThumbIcon kind={kind} color={theme.accent} />
                 )}
               </span>
               <span
