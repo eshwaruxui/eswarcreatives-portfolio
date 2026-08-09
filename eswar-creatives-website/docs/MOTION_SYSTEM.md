@@ -1,9 +1,13 @@
 # Eswar Creatives Portal - Motion System
 
-Last updated: 9 August 2026 (created). Canonical motion reference for the
-portal. Section 11 is an audit of what is actually in the code as of this date,
-not a description of a target state. Where the two differ, the difference is
-stated explicitly rather than smoothed over.
+Last updated: 9 August 2026 (created, then two same-day revisions: the code
+token object is exported as `motionSystem` rather than `motionTokens`, so it
+cannot collide with the flat `motionTokens` in `theme.ts`; and the proposed
+pagination `tbody` fade is removed, since the instant swap is the settled and
+correct behaviour). Canonical motion reference for the portal. Section 11 is an
+audit of what is actually in the code as of this date, not a description of a
+target state. Where the two differ, the difference is stated explicitly rather
+than smoothed over.
 
 ---
 
@@ -103,15 +107,17 @@ in components.**
 | motion.delay.* | Not defined. No portal animation uses a delay | `--motion-delay-*` |
 | motion.opacity.* | Not defined as motion tokens. Scrim opacity comes from `t.background.scrim` | `--motion-opacity-*` |
 
-**Two naming systems now exist, and this is a live trap.** `theme.ts` exports a
-flat `motionTokens` (`durationFast`, `easeEnter`) and `src/portal/motion.ts`
-exports a nested `motionTokens` (`duration.fast`, `easing.enter`) under the same
-export name. Nothing today imports the new one, so nothing is broken, but
-`motionTokens.durationFast` read off the new object is `undefined` and would
-serialize into a CSS string as the literal text `undefined`, silently killing
-the transition with no console error. Until Phase 2 migrates the call sites:
-**never import both into the same file, and check which module you imported
-from before reading a key.** See Section 13 for the resolution plan.
+**Two objects exist, under deliberately different names.** `theme.ts` exports a
+flat `motionTokens` (`durationFast`, `easeEnter`), which is what all ~60 current
+call sites use. `src/portal/motion.ts` exports a nested `motionSystem`
+(`duration.fast`, `easing.enter`).
+
+The distinct name is the point. Exporting both as `motionTokens` would mean an
+import from the wrong module reads `motionTokens.durationFast` as `undefined`,
+which serializes into a CSS string as the literal text `undefined` and silently
+kills the transition with no console error. `motionSystem` makes that failure
+impossible to reach by accident, and lets both objects be imported into the same
+file during the Phase 2 migration, which a shared name would have prevented.
 
 **Three real divergences to resolve in Phase 2**, listed here so they are not
 rediscovered as bugs:
@@ -235,7 +241,7 @@ Lives at `src/portal/motion.ts`. It is the code counterpart of Section 4 and
 contains no colour values of any kind.
 
 ```ts
-export const motionTokens = {
+export const motionSystem = {
   duration: {
     instant: '0ms',
     micro: '80ms',
@@ -276,8 +282,9 @@ specification, matching the nine live call sites. See 4.2.
 
 **Nothing imports this file yet, by design.** Migrating the roughly sixty
 existing `theme.ts` call sites is Phase 2 work and must happen in one pass, not
-opportunistically, because the two objects share an export name. See the trap
-note in 4.1.
+opportunistically, because that pass also has to reconcile the three divergences
+in 4.1. The distinct export name means the two can safely coexist, and can both
+be imported into one file, while that migration is in progress.
 
 ---
 
@@ -352,26 +359,26 @@ Hover is live and consistent: `background`, `color` and `border-color` at
 portal (41 of the 79 token-based transitions). **Press feedback is not
 implemented anywhere**, and there is no 80ms value in the codebase.
 
-### 7.2 Pagination (live, with one correction)
+### 7.2 Pagination (live, complete)
 
 | Trigger | Animation | Token |
 |---|---|---|
-| Page number change | **None today.** Instant swap | duration.instant |
+| Page number change | **Instant swap, by design** | duration.instant |
 | Filter/sort change | Instant swap, no animation | duration.instant |
 | Page size change | Instant swap, reset to page 1 | duration.instant |
 | Button hover/active | Background, opacity and color fade | duration.fast, easing.standard |
 | First load | SkeletonRow shimmer | shimmer 1.5s, easing.linear |
 
-**Correction to the original specification, which listed a `tbody` opacity 0.85
-to 1 fade on page change as current implementation. It is not implemented.**
-`Pagination.tsx:190` defines exactly one transition, on the page buttons
-themselves, and no caller animates its `tbody`. COMPONENT_PATTERNS.md states the
-opposite intent explicitly: "The bar does not animate on a page change. The bar
-staying still is what makes the content above it read as the thing that
-changed." The proposed `tbody` fade is therefore a **Phase 2 proposal that
-contradicts a documented, deliberate decision**, and it should not be
-implemented without revisiting that decision first. It is listed in Section 14
-as a proposal, not as a gap.
+**The instant swap is the correct behaviour and is not a gap.** Pagination is a
+client-side array slice with no request behind it, so there is nothing to wait
+for and nothing to mask. COMPONENT_PATTERNS.md settles this: "The bar does not
+animate on a page change. The bar staying still is what makes the content above
+it read as the thing that changed; animating both at once reads as the whole
+screen reloading." That is Principle 2 applied, and it stands.
+
+A `tbody` opacity fade on page change was proposed and **rejected**. Do not
+reintroduce it. `Pagination.tsx:190` defines exactly one transition, on the page
+buttons, and that is the whole of what this pattern should animate.
 
 Rule: pagination is client-side array slicing. Never show skeletons on
 subsequent page changes, only on first load.
@@ -599,7 +606,6 @@ spinners a reduced-motion-safe alternative is a Phase 2 item.
 | Drawer translate | Instant placement, scrim fade only |
 | Modal scale + fade | Fade only |
 | Skeleton shimmer | Static background, no animation |
-| Page-change `tbody` fade | Instant swap |
 | Pagination button hover | Colour change only, no background transition |
 | Toast enter/exit | Instant appear and dismiss |
 
@@ -744,7 +750,8 @@ Worked example, the one live pattern that already meets this bar:
 ### Source of truth
 
 - **`docs/MOTION_SYSTEM.md`** (this file) for the portal's motion rules.
-- **`src/portal/motion.ts`** for the code token object.
+- **`src/portal/motion.ts`** for the code token object, exported as
+  `motionSystem`.
 - **`src/portal/theme.ts`** for the legacy flat `motionTokens` still in use by
   every current call site, until Phase 2.
 - **`docs/COMPONENT_PATTERNS.md`** for per-component usage.
@@ -755,17 +762,20 @@ values. The pagination case in 7.2 is the worked example: COMPONENT_PATTERNS
 decides that the bar does not animate, this file decides what `duration.fast`
 means when something does.
 
-### Resolving the two `motionTokens`
+### The two objects, while both exist
 
-Until Phase 2 completes, both `theme.ts` and `motion.ts` export a symbol named
-`motionTokens` with incompatible shapes. Rules while that is true:
+Until Phase 2 completes, `theme.ts` exports flat `motionTokens` and `motion.ts`
+exports nested `motionSystem`. The names are different on purpose, so there is
+no way to read a key off the wrong object and get `undefined`. Rules while both
+are live:
 
-1. Existing code keeps importing from `theme.ts`. Do not migrate a file
-   opportunistically.
-2. Never import both into one file.
-3. New code that needs a value absent from `theme.ts` (`micro`, `moderate`,
-   `slower`, `snap`, distances, delays) imports from `motion.ts` and states so
-   in a comment.
+1. Existing code keeps importing `motionTokens` from `theme.ts`. Do not migrate
+   a file opportunistically.
+2. New code that needs a value absent from `theme.ts` (`micro`, `moderate`,
+   `slower`, `expressive`, `snap`, `emphasized`, distances, delays) imports
+   `motionSystem` from `motion.ts`.
+3. Importing both into one file is allowed, and is expected during the
+   migration. The distinct names are what make that safe.
 4. The migration is one atomic pass, and it must reconcile the three
    divergences in 4.1 as part of that pass.
 
@@ -809,10 +819,10 @@ Ordered by value, defects first:
 
 1. **Resolve the duplicate `ecShimmer` keyframe** (7.3). Two definitions sweep
    in opposite directions under one name. This is a live defect, not a cleanup.
-2. **Migrate the roughly sixty `theme.ts` call sites to `motion.ts`** in one
+2. **Migrate the roughly sixty `theme.ts` call sites to `motionSystem`** in one
    pass, reconciling `durationSlow` 350 vs 360, `easeDefault` vs
-   `easing.standard`, and retiring the flat export. Nothing else in Phase 2
-   should start before this lands.
+   `easing.standard`, and retiring the flat `motionTokens` export. Nothing else
+   in Phase 2 should start before this lands.
 3. **Replace the 31 raw transition values** with tokens, starting with the
    `0.6s ease` row highlights and the four `0.28s ease` transforms.
 4. **Unify spinner rotation.** 600ms, 0.8s and 1s currently coexist. Pick one
@@ -822,8 +832,8 @@ Ordered by value, defects first:
 6. **Apply `easing.snap` and `byDistance.panel` to `SidePanel`** (7.4),
    preserving the `SLIDE_MS` derivation.
 
-Proposed, and requiring a design decision first because it contradicts a
-documented one: the pagination `tbody` fade in 7.2.
+Explicitly **not** in Phase 2: any animation on pagination page change. The
+instant swap is the settled decision, see 7.2.
 
 ### Phase 3 (future): CSS custom properties
 

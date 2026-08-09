@@ -15,7 +15,8 @@ _Motion system documented and audited (`docs/motion-system`, 9 Aug 2026, no migr
 - **`docs/MOTION_SYSTEM.md` is the canonical motion reference**, and `src/portal/motion.ts` is its code counterpart. See Section 7. The doc includes a file-by-file audit of every transition, keyframe and duration live in `src/portal`, so it records what the portal does, not only what it should do.
 - **The audit found the portal split across two motion systems.** 79 transitions use `theme.ts`'s `motionTokens` (41 of them the single pattern `<property> durationFast easeDefault`), while 31 transitions and 15 animations use raw literals spread over 24 files. The raw duration set is `0.15s, 0.2s, 0.28s, 0.3s, 0.6s, 0.8s, 1s, 1.1s, 1.5s, 120ms, 600ms`, of which only `120ms` and `1.5s` correspond to anything in the token scale. `SwipeCard.tsx` additionally imports `motion/react` (Framer Motion) and is the only portal file that does.
 - **One live defect found: two `ecShimmer` keyframes with the same name sweep in opposite directions.** `Skeleton.tsx:22` goes `-200%` to `200%`; `ProgressiveImage.tsx:44` goes `200%` to `-200%`. Both inject a `<style>` tag, so on a screen rendering both, whichever is inserted last wins and one silently sweeps backwards. COMPONENT_PATTERNS.md predicted this exact drift when `Skeleton` was extracted. **Not fixed here** (this branch changed no component behaviour); it is item 1 of MOTION_SYSTEM.md's Phase 2.
-- **Three claims in the source specification were wrong against the code and were corrected in the doc rather than carried through.** (1) A pagination `tbody` opacity fade was listed as current implementation; `Pagination.tsx` animates only its own buttons, and COMPONENT_PATTERNS.md explicitly decides the opposite ("The bar does not animate on a page change"), so it is recorded as a proposal needing a design decision, not a gap. (2) A modal scrim-and-scale enter was listed as current; the shared `Modal` in `admin/ui.tsx` has **no motion at all**, and `TouchPreviewModal` inherits that. (3) The shimmer gradient was specified as `t.border.subtle` to `t.background.surface`, a pair COMPONENT_PATTERNS.md rules out by name as very nearly invisible on white; the live gradient is `t.background.subtle` to `t.background.muted`.
+- **Three claims in the source specification were wrong against the code and were corrected in the doc rather than carried through.** (1) A pagination `tbody` opacity fade was listed as current implementation; `Pagination.tsx` animates only its own buttons, and COMPONENT_PATTERNS.md explicitly decides the opposite ("The bar does not animate on a page change"). **The proposal was rejected outright and removed from the doc the same day** rather than left open: the swap is a client-side array slice with nothing to wait for, so instant is correct, and MOTION_SYSTEM.md now records it as settled with a do-not-reintroduce note. (2) A modal scrim-and-scale enter was listed as current; the shared `Modal` in `admin/ui.tsx` has **no motion at all**, and `TouchPreviewModal` inherits that. (3) The shimmer gradient was specified as `t.border.subtle` to `t.background.surface`, a pair COMPONENT_PATTERNS.md rules out by name as very nearly invisible on white; the live gradient is `t.background.subtle` to `t.background.muted`.
+- **The code token object is exported as `motionSystem`, not `motionTokens`.** It shipped briefly under the latter name, which meant two same-named exports with incompatible shapes across `theme.ts` and `motion.ts`. Renamed the same day. See Section 7 for why the distinct name matters and what it prevents.
 - **Shimmer is 1.5s, not the 1.4s specified.** Identical across all nine call sites. The token records `shimmer: '1500ms'`, since changing nine files to 1400ms would be a cosmetic sweep with no defect behind it.
 - **`prefers-reduced-motion` now exists, for the first time anywhere in `src/`.** Global block in `src/styles/index.css`. Known consequence, documented rather than worked around: `animation-iteration-count: 1` freezes looping spinners, so in-flight state must also be conveyed non-visually. Giving spinners a reduced-motion-safe alternative is a Phase 2 item.
 - **Not browser-verified.** This branch adds two files and one CSS block and changes no component. The reduced-motion block is the only thing that alters rendering, and only for users who have asked for it. A preview pass with the OS reduced-motion setting on is still worth running before merge.
@@ -583,7 +584,9 @@ All migrations live on Supabase project `urrinqwcrpivmvenupiu` (Mumbai, ap-south
 
 **Migration 0092 — outreach_touches.scheduled_for date → timestamptz:** converts the column (was `date` since migration 0072; `linkedin_posts.scheduled_for` from migration 0076 is a different table and was already `timestamptz`) so precise business-hours-computed send times actually reach storage instead of being truncated to midnight. `resume_enrollment()` fixed in the same migration — `scheduled_for + v_days_paused` doesn't typecheck against `timestamptz + integer`; replaced with `make_interval(days => v_days_paused)`. See Section 1's PR #19 entry for the corrupted-data incident this migration's timing gap caused and how it was resolved.
 
-- Next migration must be `0093`.
+**Migration 0093 — Resend webhook event columns:** adds `delivered_at`, `clicked_at`, `complained_at`, `unsubscribed_at` and `bounce_type` to `outreach_touches`; `bounced_at`, `complained_at` and `unsubscribed_at` to `leads`; `'complaint'` to the suppression reason check constraint; and a partial index on `outreach_touches.resend_message_id`. Applied to production 9 Aug 2026, before the handler that depends on it was deployed. See Section 1's webhook entries.
+
+- Next migration must be `0094`.
 
 **Outreach scheduling tables (migration 0076):**
 - `outreach_touches` — 3 new columns: `recipient_timezone text`, `draft_confirmed_at timestamptz`, `draft_confirmed_by uuid → auth.users`; status constraint extended: `('pending','sent','failed','skipped','scheduled','cancelled')` (further extended to add `'held'` in migration 0080, see below)
@@ -829,19 +832,30 @@ file-by-file audit of every animation live in `src/portal`).
 
 ### Motion
 
-`src/portal/motion.ts` exports the full nested scale (`duration.fast`,
-`easing.enter`, `distance.md`, `delay.short`) including the values `theme.ts`
-lacks: `micro`, `moderate`, `slower`, `expressive`, `snap`, `emphasized`,
-distances and delays. **Nothing imports it yet, deliberately.** `theme.ts` also
-exports a symbol named `motionTokens`, flat-shaped, and that is what all ~60
-current call sites use. Migrating them is one atomic pass (MOTION_SYSTEM.md
-Phase 2), not opportunistic work, and it must reconcile three divergences:
-`durationSlow` is 350ms in `theme.ts` against 360ms in the scale, `easeDefault`
-is a different curve from `easing.standard`, and shimmer runs at 1.5s live
-against the 1.4s originally specified (the code value won). **Reading
-`motionTokens.durationFast` off the nested object returns `undefined`, which
-serializes into a CSS string as the text "undefined" and silently kills the
-transition with no console error.** Never import both into one file.
+`src/portal/motion.ts` exports the full nested scale as **`motionSystem`**
+(`duration.fast`, `easing.enter`, `distance.md`, `delay.short`), including the
+values `theme.ts` lacks: `micro`, `moderate`, `slower`, `expressive`, `snap`,
+`emphasized`, distances and delays. **Nothing imports it yet, deliberately.**
+`theme.ts` separately exports flat `motionTokens` (`durationFast`, `easeEnter`)
+and that is what all ~60 current call sites use.
+
+**The names differ on purpose.** Had both been called `motionTokens`, an import
+from the wrong module would read `motionTokens.durationFast` as `undefined`,
+which serializes into a CSS string as the literal text "undefined" and silently
+kills the transition with no console error. `motionSystem` makes that
+unreachable, and lets both be imported into one file during the migration.
+
+Migrating the call sites is one atomic pass (MOTION_SYSTEM.md Phase 2), not
+opportunistic work, and it must reconcile three real divergences: `durationSlow`
+is 350ms in `theme.ts` against 360ms in the scale, `easeDefault` is a different
+curve from `easing.standard`, and shimmer runs at 1.5s live against the 1.4s
+originally specified (the code value won).
+
+**Pagination does not animate on a page change, and that is settled.** A `tbody`
+fade was proposed and rejected: the swap is a client-side array slice with
+nothing to wait for, and COMPONENT_PATTERNS.md's Pagination Pattern already
+decided that the bar holding still is what makes the content read as the thing
+that changed. MOTION_SYSTEM.md reaffirms it rather than reopening it.
 
 `prefers-reduced-motion` is handled once globally in `src/styles/index.css`
 (added 9 Aug 2026, the first such handling anywhere in `src/`). That stylesheet
@@ -1050,7 +1064,7 @@ There is a **gap between steps 1 and 2 during which every event 401s**, because 
 
 **Smart Shortlist AI run fix:** Queue-based async processing via pg_net or dedicated worker to bypass edge function execution limits. Replaces current disabled synchronous flow.
 
-**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0093` (`0081` billing_title, `0082` used twice — see Section 3's Enquiry tables note — `0083` leads ICP score columns, `0084` outreach footer, `0085` outreach confirmed-send cron, `0086` LinkedIn current-week fix + drafts, `0087`-`0088` Outputs schema + share-link RPCs, `0089` leads.segment expand, `0090` Outreach Skills, `0091` outreach-skills bucket MIME fix, `0092` scheduled_for timestamptz).
+**Invoice nudge automation:** Scheduled reminders at due date, +3d, +7d. PDF attachment. Auto-triggered + manual CTA buttons per invoice. Next available migration is `0094` (`0081` billing_title, `0082` used twice — see Section 3's Enquiry tables note — `0083` leads ICP score columns, `0084` outreach footer, `0085` outreach confirmed-send cron, `0086` LinkedIn current-week fix + drafts, `0087`-`0088` Outputs schema + share-link RPCs, `0089` leads.segment expand, `0090` Outreach Skills, `0091` outreach-skills bucket MIME fix, `0092` scheduled_for timestamptz, `0093` Resend webhook event columns).
 
 **Outputs folder-level sharing:** Extend the file-level `public_token` pattern (migration 0088) to folders — one link covering an entire subtree, not just a single file.
 

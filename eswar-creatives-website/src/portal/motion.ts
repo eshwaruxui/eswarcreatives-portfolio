@@ -1,32 +1,28 @@
 // Portal motion tokens. The code counterpart of docs/MOTION_SYSTEM.md, which is
 // the reference for what each value is for.
 //
-// IMPORTANT, read before importing:
-//
-// `theme.ts` ALSO exports a symbol named `motionTokens`, with a flat shape
-// (`durationFast`, `easeEnter`) rather than the nested one below
-// (`duration.fast`, `easing.enter`). Every call site in the portal currently
-// imports that one. Nothing imports this file yet, by design: migrating the
-// ~60 existing call sites is a single atomic pass, not opportunistic work.
-//
-// While both exist:
-//   1. Existing code keeps importing from `theme.ts`.
-//   2. Never import both into the same file.
-//   3. New code needing a value `theme.ts` lacks (micro, moderate, slower,
-//      expressive, snap, emphasized, distance.*, delay.*) imports from here.
-//
-// Reading `motionTokens.durationFast` off THIS object yields `undefined`, which
+// The export is named `motionSystem`, deliberately NOT `motionTokens`.
+// `theme.ts` already exports `motionTokens` with a flat shape (`durationFast`,
+// `easeEnter`) and every one of the ~60 current call sites imports that. Two
+// same-named exports with incompatible shapes would mean an import from the
+// wrong module reads `motionTokens.durationFast` as `undefined`, which
 // serializes into a CSS string as the literal text "undefined" and silently
-// kills the transition with no console error. Check which module you imported
-// from before reading a key.
+// kills the transition with no console error. Distinct names make that
+// impossible, and let both objects be imported into one file during the
+// migration.
 //
-// Three values deliberately diverge from `theme.ts` and are reconciled when the
-// call sites migrate (see MOTION_SYSTEM.md section 4.1):
-//   - duration.slow is 360ms here, `durationSlow` is 350ms there.
-//   - easing.standard is a different curve from `easeDefault`.
+// Nothing imports this file yet. Migrating the existing `theme.ts` call sites
+// is a single atomic pass (MOTION_SYSTEM.md, Phase 2), not opportunistic work,
+// because that pass also has to reconcile three real divergences:
+//   - duration.slow is 360ms here, `durationSlow` is 350ms in theme.ts.
+//   - easing.standard is a different curve from theme.ts's `easeDefault`.
 //   - duration.shimmer records the live 1.5s, not the 1.4s originally specced.
+//
+// Until then: new code needing a value theme.ts lacks (micro, moderate, slower,
+// expressive, snap, emphasized, distance.*, delay.*) imports `motionSystem`
+// from here. Everything else keeps importing `motionTokens` from theme.ts.
 
-export const motionTokens = {
+export const motionSystem = {
   duration: {
     instant: '0ms',
     micro: '80ms',
