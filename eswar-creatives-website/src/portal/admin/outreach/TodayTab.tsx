@@ -406,6 +406,21 @@ export function TodayTab({
   const pageOverdue = duePageRows.filter((r) => overdueIds.has(r.id))
   const pageDueToday = duePageRows.filter((r) => !overdueIds.has(r.id))
 
+  // Review in Advance owns its own page state. Three lists on one page means
+  // three independent usePagination instances, never one shared between them:
+  // paging Scheduled must not move Review in Advance underneath the reader.
+  // Already ordered by scheduled_for by the query, so it is safe to slice.
+  const {
+    currentPage: pendingPage,
+    pageSize: pendingPageSize,
+    paginatedSlice: pendingSlice,
+    goToPage: goToPendingPage,
+    changePageSize: changePendingPageSize,
+    pageStart: pendingStart,
+    pageEnd: pendingEnd,
+  } = usePagination(pendingConfirmation.length, 25)
+  const pendingPageRows = pendingSlice(pendingConfirmation)
+
   // The modal owns its own edit/save/thread state now — this tab only says
   // which touch is open, whether it's still approvable, and what to do with a
   // saved edit or a successful approve.
@@ -563,7 +578,7 @@ export function TodayTab({
             </span>
           </div>
           <div style={styles.touchList}>
-            {pendingConfirmation.map((touch) => {
+            {pendingPageRows.map((touch) => {
               const lead = touch.lead
               const isConf = confirmingId === touch.id
               const err = confirmErrors[touch.id]
@@ -608,6 +623,18 @@ export function TodayTab({
                 />
               )
             })}
+          </div>
+          <div style={styles.sectionPagination}>
+            <Pagination
+              totalItems={pendingConfirmation.length}
+              pageSize={pendingPageSize}
+              currentPage={pendingPage}
+              onPageChange={goToPendingPage}
+              onPageSizeChange={changePendingPageSize}
+              pageStart={pendingStart}
+              pageEnd={pendingEnd}
+              itemLabel="touches"
+            />
           </div>
         </div>
       )}
