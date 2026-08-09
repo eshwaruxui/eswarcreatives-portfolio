@@ -875,7 +875,7 @@ export function DesignSystemsCaseStudy() {
               </PortfolioButton>
               <PortfolioButton
                 href="/services/design-systems"
-                variant="outline"
+                variant="inverse"
                 size="lg"
                 style={{
                   background:   "transparent",

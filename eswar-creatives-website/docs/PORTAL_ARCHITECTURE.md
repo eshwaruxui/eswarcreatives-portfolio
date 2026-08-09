@@ -9,7 +9,14 @@ Last updated: 9 August 2026 (`fix/bg-token-contrast` merged to `main`: the warm 
 **Active branch:** `main`
 **Status:** Stable. Seven branches merged to `main` on 9 August 2026, in order: `feature/shared-pagination`, `fix/sticky-pagination-and-leads-scroll`, `fix/pagination-scroll`, `fix/bg-token-contrast`, `fix/resend-webhook`, `fix/activity-ui-and-cleanup`, then `chore/ts-check`. One `--no-ff` merge commit each. Only `fix/resend-webhook` carried a migration, `0093`, which was applied to production before the handler that depends on it was deployed. Next migration is `0094`.
 
-`chore/ts-check` added `npm run typecheck` and left its 39 findings unfixed on purpose. See Section 13's dev tooling table for the breakdown and for the three that look like genuine defects.
+`chore/ts-check` added `npm run typecheck` and left its 39 findings unfixed on purpose. See Section 13's dev tooling table for the breakdown.
+
+_Three real typecheck defects closed (`fix/ts-real-defects`, 4 commits, no migrations, **not yet merged**):_
+- **39 errors down to 36.** The three flagged as genuine defects in Section 13 are fixed, one commit each; the 36 documented false alarms are untouched by design.
+- **Only one of the three was actually broken on screen.** `DesignSystemsCaseStudy`'s `variant="outline"` is not in `PortfolioButton`'s union, and cva emits no variant classes at all for an unrecognised value, so the button had no border width and its inline `borderColor` painted nothing. Measured live at `0px` before and `1px` after. The other two were dead comparisons sitting on the correct side of a narrowed union, so removing them changed no rendered output. See Section 13 for the full reasoning.
+- **`react` and `react-dom` moved from optional `peerDependencies` into `dependencies`.** Section 13 had recorded them as absent from `package.json`; they were present but declared in a way that meant npm never installed them, so they still resolved transitively. `npm install react react-dom` is a no-op against that declaration and had to be done by hand.
+- **Build passes (exit 0) and typecheck holds at 36.** All three fixes verified in the browser on the local dev server. The lightbox strip has no reachable route outside an authenticated portal page, so it was verified through a throwaway harness rendering the component directly with one item of every `kind`, then deleted.
+- **Not yet run: the Cloudflare preview and incognito passes** required below. Two of the three changes are marketing-site routes reachable without a login, so unlike recent portal work there is no session obstacle to doing it properly this time.
 
 _Resend webhook unblocked at the gateway (`fix/resend-webhook`, 9 Aug 2026, no migrations, edge function code unchanged):_
 - **The webhook was never going to work, for a reason the earlier diagnosis missed.** The 7 Aug entry in Section 11 attributed the zero-invocation state entirely to the unset `RESEND_WEBHOOK_SECRET` and the unregistered endpoint. Both were true, but there was a third fault underneath them: `resend-outreach-webhook` was deployed with **`verify_jwt = true`**, the only machine-called function in the project that was (the cron, the public enquiry endpoint and the output-file endpoint are all `false`). Resend sends svix headers and no Supabase JWT, so every event would have been rejected by the gateway with a 401 *before the handler ran* — the signature check, the secret, and the whole bounce/open pipeline behind it were unreachable. Fixing only the secret would have left the endpoint just as dead, with the same empty columns and the same silent logs.
@@ -1032,7 +1039,7 @@ Three configuration decisions in `tsconfig.json` are worth knowing before changi
 
 `typescript`, `@types/react` and `@types/react-dom` are devDependencies. The React types were not optional: without them every `.tsx` file fails on JSX and the report is worthless.
 
-**First run: 39 errors across 19 files, and the build still passes.** None of them block anything today. Grouped by cause rather than by file, because four causes account for 36 of the 39:
+**First run: 39 errors across 19 files, and the build still passes.** **Now 36, after `fix/ts-real-defects` closed the three real ones on 9 August 2026.** None of the remaining 36 block anything today. Grouped by cause rather than by file:
 
 | Cause | Count | Files |
 |---|---|---|
@@ -1040,18 +1047,23 @@ Three configuration decisions in `tsconfig.json` are worth knowing before changi
 | Supabase nested relations typed as arrays, declared as single objects | 9 | `TodayTab` (3), `LeadDrawer` (2), `ActivityTab`, `TouchPreviewModal`, `ProposalDetail` (2) |
 | `onClick` on a component typed as both anchor and button | 4 | `AboutPage` (2), `DsAuditCaseStudy`, `SecureVaultCaseStudy` |
 | `Dispatch<SetStateAction<Tab>>` passed where `(id: string) => void` is expected | 2 | `ProjectPanel`, `ProjectDetailPage` |
+| `.tsx` extension on an import (TS5097), Vite allows it, `tsc` needs `allowImportingTsExtensions` | 1 | `main.tsx:3` |
+| Supabase insert union vs `RejectExcessProperties` (TS2345) | 1 | `AttachmentSection:186` |
+| framer-motion variant declared as a function (TS2322) | 1 | `SwipeCard:55` |
+
+**Correction to the original entry:** it said "four causes account for 36 of the 39". Those four causes sum to **33**, and two errors (`AttachmentSection`, `SwipeCard`) were never accounted for at all. The last three rows above close that gap. 33 + 3 = 36, which is the real remaining total.
 
 The Supabase group is the largest false alarm: PostgREST returns a single object for a many-to-one embed, so the code is right at runtime and the generated types are wrong. Those are `as` casts that TypeScript will not accept without an `unknown` hop.
 
-**Three look like actual defects and are worth reading before the next release:**
+**The three real defects, all resolved on `fix/ts-real-defects` (9 August 2026, no migrations):**
 
-- `DesignSystemPage.tsx:613` (TS2367) compares `"typography"` with `"colors"`. No overlap, so the branch is dead and something is not rendering.
-- `LightboxThumbnailStrip.tsx:144` (TS2367) compares `"other" | "pdf" | "video"` with `"image"`. Same shape, same conclusion.
-- `DesignSystemsCaseStudy.tsx:878` passes variant `"outline"` where the union is `accent | brand | ghost | inverse | primary | secondary`. The button is silently falling back to default styling.
+- ~~`DesignSystemPage.tsx:613`~~ **Resolved.** The Foundation sub-nav was duplicated inside both branches of the render conditional, and the copy in the typography branch sat under a guard that had already narrowed `foundationSection` to `"typography"`, making its `"colors"` comparison statically false. Fixed by hoisting the sub-nav to a single render gated on `activeTab`. **The audit's "something is not rendering" was wrong:** the narrowed copy produced the correct inactive styling by accident, so nothing was visibly broken. What it actually removed was dead code and a duplicated block. Verified in the browser both ways, and the DOM now holds one sub-nav (2 buttons) instead of two.
+- ~~`LightboxThumbnailStrip.tsx:144`~~ **Resolved.** Same shape, same conclusion, and **also behaviourally correct before the fix.** The `kind === 'image' ? 'other' : kind` guard sat in the else of a `kind === 'image'` ternary, so `kind` was already narrowed to exactly `NonImageThumbIcon`'s own union and the guard could never fire. Dropped it. Verified pdf, video and other each still resolve to their own icon, and an undefined `kind` still falls back to the image branch.
+- ~~`DesignSystemsCaseStudy.tsx:878`~~ **Resolved, and this one was a genuine visual bug.** cva emits **no variant classes at all** for an unrecognised value (`defaultVariants` only fill in for `undefined`), so the button got base and size classes only. The call site sets `borderColor` inline but nothing set a border *width*, so the outline never painted and the button read as bare text on the dark CTA surface. Measured live: `border-top-width` was `0px` before, `1px` after. Fixed by moving the call site to `inverse`, the variant documented for an outlined button on a dark surface, rather than adding a seventh near-duplicate to the union.
 
-One is pure configuration: `main.tsx:3` imports with an explicit `.tsx` extension, which Vite allows and `tsc` does not without `allowImportingTsExtensions`.
+**Two of the three were dead code, not broken rendering.** Only the `outline` variant changed what a user sees. A TS2367 says a comparison is statically false, which is not the same as saying the wrong branch ran; here two of them were redundant guards that happened to sit on the correct side. Worth remembering before the next audit promotes a TS2367 to a visible bug on sight.
 
-**Also surfaced, unrelated to types:** `react` and `react-dom` are **not declared in `package.json`** at all. They resolve at 18.3.1 transitively through another dependency. That works until the intermediate package changes its own React range. Left alone here, since this branch was scoped to not touch the build.
+**`react` and `react-dom` now declared** (`fix/ts-real-defects`). They were not "absent from `package.json`" as originally recorded: they were listed under **`peerDependencies`, with `peerDependenciesMeta` marking both optional**. For an application that is the same trap by a different route, since npm never installs an optional peer on the project's own behalf and both resolved transitively at 18.3.1. Note that **`npm install react react-dom` does not fix this**: npm sees the existing peer entry at the same spec, reports "up to date" and leaves `package.json` untouched. Both had to be moved into `dependencies` by hand, and the now-empty `peerDependencies` / `peerDependenciesMeta` blocks removed with them (leftover scaffolding from the Figma Make export this repo started from; the package is `private` and never published). Resolved versions unchanged at 18.3.1.
 
 - One branch per feature. One commit per logical layer.
 - Never merge to main without Cloudflare preview + incognito test.

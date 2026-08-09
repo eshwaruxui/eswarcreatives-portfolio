@@ -597,72 +597,48 @@ export function DesignSystemPage() {
         </div>
       </header>
 
+      {/* Foundation sub-nav — rendered once for both Foundation sections.
+          It used to be duplicated inside each branch of the conditional below,
+          which narrowed foundationSection to a literal and made the Color
+          Palette active-state comparison statically false (TS2367). */}
+      {activeTab === "Foundation" && (
+        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-4 pb-0">
+          <div className="flex items-center gap-1 border-b border-gray-100 pb-0">
+            <button
+              onClick={() => setFoundationSection("colors")}
+              className={`px-3 py-2 border-b-2 transition-colors ${
+                foundationSection === "colors"
+                  ? "border-gray-900 text-gray-900"
+                  : "border-transparent text-gray-400 hover:text-gray-600"
+              }`}
+              style={{ fontSize: "var(--typo-caption-m-size)", lineHeight: "var(--typo-caption-m-line-height)", fontWeight: "var(--typo-caption-m-weight)" }}
+            >
+              Color Palette
+            </button>
+            <button
+              onClick={() => setFoundationSection("typography")}
+              className={`px-3 py-2 border-b-2 transition-colors ${
+                foundationSection === "typography"
+                  ? "border-gray-900 text-gray-900"
+                  : "border-transparent text-gray-400 hover:text-gray-600"
+              }`}
+              style={{ fontSize: "var(--typo-caption-m-size)", lineHeight: "var(--typo-caption-m-line-height)", fontWeight: "var(--typo-caption-m-weight)" }}
+            >
+              Typography
+            </button>
+          </div>
+        </div>
+      )}
+
       {activeTab === "Token Library" ? (
         <TokenLibraryColors />
       ) : activeTab === "Components" ? (
         <ComponentLibrary />
       ) : activeTab === "Foundation" && foundationSection === "typography" ? (
         /* ── Typography section ── */
-        <>
-          {/* Foundation sub-nav */}
-          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-4 pb-0">
-            <div className="flex items-center gap-1 border-b border-gray-100 pb-0">
-              <button
-                onClick={() => setFoundationSection("colors")}
-                className={`px-3 py-2 border-b-2 transition-colors ${
-                  foundationSection === "colors"
-                    ? "border-gray-900 text-gray-900"
-                    : "border-transparent text-gray-400 hover:text-gray-600"
-                }`}
-                style={{ fontSize: "var(--typo-caption-m-size)", lineHeight: "var(--typo-caption-m-line-height)", fontWeight: "var(--typo-caption-m-weight)" }}
-              >
-                Color Palette
-              </button>
-              <button
-                onClick={() => setFoundationSection("typography")}
-                className={`px-3 py-2 border-b-2 transition-colors ${
-                  foundationSection === "typography"
-                    ? "border-gray-900 text-gray-900"
-                    : "border-transparent text-gray-400 hover:text-gray-600"
-                }`}
-                style={{ fontSize: "var(--typo-caption-m-size)", lineHeight: "var(--typo-caption-m-line-height)", fontWeight: "var(--typo-caption-m-weight)" }}
-              >
-                Typography
-              </button>
-            </div>
-          </div>
-          <TypographySystem />
-        </>
+        <TypographySystem />
       ) : (
         <>
-          {/* Foundation sub-nav */}
-          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-4 pb-0">
-            <div className="flex items-center gap-1 border-b border-gray-100 pb-0">
-              <button
-                onClick={() => setFoundationSection("colors")}
-                className={`px-3 py-2 border-b-2 transition-colors ${
-                  foundationSection === "colors"
-                    ? "border-gray-900 text-gray-900"
-                    : "border-transparent text-gray-400 hover:text-gray-600"
-                }`}
-                style={{ fontSize: "var(--typo-caption-m-size)", lineHeight: "var(--typo-caption-m-line-height)", fontWeight: "var(--typo-caption-m-weight)" }}
-              >
-                Color Palette
-              </button>
-              <button
-                onClick={() => setFoundationSection("typography")}
-                className={`px-3 py-2 border-b-2 transition-colors ${
-                  foundationSection === "typography"
-                    ? "border-gray-900 text-gray-900"
-                    : "border-transparent text-gray-400 hover:text-gray-600"
-                }`}
-                style={{ fontSize: "var(--typo-caption-m-size)", lineHeight: "var(--typo-caption-m-line-height)", fontWeight: "var(--typo-caption-m-weight)" }}
-              >
-                Typography
-              </button>
-            </div>
-          </div>
-
           {/* Page header */}
           <div className="max-w-7xl mx-auto px-4 md:px-8 pt-8 pb-4">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
