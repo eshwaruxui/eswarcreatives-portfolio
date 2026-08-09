@@ -18,9 +18,12 @@ import {
   PREVIEW_TOUCH_SELECT,
   type PreviewTouch,
 } from '../../components/shared/TouchPreviewModal'
+import { Pagination } from '../../components/shared/Pagination'
+import { Skeleton } from '../../components/shared/Skeleton'
 import { showToast as showGlobalToast } from '../toast'
 import { useReloadableList } from '../../hooks/useReloadableList'
 import { useConfirmScheduledTouch } from '../../hooks/useConfirmScheduledTouch'
+import { usePagination } from '../../hooks/usePagination'
 
 // The preview modal, its template resolution, and the prior-email thread all
 // moved to components/shared/TouchPreviewModal so ActivityTab's "Awaiting
@@ -373,6 +376,36 @@ export function TodayTab({
 
   const isEmpty = overdue.length === 0 && dueToday.length === 0
 
+  // Overdue and Due Today come out of one query and read as one queue, so they
+  // page as one list: a single usePagination over the concatenation, sliced
+  // once, then split back into the two sections for rendering. Paging them
+  // separately would put a paginated half and an unpaginated half of the same
+  // result set on screen next to each other.
+  //
+  // The concatenation order is already the sort order — overdue first, then due
+  // today, each ordered by scheduled_for by the query — so this satisfies the
+  // hook's sort-first-then-slice rule without a second sort.
+  const dueQueue = [...overdue, ...dueToday]
+  const {
+    currentPage: duePage,
+    pageSize: duePageSize,
+    paginatedSlice: dueSlice,
+    goToPage: goToDuePage,
+    changePageSize: changeDuePageSize,
+    pageStart: dueStart,
+    pageEnd: dueEnd,
+  } = usePagination(dueQueue.length, 25)
+  // No reset() call site anywhere in this tab, deliberately. reset() belongs on
+  // filter, search and sort changes, and this tab has none of the three. The
+  // one thing that does change the row count is the 30s poll, and resetting
+  // there is exactly the trap the pattern warns about: it would yank the reader
+  // back to page 1 every 30 seconds mid-read. A queue that shrinks underneath
+  // the user is already covered by the hook's derived currentPage clamp.
+  const overdueIds = new Set(overdue.map((r) => r.id))
+  const duePageRows = dueSlice(dueQueue)
+  const pageOverdue = duePageRows.filter((r) => overdueIds.has(r.id))
+  const pageDueToday = duePageRows.filter((r) => !overdueIds.has(r.id))
+
   // The modal owns its own edit/save/thread state now — this tab only says
   // which touch is open, whether it's still approvable, and what to do with a
   // saved edit or a successful approve.
@@ -457,34 +490,68 @@ export function TodayTab({
       )}
 
       {initialLoading ? (
-        <div style={styles.loadingText}>Loading queue...</div>
+        // Card-shaped placeholders, not SkeletonRow: that one emits a <tr> of
+        // <td>s and only works inside a <table>, and every list on this tab is
+        // a div-based card list. Skeleton is the block SkeletonRow itself
+        // composes, so the shimmer is the same one either way.
+        //
+        // This is the tab's only loading gate. Review in Advance and Scheduled
+        // below both render behind !initialLoading, so they are covered by this
+        // one placeholder rather than each showing a header for a section that
+        // may turn out to be empty.
+        <div style={styles.touchList}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} style={styles.touchCard}>
+              <Skeleton height={14} width="45%" />
+              <Skeleton height={12} width="70%" />
+            </div>
+          ))}
+        </div>
       ) : isEmpty ? (
         <EmptyQueue />
       ) : (
-        <div style={styles.sections}>
-          {overdue.length > 0 && (
-            <Section
-              title="Overdue"
-              count={overdue.length}
-              isOverdue
-              touches={overdue}
-              onOpen={setActiveTouch}
-              onOpenLeadDrawer={setActiveLeadId}
-              onRefresh={load}
+        <>
+          <div style={styles.sections}>
+            {/* Each section renders its slice of the shared page, but its count
+                badge stays the section total. The badge answers "how much is
+                overdue", which the page you happen to be on should not change;
+                the Showing X to Y label below covers the page itself. */}
+            {pageOverdue.length > 0 && (
+              <Section
+                title="Overdue"
+                count={overdue.length}
+                isOverdue
+                touches={pageOverdue}
+                onOpen={setActiveTouch}
+                onOpenLeadDrawer={setActiveLeadId}
+                onRefresh={load}
+              />
+            )}
+            {pageDueToday.length > 0 && (
+              <Section
+                title="Due Today"
+                count={dueToday.length}
+                isOverdue={false}
+                touches={pageDueToday}
+                onOpen={setActiveTouch}
+                onOpenLeadDrawer={setActiveLeadId}
+                onRefresh={load}
+              />
+            )}
+          </div>
+          <div style={styles.sectionPagination}>
+            <Pagination
+              totalItems={dueQueue.length}
+              pageSize={duePageSize}
+              currentPage={duePage}
+              onPageChange={goToDuePage}
+              onPageSizeChange={changeDuePageSize}
+              pageStart={dueStart}
+              pageEnd={dueEnd}
+              itemLabel="touches"
             />
-          )}
-          {dueToday.length > 0 && (
-            <Section
-              title="Due Today"
-              count={dueToday.length}
-              isOverdue={false}
-              touches={dueToday}
-              onOpen={setActiveTouch}
-              onOpenLeadDrawer={setActiveLeadId}
-              onRefresh={load}
-            />
-          )}
-        </div>
+          </div>
+        </>
       )}
 
       {!initialLoading && pendingConfirmation.length > 0 && (
@@ -952,6 +1019,17 @@ const styles: Record<string, CSSProperties> = {
   },
   sections: { display: 'flex', flexDirection: 'column', gap: 32 },
   section: { display: 'flex', flexDirection: 'column', gap: 0 },
+  // Inline pagination container, one per paginated section on this tab.
+  // Deliberately not StickyBar: that one is position:fixed at bottom 0, so the
+  // three bars this tab needs would superimpose at identical coordinates rather
+  // than stack, and each would inject its own measured spacer at a different
+  // point in the flow. Pagination carries no chrome of its own precisely so a
+  // non-sticky caller can frame it, which is what this does.
+  sectionPagination: {
+    marginTop: 16,
+    paddingTop: 12,
+    borderTop: `1px solid ${t.border.subtle}`,
+  },
   sectionHeader: {
     display: 'flex',
     alignItems: 'center',
@@ -1178,12 +1256,6 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
     fontSize: 13,
     marginBottom: 16,
-  },
-  loadingText: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: t.text.muted,
-    padding: '32px 0',
   },
   emptyState: {
     display: 'flex',
