@@ -421,6 +421,22 @@ export function TodayTab({
   } = usePagination(pendingConfirmation.length, 25)
   const pendingPageRows = pendingSlice(pendingConfirmation)
 
+  // Scheduled owns the third and last page state on this tab, independent of
+  // the other two for the same reason. Note this list also grows locally:
+  // approving a touch moves it out of Review in Advance and appends it here
+  // (see useConfirmScheduledTouch above), so its length changes without a
+  // refetch. The hook's derived currentPage handles that in both directions.
+  const {
+    currentPage: approvedPage,
+    pageSize: approvedPageSize,
+    paginatedSlice: approvedSlice,
+    goToPage: goToApprovedPage,
+    changePageSize: changeApprovedPageSize,
+    pageStart: approvedStart,
+    pageEnd: approvedEnd,
+  } = usePagination(scheduledApproved.length, 25)
+  const approvedPageRows = approvedSlice(scheduledApproved)
+
   // The modal owns its own edit/save/thread state now — this tab only says
   // which touch is open, whether it's still approvable, and what to do with a
   // saved edit or a successful approve.
@@ -648,7 +664,7 @@ export function TodayTab({
             </span>
           </div>
           <div style={styles.touchList}>
-            {scheduledApproved.map((touch) => {
+            {approvedPageRows.map((touch) => {
               const lead = touch.lead
               return (
                 <SimpleTouchRow
@@ -674,6 +690,18 @@ export function TodayTab({
                 />
               )
             })}
+          </div>
+          <div style={styles.sectionPagination}>
+            <Pagination
+              totalItems={scheduledApproved.length}
+              pageSize={approvedPageSize}
+              currentPage={approvedPage}
+              onPageChange={goToApprovedPage}
+              onPageSizeChange={changeApprovedPageSize}
+              pageStart={approvedStart}
+              pageEnd={approvedEnd}
+              itemLabel="touches"
+            />
           </div>
         </div>
       )}
