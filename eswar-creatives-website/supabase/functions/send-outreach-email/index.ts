@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveTimezone, computeSendDecision } from "../_shared/businessHours.ts";
+import { htmlBody } from "../_shared/outreachEmailBody.ts";
 
 // Sends an outreach email for a scheduled touch.
 // Caller: admin portal (touch_id in body). Returns { error: code } on any failure.
@@ -41,44 +42,6 @@ function substitute(template: string, vars: Record<string, string>): string {
     out = out.replaceAll(`{{${key}}}`, val);
   }
   return out;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function htmlBody(body: string, unsubUrl: string): string {
-  // Preserve paragraph breaks: \n\n → <br><br>, then remaining \n → <br>
-  let escaped = escapeHtml(body);
-
-  // Embed the two footer links as real anchors instead of bare URLs.
-  const linkStyle = "color:#024C4F;text-decoration:underline;";
-  const escapedUnsubUrl = escapeHtml(unsubUrl);
-  escaped = escaped.split(escapedUnsubUrl).join(
-    `<a href="${escapedUnsubUrl}" style="${linkStyle}">unsubscribe</a>`
-  );
-  escaped = escaped.split("eswarcreatives.in/design-systems").join(
-    `<a href="https://www.eswarcreatives.in/design-systems" style="${linkStyle}">eswarcreatives.in/design-systems</a>`
-  );
-
-  escaped = escaped
-    .replace(/\n\n/g, "<br><br>")
-    .replace(/\n/g, "<br>");
-  return `<!doctype html>
-<html>
-  <body style="margin:0;background:#FAF8F4;font-family:Inter,Arial,sans-serif;color:#0A1A1B;">
-    <div style="max-width:520px;margin:0 auto;padding:32px 24px;">
-      <div style="font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;color:#024C4F;margin-bottom:24px;">
-        EswarCreatives
-      </div>
-      <div style="font-size:15px;line-height:1.65;color:#1A1A1A;">${escaped}</div>
-    </div>
-  </body>
-</html>`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -200,14 +163,29 @@ Deno.serve(async (req: Request) => {
     topic: "{{topic}}",
   };
 
-  const rawSubject = step?.subject_template ?? touch.subject_snapshot ?? "";
-  const rawBody = step?.body_template ?? touch.body_snapshot ?? "";
-  const renderedSubject = substitute(rawSubject, vars);
+  // Snapshot wins over template. A still-scheduled touch only has a snapshot
+  // if an admin opened it in TouchPreviewModal, edited it and saved — so a
+  // non-null snapshot always means "a human deliberately rewrote this," and
+  // the template must not silently override it. This used to be enforced by
+  // the modal nulling out step_id on save; that was reverted (it broke every
+  // other consumer of touch.step) without the precedence here being flipped
+  // to compensate, so edits were being written and then discarded at send
+  // time. Subject and body are read as a pair because the modal always writes
+  // them as a pair — taking the snapshot body with the template subject would
+  // mail a mismatched pair neither the admin nor the template author wrote.
+  const rawSubject = touch.subject_snapshot ?? step?.subject_template ?? "";
+  const rawBody = touch.body_snapshot ?? step?.body_template ?? "";
+  let renderedSubject = substitute(rawSubject, vars);
   let renderedBody = substitute(rawBody, vars);
 
-  // Bug 5: possessive fix — "Acme SaaS's" -> "Acme SaaS'" when company ends in 's'
+  // Bug 5: possessive fix — "Acme SaaS's" -> "Acme SaaS'" when company ends in 's'.
+  // Applies to the subject too: the subject templates use {{company}}'s, so
+  // leaving it body-only mailed a correct body under a malformed subject line.
   if (lead.company.slice(-1).toLowerCase() === 's') {
-    renderedBody = renderedBody.replaceAll(`${lead.company}'s`, `${lead.company}'`);
+    const possessive = `${lead.company}'s`;
+    const fixed = `${lead.company}'`;
+    renderedSubject = renderedSubject.replaceAll(possessive, fixed);
+    renderedBody = renderedBody.replaceAll(possessive, fixed);
   }
 
   // Guard: unresolved variables

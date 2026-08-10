@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { htmlBody } from "../_shared/outreachEmailBody.ts";
 
 // Cron-invoked. Sends outreach touches that an admin approved early from
 // "Review in Advance" and whose held delivery window (9:30 AM ET next
@@ -29,42 +30,6 @@ function substitute(template: string, vars: Record<string, string>): string {
     out = out.replaceAll(`{{${key}}}`, val);
   }
   return out;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function htmlBody(body: string, unsubUrl: string): string {
-  let escaped = escapeHtml(body);
-
-  const linkStyle = "color:#024C4F;text-decoration:underline;";
-  const escapedUnsubUrl = escapeHtml(unsubUrl);
-  escaped = escaped.split(escapedUnsubUrl).join(
-    `<a href="${escapedUnsubUrl}" style="${linkStyle}">unsubscribe</a>`
-  );
-  escaped = escaped.split("eswarcreatives.in/design-systems").join(
-    `<a href="https://www.eswarcreatives.in/design-systems" style="${linkStyle}">eswarcreatives.in/design-systems</a>`
-  );
-
-  escaped = escaped
-    .replace(/\n\n/g, "<br><br>")
-    .replace(/\n/g, "<br>");
-  return `<!doctype html>
-<html>
-  <body style="margin:0;background:#FAF8F4;font-family:Inter,Arial,sans-serif;color:#0A1A1B;">
-    <div style="max-width:520px;margin:0 auto;padding:32px 24px;">
-      <div style="font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;color:#024C4F;margin-bottom:24px;">
-        EswarCreatives
-      </div>
-      <div style="font-size:15px;line-height:1.65;color:#1A1A1A;">${escaped}</div>
-    </div>
-  </body>
-</html>`;
 }
 
 type DueTouch = {
@@ -173,13 +138,22 @@ Deno.serve(async (req: Request) => {
       topic: "{{topic}}",
     };
 
-    const rawSubject = touch.step?.subject_template ?? touch.subject_snapshot ?? "";
-    const rawBody = touch.step?.body_template ?? touch.body_snapshot ?? "";
-    const renderedSubject = substitute(rawSubject, vars);
+    // Snapshot wins over template — see the matching comment in
+    // send-outreach-email. A non-null snapshot on a still-scheduled touch is
+    // always a deliberate admin edit, and subject/body are read as a pair
+    // because TouchPreviewModal always writes them as a pair.
+    const rawSubject = touch.subject_snapshot ?? touch.step?.subject_template ?? "";
+    const rawBody = touch.body_snapshot ?? touch.step?.body_template ?? "";
+    let renderedSubject = substitute(rawSubject, vars);
     let renderedBody = substitute(rawBody, vars);
 
+    // Possessive fix applies to the subject too — the subject templates use
+    // {{company}}'s, so body-only left a malformed subject line.
     if (lead.company.slice(-1).toLowerCase() === "s") {
-      renderedBody = renderedBody.replaceAll(`${lead.company}'s`, `${lead.company}'`);
+      const possessive = `${lead.company}'s`;
+      const fixed = `${lead.company}'`;
+      renderedSubject = renderedSubject.replaceAll(possessive, fixed);
+      renderedBody = renderedBody.replaceAll(possessive, fixed);
     }
 
     if (renderedBody.includes("{{")) {
