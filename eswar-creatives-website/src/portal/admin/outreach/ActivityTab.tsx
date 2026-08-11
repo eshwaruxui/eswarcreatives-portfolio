@@ -8,7 +8,7 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
-import { formatPortalDate } from '../../utils/formatDate'
+import { formatPortalDate, formatPortalDateTime } from '../../utils/formatDate'
 import { stepNumberLabel } from '../../utils/touchLabels'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useReloadableList } from '../../hooks/useReloadableList'
@@ -447,7 +447,7 @@ export function ActivityTab() {
                     )}
                     {row.bounced_at && <span style={styles.bounced}>Bounced</span>}
                   </span>
-                  <span style={styles.mono}>{formatPortalDate(row.sent_at ?? row.scheduled_for)}</span>
+                  <span style={styles.mono}>{formatPortalDateTime(row.sent_at ?? row.scheduled_for)}</span>
                 </div>
                 {canPreview && (
                   <div style={styles.mobileActions} onClick={(e) => e.stopPropagation()}>
@@ -539,7 +539,7 @@ export function ActivityTab() {
                     >
                       <td style={styles.td}>
                         <span style={styles.mono}>
-                          {formatPortalDate(row.sent_at ?? row.scheduled_for)}
+                          {formatPortalDateTime(row.sent_at ?? row.scheduled_for)}
                         </span>
                       </td>
                       <td style={{ ...styles.td, ...styles.tdLead }}>
