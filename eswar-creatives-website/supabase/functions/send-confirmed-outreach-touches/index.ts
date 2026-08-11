@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { htmlBody } from "../_shared/outreachEmailBody.ts";
+import { resolveTimezone, computeSendDecision } from "../_shared/businessHours.ts";
 
 // Cron-invoked. Sends outreach touches that an admin approved early from
 // "Review in Advance" and whose held delivery window (9:30 AM ET next
@@ -8,6 +9,23 @@ import { htmlBody } from "../_shared/outreachEmailBody.ts";
 // Re-runs the same safety checks confirm-scheduled-touch ran at approval time,
 // since lead state can change in the gap between approval and delivery.
 // Auth: shared secret header (no user JWT — caller is pg_cron via pg_net).
+//
+// Business hours are re-checked here at tick time (added 11 Aug 2026). This
+// function used to trust `scheduled_for` completely, on the assumption that it
+// was always a freshly-computed instant that becomes due once and is consumed
+// immediately. The daily cap breaks that assumption: a touch that loses its
+// slot is only `capped++` — nothing is written — so `scheduled_for` stays in
+// the past indefinitely and `.lte(scheduled_for, now)` matches forever after.
+// The row then ships at whatever arbitrary moment a slot next frees. That is
+// exactly what happened on 11 Aug: the cap resets on the UTC day boundary,
+// which is 20:00 America/New_York, so 25 US touches went out at 8 PM local.
+//
+// The check is deliberately stateless — an out-of-window row is skipped and
+// re-evaluated on the next tick, with no write. Recomputing and persisting a
+// new `scheduled_for` here was the alternative; it was not chosen because it
+// would put mutation of that column back into the one function that has
+// already corrupted it once, and because the approval-time target would be
+// lost without a new column.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -36,10 +54,11 @@ type DueTouch = {
   id: string;
   subject_snapshot: string | null;
   body_snapshot: string | null;
+  recipient_timezone: string | null;
   lead: {
     id: string; first_name: string; last_name: string | null; company: string;
     email: string | null; specific_observation: string | null;
-    unsubscribe_token: string; status: string;
+    unsubscribe_token: string; status: string; country: string | null;
   } | null;
   step: { subject_template: string | null; body_template: string } | null;
 };
@@ -58,10 +77,10 @@ Deno.serve(async (req: Request) => {
   const { data: due, error: dueErr } = await db
     .from("outreach_touches")
     .select(`
-      id, subject_snapshot, body_snapshot,
+      id, subject_snapshot, body_snapshot, recipient_timezone,
       lead:leads!lead_id (
         id, first_name, last_name, company, email, specific_observation,
-        unsubscribe_token, status
+        unsubscribe_token, status, country
       ),
       step:sequence_steps!step_id (
         subject_template, body_template
@@ -91,7 +110,7 @@ Deno.serve(async (req: Request) => {
     .lte("sent_at", `${todayStr}T23:59:59Z`);
 
   let remainingCap = DAILY_CAP - (sentToday ?? 0);
-  let sent = 0, cancelled = 0, failed = 0, capped = 0;
+  let sent = 0, cancelled = 0, failed = 0, capped = 0, deferred = 0;
 
   for (const touch of (due ?? []) as DueTouch[]) {
     const lead = touch.lead;
@@ -125,6 +144,22 @@ Deno.serve(async (req: Request) => {
     if (!lead.specific_observation || lead.specific_observation.trim() === "") {
       await db.from("outreach_touches").update({ status: "cancelled", skipped_reason: "missing_observation" }).eq("id", touch.id);
       cancelled++;
+      continue;
+    }
+
+    // Business-hours gate. Runs after the cancel guards above so a suppressed
+    // or malformed row is still cleaned out of the queue at any hour, but
+    // before anything is rendered or mailed.
+    //
+    // Stateless by design: `scheduled_for` is never rewritten. A row outside
+    // its recipient's window is simply left alone and reconsidered on the next
+    // tick (every 5 minutes), so a backlog drains from 9:30 AM local onward
+    // instead of firing the instant a cap slot frees. Only `sendNow` is used —
+    // `decision.scheduledFor` is deliberately discarded, since persisting it
+    // is the Option B behaviour this was chosen over.
+    const tz = resolveTimezone(touch.recipient_timezone, lead.country);
+    if (!computeSendDecision(new Date(), tz).sendNow) {
+      deferred++;
       continue;
     }
 
@@ -207,7 +242,7 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return new Response(JSON.stringify({ processed: (due ?? []).length, sent, cancelled, failed, capped }), {
+  return new Response(JSON.stringify({ processed: (due ?? []).length, sent, cancelled, failed, capped, deferred }), {
     status: 200,
     headers: { ...CORS, "Content-Type": "application/json" },
   });
