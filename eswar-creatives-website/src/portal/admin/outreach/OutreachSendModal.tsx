@@ -10,6 +10,7 @@ import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { showToast } from '../toast'
 import { stepNumberLabel } from '../../utils/touchLabels'
+import { invokeErrorCode } from '../../utils/invokeError'
 
 export type TouchRow = {
   id: string
@@ -610,13 +611,13 @@ export function OutreachSendModal({
       const { data, error } = await supabase.functions.invoke('send-outreach-email', {
         body: { touch_id: touch.id },
       })
-      if (data?.error) {
-        setEmailError(data.error as EmailErrorCode)
-        setSending(false)
-        return
-      }
-      if (error) {
-        setEmailError('network_error')
+      // Every guard in send-outreach-email returns a non-2xx, which invoke()
+      // surfaces as `error` with `data: null` — so the old `data?.error` check
+      // could never fire and all seven specific messages were unreachable.
+      // invokeErrorCode recovers the code from the response body.
+      const code = await invokeErrorCode(data, error)
+      if (code) {
+        setEmailError(code as EmailErrorCode)
         setSending(false)
         return
       }

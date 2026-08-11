@@ -9,6 +9,7 @@ import { SidePanel } from '../admin/SidePanel'
 import { mono } from '../admin/ui'
 import { formatPortalDate } from '../utils/formatDate'
 import { intentLabel, stepNumberLabel } from '../utils/touchLabels'
+import { invokeErrorCode, humanizeErrorCode } from '../utils/invokeError'
 import { showToast } from '../admin/toast'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ScoreRing, type ScoringState } from './shared/ScoreRing'
@@ -291,7 +292,11 @@ export function LeadDrawer({
         body: { lead_id: lead.id, vertical },
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       })
-      if (fnErr || typeof data?.icp_score !== 'number') {
+      const scoreErr = await invokeErrorCode(data, fnErr)
+      if (scoreErr || typeof data?.icp_score !== 'number') {
+        // scoringState is a fixed enum with no free-text slot, so the real
+        // code goes to the console rather than being dropped entirely.
+        if (scoreErr) console.error('score-single-lead:', scoreErr)
         setScoringState('error')
         return
       }
@@ -445,13 +450,17 @@ export function LeadDrawer({
         },
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       })
-      if (fnErr || !data || data.error || typeof data.message !== 'string') {
-        throw new Error(data?.error ?? 'generation_failed')
+      const genErr = await invokeErrorCode(data, fnErr)
+      if (genErr || !data || typeof data.message !== 'string') {
+        throw new Error(genErr ?? 'generation_failed')
       }
       if (draftRef.current) draftRef.current.value = data.message
       setLastGenerated(data.message)
-    } catch {
-      setGenerateError('Could not generate a message. Please try again.')
+    } catch (e) {
+      // The thrown message is the server's code when we recovered one, so the
+      // free-text slot can show it instead of the generic line.
+      const code = e instanceof Error ? e.message : null
+      setGenerateError(humanizeErrorCode(code, 'Could not generate a message. Please try again.'))
     } finally {
       setGeneratingMessage(false)
     }
@@ -1313,8 +1322,9 @@ function ConvertModal({
     const { data, error: fnErr } = await supabase.functions.invoke('admin-create-client', {
       body: { name, email: email || undefined, company_name: company, currency: 'USD' },
     })
-    if (fnErr || !data?.clientId) {
-      setError('Could not create client record. Try again.')
+    const createErr = await invokeErrorCode(data, fnErr)
+    if (createErr || !data?.clientId) {
+      setError(humanizeErrorCode(createErr, 'Could not create client record. Try again.'))
       setCreating(false)
       return
     }

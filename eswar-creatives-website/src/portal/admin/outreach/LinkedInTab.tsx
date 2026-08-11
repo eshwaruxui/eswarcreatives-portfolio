@@ -15,6 +15,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
+import { invokeErrorCode, humanizeErrorCode } from '../../utils/invokeError'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { ProgressiveImage } from '../../components/shared/ProgressiveImage'
 import { LinkedInPostComposer, type SlotOption } from './LinkedInPostComposer'
@@ -251,8 +252,9 @@ export function LinkedInTab() {
         body: {},
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       })
-      if (error || !data) {
-        showToast('Could not send test reminder.')
+      const code = await invokeErrorCode(data, error)
+      if (code || !data) {
+        showToast(humanizeErrorCode(code, 'Could not send test reminder.'))
       } else {
         showToast(data.reminded ? 'Test reminder sent.' : 'No reminder needed (posts already filled).')
       }

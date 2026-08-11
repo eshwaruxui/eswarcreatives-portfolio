@@ -9,6 +9,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts } from '../../theme'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { Modal, mono } from '../ui'
+import { invokeErrorCode } from '../../utils/invokeError'
 
 type Segment = 'security_ai' | 'saas_product'
 type Source = 'manual' | 'csv' | 'apollo' | 'linkedin' | 'referral' | 'linkedin_visitor'
@@ -119,7 +120,11 @@ export function AddLeadModal({
         body: { image_base64: screenshot.base64, media_type: screenshot.mediaType },
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       })
-      if (fnErr || !data || data.error) {
+      const extractErr = await invokeErrorCode(data, fnErr)
+      if (extractErr || !data) {
+        // extractBanner is a fixed enum with no free-text slot, so the real
+        // code goes to the console rather than being dropped entirely.
+        if (extractErr) console.error('extract-lead-from-image:', extractErr)
         setExtractBanner('error')
       } else {
         const d = data.data as {
