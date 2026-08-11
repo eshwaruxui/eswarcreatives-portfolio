@@ -34,7 +34,12 @@ const PORTAL_URL = Deno.env.get("PORTAL_URL") ?? "https://www.eswarcreatives.in"
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 const FROM = "Eswar Maheswaran <eswar@eswarcreatives.in>";
 const DAILY_CAP = 25;
-const BATCH_LIMIT = 50;
+// Raised 50 -> 200 (11 Aug 2026) so the business-hours gate below cannot let
+// out-of-window rows crowd in-window rows out of a tick. The batch is only a
+// candidate list: at most DAILY_CAP rows ever reach Resend, and once the cap
+// is spent the loop short-circuits on its first line, so a bigger limit costs
+// nothing on a normal tick. See the ordering note on the query.
+const BATCH_LIMIT = 200;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -90,7 +95,20 @@ Deno.serve(async (req: Request) => {
     .eq("channel", "email")
     .not("draft_confirmed_at", "is", null)
     .lte("scheduled_for", nowIso)
+    // scheduled_for alone is not a usable sort key: an entire day's approvals
+    // share one computed instant (44 of 44 eligible rows tied on it when this
+    // was written), so Postgres was free to return them in any order and the
+    // set that fitted inside BATCH_LIMIT was arbitrary from tick to tick.
+    //
+    // draft_confirmed_at is the tiebreaker: it is a real timestamp already on
+    // the row, guaranteed non-null here by the .not(...) filter above, and it
+    // orders by when a human actually approved the touch — oldest first, so
+    // the queue drains FIFO rather than at random. id is the final key purely
+    // for determinism; a bulk approve can land two rows in the same
+    // millisecond, and without it those two would tie again.
     .order("scheduled_for", { ascending: true })
+    .order("draft_confirmed_at", { ascending: true })
+    .order("id", { ascending: true })
     .limit(BATCH_LIMIT);
 
   if (dueErr) {
