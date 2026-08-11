@@ -47,13 +47,37 @@ export function TouchProgressLine({
 }) {
   if (!draftConfirmedAt) return null
 
-  // scheduled_for <= now means the recipient's window is already open and
-  // the touch is just waiting for the next cron tick (at most 5 minutes) —
-  // distinct from a genuine multi-hour/next-day hold.
-  const isDue = new Date(scheduledFor).getTime() <= Date.now()
-  const secondStepLabel = isDue
-    ? 'Queued — sending shortly'
-    : `Scheduled ${formatStepTime(scheduledFor, recipientTimezone)}, their local time`
+  // Three distinct states, not two.
+  //
+  // A touch whose scheduled_for has just passed is genuinely mid-flight,
+  // waiting on the next cron tick (at most 5 minutes). But the cron can also
+  // decline to send a due row and write nothing — it skips anything outside
+  // the recipient's 9:30 AM-5:30 PM local window, and anything that loses its
+  // slot to the 25/day cap. In both cases scheduled_for stays in the past
+  // indefinitely, so past-due alone stopped meaning "sending shortly".
+  //
+  // Rendering a stale past timestamp as an imminent send was the honest-UI
+  // cost of keeping that cron check stateless; this is where it's paid back.
+  // Well past its slot means the row is waiting for a window to reopen, and
+  // says so rather than naming a time that has already gone.
+  //
+  // 15 minutes = three cron ticks, enough that a genuinely queued touch is
+  // never mislabelled by a slow tick or a little clock skew.
+  const DEFERRED_AFTER_MS = 15 * 60 * 1000
+  const overdueByMs = Date.now() - new Date(scheduledFor).getTime()
+  const isDue = overdueByMs >= 0
+  const isDeferred = overdueByMs >= DEFERRED_AFTER_MS
+
+  const secondStepLabel = isDeferred
+    ? 'Waiting for next available window'
+    : isDue
+      ? 'Queued — sending shortly'
+      : `Scheduled ${formatStepTime(scheduledFor, recipientTimezone)}, their local time`
+
+  // Gold is the in-flight treatment and is reserved for a touch that really is
+  // about to go. A deferred row is passive waiting, so it recedes to muted
+  // alongside a genuine future hold — the label carries the distinction.
+  const isInFlight = isDue && !isDeferred
 
   if (layout === 'stacked') {
     return (
@@ -64,11 +88,12 @@ export function TouchProgressLine({
         {/* A genuine future hold is passive context and recedes to muted. An
             already-due touch waiting on the cron keeps the gold in-flight
             treatment — that's the state PR #21 added this component to make
-            visible in the first place, and muting it would undo that. */}
+            visible in the first place, and muting it would undo that. A
+            deferred row is waiting, not in flight, so it takes muted too. */}
         <span style={{
           fontFamily: mono,
           fontSize: 10,
-          color: isDue ? tokens.goldDark : t.text.muted,
+          color: isInFlight ? tokens.goldDark : t.text.muted,
           whiteSpace: 'nowrap',
         }}>
           {secondStepLabel}
@@ -81,7 +106,10 @@ export function TouchProgressLine({
     <span style={{ fontFamily: mono, fontSize: 11, whiteSpace: 'nowrap' }}>
       <span style={{ color: tokens.green }}>✓ Approved {formatStepTime(draftConfirmedAt, recipientTimezone)}</span>
       <span style={{ color: t.text.muted }}> {'→'} </span>
-      <span style={{ color: tokens.goldDark }}>{secondStepLabel}</span>
+      {/* Only the new deferred state changes tone here. The inline layout has
+          always shown a genuine future hold in gold too (unlike 'stacked',
+          which mutes it), and restyling that is not this change's business. */}
+      <span style={{ color: isDeferred ? t.text.muted : tokens.goldDark }}>{secondStepLabel}</span>
     </span>
   )
 }
