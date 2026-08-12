@@ -10,6 +10,7 @@ import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
 import { intentLabel, stepNumberLabel } from '../../utils/touchLabels'
+import { formatScheduledFor } from '../../utils/scheduledFor'
 import { OutreachSendModal, type TouchRow } from './OutreachSendModal'
 import { LeadDrawer } from '../../components/LeadDrawer'
 import { TouchProgressLine } from '../../components/shared/TouchProgressLine'
@@ -31,18 +32,16 @@ import { usePagination } from '../../hooks/usePagination'
 // approval" rows can open the same modal rather than growing a second one.
 type ScheduledTouch = PreviewTouch
 
-// Review in Advance touches haven't been approved yet, so scheduled_for is
-// only a placeholder day (midnight) — confirm-scheduled-touch doesn't pick
-// the real business-hours send time until Approve is clicked. Showing that
-// midnight placeholder as "12:00 AM" implied a send time that isn't real
-// yet, so this drops the time and says so explicitly instead.
+// Was formatPendingDate, defined here. Moved to utils/scheduledFor.ts once
+// LeadDrawer's Timeline and LeadsTab's NEXT TOUCH column were found showing
+// the same placeholder as a real clock time: the rule belongs somewhere all
+// three surfaces can reach, not inside whichever component hit the bug first.
+// Rendering here is unchanged, weekday and recipient timezone included.
 function formatPendingDate(touch: ScheduledTouch): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: touch.recipient_timezone ?? 'UTC',
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  }).format(new Date(touch.scheduled_for))
+  return formatScheduledFor(touch.scheduled_for, touch.draft_confirmed_at, {
+    timeZone: touch.recipient_timezone,
+    weekday: true,
+  })
 }
 
 function todayStr(): string {

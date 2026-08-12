@@ -739,6 +739,57 @@ Two rules make it trustworthy:
    The harness's absolute numbers drift with font loading and mock content,
    but the delta holds, and the shipped layout's real width is already known.
 
+### scheduled_for is not a time until draft_confirmed_at is set
+
+**Rule: never pass `outreach_touches.scheduled_for` to a time formatter
+without checking `draft_confirmed_at` first, and do that check through
+`utils/scheduledFor.ts` rather than inline.**
+
+`enroll_lead` (migration 0080) inserts every step of a sequence up front with
+`next_business_day(start_date + day_offset)` — a bare **date**, which lands in
+the `timestamptz` column as **midnight UTC**. `computeSendDecision` has not run
+on it. The real recipient-local instant is chosen by `confirm-scheduled-touch`
+when an admin clicks Approve, and that is also when `draft_confirmed_at` is
+stamped. So the two columns move together, and `draft_confirmed_at` is the only
+reliable signal that `scheduled_for` means anything.
+
+Rendering the placeholder through a time formatter invents a send time that
+does not exist. Midnight UTC reads as **5:30 AM** in IST and **8:00 PM the
+previous evening** in `America/New_York`: precise-looking, wrong, and an hour no
+scheduler ever picked. It is also *intermittent* — `formatPortalDate` only
+shows a clock time for rows dated today, so the bad value appears on the
+placeholder's own day and hides again the next morning. That is why this
+survived two separate rounds of review.
+
+Use:
+
+| Export | Use for |
+|---|---|
+| `formatScheduledFor(scheduledFor, draftConfirmedAt, opts?)` | the value itself. Approved renders through `formatPortalDate` unchanged; unapproved renders the planned day with no clock time. `opts.timeZone`, and `opts.weekday` (default off, because the table surfaces are width-constrained) |
+| `isAwaitingApproval(draftConfirmedAt)` | branching to append a label or a tooltip |
+| `AWAITING_APPROVAL_LABEL` | `'Waiting for confirmation'`, where there is room for it |
+| `AWAITING_APPROVAL_TITLE` | a `title` on width-constrained surfaces, where the label would widen a column |
+
+Where the label goes is a space decision, not a copy decision. LeadDrawer's
+Timeline and TodayTab's Review in Advance rows append
+`AWAITING_APPROVAL_LABEL`; LeadsTab's NEXT TOUCH cell and mobile card carry
+`AWAITING_APPROVAL_TITLE` instead, because the cell text sets column width (see
+the Dense Table Width Pattern above). Dropping the clock time is the part that
+must happen everywhere; the planned day on its own is not misleading.
+
+**Do not reword the label.** `'Waiting for confirmation'` is already this
+state's name across the portal. A second wording for one state is how the
+drift below started.
+
+**Why this is a documented rule rather than a fix.** The check existed three
+times, written independently, and only one of them was right: TodayTab hit it
+first (its Review in Advance rows showed a bare `12:00 AM`) and solved it
+locally in a private `formatPendingDate`; LeadDrawer's Timeline and LeadsTab's
+NEXT TOUCH column then reproduced the identical bug because the rule lived
+inside the component that happened to find it. Extracted 13 Aug 2026 after the
+second and third instances were reported. Any new surface showing
+`scheduled_for` goes through this module.
+
 ### formatPortalDate in table cells
 `formatPortalDate` returns `'-'` for `null`, `undefined` and unparseable
 input, so an unrecorded timestamp renders as a dash with no caller-side

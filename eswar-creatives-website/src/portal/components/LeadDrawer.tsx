@@ -10,6 +10,7 @@ import { mono } from '../admin/ui'
 import { formatPortalDate } from '../utils/formatDate'
 import { intentLabel, stepNumberLabel } from '../utils/touchLabels'
 import { invokeErrorCode, humanizeErrorCode } from '../utils/invokeError'
+import { formatScheduledFor, isAwaitingApproval, AWAITING_APPROVAL_LABEL } from '../utils/scheduledFor'
 import { showToast } from '../admin/toast'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ScoreRing, type ScoringState } from './shared/ScoreRing'
@@ -61,6 +62,7 @@ type TouchTimelineRow = {
   channel: string
   status: string
   scheduled_for: string
+  draft_confirmed_at: string | null
   sent_at: string | null
   opened_at: string | null
   bounced_at: string | null
@@ -256,7 +258,7 @@ export function LeadDrawer({
         sequence:sequences!sequence_id (name, segment)
       `).eq('lead_id', leadId).order('started_at', { ascending: false }),
       supabase.from('outreach_touches').select(`
-        id, channel, status, scheduled_for, sent_at, opened_at, bounced_at, skipped_reason, subject_snapshot, body_snapshot, enrollment_id,
+        id, channel, status, scheduled_for, draft_confirmed_at, sent_at, opened_at, bounced_at, skipped_reason, subject_snapshot, body_snapshot, enrollment_id,
         step:sequence_steps!step_id (step_number, day_offset, subject_template, body_template),
         enrollment:lead_enrollments!enrollment_id (sequence:sequences!sequence_id (name))
       `).eq('lead_id', leadId).order('scheduled_for', { ascending: false }).limit(50),
@@ -1241,7 +1243,14 @@ function TimelineEntry({ touch }: { touch: TouchTimelineRow }) {
           <span style={styles.timelineMeta}>
             {touch.status === 'sent' && touch.sent_at ? `Sent ${formatPortalDate(touch.sent_at)}` : null}
             {touch.status === 'skipped' ? `Skipped: ${touch.skipped_reason ?? 'manually'}` : null}
-            {touch.status === 'scheduled' ? `Due ${formatPortalDate(touch.scheduled_for)}` : null}
+            {/* Not yet approved means scheduled_for is an enrollment
+                placeholder, not a send time, so this shows the planned day
+                and names the state instead of inventing an hour. */}
+            {touch.status === 'scheduled'
+              ? `Due ${formatScheduledFor(touch.scheduled_for, touch.draft_confirmed_at)}${
+                  isAwaitingApproval(touch.draft_confirmed_at) ? ` · ${AWAITING_APPROVAL_LABEL}` : ''
+                }`
+              : null}
             {isCancelled ? `Cancelled${touch.skipped_reason ? ': ' + touch.skipped_reason.replace(/_/g, ' ') : ''}` : null}
             {touch.status === 'failed' ? 'Failed to send' : null}
             {touch.opened_at ? ' · Opened' : null}

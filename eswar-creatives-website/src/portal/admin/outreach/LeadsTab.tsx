@@ -7,6 +7,7 @@ import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts, motionTokens } from '../../theme'
 import { mono } from '../ui'
 import { formatPortalDate } from '../../utils/formatDate'
+import { formatScheduledFor, isAwaitingApproval, AWAITING_APPROVAL_TITLE } from '../../utils/scheduledFor'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useReloadableList } from '../../hooks/useReloadableList'
 import { SortableTableHeader, toggleMultiSort, type SortableColumn, type SortSpec } from '../../components/shared/SortableTableHeader'
@@ -37,6 +38,9 @@ type LeadRow = {
   created_at: string
   last_touch_at?: string | null
   next_touch_at?: string | null
+  // Null means the next touch is still an enrollment placeholder, so
+  // next_touch_at is a planned day and not a send time. See utils/scheduledFor.
+  next_touch_draft_confirmed_at?: string | null
   enrolled?: boolean
 }
 
@@ -278,7 +282,7 @@ export function LeadsTab() {
 
       const ids = (data ?? []).map((l) => l.id)
       let lastMap: Record<string, string> = {}
-      let nextMap: Record<string, string> = {}
+      let nextMap: Record<string, { at: string; draftConfirmedAt: string | null }> = {}
       let enrolledSet = new Set<string>()
 
       if (ids.length > 0) {
@@ -292,7 +296,10 @@ export function LeadsTab() {
             .order('sent_at', { ascending: false }),
           supabase
             .from('outreach_touches')
-            .select('lead_id, scheduled_for')
+            // draft_confirmed_at comes along because scheduled_for is only a
+            // real time once it is set; without it this column cannot tell an
+            // approved send from an enrollment placeholder.
+            .select('lead_id, scheduled_for, draft_confirmed_at')
             .in('lead_id', ids)
             .eq('status', 'scheduled')
             .gte('scheduled_for', today)
@@ -307,7 +314,9 @@ export function LeadsTab() {
           if (!lastMap[t.lead_id]) lastMap[t.lead_id] = t.sent_at
         }
         for (const t of (nextRes.data ?? [])) {
-          if (!nextMap[t.lead_id]) nextMap[t.lead_id] = t.scheduled_for
+          if (!nextMap[t.lead_id]) {
+            nextMap[t.lead_id] = { at: t.scheduled_for, draftConfirmedAt: t.draft_confirmed_at }
+          }
         }
         for (const e of (enrollRes.data ?? [])) {
           enrolledSet.add(e.lead_id)
@@ -317,7 +326,8 @@ export function LeadsTab() {
       setLeads((data ?? []).map((l) => ({
         ...l,
         last_touch_at: lastMap[l.id] ?? null,
-        next_touch_at: nextMap[l.id] ?? null,
+        next_touch_at: nextMap[l.id]?.at ?? null,
+        next_touch_draft_confirmed_at: nextMap[l.id]?.draftConfirmedAt ?? null,
         enrolled: enrolledSet.has(l.id),
       })))
     } catch {
@@ -653,8 +663,16 @@ export function LeadsTab() {
                     </span>
                   </td>
                   <td style={styles.td}>
-                    <span style={styles.monoCell}>
-                      {lead.next_touch_at ? formatPortalDate(lead.next_touch_at) : '-'}
+                    {/* The label itself would widen this column (see the Dense
+                        Table Width Pattern), so an unapproved row drops the
+                        clock time and carries the explanation in the title. */}
+                    <span
+                      style={styles.monoCell}
+                      title={isAwaitingApproval(lead.next_touch_draft_confirmed_at) && lead.next_touch_at
+                        ? AWAITING_APPROVAL_TITLE
+                        : undefined}
+                    >
+                      {formatScheduledFor(lead.next_touch_at, lead.next_touch_draft_confirmed_at)}
                     </span>
                   </td>
                   <td style={styles.td}>
@@ -733,8 +751,17 @@ function MobileCard({
           <SegmentSelect value={lead.segment} onChange={onSegmentChange} />
           <IcpIndicator score={lead.icp_score} />
         </div>
+        {/* Same rule as the desktop cell. The foot is a nowrap flex row
+            sharing its width with the segment select and the ICP dot, so the
+            label would squeeze them; dropping the clock time is the part that
+            matters, and the planned day on its own is not misleading. */}
         {lead.next_touch_at && (
-          <span style={styles.mobileNextTouch}>Next: {formatPortalDate(lead.next_touch_at)}</span>
+          <span
+            style={styles.mobileNextTouch}
+            title={isAwaitingApproval(lead.next_touch_draft_confirmed_at) ? AWAITING_APPROVAL_TITLE : undefined}
+          >
+            Next: {formatScheduledFor(lead.next_touch_at, lead.next_touch_draft_confirmed_at)}
+          </span>
         )}
       </div>
     </div>
