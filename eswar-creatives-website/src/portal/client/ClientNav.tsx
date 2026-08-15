@@ -5,7 +5,7 @@
 // Theme tokens only; no raw hex; no em dashes.
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { NavLink, useLocation } from 'react-router'
-import { LayoutDashboard, FolderKanban, FileText, Receipt, Images, Megaphone, User } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, FileText, Receipt, Images, Megaphone, Palette, User } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { PortalProfile } from '../PortalGuard'
@@ -47,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/portal/invoices',  label: 'Invoices',  badge: 'invoices',  Icon: Receipt },
   { to: '/portal/mockups',   label: 'Mockups',   badge: 'mockups',   Icon: Images },
   { to: '/portal/campaigns', label: 'Campaigns', badge: null,         Icon: Megaphone },
+  { to: '/portal/brand',     label: 'Brand',     badge: null,         Icon: Palette },
   { to: '/portal/account',   label: 'Account',   badge: null,         Icon: User },
 ]
 
@@ -362,5 +363,10 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 11,
     fontWeight: 500,
     lineHeight: 1,
+    // 7 tabs at 375px is ~53px each; truncate rather than wrap or overflow.
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
 }
