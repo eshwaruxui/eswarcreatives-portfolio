@@ -25,6 +25,7 @@ import { PublicVotePage } from "../portal/PublicVotePage";
 import { PublicInvoicePage } from "../portal/PublicInvoicePage";
 import { PublicProposalPage } from "../portal/PublicProposalPage";
 import { PublicOutputFilePage } from "../portal/PublicOutputFilePage";
+import { PublicBrandPage } from "../portal/PublicBrandPage";
 import { UnsubscribePage } from "../portal/UnsubscribePage";
 import { AdminShell } from "../portal/admin/AdminShell";
 import { AdminDashboard } from "../portal/admin/AdminDashboard";
@@ -47,6 +48,7 @@ import { ProjectDetailPage } from "../portal/client/ProjectDetailPage";
 import { ClientProposalsPage } from "../portal/client/ClientProposals";
 import { ClientInvoicesPage } from "../portal/client/ClientInvoices";
 import { ClientCampaignsPage } from "../portal/client/ClientCampaigns";
+import { BrandVisualClientPage } from "../portal/client/BrandVisualPage";
 import { ReviewCampaignPage } from "../portal/review/ReviewCampaignPage";
 
 export const routeConfig = [
@@ -65,6 +67,7 @@ export const routeConfig = [
       { path: "/portal/invoices",   Component: ClientInvoicesPage },
       { path: "/portal/mockups",    Component: MockupsPage },
       { path: "/portal/campaigns",  Component: ClientCampaignsPage },
+      { path: "/portal/brand",      Component: BrandVisualClientPage },
       { path: "/portal/account",    Component: AccountPage },
     ],
   },
@@ -79,6 +82,8 @@ export const routeConfig = [
   { path: "/proposal/:token",       Component: PublicProposalPage },
   // Public Outputs file share view — no auth required; token enforced server-side (0088).
   { path: "/output/:token",         Component: PublicOutputFilePage },
+  // Public Brand Visual Guide view — no auth required; clients.public_token enforced server-side (0094-0095).
+  { path: "/brand/:token",          Component: PublicBrandPage },
   // Public unsubscribe page — no auth required; calls unsubscribe_by_token RPC.
   { path: "/unsubscribe/:token",    Component: UnsubscribePage },
   // Phase 3 admin portal — persistent shell (sidebar + Outlet), admin-gated.
