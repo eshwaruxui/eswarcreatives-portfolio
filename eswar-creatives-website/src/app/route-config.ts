@@ -39,6 +39,7 @@ import { MockupsAdmin } from "../portal/admin/MockupsAdmin";
 import { DiscoveryPlaceholder } from "../portal/admin/DiscoveryPlaceholder";
 import { CampaignsAdmin } from "../portal/admin/CampaignsAdmin";
 import { OutreachAdmin } from "../portal/admin/OutreachAdmin";
+import { BrandVisualGuideAdmin } from "../portal/admin/BrandVisualGuideAdmin";
 import { SettingsPage } from "../portal/admin/settings/SettingsPage";
 import { MockupsPage } from "../portal/client/MockupsPage";
 import { ClientShell } from "../portal/client/ClientShell";
@@ -102,6 +103,7 @@ export const routeConfig = [
       // Phase 5 (Task 6): review_campaigns management with visibility + status.
       { path: "/portal/admin/campaigns",   Component: CampaignsAdmin },
       { path: "/portal/admin/outreach",    Component: OutreachAdmin },
+      { path: "/portal/admin/brand-visual-guide", Component: BrandVisualGuideAdmin },
       { path: "/portal/admin/settings",    Component: SettingsPage },
       { path: "/portal/admin/sketches",    Component: AdminSketchUpload },
     ],

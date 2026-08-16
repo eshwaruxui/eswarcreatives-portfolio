@@ -9,6 +9,7 @@ import {
   Compass,
   Megaphone,
   Send,
+  Palette,
   Users,
   X,
 } from 'lucide-react'
@@ -45,6 +46,7 @@ const NAV_BASE: NavItem[] = [
   { to: '/portal/admin/discovery', label: 'Discovery', Icon: Compass },
   { to: '/portal/admin/campaigns', label: 'Campaigns', Icon: Megaphone },
   { to: '/portal/admin/outreach', label: 'Outreach', Icon: Send },
+  { to: '/portal/admin/brand-visual-guide', label: 'Brand Visual Guide', Icon: Palette },
 ]
 
 // Mobile drawer only: the desktop sidebar doesn't surface a Clients route (it's
