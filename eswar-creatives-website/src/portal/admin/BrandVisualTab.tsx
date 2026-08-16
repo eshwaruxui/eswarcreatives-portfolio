@@ -38,8 +38,20 @@ import type {
   BrandVisualContentType,
   BrandVisualItem,
   BrandVisualStatus,
+  BrandVisualSwatch,
   BrandVisualVisibility,
 } from '../utils/brandVisual'
+
+// 3 or 6 hex digits, with or without the leading #.
+const HEX_RE = /^#?([0-9A-F]{3}|[0-9A-F]{6})$/i
+function normalizeHex(v: string): string {
+  const trimmed = v.trim()
+  const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`
+  return withHash.toUpperCase()
+}
+function isValidHex(v: string): boolean {
+  return HEX_RE.test(v.trim())
+}
 
 const mono = "'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 const MAX_BYTES = 50 * 1024 * 1024
@@ -421,6 +433,9 @@ function ItemFormModal({
   const [visibility, setVisibility] = useState<BrandVisualVisibility>(item?.visibility ?? 'admin_only')
   const [content, setContent] = useState(item?.detail?.content ?? '')
   const [note, setNote] = useState(item?.detail?.note ?? '')
+  const [swatches, setSwatches] = useState<BrandVisualSwatch[]>(
+    item?.detail?.swatches && item.detail.swatches.length > 0 ? item.detail.swatches : [{ name: '', hex: '', role: '' }]
+  )
   const [url, setUrl] = useState(item?.detail?.url ?? '')
   const [linkLabel, setLinkLabel] = useState(item?.detail?.label ?? '')
   const [fileType, setFileType] = useState(item?.file_type ?? '')
@@ -433,7 +448,20 @@ function ItemFormModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const groupOptions = groupsForCategory(category)
-  const canSave = title.trim().length > 0
+  const isColourGroup = category === 'guidelines' && group === 'Colour'
+  const filledSwatches = swatches.filter((sw) => sw.name.trim() || sw.hex.trim())
+  const hasInvalidHex = isColourGroup && filledSwatches.some((sw) => sw.hex.trim() && !isValidHex(sw.hex))
+  const canSave = title.trim().length > 0 && !hasInvalidHex
+
+  function updateSwatch(index: number, patch: Partial<BrandVisualSwatch>) {
+    setSwatches((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+  }
+  function addSwatchRow() {
+    setSwatches((rows) => [...rows, { name: '', hex: '', role: '' }])
+  }
+  function removeSwatchRow(index: number) {
+    setSwatches((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows))
+  }
 
   function pickFile(f: File) {
     if (f.size > MAX_BYTES) {
@@ -470,20 +498,35 @@ function ItemFormModal({
       }
 
       const detail: BrandVisualItem['detail'] = {}
-      if (contentType === 'document' && content.trim()) detail.content = content.trim()
-      if (note.trim()) detail.note = note.trim()
+      if (isColourGroup) {
+        detail.swatches = filledSwatches.map((sw) => ({
+          name: sw.name.trim(),
+          hex: normalizeHex(sw.hex),
+          role: sw.role?.trim() || undefined,
+        }))
+      } else if (contentType === 'document' && content.trim()) {
+        detail.content = content.trim()
+      }
+      if (!isColourGroup && note.trim()) detail.note = note.trim()
       if (contentType === 'link') {
         detail.url = url.trim()
         detail.label = linkLabel.trim() || url.trim()
       }
-      // Preserve structured detail (swatches/specimens/sections) that this
-      // form has no editor for, so an edit save never clobbers seed content.
+      // Preserve structured detail (specimens/sections) that this form has
+      // no editor for, so an edit save never clobbers seed content. Swatches
+      // are the one exception: this form is now the source of truth for
+      // them whenever Group=Colour, and they're actively cleared otherwise
+      // -- the renderer checks detail.swatches before content_type, so a
+      // stale swatches array left over from a Colour item moved to another
+      // group would wrongly keep rendering as a colour grid.
       const preserved = item?.detail ?? {}
       const mergedDetail = {
         ...preserved,
         ...detail,
-        ...(contentType !== 'document' ? { content: undefined } : {}),
+        ...(contentType !== 'document' || isColourGroup ? { content: undefined } : {}),
         ...(contentType !== 'link' ? { url: undefined, label: undefined } : {}),
+        ...(isColourGroup ? {} : { swatches: undefined }),
+        ...(!isColourGroup && !note.trim() ? { note: undefined } : {}),
       }
 
       const payload = {
@@ -602,10 +645,61 @@ function ItemFormModal({
         </select>
       </Field>
 
-      {contentType === 'document' && (
-        <Field label="Content (optional, for guideline text)">
-          <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={4} style={s.textarea} />
+      {isColourGroup ? (
+        <Field label="Colours">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {swatches.map((sw, i) => {
+              const hexError = sw.hex.trim() && !isValidHex(sw.hex)
+              return (
+                <div key={i} style={s.swatchRow}>
+                  <div style={{ ...s.swatchPreview, background: isValidHex(sw.hex) ? normalizeHex(sw.hex) : t.background.muted }} />
+                  <input
+                    value={sw.name}
+                    onChange={(e) => updateSwatch(i, { name: e.target.value })}
+                    placeholder="Name (e.g. Gold)"
+                    className="pf-focus"
+                    style={{ ...s.input, ...s.swatchNameInput }}
+                  />
+                  <input
+                    value={sw.hex}
+                    onChange={(e) => updateSwatch(i, { hex: e.target.value })}
+                    placeholder="#D5B067"
+                    className="pf-focus"
+                    style={{ ...s.input, ...s.swatchHexInput, ...(hexError ? s.inputError : null) }}
+                  />
+                  <input
+                    value={sw.role ?? ''}
+                    onChange={(e) => updateSwatch(i, { role: e.target.value })}
+                    placeholder="Usage (e.g. Dominant)"
+                    className="pf-focus"
+                    style={{ ...s.input, ...s.swatchRoleInput }}
+                  />
+                  <button
+                    type="button"
+                    style={s.fileClearBtn}
+                    onClick={() => removeSwatchRow(i)}
+                    aria-label="Remove colour"
+                    disabled={swatches.length === 1}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )
+            })}
+            {swatches.some((sw) => sw.hex.trim() && !isValidHex(sw.hex)) && (
+              <span style={s.errInline}>Hex codes must be 3 or 6 digits, e.g. #D5B067.</span>
+            )}
+            <button type="button" style={s.addSwatchBtn} onClick={addSwatchRow}>
+              <Plus size={14} /> Add another colour
+            </button>
+          </div>
         </Field>
+      ) : (
+        contentType === 'document' && (
+          <Field label="Content (optional, for guideline text)">
+            <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={4} style={s.textarea} />
+          </Field>
+        )
       )}
 
       {contentType !== 'link' && (
@@ -651,7 +745,7 @@ function ItemFormModal({
         />
       </Field>
 
-      {contentType !== 'link' && (
+      {contentType !== 'link' && !isColourGroup && (
         <Field label="Note (optional caption shown with the file)">
           <input value={note} onChange={(e) => setNote(e.target.value)} className="pf-focus" style={s.input} />
         </Field>
@@ -808,6 +902,27 @@ const s: Record<string, CSSProperties> = {
   fileRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: `1px solid ${t.border.default}`, borderRadius: 10, padding: '9px 12px' },
   fileName: { fontSize: 13, color: t.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   fileClearBtn: { border: 'none', background: 'transparent', color: t.text.tertiary, cursor: 'pointer', padding: 4, display: 'flex', flexShrink: 0 },
+  swatchRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  swatchPreview: { width: 32, height: 32, borderRadius: 8, border: `1px solid ${t.border.default}`, flexShrink: 0 },
+  swatchNameInput: { flex: '1 1 30%', minWidth: 0 },
+  swatchHexInput: { flex: '0 1 110px', minWidth: 0, fontFamily: "'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" },
+  swatchRoleInput: { flex: '1 1 30%', minWidth: 0 },
+  inputError: { borderColor: t.text.danger },
+  errInline: { fontSize: 12, color: t.text.danger },
+  addSwatchBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    background: 'transparent',
+    border: `1px dashed ${t.border.default}`,
+    borderRadius: 8,
+    padding: '7px 12px',
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: t.text.primaryBrand,
+    cursor: 'pointer',
+  },
   cancelFormBtn: { padding: '9px 16px', borderRadius: 10, border: `1px solid ${t.border.default}`, background: t.background.surface, color: t.text.secondary, fontSize: 13, cursor: 'pointer' },
   saveFormBtn: { padding: '9px 16px', borderRadius: 10, border: 'none', background: t.text.primaryBrand, color: t.text.onPrimary, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
 }

@@ -103,7 +103,11 @@ export function BrandVisualRenderer({
             ))}
           </div>
         </ContentFrame>
-        {d.note && <p style={s.noteBelow}>{d.note}</p>}
+        {/* The sentence below the grid comes from the item's own Summary
+            field, not detail.note -- Summary is already authored for every
+            item (it's also what the card blurb uses), so colour items don't
+            need a second, separate free-text field just for this. */}
+        {item.summary && <p style={s.noteBelow}>{item.summary}</p>}
       </div>
     )
   }
