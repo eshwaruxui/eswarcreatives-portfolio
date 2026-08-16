@@ -692,7 +692,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 const s: Record<string, CSSProperties> = {
-  sidebar: { width: 236, flexShrink: 0 },
+  sidebar: { width: 200, flexShrink: 0 },
   searchWrap: { position: 'relative', marginBottom: 16 },
   searchIcon: { position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' },
   searchInput: {
@@ -753,15 +753,23 @@ const s: Record<string, CSSProperties> = {
   errorText: { fontSize: 13.5, color: t.text.danger, margin: '8px 0 0' },
   empty: { border: `1px dashed ${t.border.default}`, borderRadius: 14, padding: '40px 20px', textAlign: 'center', color: t.text.tertiary, fontSize: 13.5 },
   row: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: t.background.surface, border: `1px solid ${t.border.subtle}`, borderRadius: 12, marginBottom: 8 },
-  dragHandle: { color: t.text.tertiary, cursor: 'grab', display: 'flex' },
+  dragHandle: { color: t.text.tertiary, cursor: 'grab', display: 'flex', flexShrink: 0 },
   typeIconBox: { width: 36, height: 36, borderRadius: 9, background: t.background.subtle, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  rowTitle: { fontFamily: fonts.heading, fontSize: 14.5, fontWeight: 600, color: t.text.primary },
+  rowTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 14.5,
+    fontWeight: 600,
+    color: t.text.primary,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   rowSummary: { fontSize: 12.5, color: t.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  badgeBtn: { border: 'none', cursor: 'pointer', background: 'none', padding: 0 },
+  badgeBtn: { border: 'none', cursor: 'pointer', background: 'none', padding: 0, flexShrink: 0 },
   pill: { display: 'inline-block', padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', background: t.background.muted, color: t.text.secondary, whiteSpace: 'nowrap' },
   pillTeal: { background: t.background.tint2, color: t.text.primaryBrand },
   pillDraft: { background: t.background.muted, color: t.text.tertiary },
-  iconBtn: { border: 'none', background: 'transparent', color: t.text.secondary, cursor: 'pointer', padding: 6, borderRadius: 8, display: 'flex' },
+  iconBtn: { border: 'none', background: 'transparent', color: t.text.secondary, cursor: 'pointer', padding: 6, borderRadius: 8, display: 'flex', flexShrink: 0 },
   confirmDeleteBtn: { color: t.text.danger, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 12.5 },
   confirmCancelBtn: { color: t.text.secondary, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5 },
   fieldLabel: { display: 'block', fontSize: 12, fontWeight: 600, color: t.text.secondary, marginBottom: 6 },

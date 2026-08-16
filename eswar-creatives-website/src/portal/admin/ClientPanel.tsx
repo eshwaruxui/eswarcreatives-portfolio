@@ -212,7 +212,9 @@ export function ClientPanel({
 
   return (
     <>
-      <SidePanel title={title} subtitle="Manage client" onClose={onClose} width={560}>
+      {/* 680, not 560: the Brand Visual Guide tab's sidebar+list layout needs more
+          room than the other tabs' single-column lists did. */}
+      <SidePanel title={title} subtitle="Manage client" onClose={onClose} width={680}>
         {loading ? (
           <p style={styles.muted}>Loading...</p>
         ) : error || !client ? (
