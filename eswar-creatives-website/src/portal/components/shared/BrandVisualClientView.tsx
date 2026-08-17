@@ -9,6 +9,7 @@ import { Search, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { t, fonts, motionTokens } from '../../theme'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { useBrandVisualThumbnails } from '../../hooks/useBrandVisualThumbnails'
 import { SidePanel } from '../../admin/SidePanel'
 import { BrandVisualCard } from './BrandVisualCard'
 import { BrandVisualRenderer } from './BrandVisualRenderer'
@@ -57,6 +58,7 @@ export function BrandVisualClientView({
     .sort((a, b) => a.sort_order - b.sort_order)
 
   const desc = `${categoryLabel(activeCategory)} › ${activeGroup}`
+  const thumbnails = useBrandVisualThumbnails(visible, resolveAuthenticatedFileUrls)
 
   return (
     <div style={{ display: 'flex', gap: 28, flexDirection: isMobile ? 'column' : 'row' }}>
@@ -85,7 +87,7 @@ export function BrandVisualClientView({
         ) : (
           <div style={s.grid}>
             {visible.map((item) => (
-              <BrandVisualCard key={item.id} item={item} onOpen={setOpenItem} />
+              <BrandVisualCard key={item.id} item={item} thumbnailUrl={thumbnails[item.id]} onOpen={setOpenItem} />
             ))}
           </div>
         )}

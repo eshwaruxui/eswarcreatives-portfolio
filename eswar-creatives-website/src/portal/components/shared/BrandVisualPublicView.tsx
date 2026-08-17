@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { t, fonts } from '../../theme'
+import { useBrandVisualThumbnails } from '../../hooks/useBrandVisualThumbnails'
 import { BrandVisualCard } from './BrandVisualCard'
 import { BrandVisualDetailPanel } from './BrandVisualClientView'
 import { BRAND_VISUAL_CATEGORIES, resolvePublicFileUrls } from '../../utils/brandVisual'
@@ -25,6 +26,7 @@ export function BrandVisualPublicView({
 
   const cat = BRAND_VISUAL_CATEGORIES.find((c) => c.id === activeCategory)!
   const catItems = items.filter((i) => i.category === activeCategory)
+  const thumbnails = useBrandVisualThumbnails(catItems, resolvePublicFileUrls)
 
   return (
     <div style={s.page}>
@@ -59,7 +61,7 @@ export function BrandVisualPublicView({
               <h2 style={s.groupHeading}>{g}</h2>
               <div style={s.grid}>
                 {groupItems.map((item) => (
-                  <BrandVisualCard key={item.id} item={item} onOpen={setOpenItem} />
+                  <BrandVisualCard key={item.id} item={item} thumbnailUrl={thumbnails[item.id]} onOpen={setOpenItem} />
                 ))}
               </div>
             </div>

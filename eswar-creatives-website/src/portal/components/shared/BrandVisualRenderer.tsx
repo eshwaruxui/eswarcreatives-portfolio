@@ -7,7 +7,7 @@
 // Crown-Pillar/kolam demo art — a "mark" or "pattern" in the real app is
 // just an uploaded image file like any other, rendered through
 // ProgressiveImage rather than redrawn from scratch.
-import { Download, ExternalLink } from 'lucide-react'
+import { Download, ExternalLink, ImageOff } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { t, fonts } from '../../theme'
 import { ProgressiveImage } from './ProgressiveImage'
@@ -209,10 +209,18 @@ export function BrandVisualRenderer({
               <ProgressiveImage src={fileUrls.previewUrl} alt={item.title} shimmerHeight={220} fit="contain" />
             </div>
           ) : (
-            <p style={s.muted}>Image unavailable.</p>
+            // No file uploaded yet -- visibly a placeholder, not a broken
+            // real image, same distinction the card grid makes.
+            <div style={s.noPreview}>
+              <ImageOff size={22} color={t.text.tertiary} />
+              <span>No preview available. Needs an asset uploaded.</span>
+            </div>
           )}
         </ContentFrame>
         {d.note && <p style={s.noteBelow}>{d.note}</p>}
+        {/* Written guideline text stays as supporting reference, same
+            treatment as the specimens/swatches cases above. */}
+        {d.content && <p style={s.supportingText}>{d.content}</p>}
       </div>
     )
   }
@@ -262,6 +270,17 @@ const s: Record<string, CSSProperties> = {
   noteBelow: { marginTop: 14, fontSize: 13.5, color: t.text.secondary, lineHeight: 1.6 },
   noteItalic: { fontSize: 13, fontStyle: 'italic', color: t.text.secondary },
   muted: { fontSize: 13, color: t.text.tertiary, margin: 0 },
+  noPreview: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+    padding: '32px 16px',
+    fontSize: 13,
+    color: t.text.tertiary,
+    fontFamily: fonts.body,
+    textAlign: 'center',
+  },
   linkLabel: { fontSize: 14, color: t.text.primaryBrand, fontFamily: fonts.body },
   linkDomain: { fontFamily: mono, fontSize: 12, color: t.text.tertiary, marginTop: 4 },
   swatchGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(92px,1fr))', gap: 12 },

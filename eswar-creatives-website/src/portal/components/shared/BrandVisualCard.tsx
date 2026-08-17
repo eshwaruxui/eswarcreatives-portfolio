@@ -3,7 +3,7 @@
 // props, never fetches anything itself, so it works identically whether the
 // caller resolved that URL via a direct signed URL (admin/client) or the
 // public edge function.
-import { FileText, Image as ImageIcon, Link2, Music, Video } from 'lucide-react'
+import { FileText, Image as ImageIcon, ImageOff, Link2, Music, Video } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { t, fonts, motionTokens } from '../../theme'
 import { ProgressiveImage } from './ProgressiveImage'
@@ -28,18 +28,30 @@ export function BrandVisualCard({
   onOpen: (item: BrandVisualItem) => void
 }) {
   const meta = TYPE_META[item.content_type]
+  const isImage = item.content_type === 'image'
+  const hasSwatches = item.detail.swatches && item.detail.swatches.length > 0
 
   return (
     <button type="button" onClick={() => onOpen(item)} className="pf-focus" style={s.card}>
-      <div style={s.preview}>
-        {item.detail.swatches && item.detail.swatches.length > 0 ? (
+      <div style={{ ...s.preview, ...(isImage && !thumbnailUrl ? s.previewNoImage : null) }}>
+        {hasSwatches ? (
           <div style={s.swatchRow}>
-            {item.detail.swatches.slice(0, 6).map((sw, i) => (
+            {item.detail.swatches!.slice(0, 6).map((sw, i) => (
               <div key={`${sw.hex}-${i}`} style={{ ...s.swatchChip, background: sw.hex }} />
             ))}
           </div>
-        ) : item.content_type === 'image' && thumbnailUrl ? (
-          <ProgressiveImage src={thumbnailUrl} alt={item.title} fit="contain" radius={0} style={{ height: '100%' }} />
+        ) : isImage && thumbnailUrl ? (
+          // Real asset: fills the frame, cropped to it -- reads unambiguously
+          // as an actual thumbnail, not a placeholder.
+          <ProgressiveImage src={thumbnailUrl} alt={item.title} fit="cover" radius={0} style={{ height: '100%', width: '100%' }} />
+        ) : isImage ? (
+          // Image-type item with no file yet. Visibly different from a real
+          // thumbnail (dashed border, faint icon, explicit label) so admin
+          // can tell at a glance which items still need an asset uploaded.
+          <div style={s.noPreviewInner}>
+            <ImageOff size={20} color={t.text.tertiary} />
+            <span style={s.noPreviewLabel}>No preview</span>
+          </div>
         ) : (
           <meta.Icon size={26} color={t.text.tertiary} />
         )}
@@ -83,6 +95,9 @@ const s: Record<string, CSSProperties> = {
     background: t.background.subtle,
     position: 'relative',
   },
+  previewNoImage: { border: `1px dashed ${t.border.default}`, background: t.background.muted },
+  noPreviewInner: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
+  noPreviewLabel: { fontSize: 11, color: t.text.tertiary, fontFamily: fonts.body },
   swatchRow: { display: 'flex', gap: 4, width: '100%', height: '100%', padding: 10, boxSizing: 'border-box' },
   swatchChip: { flex: 1, height: '100%', borderRadius: 4 },
   badgeCorner: { position: 'absolute', bottom: 6, right: 6 },
