@@ -1,15 +1,20 @@
 // Shared right-side slide-in drawer for the admin portal. Desktop/tablet: a
-// drawer pinned right at a fixed pixel width. Mobile (<768px): a full-screen
-// overlay (100vw x 100dvh, deliberately covering the TopBar) sliding in from
-// the right, since a fixed-width or bottom-sheet drawer doesn't fit a phone
-// screen for the amount of content these panels hold (tabs, forms, lists).
+// drawer pinned right at a fixed pixel width, resizable by dragging its left
+// edge. Mobile (<768px): a full-screen overlay (100vw x 100dvh, deliberately
+// covering the TopBar) sliding in from the right, since a fixed-width or
+// bottom-sheet drawer doesn't fit a phone screen for the amount of content
+// these panels hold (tabs, forms, lists) -- resize is desktop/tablet only,
+// dragging a handle on a fullscreen overlay has nothing to mean.
 // Backdrop at baseZIndex-1, panel at baseZIndex (201 by default). Used by every
-// admin drawer (ClientPanel, ProjectPanel, LeadDrawer, etc.) so they animate and
-// stack identically — resolved internally via useBreakpoint, no prop changes.
+// admin drawer (ClientPanel, ProjectPanel, LeadDrawer, EnquiryDrawer,
+// LinkedInPostComposer, the Brand Visual Guide item drawer, etc.) so they
+// animate, stack and resize identically — resolved internally via
+// useBreakpoint, no prop changes required to opt in.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { tokens, t, fonts, motionTokens } from '../theme'
+import { motionSystem, byDistancePanelMs } from '../motion'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 
 // Slide duration in ms — durationBase for every breakpoint (mobile now slides
@@ -17,11 +22,17 @@ import { useBreakpoint } from '../hooks/useBreakpoint'
 // duration reads correctly for both).
 const SLIDE_MS = parseInt(motionTokens.durationBase, 10)
 
+// Resize bounds (MOTION_SYSTEM.md 7.4 + this feature's own spec): roughly
+// 400px so a form never gets uncomfortably cramped, up to 70% of the
+// viewport so the panel can never crowd out the page behind it entirely.
+const MIN_WIDTH = 400
+const MAX_WIDTH_VW = 0.7
+
 export function SidePanel({
   title,
   subtitle,
   onClose,
-  width = 480,
+  width: widthHint = 480,
   // Nested drawers (e.g. an invoice preview opened from the client panel) pass a
   // higher base so they stack above the panel that launched them.
   baseZIndex = 201,
@@ -35,6 +46,10 @@ export function SidePanel({
   title: string
   subtitle?: string
   onClose: () => void
+  // A per-consumer content-aware default, not a fixed value -- e.g. the Brand
+  // Visual Guide's item drawer passes a wider hint so type specimen sheets
+  // don't clip. Users can resize from there; this only sets the starting
+  // point. SidePanel never hardcodes logic for any one consumer's content.
   width?: number
   baseZIndex?: number
   headerExtra?: ReactNode
@@ -44,6 +59,66 @@ export function SidePanel({
   const { isMobile: narrow } = useBreakpoint()
   const [shown, setShown] = useState(false)
   const closingRef = useRef(false)
+
+  // Resizable width state, seeded from the hint once on mount. Drag updates
+  // this directly with no transition (direct manipulation must never fight
+  // the pointer); anything else that changes it -- currently only the
+  // viewport-resize reclamp below -- animates via duration.byDistance.panel
+  // + easing.snap, computed for however far the width actually has to move.
+  const [width, setWidth] = useState(widthHint)
+  const [dragging, setDragging] = useState(false)
+  const [grabberHover, setGrabberHover] = useState(false)
+  const [transitionMs, setTransitionMs] = useState(0)
+  const dragStart = useRef<{ x: number; width: number } | null>(null)
+
+  const onGrabberPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      dragStart.current = { x: e.clientX, width }
+      setDragging(true)
+      e.currentTarget.setPointerCapture(e.pointerId)
+    },
+    [width]
+  )
+
+  useEffect(() => {
+    if (!dragging) return
+    function onMove(e: globalThis.PointerEvent) {
+      if (!dragStart.current) return
+      // The panel is anchored to the right edge, so dragging the left edge
+      // (the handle) further left -- clientX decreasing -- widens it.
+      const delta = dragStart.current.x - e.clientX
+      const max = window.innerWidth * MAX_WIDTH_VW
+      setWidth(Math.min(max, Math.max(MIN_WIDTH, dragStart.current.width + delta)))
+    }
+    function onUp() {
+      setDragging(false)
+      dragStart.current = null
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [dragging])
+
+  // Re-clamp if the viewport narrows enough that 70vw drops below the
+  // current width. This is the one case in this component where width
+  // changes programmatically rather than by drag, so it's the case
+  // duration.byDistance.panel + easing.snap actually animates.
+  useEffect(() => {
+    if (narrow) return
+    function onResize() {
+      const max = window.innerWidth * MAX_WIDTH_VW
+      if (width > max) {
+        setTransitionMs(byDistancePanelMs(width - max))
+        setWidth(max)
+      }
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [narrow, width])
 
   // Trigger the slide-in once mounted (transform from offscreen to 0).
   useEffect(() => {
@@ -80,12 +155,15 @@ export function SidePanel({
     return () => { document.body.style.overflow = prev }
   }, [narrow])
 
+  const widthTransition = `width ${dragging ? 0 : transitionMs}ms ${motionSystem.easing.snap}`
+  const slideTransition = `transform ${motionTokens.durationBase} ${shown ? motionTokens.easeEnter : motionTokens.easeExit}`
+
   const panelStyle: CSSProperties = narrow
     ? {
         ...styles.panelBase,
         ...styles.fullScreen,
         zIndex: baseZIndex,
-        transition: `transform ${motionTokens.durationBase} ${shown ? motionTokens.easeEnter : motionTokens.easeExit}`,
+        transition: slideTransition,
         transform: shown ? 'translateX(0)' : 'translateX(100vw)',
       }
     : {
@@ -93,7 +171,7 @@ export function SidePanel({
         ...styles.drawer,
         width,
         zIndex: baseZIndex,
-        transition: `transform ${motionTokens.durationBase} ${shown ? motionTokens.easeEnter : motionTokens.easeExit}`,
+        transition: `${slideTransition}, ${widthTransition}`,
         transform: shown ? 'translateX(0)' : 'translateX(100%)',
       }
 
@@ -109,6 +187,19 @@ export function SidePanel({
         onClick={requestClose}
       />
       <aside style={panelStyle} role="dialog" aria-label={title}>
+        {!narrow && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize panel"
+            onPointerDown={onGrabberPointerDown}
+            onPointerEnter={() => setGrabberHover(true)}
+            onPointerLeave={() => setGrabberHover(false)}
+            style={styles.grabber}
+          >
+            <div style={{ ...styles.grabberBar, ...(dragging || grabberHover ? styles.grabberBarActive : null) }} />
+          </div>
+        )}
         <header style={{ ...styles.head, ...(narrow ? styles.headMobile : null) }}>
           <div style={{ minWidth: 0 }}>
             <h2 style={styles.title}>{title}</h2>
@@ -171,6 +262,41 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: '100vw',
     borderRadius: 0,
     border: 'none',
+  },
+  // Hit target is wider than the visible bar so it's easy to grab; sits
+  // centred on the panel's own left border rather than fully outside it, so
+  // it never overlaps the backdrop's click-to-close area.
+  grabber: {
+    position: 'absolute',
+    left: -4,
+    top: 0,
+    bottom: 0,
+    width: 8,
+    cursor: 'col-resize',
+    display: 'flex',
+    justifyContent: 'center',
+    zIndex: 1,
+    touchAction: 'none',
+  },
+  // Not invisible at rest: a fully-hidden-until-hover handle is not a
+  // discoverable one -- there was nothing on screen to tell a user this
+  // edge was draggable at all. Rest state shows a faint neutral line
+  // (t.border.default at low opacity, a subtle divider rather than a call
+  // to action) so the draggable edge is genuinely visible; hover/drag
+  // fades it up to full-opacity teal. Both properties animate together on
+  // duration.micro (80ms) + easing.standard (MOTION_SYSTEM.md 4.2/4.5) --
+  // a hover/press affordance on a small control is exactly what `micro`
+  // is for.
+  grabberBar: {
+    width: 2,
+    height: '100%',
+    background: t.border.default,
+    opacity: 0.6,
+    transition: `opacity ${motionSystem.duration.micro} ${motionSystem.easing.standard}, background ${motionSystem.duration.micro} ${motionSystem.easing.standard}`,
+  },
+  grabberBarActive: {
+    background: t.border.brand,
+    opacity: 1,
   },
   head: {
     display: 'flex',

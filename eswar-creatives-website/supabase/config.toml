@@ -32,3 +32,7 @@ verify_jwt = false
 
 [functions.get-output-file-url]
 verify_jwt = false
+
+[functions.get-brand-visual-file-url]
+# Public /brand/:token route; the item's own public_token is the credential.
+verify_jwt = false

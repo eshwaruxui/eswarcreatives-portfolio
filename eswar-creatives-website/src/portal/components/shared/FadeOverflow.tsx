@@ -21,6 +21,14 @@ export function FadeOverflow({
   width = 48,
   height = 32,
   surfaceVar = '--surface-page',
+  // Overrides the fallback the endpoint resolves to when surfaceVar is (as
+  // always, today) undefined. Default unchanged: t.background.page. Added
+  // for callers whose real background isn't the page canvas — e.g. the
+  // shared Modal, whose panel fill is tokens.bg or t.background.surface
+  // depending on size, never t.background.page. Since the portal still
+  // defines zero CSS custom properties, this fallback is what actually
+  // renders; naming a different surfaceVar alone changes nothing.
+  fallbackColor,
   style,
 }: {
   children: ReactNode
@@ -30,14 +38,15 @@ export function FadeOverflow({
   width?: number
   height?: number
   // Name of a CSS custom property to use as the gradient endpoint. Falls back
-  // to t.background.page when that property isn't defined — see the note
-  // above.
+  // to t.background.page (or fallbackColor, if given) when that property
+  // isn't defined — see the note above.
   surfaceVar?: string
+  fallbackColor?: string
   // Escape hatch for the wrapper (e.g. giving it a max-width in a table cell).
   style?: CSSProperties
 }) {
   const isHorizontal = direction === 'horizontal'
-  const endpoint = `var(${surfaceVar}, ${t.background.page})`
+  const endpoint = `var(${surfaceVar}, ${fallbackColor ?? t.background.page})`
 
   const fade: CSSProperties = isHorizontal
     ? {

@@ -14,7 +14,19 @@ import { SidePanel } from './SidePanel'
 import { InvoicePreview } from './InvoicePreview'
 import type { PreviewInvoice } from './InvoicePreview'
 import { ProjectPanel } from './ProjectPanel'
+import { TabBar, TabFadeIn } from '../components/TabBar'
+import { BrandVisualTab } from './BrandVisualTab'
 import type { CSSProperties, ReactNode } from 'react'
+
+type ClientTab = 'info' | 'proposals' | 'invoices' | 'projects' | 'brand'
+
+const TABS: { id: ClientTab; label: string }[] = [
+  { id: 'info', label: 'Info' },
+  { id: 'proposals', label: 'Proposals' },
+  { id: 'invoices', label: 'Invoices' },
+  { id: 'projects', label: 'Projects' },
+  { id: 'brand', label: 'Brand Visual Guide' },
+]
 
 // Same country set the Add client modal offers, so editing stays consistent.
 const COUNTRIES = [
@@ -79,6 +91,7 @@ export function ClientPanel({
   canDelete?: boolean
 }) {
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<ClientTab>('info')
   const [client, setClient] = useState<Client | null>(null)
   const [email, setEmail] = useState<string | null>(null)
   const [proposals, setProposals] = useState<Proposal[]>([])
@@ -199,113 +212,114 @@ export function ClientPanel({
 
   return (
     <>
-      <SidePanel title={title} subtitle="Manage client" onClose={onClose}>
+      {/* 680, not 560: the Brand Visual Guide tab's sidebar+list layout needs more
+          room than the other tabs' single-column lists did. */}
+      <SidePanel title={title} subtitle="Manage client" onClose={onClose} width={680}>
         {loading ? (
           <p style={styles.muted}>Loading...</p>
         ) : error || !client ? (
           <p style={styles.errorText}>{error ?? 'Client not found.'}</p>
         ) : (
           <>
-            {/* Section 1 — Client info (editable) */}
-            <h3 style={styles.sectionTitle}>Client info</h3>
-            <div style={styles.fields}>
-              <InlineField label="Company name" value={client.company_name} onSave={(v) => saveField('company_name', v)} />
-              <InlineField label="Contact person" value={client.contact_name} onSave={(v) => saveField('contact_name', v)} />
-              <InlineField label="Founder name" value={client.founder_name} onSave={(v) => saveField('founder_name', v)} />
-              <InlineField
-                label="WhatsApp number"
-                value={client.whatsapp_number}
-                onSave={(v) => saveField('whatsapp_number', v)}
-              />
-              {/* Read-only: email is the login identity (profiles), not a client column. */}
-              <InlineField label="Communication email" value={email} readOnly />
-              <InlineField
-                label="Country"
-                value={client.country}
-                options={COUNTRIES.map((c) => ({ value: c.code, label: c.name }))}
-                onSave={(v) => saveField('country', v)}
-              />
-              <InlineField
-                label="Currency"
-                value={client.preferred_currency}
-                options={[
-                  { value: 'INR', label: 'INR' },
-                  { value: 'USD', label: 'USD' },
-                ]}
-                onSave={(v) => saveField('preferred_currency', v)}
-              />
-            </div>
+            <TabBar tabs={TABS} active={activeTab} onChange={setActiveTab} />
+            <TabFadeIn key={activeTab}>
+              {activeTab === 'info' && (
+                <>
+                  <h3 style={styles.sectionTitle}>Client info</h3>
+                  <div style={styles.fields}>
+                    <InlineField label="Company name" value={client.company_name} onSave={(v) => saveField('company_name', v)} />
+                    <InlineField label="Contact person" value={client.contact_name} onSave={(v) => saveField('contact_name', v)} />
+                    <InlineField label="Founder name" value={client.founder_name} onSave={(v) => saveField('founder_name', v)} />
+                    <InlineField
+                      label="WhatsApp number"
+                      value={client.whatsapp_number}
+                      onSave={(v) => saveField('whatsapp_number', v)}
+                    />
+                    {/* Read-only: email is the login identity (profiles), not a client column. */}
+                    <InlineField label="Communication email" value={email} readOnly />
+                    <InlineField
+                      label="Country"
+                      value={client.country}
+                      options={COUNTRIES.map((c) => ({ value: c.code, label: c.name }))}
+                      onSave={(v) => saveField('country', v)}
+                    />
+                    <InlineField
+                      label="Currency"
+                      value={client.preferred_currency}
+                      options={[
+                        { value: 'INR', label: 'INR' },
+                        { value: 'USD', label: 'USD' },
+                      ]}
+                      onSave={(v) => saveField('preferred_currency', v)}
+                    />
+                  </div>
 
-            {/* Section 2 — Proposals (read-only) */}
-            <SectionHeading>Proposals</SectionHeading>
-            {proposals.length === 0 ? (
-              <Empty text="No proposals for this client." />
-            ) : (
-              proposals.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  style={styles.itemRow}
-                  onClick={() => navigate(`/portal/admin/proposals/${p.id}`)}
-                >
-                  <span style={styles.itemNumber}>{p.proposal_number || '—'}</span>
-                  <span style={styles.itemTitle}>{p.title}</span>
-                  <span style={styles.itemAmount}>{formatMoney(Number(p.total_amount), p.currency)}</span>
-                  <StatusBadge status={p.status} />
-                </button>
-              ))
-            )}
+                  {canDelete && (
+                    <>
+                      <SectionHeading>Danger zone</SectionHeading>
+                      <p style={styles.dangerNote}>
+                        Permanently deletes this client and all of their projects, orders,
+                        invoices and proposals. The login is not removed automatically — you'll
+                        get a reminder to delete it in Supabase. This cannot be undone.
+                      </p>
+                      <button type="button" style={styles.deleteBtn} onClick={() => setConfirmOpen(true)}>
+                        <Trash2 size={15} />
+                        Delete client
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
 
-            {/* Section 3 — Invoices (read-only, row opens invoice drawer) */}
-            <SectionHeading>Invoices</SectionHeading>
-            {invoices.length === 0 ? (
-              <Empty text="No invoices for this client." />
-            ) : (
-              invoices.map((inv) => (
-                <button key={inv.id} type="button" style={styles.itemRow} onClick={() => setOpenInvoice(inv)}>
-                  <span style={styles.itemNumber}>{inv.invoice_number}</span>
-                  <span style={styles.itemTitle}>{inv.label || '—'}</span>
-                  <span style={styles.itemAmount}>{formatMoney(Number(inv.amount), inv.currency)}</span>
-                  <StatusBadge status={inv.status} />
-                  <span style={styles.itemMeta}>Due {formatPortalDate(inv.due_date)}</span>
-                </button>
-              ))
-            )}
+              {activeTab === 'proposals' &&
+                (proposals.length === 0 ? (
+                  <Empty text="No proposals for this client." />
+                ) : (
+                  proposals.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      style={styles.itemRow}
+                      onClick={() => navigate(`/portal/admin/proposals/${p.id}`)}
+                    >
+                      <span style={styles.itemNumber}>{p.proposal_number || '—'}</span>
+                      <span style={styles.itemTitle}>{p.title}</span>
+                      <span style={styles.itemAmount}>{formatMoney(Number(p.total_amount), p.currency)}</span>
+                      <StatusBadge status={p.status} />
+                    </button>
+                  ))
+                ))}
 
-            {/* Section 4 — Projects (read-only, row opens project drawer) */}
-            <SectionHeading>Projects</SectionHeading>
-            {projects.length === 0 ? (
-              <Empty text="No projects for this client." />
-            ) : (
-              projects.map((pr) => (
-                <button
-                  key={pr.id}
-                  type="button"
-                  style={styles.itemRow}
-                  onClick={() => setOpenProjectId(pr.id)}
-                >
-                  <span style={styles.itemTitle}>{pr.title}</span>
-                  {pr.current_phase && <span style={styles.phaseBadge}>{pr.current_phase}</span>}
-                  <StatusBadge status={pr.status} />
-                </button>
-              ))
-            )}
+              {activeTab === 'invoices' &&
+                (invoices.length === 0 ? (
+                  <Empty text="No invoices for this client." />
+                ) : (
+                  invoices.map((inv) => (
+                    <button key={inv.id} type="button" style={styles.itemRow} onClick={() => setOpenInvoice(inv)}>
+                      <span style={styles.itemNumber}>{inv.invoice_number}</span>
+                      <span style={styles.itemTitle}>{inv.label || '—'}</span>
+                      <span style={styles.itemAmount}>{formatMoney(Number(inv.amount), inv.currency)}</span>
+                      <StatusBadge status={inv.status} />
+                      <span style={styles.itemMeta}>Due {formatPortalDate(inv.due_date)}</span>
+                    </button>
+                  ))
+                ))}
 
-            {/* Section 5 — Danger zone (owner/admin only). Ruby, destructive. */}
-            {canDelete && (
-              <>
-                <SectionHeading>Danger zone</SectionHeading>
-                <p style={styles.dangerNote}>
-                  Permanently deletes this client and all of their projects, orders,
-                  invoices and proposals. The login is not removed automatically — you'll
-                  get a reminder to delete it in Supabase. This cannot be undone.
-                </p>
-                <button type="button" style={styles.deleteBtn} onClick={() => setConfirmOpen(true)}>
-                  <Trash2 size={15} />
-                  Delete client
-                </button>
-              </>
-            )}
+              {activeTab === 'projects' &&
+                (projects.length === 0 ? (
+                  <Empty text="No projects for this client." />
+                ) : (
+                  projects.map((pr) => (
+                    <button key={pr.id} type="button" style={styles.itemRow} onClick={() => setOpenProjectId(pr.id)}>
+                      <span style={styles.itemTitle}>{pr.title}</span>
+                      {pr.current_phase && <span style={styles.phaseBadge}>{pr.current_phase}</span>}
+                      <StatusBadge status={pr.status} />
+                    </button>
+                  ))
+                ))}
+
+              {activeTab === 'brand' && <BrandVisualTab clientId={clientId} clientLabel={title} />}
+            </TabFadeIn>
           </>
         )}
       </SidePanel>
