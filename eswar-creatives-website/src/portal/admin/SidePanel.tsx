@@ -278,14 +278,20 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 1,
     touchAction: 'none',
   },
+  // Opacity-based fade, not a background-colour swap: a solid colour that's
+  // always present but only sometimes visible reads more clearly as "fading
+  // in/out" than a colour transition does on a bar this thin. duration.micro
+  // (80ms) + easing.standard, per MOTION_SYSTEM.md 4.2/4.5 — a hover/press
+  // affordance on a small control is exactly what `micro` is for.
   grabberBar: {
     width: 2,
     height: '100%',
-    background: 'transparent',
-    transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+    background: t.border.brand,
+    opacity: 0,
+    transition: `opacity ${motionSystem.duration.micro} ${motionSystem.easing.standard}`,
   },
   grabberBarActive: {
-    background: t.border.brand,
+    opacity: 1,
   },
   head: {
     display: 'flex',
