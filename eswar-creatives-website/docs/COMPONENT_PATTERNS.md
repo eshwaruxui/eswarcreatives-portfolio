@@ -1,6 +1,25 @@
 # Eswar Creatives Portal - Component Patterns
 
-Last updated: 9 August 2026 (a Token Sources section added, pointing at the new
+Last updated: 17 August 2026 (`feature/brand-visual-guide` merged to `main`:
+two new shared-component patterns added alongside the Brand Visual Guide
+module itself. A SidePanel Resize Pattern -- every `SidePanel` consumer
+(`ClientPanel`, `ProjectPanel`, `LeadDrawer`, `EnquiryDrawer`,
+`LinkedInPostComposer`, the new Brand Visual Guide item drawer) is now
+resizable by dragging the panel's left edge, 400px to 70vw, with the
+`width` prop reinterpreted as a per-consumer content-aware starting hint
+rather than a fixed value. First real implementation of
+`duration.byDistance.panel` (`byDistancePanelMs()` in `src/portal/motion.ts`),
+previously specced in `docs/MOTION_SYSTEM.md` 4.3 but never built. A Shared
+Modal Three-Part Layout -- `Modal` (`src/portal/admin/ui.tsx`) gained a
+real scrollable body and an optional fixed `footer`, closing the gap the
+Scrollbar Gutter Pattern section below had documented ("no scrollable body
+at all"); only `BrandVisualTab`'s item form is migrated to the new
+`footer` prop so far, the other six consumers are logged as an open item
+in `docs/PORTAL_ARCHITECTURE.md` Section 11 rather than left to be
+rediscovered. `FadeOverflow` gained one small additive prop,
+`fallbackColor`, so its overflow cue can match a component surface other
+than the page canvas (existing callers unaffected, default unchanged).
+Previously, 9 August 2026: a Token Sources section added, pointing at the new
 `docs/MOTION_SYSTEM.md` and `src/portal/motion.ts`, whose export is named
 `motionSystem` specifically so it cannot collide with the flat `motionTokens`
 in `theme.ts`. The Pagination Pattern's no-animation-on-page-change decision
