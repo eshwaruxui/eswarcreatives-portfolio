@@ -278,19 +278,24 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 1,
     touchAction: 'none',
   },
-  // Opacity-based fade, not a background-colour swap: a solid colour that's
-  // always present but only sometimes visible reads more clearly as "fading
-  // in/out" than a colour transition does on a bar this thin. duration.micro
-  // (80ms) + easing.standard, per MOTION_SYSTEM.md 4.2/4.5 — a hover/press
-  // affordance on a small control is exactly what `micro` is for.
+  // Not invisible at rest: a fully-hidden-until-hover handle is not a
+  // discoverable one -- there was nothing on screen to tell a user this
+  // edge was draggable at all. Rest state shows a faint neutral line
+  // (t.border.default at low opacity, a subtle divider rather than a call
+  // to action) so the draggable edge is genuinely visible; hover/drag
+  // fades it up to full-opacity teal. Both properties animate together on
+  // duration.micro (80ms) + easing.standard (MOTION_SYSTEM.md 4.2/4.5) --
+  // a hover/press affordance on a small control is exactly what `micro`
+  // is for.
   grabberBar: {
     width: 2,
     height: '100%',
-    background: t.border.brand,
-    opacity: 0,
-    transition: `opacity ${motionSystem.duration.micro} ${motionSystem.easing.standard}`,
+    background: t.border.default,
+    opacity: 0.6,
+    transition: `opacity ${motionSystem.duration.micro} ${motionSystem.easing.standard}, background ${motionSystem.duration.micro} ${motionSystem.easing.standard}`,
   },
   grabberBarActive: {
+    background: t.border.brand,
     opacity: 1,
   },
   head: {
