@@ -25,7 +25,21 @@ export interface BrandVisualSpecimen {
   fontFamily: string
   weight?: number
   tracking?: string
+  size?: number // px, explicit type-specimen size; renderer falls back to a default when absent
+  italic?: boolean
   role?: string
+  note?: string
+}
+
+// One word rendered at several sizes side by side, to show where a display
+// face stops holding its shape at small sizes — the "size stress test"
+// pattern, distinct from a single specimen because it repeats one word
+// rather than showing several different lines.
+export interface BrandVisualScaleStrip {
+  word: string
+  fontFamily: string
+  weight?: number
+  sizes: number[]
   note?: string
 }
 
@@ -41,6 +55,7 @@ export interface BrandVisualDetail {
   note?: string // short caption shown under a rendered file
   swatches?: BrandVisualSwatch[]
   specimens?: BrandVisualSpecimen[]
+  scaleStrip?: BrandVisualScaleStrip
   sections?: BrandVisualSection[]
   sectionsNote?: string
   url?: string // link type

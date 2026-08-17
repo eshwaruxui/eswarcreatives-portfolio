@@ -115,25 +115,65 @@ export function BrandVisualRenderer({
   if (d.specimens && d.specimens.length > 0) {
     return (
       <div>
-        <ContentFrame>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {d.specimens.map((sp, i) => (
-              <div key={i}>
-                <div style={{ fontFamily: sp.fontFamily, fontWeight: sp.weight ?? 600, letterSpacing: sp.tracking, fontSize: i === 0 ? 32 : 20, color: t.text.primary }}>
-                  {sp.sample}
-                </div>
-                {(sp.role || sp.note) && (
-                  <div style={s.specimenMeta}>
-                    {sp.role}
-                    {sp.role && sp.note ? '. ' : ''}
-                    {sp.note}
-                  </div>
-                )}
+        {/* No ContentFrame here, deliberately -- a type specimen sheet reads
+            as a continuous page, not a boxed card. Each specimen is large
+            rendered type as the visual anchor, with a small Inter caption
+            directly beneath it -- the rule is seen, not just stated. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
+          {d.specimens.map((sp, i) => (
+            <div key={i}>
+              <div
+                style={{
+                  fontFamily: sp.fontFamily,
+                  fontWeight: sp.weight ?? 600,
+                  fontStyle: sp.italic ? 'italic' : 'normal',
+                  letterSpacing: sp.tracking,
+                  fontSize: sp.size ?? (i === 0 ? 48 : 24),
+                  lineHeight: 1.1,
+                  color: t.text.primary,
+                }}
+              >
+                {sp.sample}
               </div>
-            ))}
+              {(sp.role || sp.note) && (
+                <div style={s.specimenCaption}>
+                  {sp.role}
+                  {sp.role && sp.note ? '. ' : ''}
+                  {sp.note}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {d.scaleStrip && (
+          <div style={{ marginTop: 40 }}>
+            <div style={s.scaleStripRow}>
+              {d.scaleStrip.sizes.map((size, i) => (
+                <div key={i} style={s.scaleStripCell}>
+                  <div
+                    style={{
+                      fontFamily: d.scaleStrip!.fontFamily,
+                      fontWeight: d.scaleStrip!.weight ?? 600,
+                      fontSize: size,
+                      lineHeight: 1,
+                      color: t.text.primary,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {d.scaleStrip!.word}
+                  </div>
+                  <div style={s.scaleStripSizeLabel}>{size}px</div>
+                </div>
+              ))}
+            </div>
+            {d.scaleStrip.note && <div style={s.specimenCaption}>{d.scaleStrip.note}</div>}
           </div>
-        </ContentFrame>
-        {d.note && <p style={s.noteBelow}>{d.note}</p>}
+        )}
+
+        {/* The written rules stay, as supporting reference below the sheet
+            -- not removed, just no longer the first thing shown. */}
+        {d.content && <p style={s.supportingText}>{d.content}</p>}
       </div>
     )
   }
@@ -229,7 +269,20 @@ const s: Record<string, CSSProperties> = {
   swatchName: { marginTop: 6, fontSize: 12, letterSpacing: '0.04em', color: t.text.primary, textTransform: 'uppercase' },
   swatchHex: { fontFamily: mono, fontSize: 11, color: t.text.tertiary },
   swatchRole: { fontSize: 11, color: t.text.tertiary, marginTop: 2 },
-  specimenMeta: { fontSize: 12, color: t.text.tertiary, marginTop: 6 },
+  specimenCaption: { fontFamily: fonts.body, fontSize: 12.5, color: t.text.tertiary, marginTop: 8, lineHeight: 1.5 },
+  scaleStripRow: { display: 'flex', alignItems: 'flex-end', gap: 28, flexWrap: 'wrap' },
+  scaleStripCell: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 },
+  scaleStripSizeLabel: { fontFamily: mono, fontSize: 11, color: t.text.tertiary },
+  supportingText: {
+    marginTop: 40,
+    paddingTop: 24,
+    borderTop: `1px solid ${t.border.subtle}`,
+    fontFamily: fonts.body,
+    fontSize: 13.5,
+    color: t.text.secondary,
+    lineHeight: 1.7,
+    whiteSpace: 'pre-wrap',
+  },
   sectionLabel: { fontFamily: mono, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: t.text.tertiary, marginBottom: 4 },
   sectionValue: { fontSize: 14, color: t.text.primary, lineHeight: 1.6 },
   fileTitle: { fontSize: 14, color: t.text.primary, fontWeight: 600 },
