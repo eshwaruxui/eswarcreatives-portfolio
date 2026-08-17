@@ -577,7 +577,25 @@ function ItemFormModal({
   }
 
   return (
-    <Modal title={isNew ? 'Add brand asset' : 'Edit brand asset'} onClose={onClose}>
+    <Modal
+      title={isNew ? 'Add brand asset' : 'Edit brand asset'}
+      onClose={onClose}
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button type="button" style={s.cancelFormBtn} onClick={onClose} disabled={saving}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            style={{ ...s.saveFormBtn, opacity: canSave && !saving ? 1 : 0.6 }}
+            onClick={() => void handleSave()}
+            disabled={!canSave || saving}
+          >
+            {saving ? 'Saving…' : isNew ? 'Add item' : 'Save changes'}
+          </button>
+        </div>
+      }
+    >
       <div style={s.formGrid2}>
         <Field label="Category">
           <select
@@ -793,15 +811,6 @@ function ItemFormModal({
       )}
 
       {error && <p style={s.errorText}>{error}</p>}
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-        <button type="button" style={s.cancelFormBtn} onClick={onClose} disabled={saving}>
-          Cancel
-        </button>
-        <button type="button" style={{ ...s.saveFormBtn, opacity: canSave && !saving ? 1 : 0.6 }} onClick={() => void handleSave()} disabled={!canSave || saving}>
-          {saving ? 'Saving…' : isNew ? 'Add item' : 'Save changes'}
-        </button>
-      </div>
     </Modal>
   )
 }

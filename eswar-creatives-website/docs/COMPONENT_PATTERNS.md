@@ -942,10 +942,17 @@ Two cases from this portal:
 - **`SidePanel`**: the `<aside>` is `overflow: hidden` and the header is
   `flexShrink: 0`, so everything scrolls in `styles.body`. The panel root
   looks like the scroll container and is not.
-- **The shared `Modal`**: it has **no scrollable body at all**. `children` is
-  rendered bare and the panel declares no overflow, so a tall modal scrolls
-  `ui.modalOverlay`, the scrim. Anyone looking for a "modal body" to fix will
-  not find one.
+- **The shared `Modal`**: true until 17 Aug 2026, when it gained one —
+  **`ui.modalBody`**, a real scroll container (`flex:1; minHeight:0;
+  overflowY:auto`) inside a bounded panel (`maxHeight:85vh` desktop,
+  `100dvh` mobile). Before that fix it had no scrollable body at all:
+  `children` rendered bare with no overflow declared, so a tall modal
+  scrolled `ui.modalOverlay`, the scrim, taking any trailing action row
+  along with it — which is exactly the bug this entry originally documented,
+  and exactly why the shared `Modal` needed the fix rather than any one
+  consumer patching around it locally. See the SidePanel Resize Pattern
+  section's neighbour, further down, for the full three-part layout
+  (`modalHead` fixed, `modalBody` scrolls, optional `modalFooter` fixed).
 
 ### `both-edges` on a centring container
 `ui.modalOverlay` is a flex container with `justifyContent: center`. Plain
@@ -1111,6 +1118,77 @@ actually has to move, not a flat duration. This is separate from the panel's
 own slide-in/slide-out transition (`transform`, still flat `durationBase` +
 `easeEnter`/`easeExit`, untouched by this change): both live in the same CSS
 `transition` string as independent comma-separated declarations.
+
+---
+
+## Shared Modal Three-Part Layout
+
+### Rule
+`Modal` (`src/portal/admin/ui.tsx`) has a fixed header, a scrollable body,
+and an optional fixed footer. This is a `Modal` change, not a per-consumer
+patch — fixing it once covers every consumer: `AddLeadModal`, `NudgeModal`,
+`ConfirmPaymentModal`, `ProposalNudgeModal`, `CsvImportModal`,
+`AddClientModal` and `BrandVisualTab`'s item form. Never add local
+`maxHeight`, `overflow`, `scrollbar-gutter` or footer-pinning logic inside a
+consumer — that is exactly the second-source-of-truth problem the
+Scrollbar Gutter Pattern above already warns about.
+
+### `footer` is opt-in, and that has a real consequence
+`footer?: ReactNode` renders outside the scrollable body, fixed at the
+bottom. A consumer that doesn't pass it keeps its action row as the last
+thing in `children` — inside the scrollable body, same as before this
+pattern existed. That is not a regression (verified: none of the six
+untouched consumers' local body/footer styles set an overflow or height
+that would conflict with being nested one level deeper), but it is also not
+fixed: on a tall instance, an un-migrated consumer's action row still
+scrolls away with the rest of the form. **As of 17 Aug 2026 only
+`BrandVisualTab`'s item form has been migrated** — see
+`PORTAL_ARCHITECTURE.md` Section 11 for the other six, logged there rather
+than silently left to be rediscovered.
+
+### Why `flex:1` alone breaks once `FadeOverflow` wraps the body
+`modalBody` is `flex:1; minHeight:0` so it fills whatever space `modalHead`
+and `modalFooter` (both `flexShrink:0`) don't take, inside `modalPanel`'s
+`maxHeight:85vh` (`display:flex; flexDirection:column`). That only resolves
+against a flex parent. `FadeOverflow`'s own wrapper is `position:relative;
+overflow:hidden` — not a flex container — so when the fade is showing and
+`modalBody` renders one level deeper inside it, a bare `flex:1` would do
+nothing: the div collapses to its content height and `overflowY:auto` has
+no bounded height left to ever actually scroll within. Fixed by also giving
+`FadeOverflow`'s wrapper `display:flex; flexDirection:column` via its
+`style` prop (`modalBodyFadeWrap`) whenever it's used here, so `modalBody`'s
+`flex:1` keeps resolving one level down. `FadeOverflow` itself needed no
+change for this half.
+
+### `FadeOverflow` needed one real extension: `fallbackColor`
+`FadeOverflow`'s gradient endpoint has always resolved to a hardcoded
+fallback, `t.background.page` — correct for a page-canvas fade (its only
+use before this), wrong for a modal, whose panel fill is `tokens.bg` (large)
+or `t.background.surface` (small), never the page canvas. Since the portal
+still defines zero CSS custom properties (`FadeOverflow`'s own file header),
+the `surfaceVar` name never actually resolves to anything live — the
+fallback is what always renders. `fallbackColor?: string` was added
+(default unchanged, `t.background.page`, so every existing caller is
+untouched) specifically so `Modal` can match its own real background rather
+than fading to a colour that isn't actually behind it. `Modal` computes
+which one applies from the same `size === 'lg' ? tokens.bg : tokens.surface`
+expression that already decides the panel's `background`.
+
+### The fade is conditional, not decorative
+Shown only while the body actually overflows (`scrollHeight > clientHeight`)
+and isn't already scrolled to the bottom (`scrollHeight - scrollTop -
+clientHeight < 4`), re-measured on scroll and via a `ResizeObserver` (content
+can change height after mount — async form fields, a validation error
+appearing). A short form that fits without scrolling never renders the fade
+at all, matching the same "not a permanent decoration" rule `FadeOverflow`'s
+other callers already follow.
+
+### Overlay scroll is now a fallback, not the mechanism
+`ui.modalOverlay` keeps `overflowY:auto` and `scrollbarGutter:'stable
+both-edges'` — both now mostly vestigial, since the panel bounds and scrolls
+itself internally, but left in place as a defensive fallback rather than
+removed. Not touched by this change; if it is ever found to be genuinely
+dead, verify against a real tall-content case before assuming so.
 
 ---
 
