@@ -36,6 +36,7 @@ import {
 import type {
   BrandVisualCategory,
   BrandVisualContentType,
+  BrandVisualImageTreatment,
   BrandVisualItem,
   BrandVisualStatus,
   BrandVisualSwatch,
@@ -433,6 +434,7 @@ function ItemFormModal({
   const [visibility, setVisibility] = useState<BrandVisualVisibility>(item?.visibility ?? 'admin_only')
   const [content, setContent] = useState(item?.detail?.content ?? '')
   const [note, setNote] = useState(item?.detail?.note ?? '')
+  const [imageTreatment, setImageTreatment] = useState<BrandVisualImageTreatment>(item?.detail?.imageTreatment ?? 'photo')
   const [swatches, setSwatches] = useState<BrandVisualSwatch[]>(
     item?.detail?.swatches && item.detail.swatches.length > 0 ? item.detail.swatches : [{ name: '', hex: '', role: '' }]
   )
@@ -504,9 +506,10 @@ function ItemFormModal({
           hex: normalizeHex(sw.hex),
           role: sw.role?.trim() || undefined,
         }))
-      } else if (contentType === 'document' && content.trim()) {
+      } else if ((contentType === 'document' || contentType === 'image') && content.trim()) {
         detail.content = content.trim()
       }
+      if (contentType === 'image') detail.imageTreatment = imageTreatment
       if (!isColourGroup && note.trim()) detail.note = note.trim()
       if (contentType === 'link') {
         detail.url = url.trim()
@@ -514,16 +517,19 @@ function ItemFormModal({
       }
       // Preserve structured detail (specimens/sections) that this form has
       // no editor for, so an edit save never clobbers seed content. Swatches
-      // are the one exception: this form is now the source of truth for
-      // them whenever Group=Colour, and they're actively cleared otherwise
-      // -- the renderer checks detail.swatches before content_type, so a
-      // stale swatches array left over from a Colour item moved to another
-      // group would wrongly keep rendering as a colour grid.
+      // and imageTreatment are exceptions: this form is the source of truth
+      // for them whenever they apply, and both are actively cleared
+      // otherwise -- the renderer checks detail.swatches before
+      // content_type, so a stale swatches array left over from a Colour
+      // item moved to another group would wrongly keep rendering as a
+      // colour grid, and a stale imageTreatment on a non-image item is
+      // simply meaningless data left behind.
       const preserved = item?.detail ?? {}
       const mergedDetail = {
         ...preserved,
         ...detail,
-        ...(contentType !== 'document' || isColourGroup ? { content: undefined } : {}),
+        ...((contentType !== 'document' && contentType !== 'image') || isColourGroup ? { content: undefined } : {}),
+        ...(contentType !== 'image' ? { imageTreatment: undefined } : {}),
         ...(contentType !== 'link' ? { url: undefined, label: undefined } : {}),
         ...(isColourGroup ? {} : { swatches: undefined }),
         ...(!isColourGroup && !note.trim() ? { note: undefined } : {}),
@@ -695,11 +701,35 @@ function ItemFormModal({
           </div>
         </Field>
       ) : (
-        contentType === 'document' && (
-          <Field label="Content (optional, for guideline text)">
-            <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={4} style={s.textarea} />
+        (contentType === 'document' || contentType === 'image') && (
+          <Field label="Content (optional)">
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={4}
+              style={s.textarea}
+              placeholder={
+                contentType === 'image'
+                  ? 'Extended usage notes: minimum tile size, spacing rules, where this should and should not appear.'
+                  : undefined
+              }
+            />
           </Field>
         )
+      )}
+
+      {contentType === 'image' && (
+        <Field label="Image treatment">
+          <select
+            value={imageTreatment}
+            onChange={(e) => setImageTreatment(e.target.value as BrandVisualImageTreatment)}
+            className="pf-focus"
+            style={s.input}
+          >
+            <option value="photo">Photo or logo (padded frame)</option>
+            <option value="pattern">Pattern or texture (fills edge to edge)</option>
+          </select>
+        </Field>
       )}
 
       {contentType !== 'link' && (

@@ -193,33 +193,61 @@ export function BrandVisualRenderer({
   }
 
   if (item.content_type === 'image') {
+    const isPattern = d.imageTreatment === 'pattern'
+    const noPreviewBlock = (
+      <div style={s.noPreview}>
+        <ImageOff size={22} color={t.text.tertiary} />
+        <span>No preview available. Needs an asset uploaded.</span>
+      </div>
+    )
     return (
       <div>
-        <ContentFrame>
-          {loadingFile ? (
-            <Skeleton height={220} borderRadius={8} />
-          ) : fileUrls ? (
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={onExpandImage}
-              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onExpandImage?.()}
-              style={{ cursor: onExpandImage ? 'zoom-in' : 'default' }}
-            >
-              <ProgressiveImage src={fileUrls.previewUrl} alt={item.title} shimmerHeight={220} fit="contain" />
-            </div>
-          ) : (
-            // No file uploaded yet -- visibly a placeholder, not a broken
-            // real image, same distinction the card grid makes.
-            <div style={s.noPreview}>
-              <ImageOff size={22} color={t.text.tertiary} />
-              <span>No preview available. Needs an asset uploaded.</span>
-            </div>
-          )}
-        </ContentFrame>
+        {isPattern ? (
+          // Pattern/texture swatch: no mat border, corners matching the
+          // portal's own radius, image fills the frame completely -- a
+          // padded frame around a seamless tile would misrepresent how it
+          // repeats, which is the whole point of showing it.
+          <div style={s.patternBox}>
+            {loadingFile ? (
+              <Skeleton height={220} borderRadius={12} />
+            ) : fileUrls ? (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={onExpandImage}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onExpandImage?.()}
+                style={{ cursor: onExpandImage ? 'zoom-in' : 'default', height: '100%' }}
+              >
+                <ProgressiveImage src={fileUrls.previewUrl} alt={item.title} fit="cover" radius={12} style={{ height: 220, width: '100%' }} />
+              </div>
+            ) : (
+              noPreviewBlock
+            )}
+          </div>
+        ) : (
+          <ContentFrame>
+            {loadingFile ? (
+              <Skeleton height={220} borderRadius={8} />
+            ) : fileUrls ? (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={onExpandImage}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onExpandImage?.()}
+                style={{ cursor: onExpandImage ? 'zoom-in' : 'default' }}
+              >
+                <ProgressiveImage src={fileUrls.previewUrl} alt={item.title} shimmerHeight={220} fit="contain" />
+              </div>
+            ) : (
+              noPreviewBlock
+            )}
+          </ContentFrame>
+        )}
         {d.note && <p style={s.noteBelow}>{d.note}</p>}
         {/* Written guideline text stays as supporting reference, same
-            treatment as the specimens/swatches cases above. */}
+            treatment as the specimens/swatches cases above. Doubles as
+            extended usage notes for image-type items (tile size, spacing,
+            where the pattern should and shouldn't appear). */}
         {d.content && <p style={s.supportingText}>{d.content}</p>}
       </div>
     )
@@ -274,12 +302,22 @@ const s: Record<string, CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
+    height: '100%',
     padding: '32px 16px',
     fontSize: 13,
     color: t.text.tertiary,
     fontFamily: fonts.body,
     textAlign: 'center',
+    boxSizing: 'border-box',
+  },
+  patternBox: {
+    height: 220,
+    borderRadius: 12,
+    border: `1px solid ${t.border.subtle}`,
+    overflow: 'hidden',
+    background: t.background.subtle,
   },
   linkLabel: { fontSize: 14, color: t.text.primaryBrand, fontFamily: fonts.body },
   linkDomain: { fontFamily: mono, fontSize: 12, color: t.text.tertiary, marginTop: 4 },

@@ -48,11 +48,18 @@ export interface BrandVisualSection {
   value: string
 }
 
+// 'photo' (default when absent): padded frame, image contained within it —
+// correct for a logo mark or a real photograph. 'pattern': no padding, the
+// image fills its frame edge to edge — correct for a seamless/tileable
+// swatch, where a mat border around it would misrepresent how it repeats.
+export type BrandVisualImageTreatment = 'photo' | 'pattern'
+
 // Shape varies by content_type — every field optional, resolved by the
 // renderer's own precedence order (see BrandVisualRenderer.tsx).
 export interface BrandVisualDetail {
-  content?: string // plain guideline text, the document fallback
+  content?: string // plain guideline text, the document fallback; also extended usage notes for image-type items
   note?: string // short caption shown under a rendered file
+  imageTreatment?: BrandVisualImageTreatment // image-type items only, see BrandVisualImageTreatment
   swatches?: BrandVisualSwatch[]
   specimens?: BrandVisualSpecimen[]
   scaleStrip?: BrandVisualScaleStrip
