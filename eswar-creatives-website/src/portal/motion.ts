@@ -21,6 +21,10 @@
 // Until then: new code needing a value theme.ts lacks (micro, moderate, slower,
 // expressive, snap, emphasized, distance.*, delay.*) imports `motionSystem`
 // from here. Everything else keeps importing `motionTokens` from theme.ts.
+//
+// First real consumer: SidePanel.tsx's resize handle (MOTION_SYSTEM.md 7.4),
+// which is also what brings `byDistancePanelMs` below out of "specced, not
+// implemented" (4.3) into actual use.
 
 export const motionSystem = {
   duration: {
@@ -59,3 +63,14 @@ export const motionSystem = {
     xl: '24px',
   },
 } as const
+
+// motion.duration.byDistance.panel (MOTION_SYSTEM.md 4.3): 60ms per 100px of
+// travel, clamped to [200ms, 420ms]. A function, not a token object member,
+// since it depends on a runtime distance rather than a fixed value — e.g. a
+// SidePanel resize committed programmatically (not mid-drag) animates for
+// however far the width actually has to move, not a flat duration that would
+// read as too slow for a small change and too abrupt for a large one.
+export function byDistancePanelMs(distancePx: number): number {
+  const raw = (Math.abs(distancePx) / 100) * 60
+  return Math.min(420, Math.max(200, Math.round(raw)))
+}

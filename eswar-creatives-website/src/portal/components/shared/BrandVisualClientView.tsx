@@ -197,7 +197,11 @@ export function BrandVisualDetailPanel({
 
   return (
     <>
-      <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose}>
+      {/* 720, not SidePanel's 480 default: a type specimen sheet (large
+          rendered wordmarks up to ~130px) needs more room than a plain
+          document paragraph does. A content-aware hint, not a SidePanel
+          change -- the panel is still freely resizable from here. */}
+      <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose} width={720}>
         {item.file_type && (
           <div style={{ marginBottom: 12 }}>
             <ExtensionBadge ext={item.file_type} />

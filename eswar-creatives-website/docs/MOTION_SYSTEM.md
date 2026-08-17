@@ -168,12 +168,14 @@ slow at short distances and too abrupt at long ones.
 | motion.duration.byDistance.panel | 60ms per 100px | 200ms | 420ms |
 | motion.duration.byHeight.expand | 50ms per 100px | 160ms | 420ms |
 
-**None of these are implemented.** `SidePanel` currently uses a flat
-`motionTokens.durationBase` (200ms) regardless of whether it is sliding a 480px
-desktop panel or a full 100vw mobile overlay. Under `byDistance.panel` those
-would be roughly 288ms and 420ms respectively. This is a Phase 2 item, and it is
-the clearest single case where the dynamic formula would improve the current
-behaviour.
+**`byDistance.short` and `byHeight.expand` are still not implemented.**
+`byDistance.panel` now is, as of 17 Aug 2026: `byDistancePanelMs(distancePx)` in
+`src/portal/motion.ts`, a function rather than a token object member since it
+depends on a runtime distance rather than a fixed value. First (and currently
+only) consumer is `SidePanel`'s resize handle (7.4) — the enter/exit slide
+transition below is a separate, still-flat `motionTokens.durationBase` and was
+deliberately not touched by that change; sliding a 480px desktop panel and a
+full 100vw mobile overlay at one flat duration is still today's behaviour.
 
 ### 4.4 Delay Tokens
 
@@ -429,18 +431,33 @@ It has drifted. Logged in Section 14, Phase 2.
 | Enter | Translate from edge to 0 | duration.byDistance.panel, easing.snap |
 | Exit | Translate back to edge | duration.moderate, easing.exit |
 | Scrim | Fade in/out | duration.base, easing.standard |
+| **Resize (new, 17 Aug 2026)** | **Width change, drag-committed** | **instant (0ms), no easing — direct manipulation never fights the pointer** |
+| **Resize (new, 17 Aug 2026)** | **Width change, committed programmatically** (currently: viewport-resize reclamp only) | **duration.byDistance.panel, easing.snap** |
 
-Live today in `SidePanel.tsx:88-107` and `AdminShell.tsx:300-314`: translate at
-a flat `durationBase` (200ms) with `easeEnter` opening and `easeExit` closing,
-scrim opacity at `durationBase` with `easeDefault`. The differences from the
-target are the flat duration (see 4.3) and `easing.snap`, which does not exist
-yet.
+Enter/exit is still live exactly as before: `SidePanel.tsx` translates at a flat
+`durationBase` (200ms) with `easeEnter` opening and `easeExit` closing, scrim
+opacity at `durationBase` with `easeDefault`. The differences from the top row
+of this table (dynamic duration, `easing.snap`) remain unimplemented for the
+slide itself — deliberately not touched when resize was added, so as not to
+conflate two separate motion concerns in one change.
+
+**Resize is the first real use of both `byDistance.panel` and `easing.snap`**,
+neither of which had a consumer before 17 Aug 2026. `easing.snap` already
+existed in `motionSystem.easing` (4.5) but nothing imported it; `byDistance.panel`
+existed only as a formula in this doc (4.3) with no code counterpart until
+`byDistancePanelMs()` was added to `src/portal/motion.ts`. See `SidePanel.tsx`'s
+own comments for the two-part transition string (`transform` for the slide,
+`width` for resize, on the same element with independent durations) and why
+drag updates skip the `width` transition entirely (`0ms`) while a non-drag
+change (only the viewport-resize case exists today) computes a real duration
+from how far the width actually has to move.
 
 `SidePanel` derives its unmount timer from the same token
 (`SLIDE_MS = parseInt(motionTokens.durationBase, 10)`), which is the right
 pattern: a JS timeout that must outlast a CSS transition should be computed from
 the token, never typed as a second literal. **Any change to the drawer duration
-must keep that derivation intact.**
+must keep that derivation intact.** Resize did not touch this: `SLIDE_MS` still
+governs only the enter/exit unmount, not resize.
 
 ### 7.5 Modal / TouchPreviewModal (planned, not implemented)
 

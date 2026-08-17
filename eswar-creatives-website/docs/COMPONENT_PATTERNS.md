@@ -1076,6 +1076,44 @@ reduced-motion check.
 
 ---
 
+## SidePanel Resize Pattern
+
+### Rule
+`SidePanel` (`src/portal/admin/SidePanel.tsx`) is resizable on desktop/tablet
+by dragging a handle on its left edge. This is a change to `SidePanel` itself,
+not a per-consumer patch — every drawer built on it (`ClientPanel`,
+`ProjectPanel`, `LeadDrawer`, `EnquiryDrawer`, `LinkedInPostComposer`, the
+Brand Visual Guide item drawer) inherits it automatically. Never add local
+resize logic to a consumer.
+
+### Bounds
+400px minimum, 70vw maximum. Mobile (`useBreakpoint().isMobile`) renders no
+handle at all — the panel is a full-screen overlay there, resize has nothing
+to mean.
+
+### `width` prop is a hint, not a fixed value
+Each consumer's `width` prop seeds the panel's own resizable state once on
+mount; it is not re-applied on every render. Pass a wider hint for content
+that genuinely needs more room (the Brand Visual Guide item drawer passes
+`720` because its type specimen sheets render text up to ~130px and clip at
+the 480px default) rather than hardcoding that consumer's width inside
+`SidePanel`. Everything still resizes freely from whatever hint it started at.
+
+### Two different transitions on one element, deliberately
+Drag updates the width directly with the `width` transition duration forced
+to `0ms` — direct manipulation must never fight the pointer, a CSS transition
+lagging behind the cursor reads as broken. Anything that changes the width
+programmatically (currently: reclamping when the viewport narrows below the
+current width's 70vw ceiling) animates via `motion.duration.byDistance.panel`
++ `motion.easing.snap` (`byDistancePanelMs()` in `src/portal/motion.ts`, see
+`docs/MOTION_SYSTEM.md` 4.3 and 7.4) — computed for however far the width
+actually has to move, not a flat duration. This is separate from the panel's
+own slide-in/slide-out transition (`transform`, still flat `durationBase` +
+`easeEnter`/`easeExit`, untouched by this change): both live in the same CSS
+`transition` string as independent comma-separated declarations.
+
+---
+
 ## Standing rules
 - No em dashes in any component copy or code
 - No raw hex outside theme.ts
