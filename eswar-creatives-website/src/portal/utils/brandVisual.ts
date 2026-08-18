@@ -9,7 +9,7 @@
 // downloadUrl } shape, never how it was obtained.
 import { supabase } from '../../lib/supabase'
 
-export type BrandVisualCategory = 'guidelines' | 'assets' | 'templates'
+export type BrandVisualCategory = 'guidelines' | 'assets' | 'templates' | 'tone_of_voice'
 export type BrandVisualContentType = 'document' | 'image' | 'video' | 'audio' | 'link'
 export type BrandVisualStatus = 'draft' | 'published'
 export type BrandVisualVisibility = 'admin_only' | 'client' | 'public'
@@ -54,6 +54,22 @@ export interface BrandVisualSection {
 // swatch, where a mat border around it would misrepresent how it repeats.
 export type BrandVisualImageTreatment = 'photo' | 'pattern'
 
+// One document item, two content styles side by side: what to reach for
+// and what to avoid. Tone of Voice only.
+export interface BrandVisualWordList {
+  leftLabel: string
+  left: string[]
+  rightLabel: string
+  right: string[]
+}
+
+// One document item, off-brand line next to its on-brand rewrite. Tone of
+// Voice only.
+export interface BrandVisualBeforeAfterRow {
+  off: string
+  on: string
+}
+
 // Shape varies by content_type — every field optional, resolved by the
 // renderer's own precedence order (see BrandVisualRenderer.tsx).
 export interface BrandVisualDetail {
@@ -67,6 +83,16 @@ export interface BrandVisualDetail {
   sectionsNote?: string
   url?: string // link type
   label?: string // link type button label
+  // Tone of Voice only, content_type='document'. 'prose' (default) renders
+  // detail.content through the inline bold/paragraph renderer; 'wordlist'
+  // and 'beforeAfter' render their own dedicated shapes below instead.
+  layout?: 'prose' | 'wordlist' | 'beforeAfter'
+  wordList?: BrandVisualWordList
+  beforeAfterRows?: BrandVisualBeforeAfterRow[]
+  // Tone of Voice only. Display-only warning (lock icon + note) — never
+  // blocks editing or deletion. See PORTAL_ARCHITECTURE.md's Tone of Voice
+  // entry for why this stayed display-only rather than a hard block.
+  locked?: boolean
 }
 
 export interface BrandVisualItem {
@@ -92,6 +118,12 @@ export const BRAND_VISUAL_CATEGORIES: { id: BrandVisualCategory; label: string; 
   { id: 'guidelines', label: 'Guidelines', groups: ['Logo', 'Colour', 'Typography', 'Imagery'] },
   { id: 'assets', label: 'Assets', groups: ['Media', 'Logos', 'Icons', 'Documents'] },
   { id: 'templates', label: 'Templates', groups: ['Social', 'Digital', 'Print'] },
+  // Flat in the UI, but reuses the (category, group_label) structure like
+  // every other category rather than a nullable-group mechanism — every
+  // row is inserted with group_label 'General', and isSingleGroupCategory
+  // tells the nav/header to hide the group entirely, since a category with
+  // exactly one group has nothing meaningful to drill into.
+  { id: 'tone_of_voice', label: 'Tone of Voice', groups: ['General'] },
 ]
 
 export function groupsForCategory(category: BrandVisualCategory): string[] {
@@ -100,6 +132,14 @@ export function groupsForCategory(category: BrandVisualCategory): string[] {
 
 export function categoryLabel(category: BrandVisualCategory): string {
   return BRAND_VISUAL_CATEGORIES.find((c) => c.id === category)?.label ?? category
+}
+
+// True for a category whose groups are purely structural (one entry) with
+// nothing for the user to actually choose between — the nav and header
+// hide the group level entirely for these rather than showing a
+// single-option accordion/breadcrumb.
+export function isSingleGroupCategory(category: BrandVisualCategory): boolean {
+  return groupsForCategory(category).length === 1
 }
 
 export interface BrandVisualFileUrls {
