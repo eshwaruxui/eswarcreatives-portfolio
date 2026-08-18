@@ -5,7 +5,7 @@
 // pre-filtered to what a client would actually see (published, visibility
 // client/public). Never fetches anything itself.
 import { useEffect, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { Lock, Search, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { t, fonts, motionTokens } from '../../theme'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
@@ -18,6 +18,7 @@ import {
   BRAND_VISUAL_CATEGORIES,
   groupsForCategory,
   categoryLabel,
+  isSingleGroupCategory,
   resolveAuthenticatedFileUrls,
 } from '../../utils/brandVisual'
 import type { BrandVisualCategory, BrandVisualFileUrls, BrandVisualItem } from '../../utils/brandVisual'
@@ -57,7 +58,9 @@ export function BrandVisualClientView({
     .filter((i) => !q || i.title.toLowerCase().includes(q) || (i.summary ?? '').toLowerCase().includes(q))
     .sort((a, b) => a.sort_order - b.sort_order)
 
-  const desc = `${categoryLabel(activeCategory)} › ${activeGroup}`
+  const flat = isSingleGroupCategory(activeCategory)
+  const desc = flat ? categoryLabel(activeCategory) : `${categoryLabel(activeCategory)} › ${activeGroup}`
+  const heading = flat ? categoryLabel(activeCategory) : activeGroup
   const thumbnails = useBrandVisualThumbnails(visible, resolveAuthenticatedFileUrls)
 
   return (
@@ -72,8 +75,8 @@ export function BrandVisualClientView({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={s.headerRow}>
           <div>
-            <div style={s.crumb}>{desc}</div>
-            <h1 style={s.heading}>{activeGroup}</h1>
+            {!flat && <div style={s.crumb}>{desc}</div>}
+            <h1 style={s.heading}>{heading}</h1>
           </div>
           {onPreviewPublic && (
             <button type="button" style={s.previewBtn} onClick={() => onPreviewPublic(activeCategory)}>
@@ -128,17 +131,21 @@ export function BrandVisualSidebar({
       </div>
       {BRAND_VISUAL_CATEGORIES.map((cat) => {
         const open = activeCategory === cat.id
+        // A single-group category (Tone of Voice) has nothing to
+        // disambiguate, so its button is a direct leaf selector — no
+        // expand/collapse, no nested one-item group list underneath.
+        const flat = isSingleGroupCategory(cat.id)
         return (
           <div key={cat.id} style={{ marginBottom: 8 }}>
             <button
               type="button"
               className="pf-focus"
               style={{ ...s.catBtn, borderColor: open ? t.text.primaryBrand : t.border.subtle }}
-              onClick={() => onSelect(cat.id, open ? null : cat.groups[0])}
+              onClick={() => onSelect(cat.id, flat ? cat.groups[0] : open ? null : cat.groups[0])}
             >
               {cat.label}
             </button>
-            {open && (
+            {open && !flat && (
               <div style={s.groupList}>
                 {cat.groups.map((g) => (
                   <button
@@ -202,6 +209,11 @@ export function BrandVisualDetailPanel({
           document paragraph does. A content-aware hint, not a SidePanel
           change -- the panel is still freely resizable from here. */}
       <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose} width={720}>
+        {item.detail.locked && (
+          <div style={s.lockedNote}>
+            <Lock size={12} /> Locked language — use exactly as written
+          </div>
+        )}
         {item.file_type && (
           <div style={{ marginBottom: 12 }}>
             <ExtensionBadge ext={item.file_type} />
@@ -289,6 +301,15 @@ const s: Record<string, CSSProperties> = {
   },
   groupList: { padding: '8px 4px 2px 8px', display: 'flex', flexDirection: 'column', gap: 2 },
   groupBtn: { textAlign: 'left', border: 'none', borderRadius: 8, padding: '7px 10px', fontSize: 13, cursor: 'pointer' },
+  lockedNote: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    fontSize: 12,
+    fontWeight: 600,
+    color: t.text.tertiary,
+    marginBottom: 12,
+  },
   headerRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 },
   crumb: { fontFamily: mono, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.text.tertiary, marginBottom: 6 },
   heading: { fontFamily: fonts.heading, fontSize: 26, fontWeight: 600, margin: 0, color: t.text.primary },

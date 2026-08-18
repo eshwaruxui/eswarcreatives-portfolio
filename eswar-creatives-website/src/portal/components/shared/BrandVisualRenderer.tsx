@@ -17,6 +17,33 @@ import type { BrandVisualFileUrls, BrandVisualItem } from '../../utils/brandVisu
 
 const mono = "'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
+// Tone of Voice's prose layout only. Deliberately minimal -- **bold** plus
+// blank-line paragraph breaks, nothing else -- ported from the reference
+// prototype's own renderInline(). Kept local rather than folded into the
+// generic plain-text fallback at the bottom of this file, so existing
+// Guidelines/Assets/Templates document items (which have no `layout`
+// field and were never authored with this syntax in mind) render exactly
+// as before.
+function renderProseInline(text: string): ReactNode {
+  const paragraphs = text.split('\n\n')
+  return paragraphs.map((para, i) => {
+    const parts = para.split(/(\*\*[^*]+\*\*)/g).map((chunk, j) =>
+      chunk.startsWith('**') && chunk.endsWith('**') ? (
+        <strong key={j} style={{ fontWeight: 600 }}>
+          {chunk.slice(2, -2)}
+        </strong>
+      ) : (
+        <span key={j}>{chunk}</span>
+      )
+    )
+    return (
+      <p key={i} style={{ margin: i === paragraphs.length - 1 ? 0 : '0 0 14px' }}>
+        {parts}
+      </p>
+    )
+  })
+}
+
 // Neutral bounded content area — the generic stand-in for whatever a real
 // brand's own frame treatment ends up being. Never carries a client's own
 // colours; those live in the data (swatch hex values, specimen font
@@ -192,6 +219,73 @@ export function BrandVisualRenderer({
     )
   }
 
+  // Tone of Voice's three document layouts. All three read `item.category`
+  // rather than `content_type` alone for the prose default (see comment
+  // below) so this can never change how an existing non-Tone-of-Voice
+  // document item renders -- those never have `detail.layout` set and
+  // predate this syntax entirely.
+  if (item.content_type === 'document' && d.layout === 'beforeAfter' && d.beforeAfterRows && d.beforeAfterRows.length > 0) {
+    return (
+      <table style={s.beforeAfterTable}>
+        <thead>
+          <tr>
+            <th style={s.beforeAfterTh}>Off-brand</th>
+            <th style={s.beforeAfterTh}>On-brand</th>
+          </tr>
+        </thead>
+        <tbody>
+          {d.beforeAfterRows.map((row, i) => (
+            <tr key={i}>
+              <td style={s.beforeAfterTdOff}>{row.off}</td>
+              <td style={s.beforeAfterTdOn}>{row.on}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  }
+
+  if (item.content_type === 'document' && d.layout === 'wordlist' && d.wordList) {
+    const { leftLabel, left, rightLabel, right } = d.wordList
+    return (
+      <div style={s.wordListGrid}>
+        <div>
+          <div style={{ ...s.wordListLabel, color: t.text.primaryBrand }}>{leftLabel}</div>
+          <ul style={s.wordListUl}>
+            {left.map((w, i) => (
+              <li key={i} style={s.wordListLi}>
+                {w}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <div style={{ ...s.wordListLabel, color: t.text.tertiary }}>{rightLabel}</div>
+          <ul style={s.wordListUl}>
+            {right.map((w, i) => (
+              <li key={i} style={s.wordListLi}>
+                {w}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    )
+  }
+
+  // Explicit 'prose' covers every authored Tone of Voice item. The
+  // no-layout fallback is scoped to item.category === 'tone_of_voice' only
+  // -- never inferred from a missing layout alone -- so it can only ever
+  // apply to a Tone of Voice row inserted with layout unset (e.g. directly
+  // via SQL), not to any pre-existing Guidelines/Assets/Templates item.
+  if (
+    item.content_type === 'document' &&
+    (d.layout === 'prose' || (!d.layout && item.category === 'tone_of_voice')) &&
+    d.content
+  ) {
+    return <div style={s.prose}>{renderProseInline(d.content)}</div>
+  }
+
   if (item.content_type === 'image') {
     const isPattern = d.imageTreatment === 'pattern'
     const noPreviewBlock = (
@@ -342,6 +436,24 @@ const s: Record<string, CSSProperties> = {
   },
   sectionLabel: { fontFamily: mono, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: t.text.tertiary, marginBottom: 4 },
   sectionValue: { fontSize: 14, color: t.text.primary, lineHeight: 1.6 },
+  prose: { fontSize: 14.5, lineHeight: 1.68, color: t.text.primary },
+  beforeAfterTable: { width: '100%', borderCollapse: 'collapse', fontSize: 13.5 },
+  beforeAfterTh: {
+    textAlign: 'left',
+    fontFamily: mono,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    color: t.text.tertiary,
+    padding: '0 12px 10px',
+    fontWeight: 600,
+  },
+  beforeAfterTdOff: { padding: 12, verticalAlign: 'top', borderTop: `1px solid ${t.border.subtle}`, lineHeight: 1.5, color: t.text.secondary, width: '50%' },
+  beforeAfterTdOn: { padding: 12, verticalAlign: 'top', borderTop: `1px solid ${t.border.subtle}`, lineHeight: 1.5, color: t.text.primary, fontWeight: 500, width: '50%' },
+  wordListGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
+  wordListLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 700, marginBottom: 10 },
+  wordListUl: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
+  wordListLi: { fontSize: 14, padding: '8px 10px', borderRadius: 6, background: t.background.subtle, color: t.text.primary },
   fileTitle: { fontSize: 14, color: t.text.primary, fontWeight: 600 },
   fileTypeLine: { fontFamily: mono, fontSize: 11, color: t.text.tertiary, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.04em' },
   downloadBtn: {

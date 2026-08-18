@@ -9,7 +9,7 @@ import { t, fonts } from '../../theme'
 import { useBrandVisualThumbnails } from '../../hooks/useBrandVisualThumbnails'
 import { BrandVisualCard } from './BrandVisualCard'
 import { BrandVisualDetailPanel } from './BrandVisualClientView'
-import { BRAND_VISUAL_CATEGORIES, resolvePublicFileUrls } from '../../utils/brandVisual'
+import { BRAND_VISUAL_CATEGORIES, isSingleGroupCategory, resolvePublicFileUrls } from '../../utils/brandVisual'
 import type { BrandVisualCategory, BrandVisualItem } from '../../utils/brandVisual'
 
 export function BrandVisualPublicView({
@@ -53,20 +53,34 @@ export function BrandVisualPublicView({
 
       <div style={s.body}>
         {catItems.length === 0 && <div style={s.empty}>Nothing here yet.</div>}
-        {cat.groups.map((g) => {
-          const groupItems = catItems.filter((i) => i.group_label === g).sort((a, b) => a.sort_order - b.sort_order)
-          if (groupItems.length === 0) return null
-          return (
-            <div key={g} style={{ marginBottom: 32 }}>
-              <h2 style={s.groupHeading}>{g}</h2>
-              <div style={s.grid}>
-                {groupItems.map((item) => (
-                  <BrandVisualCard key={item.id} item={item} thumbnailUrl={thumbnails[item.id]} onOpen={setOpenItem} />
-                ))}
+        {isSingleGroupCategory(activeCategory) ? (
+          // A single-group category (Tone of Voice) has nothing to
+          // subdivide, so it renders as one flat grid with no group
+          // heading, rather than a "General" section title that would
+          // just restate the tab itself.
+          <div style={s.grid}>
+            {[...catItems]
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((item) => (
+                <BrandVisualCard key={item.id} item={item} thumbnailUrl={thumbnails[item.id]} onOpen={setOpenItem} />
+              ))}
+          </div>
+        ) : (
+          cat.groups.map((g) => {
+            const groupItems = catItems.filter((i) => i.group_label === g).sort((a, b) => a.sort_order - b.sort_order)
+            if (groupItems.length === 0) return null
+            return (
+              <div key={g} style={{ marginBottom: 32 }}>
+                <h2 style={s.groupHeading}>{g}</h2>
+                <div style={s.grid}>
+                  {groupItems.map((item) => (
+                    <BrandVisualCard key={item.id} item={item} thumbnailUrl={thumbnails[item.id]} onOpen={setOpenItem} />
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })
+        )}
       </div>
 
       <div style={s.footer}>Brand guidelines presented via EswarCreatives</div>
