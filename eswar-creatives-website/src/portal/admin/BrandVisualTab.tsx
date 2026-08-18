@@ -9,10 +9,10 @@ import {
   GripVertical,
   Image as ImageIcon,
   Link2,
+  Lock,
   Music,
   Pencil,
   Plus,
-  Search,
   Trash2,
   Video,
   X,
@@ -25,15 +25,17 @@ import { Modal } from './ui'
 import { showToast } from './toast'
 import { ExtensionBadge } from '../components/shared/BrandVisualBadge'
 import { BrandVisualPreviewBanner } from '../components/shared/BrandVisualPreviewBanner'
-import { BrandVisualClientView, filterForPreviewAudience } from '../components/shared/BrandVisualClientView'
+import { BrandVisualClientView, BrandVisualSidebar, filterForPreviewAudience } from '../components/shared/BrandVisualClientView'
 import { BrandVisualPublicView } from '../components/shared/BrandVisualPublicView'
 import {
   BRAND_VISUAL_CATEGORIES,
   categoryLabel,
   fileNameFromStoragePath,
   groupsForCategory,
+  isSingleGroupCategory,
 } from '../utils/brandVisual'
 import type {
+  BrandVisualBeforeAfterRow,
   BrandVisualCategory,
   BrandVisualContentType,
   BrandVisualImageTreatment,
@@ -41,6 +43,7 @@ import type {
   BrandVisualStatus,
   BrandVisualSwatch,
   BrandVisualVisibility,
+  BrandVisualWordList,
 } from '../utils/brandVisual'
 
 // 3 or 6 hex digits, with or without the leading #.
@@ -208,59 +211,21 @@ export function BrandVisualTab({ clientId, clientLabel }: { clientId: string; cl
 
   return (
     <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexDirection: isMobile ? 'column' : 'row' }}>
-      <div style={{ ...s.sidebar, ...(isMobile ? { width: '100%' } : null) }}>
-        <div style={s.searchWrap}>
-          <Search size={14} color={t.text.tertiary} style={s.searchIcon} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search this group"
-            className="pf-focus"
-            style={s.searchInput}
-          />
-        </div>
-        {BRAND_VISUAL_CATEGORIES.map((cat) => {
-          const open = activeCategory === cat.id
-          return (
-            <div key={cat.id} style={{ marginBottom: 8 }}>
-              <button
-                type="button"
-                className="pf-focus"
-                style={{ ...s.catBtn, borderColor: open ? t.text.primaryBrand : t.border.subtle }}
-                onClick={() => selectNav(cat.id, open ? null : cat.groups[0])}
-              >
-                {cat.label}
-              </button>
-              {open && (
-                <div style={s.groupList}>
-                  {cat.groups.map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      className="pf-focus"
-                      style={{
-                        ...s.groupBtn,
-                        background: activeGroup === g ? t.background.tint2 : 'transparent',
-                        color: activeGroup === g ? t.text.primaryBrand : t.text.secondary,
-                        fontWeight: activeGroup === g ? 600 : 400,
-                      }}
-                      onClick={() => selectNav(cat.id, g)}
-                    >
-                      {g}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
+      <div style={{ ...(isMobile ? { width: '100%' } : null) }}>
+        <BrandVisualSidebar
+          activeCategory={activeCategory}
+          activeGroup={activeGroup}
+          onSelect={selectNav}
+          search={search}
+          setSearch={setSearch}
+        />
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={s.headerRow}>
           <div>
-            <div style={s.crumb}>{categoryLabel(activeCategory)}</div>
-            <h2 style={s.heading}>{activeGroup}</h2>
+            {!isSingleGroupCategory(activeCategory) && <div style={s.crumb}>{categoryLabel(activeCategory)}</div>}
+            <h2 style={s.heading}>{isSingleGroupCategory(activeCategory) ? categoryLabel(activeCategory) : activeGroup}</h2>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button type="button" style={s.ghostBtn} onClick={() => setPreviewAs('client')}>
@@ -369,7 +334,10 @@ function AdminRow({
         </div>
       )}
       <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => onEdit(item)}>
-        <div style={s.rowTitle}>{item.title}</div>
+        <div style={s.rowTitle}>
+          {item.title}
+          {item.detail.locked && <Lock size={12} color={t.text.tertiary} style={{ marginLeft: 5, verticalAlign: 'middle' }} />}
+        </div>
         <div style={s.rowSummary}>{item.summary || '—'}</div>
       </div>
       <button type="button" style={s.badgeBtn} onClick={() => onToggleStatus(item)}>
@@ -440,6 +408,17 @@ function ItemFormModal({
   )
   const [url, setUrl] = useState(item?.detail?.url ?? '')
   const [linkLabel, setLinkLabel] = useState(item?.detail?.label ?? '')
+  // Tone of Voice only, content_type='document'.
+  const [layout, setLayout] = useState<NonNullable<BrandVisualItem['detail']['layout']>>(item?.detail?.layout ?? 'prose')
+  const [wordListLeftLabel, setWordListLeftLabel] = useState(item?.detail?.wordList?.leftLabel ?? 'Reach for')
+  const [wordListLeftText, setWordListLeftText] = useState((item?.detail?.wordList?.left ?? []).join('\n'))
+  const [wordListRightLabel, setWordListRightLabel] = useState(item?.detail?.wordList?.rightLabel ?? 'Avoid')
+  const [wordListRightText, setWordListRightText] = useState((item?.detail?.wordList?.right ?? []).join('\n'))
+  const [beforeAfterRows, setBeforeAfterRows] = useState<BrandVisualBeforeAfterRow[]>(
+    item?.detail?.beforeAfterRows && item.detail.beforeAfterRows.length > 0 ? item.detail.beforeAfterRows : [{ off: '', on: '' }]
+  )
+  // Tone of Voice only. Display-only warning, never blocks edit/delete.
+  const [locked, setLocked] = useState(item?.detail?.locked ?? false)
   const [fileType, setFileType] = useState(item?.file_type ?? '')
   const [existingStoragePath] = useState(item?.storage_path ?? null)
   const existingFileName = existingStoragePath ? fileNameFromStoragePath(existingStoragePath) : null
@@ -451,6 +430,7 @@ function ItemFormModal({
 
   const groupOptions = groupsForCategory(category)
   const isColourGroup = category === 'guidelines' && group === 'Colour'
+  const isToneOfVoice = category === 'tone_of_voice'
   const filledSwatches = swatches.filter((sw) => sw.name.trim() || sw.hex.trim())
   const hasInvalidHex = isColourGroup && filledSwatches.some((sw) => sw.hex.trim() && !isValidHex(sw.hex))
   const canSave = title.trim().length > 0 && !hasInvalidHex
@@ -463,6 +443,16 @@ function ItemFormModal({
   }
   function removeSwatchRow(index: number) {
     setSwatches((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows))
+  }
+
+  function updateBeforeAfterRow(index: number, patch: Partial<BrandVisualBeforeAfterRow>) {
+    setBeforeAfterRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+  }
+  function addBeforeAfterRow() {
+    setBeforeAfterRows((rows) => [...rows, { off: '', on: '' }])
+  }
+  function removeBeforeAfterRow(index: number) {
+    setBeforeAfterRows((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows))
   }
 
   function pickFile(f: File) {
@@ -506,7 +496,7 @@ function ItemFormModal({
           hex: normalizeHex(sw.hex),
           role: sw.role?.trim() || undefined,
         }))
-      } else if ((contentType === 'document' || contentType === 'image') && content.trim()) {
+      } else if ((contentType === 'document' || contentType === 'image') && content.trim() && !(isToneOfVoice && layout !== 'prose')) {
         detail.content = content.trim()
       }
       if (contentType === 'image') detail.imageTreatment = imageTreatment
@@ -515,15 +505,31 @@ function ItemFormModal({
         detail.url = url.trim()
         detail.label = linkLabel.trim() || url.trim()
       }
+      if (isToneOfVoice && contentType === 'document') {
+        detail.layout = layout
+        if (layout === 'wordlist') {
+          detail.wordList = {
+            leftLabel: wordListLeftLabel.trim() || 'Reach for',
+            left: wordListLeftText.split('\n').map((w) => w.trim()).filter(Boolean),
+            rightLabel: wordListRightLabel.trim() || 'Avoid',
+            right: wordListRightText.split('\n').map((w) => w.trim()).filter(Boolean),
+          }
+        }
+        if (layout === 'beforeAfter') {
+          detail.beforeAfterRows = beforeAfterRows
+            .filter((row) => row.off.trim() || row.on.trim())
+            .map((row) => ({ off: row.off.trim(), on: row.on.trim() }))
+        }
+      }
+      if (isToneOfVoice) detail.locked = locked
       // Preserve structured detail (specimens/sections) that this form has
-      // no editor for, so an edit save never clobbers seed content. Swatches
-      // and imageTreatment are exceptions: this form is the source of truth
-      // for them whenever they apply, and both are actively cleared
-      // otherwise -- the renderer checks detail.swatches before
-      // content_type, so a stale swatches array left over from a Colour
-      // item moved to another group would wrongly keep rendering as a
-      // colour grid, and a stale imageTreatment on a non-image item is
-      // simply meaningless data left behind.
+      // no editor for, so an edit save never clobbers seed content. Swatches,
+      // imageTreatment, layout/wordList/beforeAfterRows and locked are
+      // exceptions: this form is the source of truth for them whenever they
+      // apply, and all are actively cleared otherwise -- the renderer checks
+      // detail shape before content_type, so stale structured data left over
+      // from a category/layout switch would wrongly keep rendering under the
+      // old shape.
       const preserved = item?.detail ?? {}
       const mergedDetail = {
         ...preserved,
@@ -533,12 +539,16 @@ function ItemFormModal({
         ...(contentType !== 'link' ? { url: undefined, label: undefined } : {}),
         ...(isColourGroup ? {} : { swatches: undefined }),
         ...(!isColourGroup && !note.trim() ? { note: undefined } : {}),
+        ...(!isToneOfVoice || contentType !== 'document' ? { layout: undefined, wordList: undefined, beforeAfterRows: undefined } : {}),
+        ...(isToneOfVoice && contentType === 'document' && layout !== 'wordlist' ? { wordList: undefined } : {}),
+        ...(isToneOfVoice && contentType === 'document' && layout !== 'beforeAfter' ? { beforeAfterRows: undefined } : {}),
+        ...(!isToneOfVoice ? { locked: undefined } : {}),
       }
 
       const payload = {
         client_id: clientId,
         category,
-        group_label: group,
+        group_label: isSingleGroupCategory(category) ? groupsForCategory(category)[0] : group,
         title: title.trim(),
         summary: summary.trim() || null,
         content_type: contentType,
@@ -596,35 +606,47 @@ function ItemFormModal({
         </div>
       }
     >
-      <div style={s.formGrid2}>
-        <Field label="Category">
-          <select
-            value={category}
-            onChange={(e) => {
-              const cat = e.target.value as BrandVisualCategory
-              setCategory(cat)
-              setGroup(groupsForCategory(cat)[0])
-            }}
-            className="pf-focus"
-            style={s.input}
-          >
-            {BRAND_VISUAL_CATEGORIES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Group">
-          <select value={group} onChange={(e) => setGroup(e.target.value)} className="pf-focus" style={s.input}>
-            {groupOptions.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
+      {(() => {
+        const categorySelect = (
+          <Field label="Category">
+            <select
+              value={category}
+              onChange={(e) => {
+                const cat = e.target.value as BrandVisualCategory
+                setCategory(cat)
+                setGroup(groupsForCategory(cat)[0])
+              }}
+              className="pf-focus"
+              style={s.input}
+            >
+              {BRAND_VISUAL_CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )
+        // A single-group category (Tone of Voice) has nothing for the
+        // admin to choose between, so the Group field is hidden rather
+        // than shown as a one-option dropdown -- group_label is still
+        // written on save (see handleSave), just not surfaced here.
+        if (isSingleGroupCategory(category)) return categorySelect
+        return (
+          <div style={s.formGrid2}>
+            {categorySelect}
+            <Field label="Group">
+              <select value={group} onChange={(e) => setGroup(e.target.value)} className="pf-focus" style={s.input}>
+                {groupOptions.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        )
+      })()}
 
       <Field label="Title">
         <input value={title} onChange={(e) => setTitle(e.target.value)} className="pf-focus" style={s.input} />
@@ -668,6 +690,84 @@ function ItemFormModal({
           <option value="public">Public</option>
         </select>
       </Field>
+
+      {isToneOfVoice && (
+        <Field label="">
+          <label style={s.checkboxRow}>
+            <input type="checkbox" checked={locked} onChange={(e) => setLocked(e.target.checked)} />
+            <Lock size={13} /> Locked (use verbatim) — shown to readers as a warning, does not restrict editing
+          </label>
+        </Field>
+      )}
+
+      {isToneOfVoice && contentType === 'document' && (
+        <Field label="Layout">
+          <select
+            value={layout}
+            onChange={(e) => setLayout(e.target.value as typeof layout)}
+            className="pf-focus"
+            style={s.input}
+          >
+            <option value="prose">Prose</option>
+            <option value="wordlist">Two-column word list</option>
+            <option value="beforeAfter">Before / after table</option>
+          </select>
+        </Field>
+      )}
+
+      {isToneOfVoice && contentType === 'document' && layout === 'wordlist' && (
+        <div style={s.formGrid2}>
+          <Field label="Left column label">
+            <input value={wordListLeftLabel} onChange={(e) => setWordListLeftLabel(e.target.value)} className="pf-focus" style={s.input} />
+          </Field>
+          <Field label="Right column label">
+            <input value={wordListRightLabel} onChange={(e) => setWordListRightLabel(e.target.value)} className="pf-focus" style={s.input} />
+          </Field>
+          <Field label="Left words, one per line">
+            <textarea value={wordListLeftText} onChange={(e) => setWordListLeftText(e.target.value)} rows={4} style={s.textarea} />
+          </Field>
+          <Field label="Right words, one per line">
+            <textarea value={wordListRightText} onChange={(e) => setWordListRightText(e.target.value)} rows={4} style={s.textarea} />
+          </Field>
+        </div>
+      )}
+
+      {isToneOfVoice && contentType === 'document' && layout === 'beforeAfter' && (
+        <Field label="Rows">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {beforeAfterRows.map((row, i) => (
+              <div key={i} style={s.beforeAfterRowEditor}>
+                <input
+                  value={row.off}
+                  onChange={(e) => updateBeforeAfterRow(i, { off: e.target.value })}
+                  placeholder="Off-brand line"
+                  className="pf-focus"
+                  style={s.input}
+                />
+                <input
+                  value={row.on}
+                  onChange={(e) => updateBeforeAfterRow(i, { on: e.target.value })}
+                  placeholder="On-brand rewrite"
+                  className="pf-focus"
+                  style={s.input}
+                />
+                <button
+                  type="button"
+                  style={s.fileClearBtn}
+                  onClick={() => removeBeforeAfterRow(i)}
+                  aria-label="Remove row"
+                  disabled={beforeAfterRows.length === 1}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            <button type="button" style={s.addSwatchBtn} onClick={addBeforeAfterRow}>
+              <Plus size={14} /> Add row
+            </button>
+          </div>
+        </Field>
+      )}
 
       {isColourGroup ? (
         <Field label="Colours">
@@ -719,19 +819,25 @@ function ItemFormModal({
           </div>
         </Field>
       ) : (
-        (contentType === 'document' || contentType === 'image') && (
-          <Field label="Content (optional)">
+        (contentType === 'document' || contentType === 'image') &&
+        !(isToneOfVoice && contentType === 'document' && layout !== 'prose') && (
+          <Field label={isToneOfVoice && contentType === 'document' ? 'Text' : 'Content (optional)'}>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              rows={4}
+              rows={contentType === 'document' && isToneOfVoice ? 8 : 4}
               style={s.textarea}
               placeholder={
                 contentType === 'image'
                   ? 'Extended usage notes: minimum tile size, spacing rules, where this should and should not appear.'
-                  : undefined
+                  : isToneOfVoice
+                    ? 'Use **bold** for emphasis. Leave a blank line between paragraphs.'
+                    : undefined
               }
             />
+            {isToneOfVoice && contentType === 'document' && (
+              <span style={s.fieldHint}>Supports **bold**. Separate paragraphs with a blank line.</span>
+            )}
           </Field>
         )
       )}
@@ -818,41 +924,13 @@ function ItemFormModal({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={s.fieldLabel}>{label}</label>
+      {label && <label style={s.fieldLabel}>{label}</label>}
       {children}
     </div>
   )
 }
 
 const s: Record<string, CSSProperties> = {
-  sidebar: { width: 200, flexShrink: 0 },
-  searchWrap: { position: 'relative', marginBottom: 16 },
-  searchIcon: { position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' },
-  searchInput: {
-    width: '100%',
-    border: `1px solid ${t.border.subtle}`,
-    borderRadius: 10,
-    padding: '8px 12px 8px 30px',
-    fontSize: 12.5,
-    fontFamily: fonts.body,
-    color: t.text.primary,
-    background: t.background.surface,
-    boxSizing: 'border-box',
-  },
-  catBtn: {
-    width: '100%',
-    textAlign: 'left',
-    background: t.background.subtle,
-    border: '1px solid',
-    borderRadius: 10,
-    padding: '10px 12px',
-    fontSize: 14,
-    fontWeight: 600,
-    color: t.text.primary,
-    cursor: 'pointer',
-  },
-  groupList: { padding: '8px 4px 2px 8px', display: 'flex', flexDirection: 'column', gap: 2 },
-  groupBtn: { textAlign: 'left', border: 'none', borderRadius: 8, padding: '7px 10px', fontSize: 13, cursor: 'pointer' },
   headerRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 },
   crumb: { fontFamily: mono, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.text.tertiary, marginBottom: 6 },
   heading: { fontFamily: fonts.heading, fontSize: 22, fontWeight: 600, margin: 0, color: t.text.primary },
@@ -906,6 +984,9 @@ const s: Record<string, CSSProperties> = {
   confirmDeleteBtn: { color: t.text.danger, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 12.5 },
   confirmCancelBtn: { color: t.text.secondary, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5 },
   fieldLabel: { display: 'block', fontSize: 12, fontWeight: 600, color: t.text.secondary, marginBottom: 6 },
+  fieldHint: { display: 'block', fontSize: 11.5, color: t.text.tertiary, marginTop: 4 },
+  checkboxRow: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: t.text.primary, cursor: 'pointer' },
+  beforeAfterRowEditor: { display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' },
   formGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
   input: {
     width: '100%',
