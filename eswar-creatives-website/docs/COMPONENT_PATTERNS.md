@@ -1,6 +1,12 @@
 # Eswar Creatives Portal - Component Patterns
 
-Last updated: 17 August 2026 (`feature/brand-visual-guide` merged to `main`:
+Last updated: 18 August 2026 (Tone of Voice sub-module added to Brand
+Visual Guide, direct on `main`, uncommitted: a new Single-Group Category
+Pattern, see its own section below, plus `BrandVisualTab` (admin) now
+imports the shared `BrandVisualSidebar` instead of a duplicated inline
+copy -- see `docs/PORTAL_ARCHITECTURE.md`'s own 18 Aug entry for the full
+decision record; this file only carries the pattern itself. Previously,
+17 August 2026: `feature/brand-visual-guide` merged to `main`:
 two new shared-component patterns added alongside the Brand Visual Guide
 module itself. A SidePanel Resize Pattern -- every `SidePanel` consumer
 (`ClientPanel`, `ProjectPanel`, `LeadDrawer`, `EnquiryDrawer`,
@@ -45,6 +51,56 @@ replaced with the real pattern, the Table Skeleton Row pattern for
 `SkeletonRow`, the Overflow Fade pattern for `FadeOverflow`, the Outreach Touch
 Approve / Preview pattern, and `t.text.muted` aligned to #717171 / neutral/500,
 sharing a primitive with tertiary).
+
+---
+
+## Single-Group Category Pattern
+
+### Rule
+A Brand Visual Guide category whose `groups` array resolves to exactly one
+entry hides the group level from the user entirely — no expand/collapse
+accordion, no `Category › Group` breadcrumb, no group heading — rather than
+showing a one-option control that would just restate the category name.
+Every row for that category still gets a real, non-null `group_label` in
+the database (the constant value, e.g. `'General'`); nothing about the
+schema or the `(category, group_label)` scoping other logic (drag reorder,
+filtering) already relies on changes.
+
+### Why this over a nullable group
+The alternative — making `group_label` nullable, or giving a flat category
+an empty `groups: []` and threading a sentinel through every call site —
+was considered and rejected. It would have meant either a schema change to
+a column three other categories already depend on being `NOT NULL`, or
+`groupsForCategory(cat)[0]` returning `undefined` and every caller needing
+a fallback. A real single-entry `groups` array keeps `groups[0]` valid
+everywhere with no special-casing, and the only new surface area is a
+boolean helper three UI layers branch on to decide what to *show*, not what
+to *store*.
+
+### Helper
+`isSingleGroupCategory(category)` in `src/portal/utils/brandVisual.ts` —
+`groupsForCategory(category).length === 1`.
+
+### Where it branches
+- `BrandVisualSidebar` (`src/portal/components/shared/BrandVisualClientView.tsx`,
+  exported and shared by admin/client) — a single-group category's button is
+  a direct leaf selector (click immediately selects `(category, groups[0])`)
+  rather than an expand/collapse accordion with a nested one-item list.
+- `BrandVisualClientView` and `BrandVisualTab`'s own header — the crumb is
+  dropped and the heading shows the category label instead of the group.
+- `BrandVisualPublicView`'s per-category body — renders one flat grid
+  instead of iterating `cat.groups` into per-group headed sections.
+
+### Current usage
+Tone of Voice (`category: 'tone_of_voice'`, `groups: ['General']`), added
+18 August 2026 — see `docs/PORTAL_ARCHITECTURE.md`'s own entry for the full
+module. Guidelines/Assets/Templates all have multiple groups today and take
+the unbranched path unchanged.
+
+### Adding a new flat category
+Give it a `groups` array with exactly one entry (not `[]`) in
+`BRAND_VISUAL_CATEGORIES`. `isSingleGroupCategory` and the three branches
+above pick it up automatically — no further wiring needed.
 
 ---
 
