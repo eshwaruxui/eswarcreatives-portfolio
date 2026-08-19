@@ -17,6 +17,18 @@ import type { BrandVisualFileUrls, BrandVisualItem } from '../../utils/brandVisu
 
 const mono = "'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
+// A document item's Upload file field (see BrandVisualTab's ItemFormModal)
+// takes any file type, same as every other content type -- this is what
+// lets an audio recording ride alongside a document's own layout (prose/
+// word-list/before-after) as an attachment rather than needing a second,
+// separate content_type='audio' item. Extension-based, not MIME-based:
+// the stored file_type is always an uppercase extension (see fileType
+// state in ItemFormModal), never a MIME type.
+const AUDIO_EXTENSIONS = new Set(['MP3', 'WAV', 'M4A', 'OGG', 'AAC', 'FLAC', 'WEBM'])
+function isAudioFileType(fileType: string | null): boolean {
+  return !!fileType && AUDIO_EXTENSIONS.has(fileType.toUpperCase())
+}
+
 // Tone of Voice's prose layout only. Deliberately minimal -- **bold** plus
 // blank-line paragraph breaks, nothing else -- ported from the reference
 // prototype's own renderInline(). Kept local rather than folded into the
@@ -64,6 +76,24 @@ export function BrandVisualRenderer({
   const d = item.detail
   const needsFile = item.storage_path != null
   const loadingFile = needsFile && !fileUrls
+
+  // Computed once, appended to whichever document layout branch below
+  // actually returns -- an audio attachment sits alongside the layout's
+  // own content, never in place of it. Only for content_type='document':
+  // an item that's already content_type='audio' has its own dedicated
+  // branch just below, and doesn't need this repeated.
+  const audioAttachment =
+    item.content_type === 'document' && isAudioFileType(item.file_type) ? (
+      <div style={s.metaRow}>
+        {loadingFile ? (
+          <Skeleton height={44} borderRadius={8} />
+        ) : fileUrls ? (
+          <audio controls style={s.mediaFull} src={fileUrls.previewUrl} />
+        ) : (
+          <p style={s.muted}>Audio file unavailable.</p>
+        )}
+      </div>
+    ) : null
 
   if (item.content_type === 'audio') {
     return (
@@ -226,49 +256,55 @@ export function BrandVisualRenderer({
   // predate this syntax entirely.
   if (item.content_type === 'document' && d.layout === 'beforeAfter' && d.beforeAfterRows && d.beforeAfterRows.length > 0) {
     return (
-      <table style={s.beforeAfterTable}>
-        <thead>
-          <tr>
-            <th style={s.beforeAfterTh}>Off-brand</th>
-            <th style={s.beforeAfterTh}>On-brand</th>
-          </tr>
-        </thead>
-        <tbody>
-          {d.beforeAfterRows.map((row, i) => (
-            <tr key={i}>
-              <td style={s.beforeAfterTdOff}>{row.off}</td>
-              <td style={s.beforeAfterTdOn}>{row.on}</td>
+      <div>
+        <table style={s.beforeAfterTable}>
+          <thead>
+            <tr>
+              <th style={s.beforeAfterTh}>Off-brand</th>
+              <th style={s.beforeAfterTh}>On-brand</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {d.beforeAfterRows.map((row, i) => (
+              <tr key={i}>
+                <td style={s.beforeAfterTdOff}>{row.off}</td>
+                <td style={s.beforeAfterTdOn}>{row.on}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {audioAttachment}
+      </div>
     )
   }
 
   if (item.content_type === 'document' && d.layout === 'wordlist' && d.wordList) {
     const { leftLabel, left, rightLabel, right } = d.wordList
     return (
-      <div style={s.wordListGrid}>
-        <div>
-          <div style={{ ...s.wordListLabel, color: t.text.primaryBrand }}>{leftLabel}</div>
-          <ul style={s.wordListUl}>
-            {left.map((w, i) => (
-              <li key={i} style={s.wordListLi}>
-                {w}
-              </li>
-            ))}
-          </ul>
+      <div>
+        <div style={s.wordListGrid}>
+          <div>
+            <div style={{ ...s.wordListLabel, color: t.text.primaryBrand }}>{leftLabel}</div>
+            <ul style={s.wordListUl}>
+              {left.map((w, i) => (
+                <li key={i} style={s.wordListLi}>
+                  {w}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <div style={{ ...s.wordListLabel, color: t.text.tertiary }}>{rightLabel}</div>
+            <ul style={s.wordListUl}>
+              {right.map((w, i) => (
+                <li key={i} style={s.wordListLi}>
+                  {w}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-        <div>
-          <div style={{ ...s.wordListLabel, color: t.text.tertiary }}>{rightLabel}</div>
-          <ul style={s.wordListUl}>
-            {right.map((w, i) => (
-              <li key={i} style={s.wordListLi}>
-                {w}
-              </li>
-            ))}
-          </ul>
-        </div>
+        {audioAttachment}
       </div>
     )
   }
@@ -283,7 +319,12 @@ export function BrandVisualRenderer({
     (d.layout === 'prose' || (!d.layout && item.category === 'tone_of_voice')) &&
     d.content
   ) {
-    return <div style={s.prose}>{renderProseInline(d.content)}</div>
+    return (
+      <div>
+        <div style={s.prose}>{renderProseInline(d.content)}</div>
+        {audioAttachment}
+      </div>
+    )
   }
 
   if (item.content_type === 'image') {
@@ -348,6 +389,29 @@ export function BrandVisualRenderer({
   }
 
   if (item.file_type) {
+    // An audio file with no other structured content is the whole item,
+    // same as a dedicated content_type='audio' item -- plays inline rather
+    // than showing a download-only card the reader can't hear anything from
+    // without leaving the page first.
+    if (isAudioFileType(item.file_type)) {
+      return (
+        <div>
+          <ContentFrame>
+            {loadingFile ? (
+              <Skeleton height={64} borderRadius={8} />
+            ) : fileUrls ? (
+              <audio controls style={s.mediaFull} src={fileUrls.previewUrl} />
+            ) : (
+              <p style={s.muted}>Audio file unavailable.</p>
+            )}
+          </ContentFrame>
+          <div style={s.metaRow}>
+            <ExtensionBadge ext={item.file_type} />
+            {d.note && <p style={s.note}>{d.note}</p>}
+          </div>
+        </div>
+      )
+    }
     return (
       <div>
         <ContentFrame>
