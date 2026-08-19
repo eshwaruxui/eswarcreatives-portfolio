@@ -25,6 +25,7 @@ import { highlightBackgroundStyle, useHighlightRow } from '../hooks/useHighlight
 import { Modal } from './ui'
 import { showToast } from './toast'
 import { ExtensionBadge } from '../components/shared/BrandVisualBadge'
+import { BrandVisualAttachmentList } from '../components/shared/BrandVisualAttachmentList'
 // Lazy-loaded: Tiptap + ProseMirror + markdown-it add real weight (~190KB
 // gzipped), and this app has no other code-splitting at all -- one
 // monolithic bundle serves the public marketing site and the whole portal
@@ -44,6 +45,7 @@ import {
   fileNameFromStoragePath,
   groupsForCategory,
   isSingleGroupCategory,
+  resolveAuthenticatedAttachments,
 } from '../utils/brandVisual'
 import type {
   BrandVisualBeforeAfterRow,
@@ -51,6 +53,7 @@ import type {
   BrandVisualContentType,
   BrandVisualImageTreatment,
   BrandVisualItem,
+  BrandVisualItemAttachment,
   BrandVisualStatus,
   BrandVisualSwatch,
   BrandVisualVisibility,
@@ -458,6 +461,10 @@ function ItemFormModal({
   const existingFileName = existingStoragePath ? fileNameFromStoragePath(existingStoragePath) : null
   const [pickedFile, setPickedFile] = useState<File | null>(null)
   const [removeExistingFile, setRemoveExistingFile] = useState(false)
+  // Tone of Voice only (migration 0097). Replaces the single-file Upload
+  // field above for this category -- see the Attachments Field below.
+  // Empty for a new (unsaved) item; loaded once for an existing one.
+  const [attachments, setAttachments] = useState<BrandVisualItemAttachment[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -468,6 +475,12 @@ function ItemFormModal({
   const filledSwatches = swatches.filter((sw) => sw.name.trim() || sw.hex.trim())
   const hasInvalidHex = isColourGroup && filledSwatches.some((sw) => sw.hex.trim() && !isValidHex(sw.hex))
   const canSave = title.trim().length > 0 && !hasInvalidHex
+
+  useEffect(() => {
+    if (isNew) return
+    void resolveAuthenticatedAttachments(item!).then(setAttachments)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function updateSwatch(index: number, patch: Partial<BrandVisualSwatch>) {
     setSwatches((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -951,7 +964,7 @@ function ItemFormModal({
         </Field>
       )}
 
-      {contentType !== 'link' && (
+      {!isToneOfVoice && contentType !== 'link' && (
         <Field label={`Upload file (optional, max 50MB)`}>
           <input
             ref={fileInputRef}
@@ -984,15 +997,47 @@ function ItemFormModal({
         </Field>
       )}
 
-      <Field label="File type (extension, optional if a file is attached)">
-        <input
-          value={fileType}
-          onChange={(e) => setFileType(e.target.value.toUpperCase())}
-          className="pf-focus"
-          style={s.input}
-          placeholder="e.g. PDF, SVG, AI"
-        />
-      </Field>
+      {!isToneOfVoice && (
+        <Field label="File type (extension, optional if a file is attached)">
+          <input
+            value={fileType}
+            onChange={(e) => setFileType(e.target.value.toUpperCase())}
+            className="pf-focus"
+            style={s.input}
+            placeholder="e.g. PDF, SVG, AI"
+          />
+        </Field>
+      )}
+
+      {isToneOfVoice && (
+        <Field label="Attachments">
+          {isNew ? (
+            <p style={s.muted}>Save this item first, then add attachments.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {existingStoragePath && !removeExistingFile && (
+                <div style={s.fileRow}>
+                  <span style={s.fileName}>{existingFileName ?? 'Existing file'} (legacy single file)</span>
+                  <button
+                    type="button"
+                    style={s.fileClearBtn}
+                    onClick={() => setRemoveExistingFile(true)}
+                    aria-label="Remove legacy file"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+              <BrandVisualAttachmentList
+                itemId={item!.id}
+                clientId={clientId}
+                attachments={attachments}
+                onAttachmentsChange={setAttachments}
+              />
+            </div>
+          )}
+        </Field>
+      )}
 
       {contentType !== 'link' && !isColourGroup && (
         <Field label="Note (optional caption shown with the file)">
