@@ -21,6 +21,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { supabase } from '../../lib/supabase'
 import { t, fonts } from '../theme'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { highlightBackgroundStyle, useHighlightRow } from '../hooks/useHighlightRow'
 import { Modal } from './ui'
 import { showToast } from './toast'
 import { ExtensionBadge } from '../components/shared/BrandVisualBadge'
@@ -87,6 +88,7 @@ export function BrandVisualTab({ clientId, clientLabel }: { clientId: string; cl
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [previewAs, setPreviewAs] = useState<null | 'client' | 'public'>(null)
   const [previewPublicCategory, setPreviewPublicCategory] = useState<BrandVisualCategory>('guidelines')
+  const { highlightId, triggerHighlight } = useHighlightRow()
 
   async function load() {
     setLoading(true)
@@ -180,6 +182,7 @@ export function BrandVisualTab({ clientId, clientLabel }: { clientId: string; cl
   function handleSaved(saved: BrandVisualItem) {
     setItems((list) => {
       const exists = list.some((i) => i.id === saved.id)
+      if (!exists) triggerHighlight(saved.id)
       return exists ? list.map((i) => (i.id === saved.id ? saved : i)) : [...list, saved]
     })
     setModalItem(undefined)
@@ -254,6 +257,7 @@ export function BrandVisualTab({ clientId, clientLabel }: { clientId: string; cl
                 item={item}
                 index={i}
                 dragging={dragIndex}
+                highlighted={item.id === highlightId}
                 onDragStart={setDragIndex}
                 onDragOver={(idx) => {
                   if (dragIndex === null || dragIndex === idx) return
@@ -291,6 +295,7 @@ function AdminRow({
   item,
   index,
   dragging,
+  highlighted,
   onDragStart,
   onDragOver,
   onDrop,
@@ -302,6 +307,8 @@ function AdminRow({
   item: BrandVisualItem
   index: number
   dragging: number | null
+  // Briefly true right after this item was added -- see useHighlightRow.
+  highlighted: boolean
   onDragStart: (index: number) => void
   onDragOver: (index: number) => void
   onDrop: () => void
@@ -322,7 +329,7 @@ function AdminRow({
         onDragOver(index)
       }}
       onDrop={onDrop}
-      style={{ ...s.row, opacity: dragging === index ? 0.5 : 1 }}
+      style={{ ...s.row, ...highlightBackgroundStyle(highlighted), opacity: dragging === index ? 0.5 : 1 }}
     >
       <span style={s.dragHandle}>
         <GripVertical size={16} />
