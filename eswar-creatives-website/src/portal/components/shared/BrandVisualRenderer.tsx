@@ -524,7 +524,14 @@ function domainOf(url: string): string {
 
 const s: Record<string, CSSProperties> = {
   frame: { background: t.background.subtle, border: `1px solid ${t.border.subtle}`, borderRadius: 12, padding: 20 },
-  mediaFull: { width: '100%', display: 'block' },
+  // accentColor tints the native <audio>/<video> controls' scrubber, volume
+  // slider and play button -- Chrome/Edge/Firefox all pick it up on the
+  // element itself, no per-browser vendor-prefixed pseudo-element hack
+  // needed. Brand teal, not the browser default near-black, fixes a real
+  // contrast complaint (the default progress fill read as too dark against
+  // the panel background) and applies to every audio/video player in this
+  // file at once since they all already share this one style object.
+  mediaFull: { width: '100%', display: 'block', accentColor: t.text.primaryBrand },
   metaRow: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 },
   note: { fontSize: 13.5, color: t.text.secondary, margin: 0, lineHeight: 1.6 },
   noteBelow: { marginTop: 14, fontSize: 13.5, color: t.text.secondary, lineHeight: 1.6 },
