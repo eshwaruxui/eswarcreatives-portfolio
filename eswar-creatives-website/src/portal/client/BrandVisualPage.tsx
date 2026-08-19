@@ -20,6 +20,7 @@ export function BrandVisualClientPage() {
   const { isMobile } = useBreakpoint()
   const [items, setItems] = useState<BrandVisualItem[]>([])
   const [brandLabel, setBrandLabel] = useState('Your brand')
+  const [publicToken, setPublicToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [previewPublicCategory, setPreviewPublicCategory] = useState<BrandVisualCategory | null>(null)
@@ -30,12 +31,13 @@ export function BrandVisualClientPage() {
       try {
         const { data: client, error: cErr } = await supabase
           .from('clients')
-          .select('company_name, contact_name')
+          .select('company_name, contact_name, public_token')
           .eq('profile_id', profile.id)
           .maybeSingle()
         if (cErr) throw cErr
         if (cancelled) return
         setBrandLabel(client?.company_name || client?.contact_name || 'Your brand')
+        setPublicToken(client?.public_token ?? null)
 
         const { data, error: iErr } = await supabase
           .from('brand_visual_items')
@@ -83,6 +85,7 @@ export function BrandVisualClientPage() {
           brandLabel={brandLabel}
           onPreviewPublic={setPreviewPublicCategory}
           canManagePublish
+          publicToken={publicToken}
           onItemUpdated={(updated) => setItems((list) => list.map((i) => (i.id === updated.id ? updated : i)))}
         />
       )}

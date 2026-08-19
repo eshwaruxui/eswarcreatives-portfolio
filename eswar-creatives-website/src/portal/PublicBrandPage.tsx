@@ -5,7 +5,7 @@
 // items server-side); individual file URLs are resolved on demand by
 // BrandVisualPublicView via get-brand-visual-file-url.
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 import { t, fonts } from './theme'
@@ -20,6 +20,8 @@ type ListingPayload = {
 
 export function PublicBrandPage() {
   const { token } = useParams<{ token: string }>()
+  const [searchParams] = useSearchParams()
+  const itemId = searchParams.get('item') ?? undefined
   const [loading, setLoading] = useState(true)
   const [brandLabel, setBrandLabel] = useState('')
   const [items, setItems] = useState<BrandVisualItem[]>([])
@@ -76,7 +78,7 @@ export function PublicBrandPage() {
     )
   }
 
-  return <BrandVisualPublicView items={items} brandLabel={brandLabel} />
+  return <BrandVisualPublicView items={items} brandLabel={brandLabel} initialItemId={itemId} />
 }
 
 const s: Record<string, CSSProperties> = {

@@ -5,7 +5,7 @@
 // pre-filtered to what a client would actually see (published, visibility
 // client/public). Never fetches anything itself.
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Globe, Lock, Search, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Check, Globe, Lock, Search, Share2, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { t, fonts, motionTokens } from '../../theme'
@@ -36,6 +36,7 @@ export function BrandVisualClientView({
   initialGroup,
   onPreviewPublic,
   canManagePublish = false,
+  publicToken = null,
   onItemUpdated,
 }: {
   items: BrandVisualItem[]
@@ -53,6 +54,10 @@ export function BrandVisualClientView({
   // whenever this is true: the real route owns `items` in its own state and
   // needs to hear about the change to stay in sync.
   canManagePublish?: boolean
+  // clients.public_token — the brand-wide identifier the public route
+  // (/brand/:token) is keyed on. Only supplied alongside canManagePublish
+  // on the real client route; the Share button needs it to build a link.
+  publicToken?: string | null
   onItemUpdated?: (updated: BrandVisualItem) => void
 }) {
   const { isMobile } = useBreakpoint()
@@ -128,6 +133,7 @@ export function BrandVisualClientView({
           hasPrevious={showNav && openIndex > 0}
           hasNext={showNav && openIndex < visible.length - 1}
           canManagePublish={canManagePublish}
+          publicToken={publicToken}
           onItemUpdated={(updated) => {
             setOpenItem(updated)
             onItemUpdated?.(updated)
@@ -233,6 +239,7 @@ export function BrandVisualDetailPanel({
   hasPrevious = false,
   hasNext = false,
   canManagePublish = false,
+  publicToken = null,
   onItemUpdated,
 }: {
   item: BrandVisualItem
@@ -252,6 +259,9 @@ export function BrandVisualDetailPanel({
   // See BrandVisualClientView's own comment on this prop -- only ever true
   // on the real client route, never during an admin/client preview.
   canManagePublish?: boolean
+  // clients.public_token, threaded down from BrandVisualClientView. The
+  // Share button is a no-op (hidden) without it.
+  publicToken?: string | null
   onItemUpdated?: (updated: BrandVisualItem) => void
 }) {
   const [fileUrls, setFileUrls] = useState<BrandVisualFileUrls | null>(null)
@@ -259,8 +269,11 @@ export function BrandVisualDetailPanel({
   const [expanded, setExpanded] = useState(false)
   const [togglePending, setTogglePending] = useState(false)
   const [toggleError, setToggleError] = useState<string | null>(null)
+  const [sharePending, setSharePending] = useState(false)
+  const [shareError, setShareError] = useState<string | null>(null)
+  const [justCopied, setJustCopied] = useState(false)
 
-  async function handleTogglePublic(nextPublic: boolean) {
+  async function setPublic(nextPublic: boolean): Promise<boolean> {
     setTogglePending(true)
     setToggleError(null)
     const { data, error } = await supabase.rpc('client_set_brand_visual_item_public', {
@@ -270,9 +283,36 @@ export function BrandVisualDetailPanel({
     setTogglePending(false)
     if (error || !data) {
       setToggleError('Could not update — try again.')
-      return
+      return false
     }
     onItemUpdated?.({ ...item, visibility: (data as { visibility: 'client' | 'public' }).visibility })
+    return true
+  }
+
+  // Share: publish (if not already) then copy the item's deep link. One
+  // click covers both steps so a client doesn't have to flip the switch
+  // first and then hunt for a link elsewhere.
+  async function handleShare() {
+    setShareError(null)
+    if (item.visibility !== 'public') {
+      const ok = await setPublic(true)
+      if (!ok) {
+        setShareError('Could not share — try again.')
+        return
+      }
+    }
+    if (!publicToken) return
+    const link = `${window.location.origin}/brand/${publicToken}?item=${item.id}`
+    setSharePending(true)
+    try {
+      await navigator.clipboard.writeText(link)
+      setJustCopied(true)
+      setTimeout(() => setJustCopied(false), 2000)
+    } catch {
+      setShareError('Link ready, but could not copy automatically — copy it from your address bar instead.')
+    } finally {
+      setSharePending(false)
+    }
   }
   const showPrevNext = !!(onPrevious || onNext)
 
@@ -351,7 +391,7 @@ export function BrandVisualDetailPanel({
                   aria-label="Make available for public"
                   className="pf-focus"
                   disabled={togglePending}
-                  onClick={() => handleTogglePublic(item.visibility !== 'public')}
+                  onClick={() => setPublic(item.visibility !== 'public')}
                   style={{
                     ...s.publishSwitch,
                     background: item.visibility === 'public' ? t.text.primaryBrand : t.border.default,
@@ -372,6 +412,19 @@ export function BrandVisualDetailPanel({
                   </div>
                   {toggleError && <div style={s.publishError}>{toggleError}</div>}
                 </div>
+                {publicToken && (
+                  <button
+                    type="button"
+                    className="pf-focus"
+                    disabled={sharePending || togglePending}
+                    onClick={handleShare}
+                    style={{ ...s.shareBtn, opacity: sharePending || togglePending ? 0.6 : 1 }}
+                  >
+                    {justCopied ? <Check size={13} /> : <Share2 size={13} />}
+                    {justCopied ? 'Link copied' : 'Share'}
+                  </button>
+                )}
+                {shareError && <div style={s.publishError}>{shareError}</div>}
               </div>
             )}
           </div>
@@ -518,6 +571,21 @@ const s: Record<string, CSSProperties> = {
   },
   publishLabel: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: t.text.secondary },
   publishError: { fontSize: 11.5, color: t.text.danger, marginTop: 2 },
+  shareBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 'auto',
+    background: t.background.subtle,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    color: t.text.primary,
+    cursor: 'pointer',
+    padding: '7px 12px',
+    fontSize: 12.5,
+    fontWeight: 600,
+    fontFamily: fonts.body,
+  },
   headerRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 },
   crumb: { fontFamily: mono, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.text.tertiary, marginBottom: 6 },
   heading: { fontFamily: fonts.heading, fontSize: 26, fontWeight: 600, margin: 0, color: t.text.primary },

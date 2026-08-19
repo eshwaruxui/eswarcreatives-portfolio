@@ -15,6 +15,7 @@ import {
 } from 'react'
 import type { ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
+import { usePersistedState } from './hooks/usePersistedState'
 
 export type PortalClient = {
   id: string
@@ -40,7 +41,13 @@ type PortalContextValue = {
 const PortalContext = createContext<PortalContextValue | null>(null)
 
 export function PortalProvider({ children }: { children: ReactNode }) {
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+  // Persisted across refresh/reopen -- see usePersistedState. A stale id (the
+  // client was since deleted) falls back to "All clients" for free, since
+  // `selectedClient` below resolves it against the live `clients` list.
+  const [selectedClientId, setSelectedClientId] = usePersistedState<string | null>(
+    'selectedClientId',
+    null
+  )
   const [clients, setClients] = useState<PortalClient[]>([])
   const [clientsError, setClientsError] = useState<string | null>(null)
 
