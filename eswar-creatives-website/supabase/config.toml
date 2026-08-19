@@ -36,3 +36,8 @@ verify_jwt = false
 [functions.get-brand-visual-file-url]
 # Public /brand/:token route; the item's own public_token is the credential.
 verify_jwt = false
+
+[functions.get-brand-visual-attachment-url]
+# Same as get-brand-visual-file-url, one level down: the attachment's own
+# public_token is the credential (migration 0097).
+verify_jwt = false
