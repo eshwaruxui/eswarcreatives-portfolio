@@ -14,21 +14,15 @@ import { t, fonts } from '../../theme'
 import { ProgressiveImage } from './ProgressiveImage'
 import { Skeleton } from './Skeleton'
 import { ExtensionBadge } from './BrandVisualBadge'
-import type { BrandVisualFileUrls, BrandVisualItem } from '../../utils/brandVisual'
+import { isAudioFileType } from '../../utils/brandVisual'
+import type { BrandVisualFileUrls, BrandVisualItem, BrandVisualItemAttachment } from '../../utils/brandVisual'
+
+export interface ResolvedBrandVisualAttachment {
+  attachment: BrandVisualItemAttachment
+  fileUrls: BrandVisualFileUrls | null
+}
 
 const mono = "'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-
-// A document item's Upload file field (see BrandVisualTab's ItemFormModal)
-// takes any file type, same as every other content type -- this is what
-// lets an audio recording ride alongside a document's own layout (prose/
-// word-list/before-after) as an attachment rather than needing a second,
-// separate content_type='audio' item. Extension-based, not MIME-based:
-// the stored file_type is always an uppercase extension (see fileType
-// state in ItemFormModal), never a MIME type.
-const AUDIO_EXTENSIONS = new Set(['MP3', 'WAV', 'M4A', 'OGG', 'AAC', 'FLAC', 'WEBM'])
-function isAudioFileType(fileType: string | null): boolean {
-  return !!fileType && AUDIO_EXTENSIONS.has(fileType.toUpperCase())
-}
 
 // Every <audio> element below carries preload="metadata" (never the
 // default "auto"), a fix for a genuine reported bug, not a micro-
@@ -69,15 +63,58 @@ function ContentFrame({ children }: { children: ReactNode }) {
 export function BrandVisualRenderer({
   item,
   fileUrls,
+  attachments = [],
   onExpandImage,
 }: {
   item: BrandVisualItem
   fileUrls?: BrandVisualFileUrls | null
+  // Migration 0097. Independent of content_type/layout -- Tone of Voice
+  // items of any content type can carry multiple attachments (see
+  // ItemFormModal's Attachments field), so this renders alongside every
+  // branch below, not just the document layouts. Empty by default so
+  // every existing caller/test that doesn't pass it is unaffected.
+  attachments?: ResolvedBrandVisualAttachment[]
   onExpandImage?: () => void
 }) {
   const d = item.detail
   const needsFile = item.storage_path != null
   const loadingFile = needsFile && !fileUrls
+
+  // Appended to whichever branch below actually returns -- see the prop
+  // doc above for why this isn't scoped to document/prose the way
+  // audioAttachment (single legacy file) still is.
+  const attachmentsBlock =
+    attachments.length > 0 ? (
+      <div style={s.attachmentsBlock}>
+        <div style={s.attachmentsLabel}>Attachments</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {attachments.map(({ attachment, fileUrls: attUrls }) =>
+            isAudioFileType(attachment.file_type) ? (
+              <div key={attachment.id}>
+                {attUrls ? (
+                  <audio controls preload="metadata" style={s.mediaFull} src={attUrls.previewUrl} />
+                ) : (
+                  <Skeleton height={44} borderRadius={8} />
+                )}
+                <div style={s.attachmentCaption}>{attachment.file_name}</div>
+              </div>
+            ) : (
+              <div key={attachment.id} style={s.attachmentFileRow}>
+                {attachment.file_type && <ExtensionBadge ext={attachment.file_type} />}
+                <span style={s.attachmentFileName}>{attachment.file_name}</span>
+                {attUrls ? (
+                  <a href={attUrls.downloadUrl} style={s.downloadBtnSmall}>
+                    <Download size={12} /> Download
+                  </a>
+                ) : (
+                  <Skeleton width={90} height={28} borderRadius={7} />
+                )}
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    ) : null
 
   // Computed once, appended to whichever document layout branch below
   // actually returns -- an audio attachment sits alongside the layout's
@@ -107,6 +144,7 @@ export function BrandVisualRenderer({
           {item.file_type && <ExtensionBadge ext={item.file_type} />}
           {d.note && <p style={s.note}>{d.note}</p>}
         </div>
+        {attachmentsBlock}
       </div>
     )
   }
@@ -127,23 +165,27 @@ export function BrandVisualRenderer({
           {item.file_type && <ExtensionBadge ext={item.file_type} />}
           {d.note && <p style={s.note}>{d.note}</p>}
         </div>
+        {attachmentsBlock}
       </div>
     )
   }
 
   if (item.content_type === 'link' && d.url) {
     return (
-      <a href={d.url} target="_blank" rel="noreferrer" style={{ display: 'block', textDecoration: 'none' }}>
-        <ContentFrame>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={s.linkLabel}>{d.label || d.url}</div>
-              <div style={s.linkDomain}>{domainOf(d.url)}</div>
+      <div>
+        <a href={d.url} target="_blank" rel="noreferrer" style={{ display: 'block', textDecoration: 'none' }}>
+          <ContentFrame>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={s.linkLabel}>{d.label || d.url}</div>
+                <div style={s.linkDomain}>{domainOf(d.url)}</div>
+              </div>
+              <ExternalLink size={18} color={t.text.tertiary} style={{ flexShrink: 0 }} />
             </div>
-            <ExternalLink size={18} color={t.text.tertiary} style={{ flexShrink: 0 }} />
-          </div>
-        </ContentFrame>
-      </a>
+          </ContentFrame>
+        </a>
+        {attachmentsBlock}
+      </div>
     )
   }
 
@@ -167,6 +209,7 @@ export function BrandVisualRenderer({
             item (it's also what the card blurb uses), so colour items don't
             need a second, separate free-text field just for this. */}
         {item.summary && <p style={s.noteBelow}>{item.summary}</p>}
+        {attachmentsBlock}
       </div>
     )
   }
@@ -233,6 +276,7 @@ export function BrandVisualRenderer({
         {/* The written rules stay, as supporting reference below the sheet
             -- not removed, just no longer the first thing shown. */}
         {d.content && <p style={s.supportingText}>{d.content}</p>}
+        {attachmentsBlock}
       </div>
     )
   }
@@ -247,6 +291,7 @@ export function BrandVisualRenderer({
           </div>
         ))}
         {d.sectionsNote && <p style={s.noteItalic}>{d.sectionsNote}</p>}
+        {attachmentsBlock}
       </div>
     )
   }
@@ -277,6 +322,7 @@ export function BrandVisualRenderer({
         </table>
         {audioAttachment}
         {d.note && <p style={s.noteBelow}>{d.note}</p>}
+        {attachmentsBlock}
       </div>
     )
   }
@@ -312,6 +358,7 @@ export function BrandVisualRenderer({
         </div>
         {audioAttachment}
         {d.note && <p style={s.noteBelow}>{d.note}</p>}
+        {attachmentsBlock}
       </div>
     )
   }
@@ -341,6 +388,7 @@ export function BrandVisualRenderer({
         <div className="ec-tov-prose" style={s.prose} dangerouslySetInnerHTML={{ __html: renderProseMarkdown(d.content) }} />
         {audioAttachment}
         {d.note && <p style={s.noteBelow}>{d.note}</p>}
+        {attachmentsBlock}
       </div>
     )
   }
@@ -402,6 +450,7 @@ export function BrandVisualRenderer({
             extended usage notes for image-type items (tile size, spacing,
             where the pattern should and shouldn't appear). */}
         {d.content && <p style={s.supportingText}>{d.content}</p>}
+        {attachmentsBlock}
       </div>
     )
   }
@@ -427,6 +476,7 @@ export function BrandVisualRenderer({
             <ExtensionBadge ext={item.file_type} />
             {d.note && <p style={s.note}>{d.note}</p>}
           </div>
+          {attachmentsBlock}
         </div>
       )
     }
@@ -451,11 +501,17 @@ export function BrandVisualRenderer({
           </div>
         </ContentFrame>
         {d.note && <p style={s.noteBelow}>{d.note}</p>}
+        {attachmentsBlock}
       </div>
     )
   }
 
-  return <p style={s.plainText}>{d.content || 'No content yet.'}</p>
+  return (
+    <div>
+      <p style={s.plainText}>{d.content || 'No content yet.'}</p>
+      {attachmentsBlock}
+    </div>
+  )
 }
 
 function domainOf(url: string): string {
@@ -557,4 +613,46 @@ const s: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   plainText: { fontSize: 14, color: t.text.primary, lineHeight: 1.7, whiteSpace: 'pre-wrap' },
+  attachmentsBlock: { marginTop: 20, paddingTop: 20, borderTop: `1px solid ${t.border.subtle}` },
+  attachmentsLabel: {
+    fontFamily: mono,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: t.text.tertiary,
+    marginBottom: 10,
+  },
+  attachmentCaption: { fontSize: 12.5, color: t.text.tertiary, marginTop: 6 },
+  attachmentFileRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '8px 10px',
+    borderRadius: 8,
+    background: t.background.subtle,
+    border: `1px solid ${t.border.subtle}`,
+  },
+  attachmentFileName: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    color: t.text.primary,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  downloadBtnSmall: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    background: t.text.primaryBrand,
+    color: t.text.onPrimary,
+    border: 'none',
+    borderRadius: 7,
+    padding: '5px 9px',
+    fontSize: 11.5,
+    fontWeight: 600,
+    textDecoration: 'none',
+    flexShrink: 0,
+  },
 }

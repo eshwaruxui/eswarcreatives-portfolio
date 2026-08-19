@@ -112,6 +112,30 @@ export interface BrandVisualItem {
   public_token: string
   created_at: string
   updated_at: string
+  // Populated two different ways depending on caller, never fetched by this
+  // type itself: the public listing RPC (get_brand_visual_items_by_client_token,
+  // migration 0098) already nests each item's attachments inline, so a
+  // public caller has this for free with no second round-trip. An
+  // authenticated caller (admin/client) gets it lazily, only once a detail
+  // panel actually opens for one item -- see resolveAuthenticatedAttachments
+  // below. Absent (undefined) on a freshly-loaded list either way; always
+  // an array (never undefined) once resolved.
+  attachments?: BrandVisualItemAttachment[]
+}
+
+// Migration 0097. One row per file -- multiple attachments per item, the
+// child-table shape this codebase already uses for "one thing, many files"
+// (project_output_files, project_attachments), not an array/jsonb column.
+export interface BrandVisualItemAttachment {
+  id: string
+  item_id: string
+  file_name: string
+  storage_path: string
+  file_size: number | null
+  file_type: string | null
+  sort_order: number
+  public_token: string
+  created_at: string
 }
 
 export const BRAND_VISUAL_CATEGORIES: { id: BrandVisualCategory; label: string; groups: string[] }[] = [
@@ -180,4 +204,74 @@ export async function resolvePublicFileUrls(item: BrandVisualItem): Promise<Bran
   const body = data as { signed_url?: string; download_url?: string } | null
   if (error || !body?.signed_url || !body?.download_url) return null
   return { previewUrl: body.signed_url, downloadUrl: body.download_url }
+}
+
+// Extension-based, not MIME-based: file_type is always an uppercase
+// extension on both brand_visual_items and brand_visual_item_attachments
+// (see fileType/pickFile in ItemFormModal, and the attachment upload
+// handler), never a MIME type. Shared here (not local to
+// BrandVisualRenderer, its original home) now that attachment lists need
+// the same audio-vs-generic-file decision the single-file case already did.
+const AUDIO_EXTENSIONS = new Set(['MP3', 'WAV', 'M4A', 'OGG', 'AAC', 'FLAC', 'WEBM'])
+export function isAudioFileType(fileType: string | null): boolean {
+  return !!fileType && AUDIO_EXTENSIONS.has(fileType.toUpperCase())
+}
+
+// Admin or client, direct signed URL for one attachment -- same reasoning
+// as resolveAuthenticatedFileUrls, just against the attachment's own
+// storage_path. file_name is a real column here (migration 0097), unlike
+// the single-file case, so there's no {random_id}_ prefix to strip.
+export async function resolveAuthenticatedAttachmentUrls(
+  attachment: BrandVisualItemAttachment
+): Promise<BrandVisualFileUrls | null> {
+  const [previewRes, downloadRes] = await Promise.all([
+    supabase.storage.from('brand-visual-files').createSignedUrl(attachment.storage_path, 3600),
+    supabase.storage
+      .from('brand-visual-files')
+      .createSignedUrl(attachment.storage_path, 3600, { download: attachment.file_name }),
+  ])
+  if (previewRes.error || !previewRes.data?.signedUrl || downloadRes.error || !downloadRes.data?.signedUrl) return null
+  return { previewUrl: previewRes.data.signedUrl, downloadUrl: downloadRes.data.signedUrl }
+}
+
+// Public visitor. The attachment's own public_token is the credential (not
+// the item's) -- an item can have many attachments, each independently
+// resolvable, mirroring get-output-file-url's per-file token shape one
+// level down from the item-level token brand_visual_items already uses.
+export async function resolvePublicAttachmentUrls(
+  attachment: BrandVisualItemAttachment
+): Promise<BrandVisualFileUrls | null> {
+  const { data, error } = await supabase.functions.invoke('get-brand-visual-attachment-url', {
+    body: { token: attachment.public_token },
+  })
+  const body = data as { signed_url?: string; download_url?: string } | null
+  if (error || !body?.signed_url || !body?.download_url) return null
+  return { previewUrl: body.signed_url, downloadUrl: body.download_url }
+}
+
+// The list of attachments itself, not yet each one's signed URL -- resolved
+// two different ways depending on caller, same split as the file-URL
+// resolvers above. Authenticated: a direct RLS-scoped query (admin sees
+// every attachment via admin_all_*, client sees only attachments of items
+// already readable to them via the nested-subquery policy in migration
+// 0097). Always returns an array, even on error (never null) -- an empty
+// list and a failed fetch render identically (no attachments shown),
+// which is the correct fallback for a merely-decorative section.
+export async function resolveAuthenticatedAttachments(item: BrandVisualItem): Promise<BrandVisualItemAttachment[]> {
+  const { data, error } = await supabase
+    .from('brand_visual_item_attachments')
+    .select('*')
+    .eq('item_id', item.id)
+    .order('sort_order', { ascending: true })
+  if (error) return []
+  return (data ?? []) as BrandVisualItemAttachment[]
+}
+
+// Public visitor. No query capability at all (no anon policy on
+// brand_visual_item_attachments, deliberately -- see migration 0097) --
+// the public listing RPC already nested every item's attachments inline
+// (migration 0098), so this is a same-shape resolver purely for interface
+// symmetry with the authenticated one above, not a real fetch.
+export async function resolvePublicAttachments(item: BrandVisualItem): Promise<BrandVisualItemAttachment[]> {
+  return item.attachments ?? []
 }

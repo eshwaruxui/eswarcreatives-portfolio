@@ -19,9 +19,12 @@ import {
   groupsForCategory,
   categoryLabel,
   isSingleGroupCategory,
+  resolveAuthenticatedAttachmentUrls,
+  resolveAuthenticatedAttachments,
   resolveAuthenticatedFileUrls,
 } from '../../utils/brandVisual'
-import type { BrandVisualCategory, BrandVisualFileUrls, BrandVisualItem } from '../../utils/brandVisual'
+import type { BrandVisualCategory, BrandVisualFileUrls, BrandVisualItem, BrandVisualItemAttachment } from '../../utils/brandVisual'
+import type { ResolvedBrandVisualAttachment } from './BrandVisualRenderer'
 
 const mono = "'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
@@ -207,6 +210,8 @@ export function BrandVisualDetailPanel({
   item,
   onClose,
   resolveFileUrls = resolveAuthenticatedFileUrls,
+  resolveAttachments = resolveAuthenticatedAttachments,
+  resolveAttachmentUrls = resolveAuthenticatedAttachmentUrls,
   onPrevious,
   onNext,
   hasPrevious = false,
@@ -215,12 +220,20 @@ export function BrandVisualDetailPanel({
   item: BrandVisualItem
   onClose: () => void
   resolveFileUrls?: (item: BrandVisualItem) => Promise<BrandVisualFileUrls | null>
+  // Migration 0097. Two-step, mirroring resolveFileUrls' own split: first
+  // the list of attachment rows (authenticated: a direct RLS-scoped query;
+  // public: already nested on `item` by the listing RPC, no fetch at all),
+  // then each row's own signed URL (authenticated: direct; public: the
+  // token-gated get-brand-visual-attachment-url edge function).
+  resolveAttachments?: (item: BrandVisualItem) => Promise<BrandVisualItemAttachment[]>
+  resolveAttachmentUrls?: (attachment: BrandVisualItemAttachment) => Promise<BrandVisualFileUrls | null>
   onPrevious?: () => void
   onNext?: () => void
   hasPrevious?: boolean
   hasNext?: boolean
 }) {
   const [fileUrls, setFileUrls] = useState<BrandVisualFileUrls | null>(null)
+  const [resolvedAttachments, setResolvedAttachments] = useState<ResolvedBrandVisualAttachment[]>([])
   const [expanded, setExpanded] = useState(false)
   const showPrevNext = !!(onPrevious || onNext)
   const prevNextExtra = showPrevNext ? (
@@ -259,6 +272,21 @@ export function BrandVisualDetailPanel({
     }
   }, [item, resolveFileUrls])
 
+  useEffect(() => {
+    let cancelled = false
+    setResolvedAttachments([])
+    resolveAttachments(item).then(async (list) => {
+      if (cancelled || list.length === 0) return
+      const resolved = await Promise.all(
+        list.map(async (attachment) => ({ attachment, fileUrls: await resolveAttachmentUrls(attachment) }))
+      )
+      if (!cancelled) setResolvedAttachments(resolved)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [item, resolveAttachments, resolveAttachmentUrls])
+
   return (
     <>
       {/* 720, not SidePanel's 480 default: a type specimen sheet (large
@@ -276,7 +304,12 @@ export function BrandVisualDetailPanel({
             <ExtensionBadge ext={item.file_type} />
           </div>
         )}
-        <BrandVisualRenderer item={item} fileUrls={fileUrls} onExpandImage={() => setExpanded(true)} />
+        <BrandVisualRenderer
+          item={item}
+          fileUrls={fileUrls}
+          attachments={resolvedAttachments}
+          onExpandImage={() => setExpanded(true)}
+        />
       </SidePanel>
       {expanded && fileUrls && (
         <div
