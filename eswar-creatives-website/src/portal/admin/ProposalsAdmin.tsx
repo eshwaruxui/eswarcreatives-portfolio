@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router'
 import { Bell, Plus, Eye, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -17,6 +17,7 @@ import { DeleteProposalModal } from './DeleteProposalModal'
 import { ProposalNudgeModal, type NudgeProposal } from './ProposalNudgeModal'
 import { usePortal } from '../PortalContext'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { highlightBackgroundStyle, highlightBorderStyle, useHighlightRow } from '../hooks/useHighlightRow'
 import { ClientFilterBanner } from './ClientFilterBanner'
 import { toast } from 'sonner'
 import type { PortalProfile } from '../PortalGuard'
@@ -57,8 +58,7 @@ export function ProposalsAdmin() {
   const [draftSaved, setDraftSaved] = useState(false)
 
   // Newly saved proposal id, briefly highlighted in the list then cleared.
-  const [highlightId, setHighlightId] = useState<string | null>(null)
-  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { highlightId, triggerHighlight } = useHighlightRow()
 
   // Nudge modal target (status='sent' proposals only).
   const [nudgeTarget, setNudgeTarget] = useState<Proposal | null>(null)
@@ -67,12 +67,6 @@ export function ProposalsAdmin() {
   // card to fade out once the delete succeeds.
   const [deleteTarget, setDeleteTarget] = useState<Proposal | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
-
-  useEffect(() => {
-    return () => {
-      if (highlightTimer.current) clearTimeout(highlightTimer.current)
-    }
-  }, [])
 
   // Close the proposal modal, confirming first only when there is unsaved work
   // that has not yet been captured into an auto-saved draft.
@@ -157,7 +151,13 @@ export function ProposalsAdmin() {
               onClick={() => navigate(`/portal/admin/proposals/${p.id}`)}
               style={{
                 ...styles.card,
-                ...(p.id === highlightId ? styles.cardHighlight : null),
+                // Conditionally spread, not always-on like ClientsList's cell
+                // border: `card`'s own borderLeft is a permanent teal brand
+                // accent (see below) that must show through when not
+                // highlighted, so highlightBorderStyle only applies while active.
+                ...(p.id === highlightId
+                  ? { ...highlightBorderStyle(true), ...highlightBackgroundStyle(true) }
+                  : null),
                 ...(p.id === removingId ? styles.cardRemoving : null),
               }}
             >
@@ -255,9 +255,7 @@ export function ProposalsAdmin() {
               setFormDirty(false)
               setDraftSaved(false)
               setNotice(warning ?? null)
-              setHighlightId(id)
-              if (highlightTimer.current) clearTimeout(highlightTimer.current)
-              highlightTimer.current = setTimeout(() => setHighlightId(null), 2500)
+              triggerHighlight(id)
               void load()
             }}
           />
@@ -359,10 +357,6 @@ const styles: Record<string, CSSProperties> = {
     // Lets the gold highlight fade back out smoothly once it is cleared, and the
     // card fade/scale out when a draft is deleted (5a).
     transition: `background-color 0.6s ease, border-left-color 0.6s ease, opacity ${motionTokens.durationBase} ${motionTokens.easeExit}, transform ${motionTokens.durationBase} ${motionTokens.easeExit}`,
-  },
-  cardHighlight: {
-    borderLeft: `3px solid ${tokens.gold}`, // H4: semantic token - no raw hex
-    background: tokens.goldLight,
   },
   cardRemoving: {
     opacity: 0,
