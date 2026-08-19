@@ -14,6 +14,7 @@ import { t, fonts } from '../../theme'
 import { ProgressiveImage } from './ProgressiveImage'
 import { Skeleton } from './Skeleton'
 import { ExtensionBadge } from './BrandVisualBadge'
+import { BrandVisualAudioPlayer } from './BrandVisualAudioPlayer'
 import { isAudioFileType } from '../../utils/brandVisual'
 import type { BrandVisualFileUrls, BrandVisualItem, BrandVisualItemAttachment } from '../../utils/brandVisual'
 
@@ -92,7 +93,7 @@ export function BrandVisualRenderer({
             isAudioFileType(attachment.file_type) ? (
               <div key={attachment.id}>
                 {attUrls ? (
-                  <audio controls preload="metadata" style={s.mediaFull} src={attUrls.previewUrl} />
+                  <BrandVisualAudioPlayer src={attUrls.previewUrl} />
                 ) : (
                   <Skeleton height={44} borderRadius={8} />
                 )}
@@ -127,7 +128,7 @@ export function BrandVisualRenderer({
         {loadingFile ? (
           <Skeleton height={44} borderRadius={8} />
         ) : fileUrls ? (
-          <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} />
+          <BrandVisualAudioPlayer src={fileUrls.previewUrl} />
         ) : (
           <p style={s.muted}>Audio file unavailable.</p>
         )}
@@ -138,7 +139,7 @@ export function BrandVisualRenderer({
     return (
       <div>
         <ContentFrame>
-          {loadingFile ? <Skeleton height={64} borderRadius={8} /> : fileUrls ? <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} /> : <p style={s.muted}>Audio file unavailable.</p>}
+          {loadingFile ? <Skeleton height={64} borderRadius={8} /> : fileUrls ? <BrandVisualAudioPlayer src={fileUrls.previewUrl} /> : <p style={s.muted}>Audio file unavailable.</p>}
         </ContentFrame>
         <div style={s.metaRow}>
           {item.file_type && <ExtensionBadge ext={item.file_type} />}
@@ -467,7 +468,7 @@ export function BrandVisualRenderer({
             {loadingFile ? (
               <Skeleton height={64} borderRadius={8} />
             ) : fileUrls ? (
-              <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} />
+              <BrandVisualAudioPlayer src={fileUrls.previewUrl} />
             ) : (
               <p style={s.muted}>Audio file unavailable.</p>
             )}
@@ -524,7 +525,12 @@ function domainOf(url: string): string {
 
 const s: Record<string, CSSProperties> = {
   frame: { background: t.background.subtle, border: `1px solid ${t.border.subtle}`, borderRadius: 12, padding: 20 },
-  mediaFull: { width: '100%', display: 'block' },
+  // video only now -- every audio player moved to the custom
+  // BrandVisualAudioPlayer (its own scrubber, not this element) once native
+  // <audio controls> turned out not to respect accentColor at all in
+  // current Chrome. accentColor is kept here for Firefox, which does honor
+  // it on native <video> controls; harmless no-op where it doesn't apply.
+  mediaFull: { width: '100%', display: 'block', accentColor: t.text.primaryBrand },
   metaRow: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 },
   note: { fontSize: 13.5, color: t.text.secondary, margin: 0, lineHeight: 1.6 },
   noteBelow: { marginTop: 14, fontSize: 13.5, color: t.text.secondary, lineHeight: 1.6 },

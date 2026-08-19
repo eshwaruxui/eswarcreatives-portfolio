@@ -5,8 +5,9 @@
 // pre-filtered to what a client would actually see (published, visibility
 // client/public). Never fetches anything itself.
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Lock, Search, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Globe, Lock, Search, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
+import { supabase } from '../../../lib/supabase'
 import { t, fonts, motionTokens } from '../../theme'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useBrandVisualThumbnails } from '../../hooks/useBrandVisualThumbnails'
@@ -34,6 +35,8 @@ export function BrandVisualClientView({
   initialCategory = 'guidelines',
   initialGroup,
   onPreviewPublic,
+  canManagePublish = false,
+  onItemUpdated,
 }: {
   items: BrandVisualItem[]
   brandLabel: string
@@ -43,6 +46,14 @@ export function BrandVisualClientView({
   // client gets exactly one preview button, "Preview as public", carrying
   // the category the viewer is currently on into that preview.
   onPreviewPublic?: (category: BrandVisualCategory) => void
+  // True ONLY on the real client route (BrandVisualPage.tsx) -- deliberately
+  // absent (defaults false) from admin's "Preview as client" call in
+  // BrandVisualTab.tsx, so the publish toggle never renders, and therefore
+  // never fires a write, from inside a preview. onItemUpdated is required
+  // whenever this is true: the real route owns `items` in its own state and
+  // needs to hear about the change to stay in sync.
+  canManagePublish?: boolean
+  onItemUpdated?: (updated: BrandVisualItem) => void
 }) {
   const { isMobile } = useBreakpoint()
   const [activeCategory, setActiveCategory] = useState<BrandVisualCategory>(initialCategory)
@@ -116,6 +127,11 @@ export function BrandVisualClientView({
           onNext={showNav ? () => setOpenItem(visible[openIndex + 1]) : undefined}
           hasPrevious={showNav && openIndex > 0}
           hasNext={showNav && openIndex < visible.length - 1}
+          canManagePublish={canManagePublish}
+          onItemUpdated={(updated) => {
+            setOpenItem(updated)
+            onItemUpdated?.(updated)
+          }}
         />
       )}
     </div>
@@ -216,6 +232,8 @@ export function BrandVisualDetailPanel({
   onNext,
   hasPrevious = false,
   hasNext = false,
+  canManagePublish = false,
+  onItemUpdated,
 }: {
   item: BrandVisualItem
   onClose: () => void
@@ -231,33 +249,32 @@ export function BrandVisualDetailPanel({
   onNext?: () => void
   hasPrevious?: boolean
   hasNext?: boolean
+  // See BrandVisualClientView's own comment on this prop -- only ever true
+  // on the real client route, never during an admin/client preview.
+  canManagePublish?: boolean
+  onItemUpdated?: (updated: BrandVisualItem) => void
 }) {
   const [fileUrls, setFileUrls] = useState<BrandVisualFileUrls | null>(null)
   const [resolvedAttachments, setResolvedAttachments] = useState<ResolvedBrandVisualAttachment[]>([])
   const [expanded, setExpanded] = useState(false)
+  const [togglePending, setTogglePending] = useState(false)
+  const [toggleError, setToggleError] = useState<string | null>(null)
+
+  async function handleTogglePublic(nextPublic: boolean) {
+    setTogglePending(true)
+    setToggleError(null)
+    const { data, error } = await supabase.rpc('client_set_brand_visual_item_public', {
+      p_item_id: item.id,
+      p_public: nextPublic,
+    })
+    setTogglePending(false)
+    if (error || !data) {
+      setToggleError('Could not update — try again.')
+      return
+    }
+    onItemUpdated?.({ ...item, visibility: (data as { visibility: 'client' | 'public' }).visibility })
+  }
   const showPrevNext = !!(onPrevious || onNext)
-  const prevNextExtra = showPrevNext ? (
-    <div style={s.prevNextRow}>
-      <button
-        type="button"
-        style={{ ...s.prevNextBtn, ...(!hasPrevious ? s.prevNextBtnDisabled : null) }}
-        onClick={onPrevious}
-        disabled={!hasPrevious}
-        aria-label="Previous item"
-      >
-        <ChevronLeft size={14} /> Previous
-      </button>
-      <button
-        type="button"
-        style={{ ...s.prevNextBtn, ...(!hasNext ? s.prevNextBtnDisabled : null) }}
-        onClick={onNext}
-        disabled={!hasNext}
-        aria-label="Next item"
-      >
-        Next <ChevronRight size={14} />
-      </button>
-    </div>
-  ) : undefined
 
   useEffect(() => {
     let cancelled = false
@@ -293,10 +310,70 @@ export function BrandVisualDetailPanel({
           rendered wordmarks up to ~130px) needs more room than a plain
           document paragraph does. A content-aware hint, not a SidePanel
           change -- the panel is still freely resizable from here. */}
-      <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose} width={720} headerExtra={prevNextExtra}>
+      <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose} width={720}>
         {item.detail.locked && (
           <div style={s.lockedNote}>
             <Lock size={12} /> Locked language — use exactly as written
+          </div>
+        )}
+        {(showPrevNext || canManagePublish) && (
+          <div style={s.topActionsRow}>
+            <div style={s.prevNextRow}>
+              {showPrevNext && (
+                <>
+                  <button
+                    type="button"
+                    style={{ ...s.prevNextBtn, ...(!hasPrevious ? s.prevNextBtnDisabled : null) }}
+                    onClick={onPrevious}
+                    disabled={!hasPrevious}
+                    aria-label="Previous item"
+                  >
+                    <ChevronLeft size={14} /> Previous
+                  </button>
+                  <button
+                    type="button"
+                    style={{ ...s.prevNextBtn, ...(!hasNext ? s.prevNextBtnDisabled : null) }}
+                    onClick={onNext}
+                    disabled={!hasNext}
+                    aria-label="Next item"
+                  >
+                    Next <ChevronRight size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+            {canManagePublish && (
+              <div style={s.publishRow}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={item.visibility === 'public'}
+                  aria-label="Make available for public"
+                  className="pf-focus"
+                  disabled={togglePending}
+                  onClick={() => handleTogglePublic(item.visibility !== 'public')}
+                  style={{
+                    ...s.publishSwitch,
+                    background: item.visibility === 'public' ? t.text.primaryBrand : t.border.default,
+                    opacity: togglePending ? 0.6 : 1,
+                  }}
+                >
+                  <span
+                    style={{
+                      ...s.publishSwitchKnob,
+                      transform: item.visibility === 'public' ? 'translateX(16px)' : 'translateX(0)',
+                    }}
+                  />
+                </button>
+                <div>
+                  <div style={s.publishLabel}>
+                    <Globe size={12} />
+                    {item.visibility === 'public' ? 'Available publicly' : 'Make available for public'}
+                  </div>
+                  {toggleError && <div style={s.publishError}>{toggleError}</div>}
+                </div>
+              </div>
+            )}
           </div>
         )}
         {item.file_type && (
@@ -400,6 +477,7 @@ const s: Record<string, CSSProperties> = {
     color: t.text.tertiary,
     marginBottom: 12,
   },
+  topActionsRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 16 },
   prevNextRow: { display: 'flex', alignItems: 'center', gap: 6 },
   prevNextBtn: {
     display: 'inline-flex',
@@ -416,6 +494,30 @@ const s: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
   },
   prevNextBtnDisabled: { opacity: 0.5, cursor: 'not-allowed' },
+  publishRow: { display: 'flex', alignItems: 'center', gap: 10 },
+  publishSwitch: {
+    position: 'relative',
+    width: 36,
+    height: 20,
+    borderRadius: 10,
+    border: 'none',
+    cursor: 'pointer',
+    flexShrink: 0,
+    padding: 0,
+    transition: `background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  publishSwitchKnob: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    width: 16,
+    height: 16,
+    borderRadius: '50%',
+    background: t.background.surface,
+    transition: `transform ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
+  },
+  publishLabel: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: t.text.secondary },
+  publishError: { fontSize: 11.5, color: t.text.danger, marginTop: 2 },
   headerRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 },
   crumb: { fontFamily: mono, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.text.tertiary, marginBottom: 6 },
   heading: { fontFamily: fonts.heading, fontSize: 26, fontWeight: 600, margin: 0, color: t.text.primary },

@@ -78,7 +78,13 @@ export function BrandVisualClientPage() {
       ) : error ? (
         <p style={{ fontFamily: fonts.body, fontSize: 14, color: t.text.danger }}>{error}</p>
       ) : (
-        <BrandVisualClientView items={items} brandLabel={brandLabel} onPreviewPublic={setPreviewPublicCategory} />
+        <BrandVisualClientView
+          items={items}
+          brandLabel={brandLabel}
+          onPreviewPublic={setPreviewPublicCategory}
+          canManagePublish
+          onItemUpdated={(updated) => setItems((list) => list.map((i) => (i.id === updated.id ? updated : i)))}
+        />
       )}
     </main>
   )
