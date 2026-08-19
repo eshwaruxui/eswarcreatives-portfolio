@@ -274,13 +274,17 @@ export function Modal({
             </button>
           </div>
         </div>
-        {showFade ? (
-          <FadeOverflow direction="vertical" fallbackColor={panelBackground} style={ui.modalBodyFadeWrap}>
-            {bodyContent}
-          </FadeOverflow>
-        ) : (
-          bodyContent
-        )}
+        {/* Always mounted, never conditionally swapped for the bare
+            bodyContent -- bodyContent holds the ref'd scrollable div, and
+            changing its parent (wrapped vs not) would remount that DOM
+            node, resetting its scrollTop to 0. `active` toggles only the
+            gradient overlay itself, which is genuinely conditional (the
+            fade is a cue that content continues below, not a permanent
+            decoration); the wrapper and everything inside it stay mounted
+            regardless. See FadeOverflow's own `active` prop doc. */}
+        <FadeOverflow direction="vertical" fallbackColor={panelBackground} style={ui.modalBodyFadeWrap} active={showFade}>
+          {bodyContent}
+        </FadeOverflow>
         {footer && <div style={ui.modalFooter}>{footer}</div>}
       </div>
     </div>

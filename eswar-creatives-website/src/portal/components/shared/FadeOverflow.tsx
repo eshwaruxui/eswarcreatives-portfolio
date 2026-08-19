@@ -29,6 +29,17 @@ export function FadeOverflow({
   // defines zero CSS custom properties, this fallback is what actually
   // renders; naming a different surfaceVar alone changes nothing.
   fallbackColor,
+  // Whether the gradient itself renders. Default unchanged (true) — every
+  // existing caller mounts/unmounts FadeOverflow entirely to control this,
+  // and keeps working exactly as before. Added for a caller that must keep
+  // its own wrapper mounted at a *stable* tree position regardless of
+  // whether a fade is currently needed -- toggling `active` only adds or
+  // removes the gradient overlay, never the wrapper or children, so nothing
+  // inside ever unmounts. See Modal's own use of this: conditionally
+  // mounting/unmounting FadeOverflow around a ref'd scrollable body used to
+  // remount that body's DOM node on every fade-state recalculation (i.e.
+  // most keystrokes), resetting its scrollTop to 0.
+  active = true,
   style,
 }: {
   children: ReactNode
@@ -42,6 +53,7 @@ export function FadeOverflow({
   // isn't defined — see the note above.
   surfaceVar?: string
   fallbackColor?: string
+  active?: boolean
   // Escape hatch for the wrapper (e.g. giving it a max-width in a table cell).
   style?: CSSProperties
 }) {
@@ -71,7 +83,7 @@ export function FadeOverflow({
   return (
     <div style={{ position: 'relative', overflow: 'hidden', ...style }}>
       {children}
-      <div style={fade} aria-hidden="true" />
+      {active && <div style={fade} aria-hidden="true" />}
     </div>
   )
 }
