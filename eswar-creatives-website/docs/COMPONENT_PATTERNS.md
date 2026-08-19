@@ -1,6 +1,15 @@
 # Eswar Creatives Portal - Component Patterns
 
-Last updated: 18 August 2026 (Tone of Voice sub-module added to Brand
+Last updated: 19 August 2026 (found live while testing Tone of Voice's
+word-list editor, but a shared `Modal`/`FadeOverflow` bug, not a Tone of
+Voice one: pasting into any field inside any `Modal` with a scrollable
+body reset its scroll position to the top, because `Modal` conditionally
+mounted/unmounted `FadeOverflow` around the ref'd scrollable body on every
+fade-state recalculation, which reruns on nearly every keystroke.
+`FadeOverflow` gained an `active` prop so `Modal` can now keep it always
+mounted and just toggle the gradient. See the Overflow Fade Pattern and
+Shared Modal Three-Part Layout sections below for the full account.
+Previously, 18 August 2026: Tone of Voice sub-module added to Brand
 Visual Guide, direct on `main`, uncommitted: a new Single-Group Category
 Pattern, see its own section below, plus `BrandVisualTab` (admin) now
 imports the shared `BrandVisualSidebar` instead of a duplicated inline
@@ -283,6 +292,12 @@ The trailing edge then fades into the surface behind it, which reads as
   property to use as the gradient endpoint.
 - `style`: CSSProperties. Escape hatch for the wrapper, typically a `maxWidth`
   so the fade has something to clip against.
+- `active`: boolean, default `true`. Toggles only the gradient overlay, never
+  the wrapper or `children`. Added 19 Aug 2026 for `Modal` (see the Shared
+  Modal Three-Part Layout section below) — a caller that must keep its own
+  wrapper mounted at a stable tree position regardless of whether a fade is
+  currently needed sets this instead of conditionally mounting/unmounting
+  `FadeOverflow` itself, which would remount whatever's inside it.
 
 ### Gradient endpoint
 The endpoint is emitted as `var(--surface-page, <t.background.page>)`: a CSS
@@ -1254,9 +1269,47 @@ Shown only while the body actually overflows (`scrollHeight > clientHeight`)
 and isn't already scrolled to the bottom (`scrollHeight - scrollTop -
 clientHeight < 4`), re-measured on scroll and via a `ResizeObserver` (content
 can change height after mount — async form fields, a validation error
-appearing). A short form that fits without scrolling never renders the fade
-at all, matching the same "not a permanent decoration" rule `FadeOverflow`'s
-other callers already follow.
+appearing). A short form that fits without scrolling never shows the fade
+gradient, matching the same "not a permanent decoration" rule `FadeOverflow`'s
+other callers already follow — but as of 19 Aug 2026 (see below) that means
+toggling `FadeOverflow`'s `active` prop, not mounting/unmounting the
+component itself.
+
+### 19 Aug 2026 — pasting into any field reset the body's scroll position
+Found live while testing Brand Visual Guide's Tone of Voice sub-module
+(word-list editor's Left/Right column label fields), but the bug was in
+`Modal` itself, not that form — every `Modal` consumer with a scrollable
+body was affected.
+
+**Root cause.** `showFade` is recomputed by the `useLayoutEffect` above on
+every render — its dependency is `[children]`, and `children` is a new
+object every time `Modal` re-renders, so it reruns on essentially every
+keystroke or paste anywhere in the form. Whenever that recomputation
+flipped `showFade`, `Modal` used to render `{showFade ? <FadeOverflow>{...}
+</FadeOverflow> : bodyContent}` — a conditional swap between two different
+parent structures for the same ref'd, scrollable div. React can't reuse a
+DOM node across a change of parent, so `modalBody` unmounted and
+remounted at that instant. A freshly mounted element's `scrollTop` is
+always `0` — that's the reset. Same underlying class of bug
+`useReloadableList.ts`'s own header comment already names ("the browser
+clamps scroll position" when a container's structure collapses), just a
+different trigger and a different component.
+
+**Fix.** `FadeOverflow` gained an `active?: boolean` prop (default `true`,
+so `ActivityTab`'s existing caller is unaffected). `Modal` now always
+mounts `FadeOverflow` around `bodyContent` and passes `active={showFade}`
+instead of conditionally mounting `FadeOverflow` at all. `active` only
+adds or removes the gradient `<div>` inside `FadeOverflow`'s wrapper — the
+wrapper itself, and everything inside it, stays mounted at a stable tree
+position regardless of `showFade`, so nothing inside a modal ever
+remounts because content grew or a scroll position changed.
+
+**Sizing stays correct with no further change**, because
+`modalBodyFadeWrap` (the "why `flex:1` alone breaks" section above)
+already carries `flex:1; minHeight:0; display:flex; flexDirection:column`
+unconditionally — that's exactly what a short, non-overflowing form needs
+too when it's now *always* one level deeper inside `FadeOverflow`'s
+wrapper, not just when the fade happens to be showing.
 
 ### Overlay scroll is now a fallback, not the mechanism
 `ui.modalOverlay` keeps `overflowY:auto` and `scrollbarGutter:'stable
