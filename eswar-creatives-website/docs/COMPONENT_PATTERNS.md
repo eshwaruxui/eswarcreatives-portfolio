@@ -1,6 +1,15 @@
 # Eswar Creatives Portal - Component Patterns
 
-Last updated: 19 August 2026 (a shared-code request, not a bug this time:
+Last updated: 19 August 2026 (this codebase's first rich-text capability:
+Tone of Voice's prose Text field replaced its plain **bold**-only textarea
+with a real WYSIWYG editor, `RichTextEditor` -- new shared component, new
+dependencies (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`,
+`tiptap-markdown`, `markdown-it`), still stores and reads plain markdown
+(no schema change), lazy-loaded since it's the first meaningfully heavy
+admin-only dependency in an app with zero other code-splitting. See the
+new Rich Text Editor Pattern section below for the full account,
+including why `html: false` is load-bearing for the `dangerouslySetInnerHTML`
+render path to be safe. Earlier the same day: a shared-code request, not a bug:
 the newly-added-row gold-flash highlight already existed independently in
 three admin lists -- `ClientsList`, `ProjectsList`, `ProposalsAdmin` -- each
 with its own copy of the same `highlightId` state/timer/cleanup logic and
@@ -1446,6 +1455,90 @@ onto the shared hook, 19 Aug 2026, no behavior change) and
 `BrandVisualTab.tsx`'s `AdminRow` (`triggerHighlight` called from
 `handleSaved`, gated on `!exists` so an *edit* save never highlights —
 only a genuine insert does).
+
+---
+
+## Rich Text Editor Pattern
+
+### Rule
+Any field that needs real formatting (headings, lists, bold — not just
+plain text) uses the shared `RichTextEditor`
+(`src/portal/components/shared/RichTextEditor.tsx`), not a hand-rolled
+`contentEditable` implementation. It is the first rich-text capability in
+this codebase — introduced 19 Aug 2026 for Tone of Voice's prose Text
+field, which previously only supported typed `**bold**` in a plain
+textarea and showed `###` headings as literal characters, not real
+headings.
+
+### Storage stays plain markdown, not HTML
+`RichTextEditor` reads and writes **markdown strings** (via `tiptap-markdown`,
+which wraps the Tiptap/ProseMirror document model), not HTML — `value`/
+`onChange` are both plain strings. This was a deliberate choice, not a
+Tiptap default: it means `detail.content` needs no schema or shape change
+(same column, same field, same type every other document item already
+uses), and it means the **read side never trusts stored HTML** — the
+client/public detail view parses the same markdown string through
+`markdown-it` (`BrandVisualRenderer.tsx`'s `renderProseMarkdown`), the
+identical library `tiptap-markdown` uses internally, so what the admin
+types and what a reader sees are parsed by the same rules rather than two
+formats that could drift apart.
+
+### `html: false` is load-bearing
+Both the editor (`Markdown.configure({ html: false, ... })`) and the
+renderer (`new MarkdownIt({ html: false, ... })`) disable literal HTML
+parsing. This is what makes `dangerouslySetInnerHTML` on the render side
+safe: any `<script>` or other tag an admin ever typed or pasted into the
+source is escaped as visible text, never executed. Content is
+admin-authored (`is_admin()` gated on write) but still never trusted as
+raw HTML on read — the same "don't trust it just because you wrote it"
+discipline this codebase already applies elsewhere. Do not flip this to
+`true` to "support embedding a video" or similar without re-deriving this
+reasoning from scratch.
+
+### Backward compatible with content written before this existed
+Prose content saved via the old plain textarea (`**bold**` + blank-line
+paragraphs only, no headings or lists) is valid CommonMark on its own, so
+it renders identically through the new pipeline — an upgrade, not a
+migration. No backfill needed.
+
+### Lazy-loaded, and why that matters here specifically
+Tiptap + ProseMirror + `markdown-it` add real weight (~138KB gzipped as
+their own split chunk, measured 19 Aug 2026). This app has **no other
+code-splitting at all** — one monolithic bundle serves the public
+marketing site and the entire portal alike, confirmed by grep (zero
+`React.lazy` usage anywhere before this). `RichTextEditor`'s only consumer
+is `BrandVisualTab.tsx`'s admin-only item form, so there is no reason a
+marketing visitor's or a client's bundle should ever pay for it.
+`BrandVisualTab.tsx` imports it via `lazy(() => import(...))` wrapped in
+`Suspense`, so the chunk loads only once an admin actually opens a
+document item in prose layout. `markdown-it` alone (the render-side
+dependency, needed by every audience that can read a prose item) stays in
+the main bundle — it's the editor specifically that's heavy, not reading
+its output.
+
+### Toolbar scope, deliberately narrow
+Bold, one heading level (H3, matching the `###` convention already typed
+into the old textarea), bullet list, numbered list, undo/redo. Not
+Tiptap's full `StarterKit` default set — italic, strike, code, code block,
+blockquote and horizontal rule are all explicitly disabled in the
+`StarterKit.configure()` call. Nothing in this feature's brief asked for
+them, and every additional mark/node type is more surface for the exact
+class of bug this session already found twice in hand-rolled editable
+state (cursor jumps, unexpected remounts) — see the Shared Modal
+Three-Part Layout section above.
+
+### Syncing an external value without fighting the cursor
+`RichTextEditor` only calls `editor.commands.setContent(value)` when the
+incoming `value` prop genuinely differs from what
+`editor.storage.markdown.getMarkdown()` already holds — never
+unconditionally on every render. `onUpdate` already pushed the editor's
+own latest markdown up to the caller's state on every keystroke, so `value`
+matches what the editor already has on the very next render; only a
+*externally* triggered change (opening a different item) actually differs,
+and that's the only time content gets reset. Getting this backwards — resetting
+on every prop change unconditionally — is precisely the "remount on every
+render, lose the cursor" bug class this session spent two earlier rounds
+fixing in the shared `Modal`.
 
 ---
 
