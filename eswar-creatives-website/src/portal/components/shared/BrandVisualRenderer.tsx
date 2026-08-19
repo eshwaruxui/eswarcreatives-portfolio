@@ -92,7 +92,7 @@ export function BrandVisualRenderer({
             isAudioFileType(attachment.file_type) ? (
               <div key={attachment.id}>
                 {attUrls ? (
-                  <audio controls preload="metadata" style={s.mediaFull} src={attUrls.previewUrl} />
+                  <audio controls preload="metadata" className="ec-brand-media" style={s.mediaFull} src={attUrls.previewUrl} />
                 ) : (
                   <Skeleton height={44} borderRadius={8} />
                 )}
@@ -127,7 +127,7 @@ export function BrandVisualRenderer({
         {loadingFile ? (
           <Skeleton height={44} borderRadius={8} />
         ) : fileUrls ? (
-          <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} />
+          <audio controls preload="metadata" className="ec-brand-media" style={s.mediaFull} src={fileUrls.previewUrl} />
         ) : (
           <p style={s.muted}>Audio file unavailable.</p>
         )}
@@ -138,7 +138,7 @@ export function BrandVisualRenderer({
     return (
       <div>
         <ContentFrame>
-          {loadingFile ? <Skeleton height={64} borderRadius={8} /> : fileUrls ? <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} /> : <p style={s.muted}>Audio file unavailable.</p>}
+          {loadingFile ? <Skeleton height={64} borderRadius={8} /> : fileUrls ? <audio controls preload="metadata" className="ec-brand-media" style={s.mediaFull} src={fileUrls.previewUrl} /> : <p style={s.muted}>Audio file unavailable.</p>}
         </ContentFrame>
         <div style={s.metaRow}>
           {item.file_type && <ExtensionBadge ext={item.file_type} />}
@@ -156,7 +156,7 @@ export function BrandVisualRenderer({
           {loadingFile ? (
             <Skeleton height={220} borderRadius={8} />
           ) : fileUrls ? (
-            <video controls style={{ ...s.mediaFull, maxHeight: 320 }} src={fileUrls.previewUrl} />
+            <video controls className="ec-brand-media" style={{ ...s.mediaFull, maxHeight: 320 }} src={fileUrls.previewUrl} />
           ) : (
             <p style={s.muted}>Video file unavailable.</p>
           )}
@@ -467,7 +467,7 @@ export function BrandVisualRenderer({
             {loadingFile ? (
               <Skeleton height={64} borderRadius={8} />
             ) : fileUrls ? (
-              <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} />
+              <audio controls preload="metadata" className="ec-brand-media" style={s.mediaFull} src={fileUrls.previewUrl} />
             ) : (
               <p style={s.muted}>Audio file unavailable.</p>
             )}
