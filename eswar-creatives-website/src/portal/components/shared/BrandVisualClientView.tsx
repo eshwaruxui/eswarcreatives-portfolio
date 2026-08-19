@@ -306,21 +306,6 @@ export function BrandVisualDetailPanel({
 
   return (
     <>
-      {/* Chrome/Edge/Safari expose the native <audio>/<video> scrubber and
-          volume slider as UA shadow-DOM pseudo-elements that don't inherit
-          accentColor set on the media element itself (unlike Firefox, which
-          does -- see mediaFull's own accentColor in BrandVisualRenderer.tsx,
-          kept as that browser's fix). This is the one place every
-          BrandVisualRenderer instance mounts (admin preview, the real
-          client route and the real public route all go through this same
-          panel), so the override lives here once rather than being
-          duplicated at each of BrandVisualRenderer's five media elements. */}
-      <style>{`
-        .ec-brand-media::-webkit-media-controls-timeline,
-        .ec-brand-media::-webkit-media-controls-volume-slider {
-          accent-color: ${t.text.primaryBrand};
-        }
-      `}</style>
       {/* 720, not SidePanel's 480 default: a type specimen sheet (large
           rendered wordmarks up to ~130px) needs more room than a plain
           document paragraph does. A content-aware hint, not a SidePanel
