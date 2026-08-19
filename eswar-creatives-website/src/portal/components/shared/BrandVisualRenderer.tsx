@@ -30,6 +30,16 @@ function isAudioFileType(fileType: string | null): boolean {
   return !!fileType && AUDIO_EXTENSIONS.has(fileType.toUpperCase())
 }
 
+// Every <audio> element below carries preload="metadata" (never the
+// default "auto"), a fix for a genuine reported bug, not a micro-
+// optimization: with the default, Chrome eagerly downloads the whole
+// (short) file the instant the signed URL resolves, so the native
+// buffered-range indicator renders as a solid fill immediately -- easy to
+// mistake for "already played," even though the time readout (0:00 / ...)
+// is correct the whole time. "metadata" fetches only duration up front;
+// the buffered bar then stays empty until the reader actually presses
+// play, matching what the bar visually implies.
+
 // Tone of Voice's prose layout only, fed by the shared RichTextEditor
 // (src/portal/components/shared/RichTextEditor.tsx), which reads/writes
 // this exact markdown via the same underlying library (tiptap-markdown
@@ -80,7 +90,7 @@ export function BrandVisualRenderer({
         {loadingFile ? (
           <Skeleton height={44} borderRadius={8} />
         ) : fileUrls ? (
-          <audio controls style={s.mediaFull} src={fileUrls.previewUrl} />
+          <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} />
         ) : (
           <p style={s.muted}>Audio file unavailable.</p>
         )}
@@ -91,7 +101,7 @@ export function BrandVisualRenderer({
     return (
       <div>
         <ContentFrame>
-          {loadingFile ? <Skeleton height={64} borderRadius={8} /> : fileUrls ? <audio controls style={s.mediaFull} src={fileUrls.previewUrl} /> : <p style={s.muted}>Audio file unavailable.</p>}
+          {loadingFile ? <Skeleton height={64} borderRadius={8} /> : fileUrls ? <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} /> : <p style={s.muted}>Audio file unavailable.</p>}
         </ContentFrame>
         <div style={s.metaRow}>
           {item.file_type && <ExtensionBadge ext={item.file_type} />}
@@ -408,7 +418,7 @@ export function BrandVisualRenderer({
             {loadingFile ? (
               <Skeleton height={64} borderRadius={8} />
             ) : fileUrls ? (
-              <audio controls style={s.mediaFull} src={fileUrls.previewUrl} />
+              <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} />
             ) : (
               <p style={s.muted}>Audio file unavailable.</p>
             )}
