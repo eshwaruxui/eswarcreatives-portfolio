@@ -5,7 +5,7 @@
 // pre-filtered to what a client would actually see (published, visibility
 // client/public). Never fetches anything itself.
 import { useEffect, useState } from 'react'
-import { Lock, Search, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Lock, Search, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { t, fonts, motionTokens } from '../../theme'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
@@ -63,6 +63,13 @@ export function BrandVisualClientView({
   const heading = flat ? categoryLabel(activeCategory) : activeGroup
   const thumbnails = useBrandVisualThumbnails(visible, resolveAuthenticatedFileUrls)
 
+  // Previous/Next navigation on the detail panel -- Tone of Voice only for
+  // now (see BrandVisualDetailPanel), computed against the same `visible`
+  // list the grid renders, so paging through the panel matches what's on
+  // screen (including the active search filter).
+  const openIndex = openItem ? visible.findIndex((i) => i.id === openItem.id) : -1
+  const showNav = openItem?.category === 'tone_of_voice' && openIndex !== -1
+
   return (
     <div style={{ display: 'flex', gap: 28, flexDirection: isMobile ? 'column' : 'row' }}>
       <BrandVisualSidebar
@@ -98,7 +105,16 @@ export function BrandVisualClientView({
         <BrandVisualNote brandLabel={brandLabel} />
       </div>
 
-      {openItem && <BrandVisualDetailPanel item={openItem} onClose={() => setOpenItem(null)} />}
+      {openItem && (
+        <BrandVisualDetailPanel
+          item={openItem}
+          onClose={() => setOpenItem(null)}
+          onPrevious={showNav ? () => setOpenItem(visible[openIndex - 1]) : undefined}
+          onNext={showNav ? () => setOpenItem(visible[openIndex + 1]) : undefined}
+          hasPrevious={showNav && openIndex > 0}
+          hasNext={showNav && openIndex < visible.length - 1}
+        />
+      )}
     </div>
   )
 }
@@ -177,17 +193,58 @@ export function BrandVisualSidebar({
 // `resolveFileUrls` is the one thing that differs between an authenticated
 // caller (direct signed URL) and an anonymous one (the token-gated edge
 // function), so it's the only thing the caller has to supply.
+//
+// Previous/Next: a variant realized entirely through SidePanel's existing
+// `headerExtra` slot, not a new SidePanel prop -- every other consumer
+// (ClientPanel, ProjectPanel, LeadDrawer, EnquiryDrawer,
+// LinkedInPostComposer) is unaffected. onPrevious/onNext are optional and
+// only ever passed by a caller when the open item is Tone of Voice (see
+// BrandVisualClientView/BrandVisualPublicView), so the buttons render only
+// there for now, per the standing scope. hasPrevious/hasNext control the
+// disabled state at the ends of the list, same convention as Pagination's
+// First/Prev/Next/Last -- no wraparound.
 export function BrandVisualDetailPanel({
   item,
   onClose,
   resolveFileUrls = resolveAuthenticatedFileUrls,
+  onPrevious,
+  onNext,
+  hasPrevious = false,
+  hasNext = false,
 }: {
   item: BrandVisualItem
   onClose: () => void
   resolveFileUrls?: (item: BrandVisualItem) => Promise<BrandVisualFileUrls | null>
+  onPrevious?: () => void
+  onNext?: () => void
+  hasPrevious?: boolean
+  hasNext?: boolean
 }) {
   const [fileUrls, setFileUrls] = useState<BrandVisualFileUrls | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const showPrevNext = !!(onPrevious || onNext)
+  const prevNextExtra = showPrevNext ? (
+    <div style={s.prevNextRow}>
+      <button
+        type="button"
+        style={{ ...s.prevNextBtn, ...(!hasPrevious ? s.prevNextBtnDisabled : null) }}
+        onClick={onPrevious}
+        disabled={!hasPrevious}
+        aria-label="Previous item"
+      >
+        <ChevronLeft size={14} /> Previous
+      </button>
+      <button
+        type="button"
+        style={{ ...s.prevNextBtn, ...(!hasNext ? s.prevNextBtnDisabled : null) }}
+        onClick={onNext}
+        disabled={!hasNext}
+        aria-label="Next item"
+      >
+        Next <ChevronRight size={14} />
+      </button>
+    </div>
+  ) : undefined
 
   useEffect(() => {
     let cancelled = false
@@ -208,7 +265,7 @@ export function BrandVisualDetailPanel({
           rendered wordmarks up to ~130px) needs more room than a plain
           document paragraph does. A content-aware hint, not a SidePanel
           change -- the panel is still freely resizable from here. */}
-      <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose} width={720}>
+      <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose} width={720} headerExtra={prevNextExtra}>
         {item.detail.locked && (
           <div style={s.lockedNote}>
             <Lock size={12} /> Locked language — use exactly as written
@@ -310,6 +367,22 @@ const s: Record<string, CSSProperties> = {
     color: t.text.tertiary,
     marginBottom: 12,
   },
+  prevNextRow: { display: 'flex', alignItems: 'center', gap: 6 },
+  prevNextBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    background: t.background.subtle,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    color: t.text.secondary,
+    cursor: 'pointer',
+    padding: '6px 10px',
+    fontSize: 12.5,
+    fontWeight: 600,
+    fontFamily: fonts.body,
+  },
+  prevNextBtnDisabled: { opacity: 0.5, cursor: 'not-allowed' },
   headerRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 },
   crumb: { fontFamily: mono, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.text.tertiary, marginBottom: 6 },
   heading: { fontFamily: fonts.heading, fontSize: 26, fontWeight: 600, margin: 0, color: t.text.primary },

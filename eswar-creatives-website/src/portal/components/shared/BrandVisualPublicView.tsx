@@ -28,6 +28,15 @@ export function BrandVisualPublicView({
   const catItems = items.filter((i) => i.category === activeCategory)
   const thumbnails = useBrandVisualThumbnails(catItems, resolvePublicFileUrls)
 
+  // Shared by the flat grid below and the Previous/Next nav, so paging
+  // through the detail panel matches the order actually on screen.
+  const flatSortedItems = isSingleGroupCategory(activeCategory)
+    ? [...catItems].sort((a, b) => a.sort_order - b.sort_order)
+    : []
+  const openIndex = openItem ? flatSortedItems.findIndex((i) => i.id === openItem.id) : -1
+  // Tone of Voice only for now, same as BrandVisualClientView.
+  const showNav = openItem?.category === 'tone_of_voice' && openIndex !== -1
+
   return (
     <div style={s.page}>
       <div style={s.header}>
@@ -59,11 +68,9 @@ export function BrandVisualPublicView({
           // heading, rather than a "General" section title that would
           // just restate the tab itself.
           <div style={s.grid}>
-            {[...catItems]
-              .sort((a, b) => a.sort_order - b.sort_order)
-              .map((item) => (
-                <BrandVisualCard key={item.id} item={item} thumbnailUrl={thumbnails[item.id]} onOpen={setOpenItem} />
-              ))}
+            {flatSortedItems.map((item) => (
+              <BrandVisualCard key={item.id} item={item} thumbnailUrl={thumbnails[item.id]} onOpen={setOpenItem} />
+            ))}
           </div>
         ) : (
           cat.groups.map((g) => {
@@ -86,7 +93,15 @@ export function BrandVisualPublicView({
       <div style={s.footer}>Brand guidelines presented via EswarCreatives</div>
 
       {openItem && (
-        <BrandVisualDetailPanel item={openItem} onClose={() => setOpenItem(null)} resolveFileUrls={resolvePublicFileUrls} />
+        <BrandVisualDetailPanel
+          item={openItem}
+          onClose={() => setOpenItem(null)}
+          resolveFileUrls={resolvePublicFileUrls}
+          onPrevious={showNav ? () => setOpenItem(flatSortedItems[openIndex - 1]) : undefined}
+          onNext={showNav ? () => setOpenItem(flatSortedItems[openIndex + 1]) : undefined}
+          hasPrevious={showNav && openIndex > 0}
+          hasNext={showNav && openIndex < flatSortedItems.length - 1}
+        />
       )}
     </div>
   )
