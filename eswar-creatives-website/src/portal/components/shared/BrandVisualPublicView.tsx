@@ -3,7 +3,7 @@
 // rule as the client view — takes its data as props, never fetches, so the
 // real /brand/:token route and admin's "Preview as public" (from either the
 // admin tab or from inside a client preview) all render this one component.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { t, fonts } from '../../theme'
 import { useBrandVisualThumbnails } from '../../hooks/useBrandVisualThumbnails'
@@ -22,13 +22,28 @@ export function BrandVisualPublicView({
   items,
   brandLabel,
   initialCategory = 'guidelines',
+  initialItemId,
 }: {
   items: BrandVisualItem[]
   brandLabel: string
   initialCategory?: BrandVisualCategory
+  // Set by PublicBrandPage from the ?item= query param on a Share link.
+  // Opens that item's detail panel (and jumps to its category tab) as soon
+  // as the listing loads, instead of landing on the plain category grid.
+  initialItemId?: string
 }) {
   const [activeCategory, setActiveCategory] = useState<BrandVisualCategory>(initialCategory)
   const [openItem, setOpenItem] = useState<BrandVisualItem | null>(null)
+
+  useEffect(() => {
+    if (!initialItemId || items.length === 0) return
+    const target = items.find((i) => i.id === initialItemId)
+    if (!target) return
+    setActiveCategory(target.category)
+    setOpenItem(target)
+    // Only ever act on the first load of a given shared link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialItemId, items.length])
 
   const cat = BRAND_VISUAL_CATEGORIES.find((c) => c.id === activeCategory)!
   const catItems = items.filter((i) => i.category === activeCategory)
