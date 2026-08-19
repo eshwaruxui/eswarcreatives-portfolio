@@ -8,6 +8,7 @@ import { formatPortalDate } from '../utils/formatDate'
 import { showToast } from './toast'
 import { usePortal } from '../PortalContext'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { highlightBackgroundStyle, useHighlightRow } from '../hooks/useHighlightRow'
 import { ClientFilterBanner } from './ClientFilterBanner'
 import { AddProjectModal } from './AddProjectModal'
 import { StageLabel } from '../components/StageLabel'
@@ -114,10 +115,7 @@ export function ProjectsList() {
   const [error, setError]   = useState<string | null>(null)
   const [openProject, setOpenProject] = useState<Project | null>(null)
   const [showAdd, setShowAdd] = useState(false)
-  const [highlightId, setHighlightId] = useState<string | null>(null)
-  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => () => { if (highlightTimer.current) clearTimeout(highlightTimer.current) }, [])
+  const { highlightId, triggerHighlight } = useHighlightRow()
 
   async function load() {
     setLoading(true)
@@ -142,9 +140,7 @@ export function ProjectsList() {
   function handleSaved(id: string) {
     setOpenProject(null)
     void load()
-    setHighlightId(id)
-    if (highlightTimer.current) clearTimeout(highlightTimer.current)
-    highlightTimer.current = setTimeout(() => setHighlightId(null), 2500)
+    triggerHighlight(id)
   }
 
   return (
@@ -179,7 +175,7 @@ export function ProjectsList() {
                 onClick={() => setOpenProject(p)}
                 style={{
                   ...s.mobileCard,
-                  ...(highlightId === p.id ? s.rowHighlight : null),
+                  ...highlightBackgroundStyle(highlightId === p.id),
                 }}
               >
                 <div style={s.mobileCardTop}>
@@ -218,7 +214,7 @@ export function ProjectsList() {
                     style={{
                       ...s.row,
                       ...(openProject?.id === p.id ? s.rowActive : null),
-                      ...(highlightId === p.id ? s.rowHighlight : null),
+                      ...highlightBackgroundStyle(highlightId === p.id),
                     }}
                   >
                     <td style={{ ...s.td, fontWeight: 600, color: t.text.primary }}>{p.title}</td>
@@ -1261,17 +1257,16 @@ const s: Record<string, CSSProperties> = {
     color: t.text.tertiary, textTransform: 'uppercase', letterSpacing: 0.4,
     borderBottom: `1px solid ${tokens.border}`, background: tokens.bg,
   },
-  row: { cursor: 'pointer', transition: 'background-color 0.6s ease' },
+  row: { cursor: 'pointer' },
   rowActive:    { background: tokens.tealLight },
-  rowHighlight: { background: tokens.goldLight, transition: 'background-color 0.6s ease' },
   td: { padding: '14px 20px', fontSize: 14, color: t.text.secondary, borderBottom: `1px solid ${tokens.border}` },
 
   // Mobile card list (replaces the table below 768px)
   cardStack: { display: 'flex', flexDirection: 'column', gap: 8 },
   // Resting background lives in the .ec-tap-card CSS class (see render), not
   // here, so the :active tap-feedback rule isn't blocked by inline-style
-  // specificity. rowHighlight still overrides it inline for the "just added"
-  // fade (0.6s), independent of the fast tap transition.
+  // specificity. highlightBackgroundStyle still overrides it inline for the
+  // "just added" fade (0.6s), independent of the fast tap transition.
   mobileCard: {
     border: `1px solid ${tokens.border}`, borderRadius: 12,
     padding: 16, display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer',

@@ -5,7 +5,7 @@
 // pre-filtered to what a client would actually see (published, visibility
 // client/public). Never fetches anything itself.
 import { useEffect, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Lock, Search, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { t, fonts, motionTokens } from '../../theme'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
@@ -18,6 +18,7 @@ import {
   BRAND_VISUAL_CATEGORIES,
   groupsForCategory,
   categoryLabel,
+  isSingleGroupCategory,
   resolveAuthenticatedFileUrls,
 } from '../../utils/brandVisual'
 import type { BrandVisualCategory, BrandVisualFileUrls, BrandVisualItem } from '../../utils/brandVisual'
@@ -57,8 +58,17 @@ export function BrandVisualClientView({
     .filter((i) => !q || i.title.toLowerCase().includes(q) || (i.summary ?? '').toLowerCase().includes(q))
     .sort((a, b) => a.sort_order - b.sort_order)
 
-  const desc = `${categoryLabel(activeCategory)} › ${activeGroup}`
+  const flat = isSingleGroupCategory(activeCategory)
+  const desc = flat ? categoryLabel(activeCategory) : `${categoryLabel(activeCategory)} › ${activeGroup}`
+  const heading = flat ? categoryLabel(activeCategory) : activeGroup
   const thumbnails = useBrandVisualThumbnails(visible, resolveAuthenticatedFileUrls)
+
+  // Previous/Next navigation on the detail panel -- Tone of Voice only for
+  // now (see BrandVisualDetailPanel), computed against the same `visible`
+  // list the grid renders, so paging through the panel matches what's on
+  // screen (including the active search filter).
+  const openIndex = openItem ? visible.findIndex((i) => i.id === openItem.id) : -1
+  const showNav = openItem?.category === 'tone_of_voice' && openIndex !== -1
 
   return (
     <div style={{ display: 'flex', gap: 28, flexDirection: isMobile ? 'column' : 'row' }}>
@@ -72,8 +82,8 @@ export function BrandVisualClientView({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={s.headerRow}>
           <div>
-            <div style={s.crumb}>{desc}</div>
-            <h1 style={s.heading}>{activeGroup}</h1>
+            {!flat && <div style={s.crumb}>{desc}</div>}
+            <h1 style={s.heading}>{heading}</h1>
           </div>
           {onPreviewPublic && (
             <button type="button" style={s.previewBtn} onClick={() => onPreviewPublic(activeCategory)}>
@@ -95,7 +105,16 @@ export function BrandVisualClientView({
         <BrandVisualNote brandLabel={brandLabel} />
       </div>
 
-      {openItem && <BrandVisualDetailPanel item={openItem} onClose={() => setOpenItem(null)} />}
+      {openItem && (
+        <BrandVisualDetailPanel
+          item={openItem}
+          onClose={() => setOpenItem(null)}
+          onPrevious={showNav ? () => setOpenItem(visible[openIndex - 1]) : undefined}
+          onNext={showNav ? () => setOpenItem(visible[openIndex + 1]) : undefined}
+          hasPrevious={showNav && openIndex > 0}
+          hasNext={showNav && openIndex < visible.length - 1}
+        />
+      )}
     </div>
   )
 }
@@ -128,17 +147,21 @@ export function BrandVisualSidebar({
       </div>
       {BRAND_VISUAL_CATEGORIES.map((cat) => {
         const open = activeCategory === cat.id
+        // A single-group category (Tone of Voice) has nothing to
+        // disambiguate, so its button is a direct leaf selector — no
+        // expand/collapse, no nested one-item group list underneath.
+        const flat = isSingleGroupCategory(cat.id)
         return (
           <div key={cat.id} style={{ marginBottom: 8 }}>
             <button
               type="button"
               className="pf-focus"
               style={{ ...s.catBtn, borderColor: open ? t.text.primaryBrand : t.border.subtle }}
-              onClick={() => onSelect(cat.id, open ? null : cat.groups[0])}
+              onClick={() => onSelect(cat.id, flat ? cat.groups[0] : open ? null : cat.groups[0])}
             >
               {cat.label}
             </button>
-            {open && (
+            {open && !flat && (
               <div style={s.groupList}>
                 {cat.groups.map((g) => (
                   <button
@@ -170,17 +193,58 @@ export function BrandVisualSidebar({
 // `resolveFileUrls` is the one thing that differs between an authenticated
 // caller (direct signed URL) and an anonymous one (the token-gated edge
 // function), so it's the only thing the caller has to supply.
+//
+// Previous/Next: a variant realized entirely through SidePanel's existing
+// `headerExtra` slot, not a new SidePanel prop -- every other consumer
+// (ClientPanel, ProjectPanel, LeadDrawer, EnquiryDrawer,
+// LinkedInPostComposer) is unaffected. onPrevious/onNext are optional and
+// only ever passed by a caller when the open item is Tone of Voice (see
+// BrandVisualClientView/BrandVisualPublicView), so the buttons render only
+// there for now, per the standing scope. hasPrevious/hasNext control the
+// disabled state at the ends of the list, same convention as Pagination's
+// First/Prev/Next/Last -- no wraparound.
 export function BrandVisualDetailPanel({
   item,
   onClose,
   resolveFileUrls = resolveAuthenticatedFileUrls,
+  onPrevious,
+  onNext,
+  hasPrevious = false,
+  hasNext = false,
 }: {
   item: BrandVisualItem
   onClose: () => void
   resolveFileUrls?: (item: BrandVisualItem) => Promise<BrandVisualFileUrls | null>
+  onPrevious?: () => void
+  onNext?: () => void
+  hasPrevious?: boolean
+  hasNext?: boolean
 }) {
   const [fileUrls, setFileUrls] = useState<BrandVisualFileUrls | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const showPrevNext = !!(onPrevious || onNext)
+  const prevNextExtra = showPrevNext ? (
+    <div style={s.prevNextRow}>
+      <button
+        type="button"
+        style={{ ...s.prevNextBtn, ...(!hasPrevious ? s.prevNextBtnDisabled : null) }}
+        onClick={onPrevious}
+        disabled={!hasPrevious}
+        aria-label="Previous item"
+      >
+        <ChevronLeft size={14} /> Previous
+      </button>
+      <button
+        type="button"
+        style={{ ...s.prevNextBtn, ...(!hasNext ? s.prevNextBtnDisabled : null) }}
+        onClick={onNext}
+        disabled={!hasNext}
+        aria-label="Next item"
+      >
+        Next <ChevronRight size={14} />
+      </button>
+    </div>
+  ) : undefined
 
   useEffect(() => {
     let cancelled = false
@@ -201,7 +265,12 @@ export function BrandVisualDetailPanel({
           rendered wordmarks up to ~130px) needs more room than a plain
           document paragraph does. A content-aware hint, not a SidePanel
           change -- the panel is still freely resizable from here. */}
-      <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose} width={720}>
+      <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose} width={720} headerExtra={prevNextExtra}>
+        {item.detail.locked && (
+          <div style={s.lockedNote}>
+            <Lock size={12} /> Locked language — use exactly as written
+          </div>
+        )}
         {item.file_type && (
           <div style={{ marginBottom: 12 }}>
             <ExtensionBadge ext={item.file_type} />
@@ -289,6 +358,31 @@ const s: Record<string, CSSProperties> = {
   },
   groupList: { padding: '8px 4px 2px 8px', display: 'flex', flexDirection: 'column', gap: 2 },
   groupBtn: { textAlign: 'left', border: 'none', borderRadius: 8, padding: '7px 10px', fontSize: 13, cursor: 'pointer' },
+  lockedNote: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    fontSize: 12,
+    fontWeight: 600,
+    color: t.text.tertiary,
+    marginBottom: 12,
+  },
+  prevNextRow: { display: 'flex', alignItems: 'center', gap: 6 },
+  prevNextBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    background: t.background.subtle,
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 8,
+    color: t.text.secondary,
+    cursor: 'pointer',
+    padding: '6px 10px',
+    fontSize: 12.5,
+    fontWeight: 600,
+    fontFamily: fonts.body,
+  },
+  prevNextBtnDisabled: { opacity: 0.5, cursor: 'not-allowed' },
   headerRow: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 },
   crumb: { fontFamily: mono, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.text.tertiary, marginBottom: 6 },
   heading: { fontFamily: fonts.heading, fontSize: 26, fontWeight: 600, margin: 0, color: t.text.primary },

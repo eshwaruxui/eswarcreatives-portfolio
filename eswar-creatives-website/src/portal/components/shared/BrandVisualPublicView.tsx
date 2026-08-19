@@ -9,7 +9,7 @@ import { t, fonts } from '../../theme'
 import { useBrandVisualThumbnails } from '../../hooks/useBrandVisualThumbnails'
 import { BrandVisualCard } from './BrandVisualCard'
 import { BrandVisualDetailPanel } from './BrandVisualClientView'
-import { BRAND_VISUAL_CATEGORIES, resolvePublicFileUrls } from '../../utils/brandVisual'
+import { BRAND_VISUAL_CATEGORIES, isSingleGroupCategory, resolvePublicFileUrls } from '../../utils/brandVisual'
 import type { BrandVisualCategory, BrandVisualItem } from '../../utils/brandVisual'
 
 export function BrandVisualPublicView({
@@ -27,6 +27,15 @@ export function BrandVisualPublicView({
   const cat = BRAND_VISUAL_CATEGORIES.find((c) => c.id === activeCategory)!
   const catItems = items.filter((i) => i.category === activeCategory)
   const thumbnails = useBrandVisualThumbnails(catItems, resolvePublicFileUrls)
+
+  // Shared by the flat grid below and the Previous/Next nav, so paging
+  // through the detail panel matches the order actually on screen.
+  const flatSortedItems = isSingleGroupCategory(activeCategory)
+    ? [...catItems].sort((a, b) => a.sort_order - b.sort_order)
+    : []
+  const openIndex = openItem ? flatSortedItems.findIndex((i) => i.id === openItem.id) : -1
+  // Tone of Voice only for now, same as BrandVisualClientView.
+  const showNav = openItem?.category === 'tone_of_voice' && openIndex !== -1
 
   return (
     <div style={s.page}>
@@ -53,26 +62,46 @@ export function BrandVisualPublicView({
 
       <div style={s.body}>
         {catItems.length === 0 && <div style={s.empty}>Nothing here yet.</div>}
-        {cat.groups.map((g) => {
-          const groupItems = catItems.filter((i) => i.group_label === g).sort((a, b) => a.sort_order - b.sort_order)
-          if (groupItems.length === 0) return null
-          return (
-            <div key={g} style={{ marginBottom: 32 }}>
-              <h2 style={s.groupHeading}>{g}</h2>
-              <div style={s.grid}>
-                {groupItems.map((item) => (
-                  <BrandVisualCard key={item.id} item={item} thumbnailUrl={thumbnails[item.id]} onOpen={setOpenItem} />
-                ))}
+        {isSingleGroupCategory(activeCategory) ? (
+          // A single-group category (Tone of Voice) has nothing to
+          // subdivide, so it renders as one flat grid with no group
+          // heading, rather than a "General" section title that would
+          // just restate the tab itself.
+          <div style={s.grid}>
+            {flatSortedItems.map((item) => (
+              <BrandVisualCard key={item.id} item={item} thumbnailUrl={thumbnails[item.id]} onOpen={setOpenItem} />
+            ))}
+          </div>
+        ) : (
+          cat.groups.map((g) => {
+            const groupItems = catItems.filter((i) => i.group_label === g).sort((a, b) => a.sort_order - b.sort_order)
+            if (groupItems.length === 0) return null
+            return (
+              <div key={g} style={{ marginBottom: 32 }}>
+                <h2 style={s.groupHeading}>{g}</h2>
+                <div style={s.grid}>
+                  {groupItems.map((item) => (
+                    <BrandVisualCard key={item.id} item={item} thumbnailUrl={thumbnails[item.id]} onOpen={setOpenItem} />
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })
+        )}
       </div>
 
       <div style={s.footer}>Brand guidelines presented via EswarCreatives</div>
 
       {openItem && (
-        <BrandVisualDetailPanel item={openItem} onClose={() => setOpenItem(null)} resolveFileUrls={resolvePublicFileUrls} />
+        <BrandVisualDetailPanel
+          item={openItem}
+          onClose={() => setOpenItem(null)}
+          resolveFileUrls={resolvePublicFileUrls}
+          onPrevious={showNav ? () => setOpenItem(flatSortedItems[openIndex - 1]) : undefined}
+          onNext={showNav ? () => setOpenItem(flatSortedItems[openIndex + 1]) : undefined}
+          hasPrevious={showNav && openIndex > 0}
+          hasNext={showNav && openIndex < flatSortedItems.length - 1}
+        />
       )}
     </div>
   )

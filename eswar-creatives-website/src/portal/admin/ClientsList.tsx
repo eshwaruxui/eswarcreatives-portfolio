@@ -7,6 +7,7 @@ import { Card, ui } from './ui'
 import { AddClientModal } from './AddClientModal'
 import { ClientPanel } from './ClientPanel'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { highlightBackgroundStyle, highlightBorderStyle, useHighlightRow } from '../hooks/useHighlightRow'
 import type { PortalProfile } from '../PortalGuard'
 import type { CSSProperties } from 'react'
 
@@ -37,8 +38,7 @@ export function ClientsList() {
   const [panelClientId, setPanelClientId] = useState<string | null>(null)
 
   // Briefly highlight a newly added client row, then fade it out.
-  const [highlightId, setHighlightId] = useState<string | null>(null)
-  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { highlightId, triggerHighlight } = useHighlightRow()
 
   // Mobile card overflow menu: which client row's menu is open + fixed position,
   // reusing the same position:fixed z-index:1000 dropdown pattern as InvoicesAdmin.
@@ -77,9 +77,6 @@ export function ClientsList() {
 
   useEffect(() => {
     void load()
-    return () => {
-      if (highlightTimer.current) clearTimeout(highlightTimer.current)
-    }
   }, [])
 
   const filtered = useMemo(
@@ -95,9 +92,7 @@ export function ClientsList() {
   function handleCreated(newId: string) {
     setShowAdd(false)
     setFilterId('all') // make sure the new row is visible
-    setHighlightId(newId)
-    if (highlightTimer.current) clearTimeout(highlightTimer.current)
-    highlightTimer.current = setTimeout(() => setHighlightId(null), 2500)
+    triggerHighlight(newId)
     void load()
   }
 
@@ -165,7 +160,7 @@ export function ClientsList() {
             {filtered.map((c) => (
               <div
                 key={c.id}
-                style={{ ...styles.mobileCard, ...(c.id === highlightId ? styles.rowHighlight : null) }}
+                style={{ ...styles.mobileCard, ...highlightBackgroundStyle(c.id === highlightId) }}
               >
                 <div className="ec-tap-card" style={styles.mobileCardBody} onClick={() => setPanelClientId(c.id)}>
                   <div style={styles.mobileCardTop}>
@@ -243,15 +238,14 @@ export function ClientsList() {
                   <tr
                     key={c.id}
                     onClick={() => setPanelClientId(c.id)}
-                    style={{ ...styles.row, ...(c.id === highlightId ? styles.rowHighlight : null) }}
+                    style={{ ...styles.row, ...highlightBackgroundStyle(c.id === highlightId) }}
                   >
                     <td
                       style={{
                         ...styles.td,
-                        ...styles.firstCell,
+                        ...highlightBorderStyle(c.id === highlightId),
                         fontWeight: 600,
                         color: t.text.primary,
-                        borderLeftColor: c.id === highlightId ? tokens.gold : 'transparent', // H4: semantic token - no raw hex
                       }}
                     >
                       {c.company_name || '(unnamed)'}
@@ -410,21 +404,12 @@ const styles: Record<string, CSSProperties> = {
   },
   row: {
     cursor: 'pointer',
-    transition: 'background-color 0.6s ease',
-  },
-  rowHighlight: {
-    background: tokens.goldLight, // H4: semantic token - no raw hex
   },
   td: {
     padding: '14px 20px',
     fontSize: 14,
     color: t.text.secondary,
     borderBottom: `1px solid ${tokens.border}`,
-  },
-  firstCell: {
-    borderLeftWidth: 3,
-    borderLeftStyle: 'solid',
-    transition: 'border-left-color 0.6s ease, background-color 0.6s ease',
   },
 
   // Mobile card list
@@ -434,7 +419,6 @@ const styles: Record<string, CSSProperties> = {
     border: `1px solid ${tokens.border}`,
     borderRadius: 12,
     overflow: 'hidden',
-    transition: 'background-color 0.6s ease',
   },
   mobileCardBody: {
     padding: 16,

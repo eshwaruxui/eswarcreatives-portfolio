@@ -8,6 +8,7 @@
 // just an uploaded image file like any other, rendered through
 // ProgressiveImage rather than redrawn from scratch.
 import { Download, ExternalLink, ImageOff } from 'lucide-react'
+import MarkdownIt from 'markdown-it'
 import type { CSSProperties, ReactNode } from 'react'
 import { t, fonts } from '../../theme'
 import { ProgressiveImage } from './ProgressiveImage'
@@ -16,6 +17,46 @@ import { ExtensionBadge } from './BrandVisualBadge'
 import type { BrandVisualFileUrls, BrandVisualItem } from '../../utils/brandVisual'
 
 const mono = "'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+
+// A document item's Upload file field (see BrandVisualTab's ItemFormModal)
+// takes any file type, same as every other content type -- this is what
+// lets an audio recording ride alongside a document's own layout (prose/
+// word-list/before-after) as an attachment rather than needing a second,
+// separate content_type='audio' item. Extension-based, not MIME-based:
+// the stored file_type is always an uppercase extension (see fileType
+// state in ItemFormModal), never a MIME type.
+const AUDIO_EXTENSIONS = new Set(['MP3', 'WAV', 'M4A', 'OGG', 'AAC', 'FLAC', 'WEBM'])
+function isAudioFileType(fileType: string | null): boolean {
+  return !!fileType && AUDIO_EXTENSIONS.has(fileType.toUpperCase())
+}
+
+// Every <audio> element below carries preload="metadata" (never the
+// default "auto"), a fix for a genuine reported bug, not a micro-
+// optimization: with the default, Chrome eagerly downloads the whole
+// (short) file the instant the signed URL resolves, so the native
+// buffered-range indicator renders as a solid fill immediately -- easy to
+// mistake for "already played," even though the time readout (0:00 / ...)
+// is correct the whole time. "metadata" fetches only duration up front;
+// the buffered bar then stays empty until the reader actually presses
+// play, matching what the bar visually implies.
+
+// Tone of Voice's prose layout only, fed by the shared RichTextEditor
+// (src/portal/components/shared/RichTextEditor.tsx), which reads/writes
+// this exact markdown via the same underlying library (tiptap-markdown
+// wraps markdown-it internally) -- what the admin sees in the editor and
+// what a reader sees here are parsed by the same rules. `html: false` is
+// load-bearing, not a default left alone: it makes markdown-it escape any
+// literal HTML the admin ever typed/pasted into the source instead of
+// executing it, which is what makes rendering the result via
+// dangerouslySetInnerHTML safe here -- content is admin-authored (is_admin()
+// gated) but still never trusted as raw HTML. Content written before this
+// editor existed (plain **bold** + blank-line paragraphs, no headings/
+// lists) is valid CommonMark too, so it renders identically, not degraded.
+const proseMd = new MarkdownIt({ html: false, linkify: false, breaks: false })
+
+function renderProseMarkdown(text: string): string {
+  return proseMd.render(text)
+}
 
 // Neutral bounded content area — the generic stand-in for whatever a real
 // brand's own frame treatment ends up being. Never carries a client's own
@@ -38,11 +79,29 @@ export function BrandVisualRenderer({
   const needsFile = item.storage_path != null
   const loadingFile = needsFile && !fileUrls
 
+  // Computed once, appended to whichever document layout branch below
+  // actually returns -- an audio attachment sits alongside the layout's
+  // own content, never in place of it. Only for content_type='document':
+  // an item that's already content_type='audio' has its own dedicated
+  // branch just below, and doesn't need this repeated.
+  const audioAttachment =
+    item.content_type === 'document' && isAudioFileType(item.file_type) ? (
+      <div style={s.metaRow}>
+        {loadingFile ? (
+          <Skeleton height={44} borderRadius={8} />
+        ) : fileUrls ? (
+          <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} />
+        ) : (
+          <p style={s.muted}>Audio file unavailable.</p>
+        )}
+      </div>
+    ) : null
+
   if (item.content_type === 'audio') {
     return (
       <div>
         <ContentFrame>
-          {loadingFile ? <Skeleton height={64} borderRadius={8} /> : fileUrls ? <audio controls style={s.mediaFull} src={fileUrls.previewUrl} /> : <p style={s.muted}>Audio file unavailable.</p>}
+          {loadingFile ? <Skeleton height={64} borderRadius={8} /> : fileUrls ? <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} /> : <p style={s.muted}>Audio file unavailable.</p>}
         </ContentFrame>
         <div style={s.metaRow}>
           {item.file_type && <ExtensionBadge ext={item.file_type} />}
@@ -192,6 +251,100 @@ export function BrandVisualRenderer({
     )
   }
 
+  // Tone of Voice's three document layouts. All three read `item.category`
+  // rather than `content_type` alone for the prose default (see comment
+  // below) so this can never change how an existing non-Tone-of-Voice
+  // document item renders -- those never have `detail.layout` set and
+  // predate this syntax entirely.
+  if (item.content_type === 'document' && d.layout === 'beforeAfter' && d.beforeAfterRows && d.beforeAfterRows.length > 0) {
+    return (
+      <div>
+        <table style={s.beforeAfterTable}>
+          <thead>
+            <tr>
+              <th style={s.beforeAfterTh}>Off-brand</th>
+              <th style={s.beforeAfterTh}>On-brand</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.beforeAfterRows.map((row, i) => (
+              <tr key={i}>
+                <td style={s.beforeAfterTdOff}>{row.off}</td>
+                <td style={s.beforeAfterTdOn}>{row.on}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {audioAttachment}
+        {d.note && <p style={s.noteBelow}>{d.note}</p>}
+      </div>
+    )
+  }
+
+  if (item.content_type === 'document' && d.layout === 'wordlist' && d.wordList) {
+    const { leftLabel, left, rightLabel, right } = d.wordList
+    // A real two-column CSS grid, not two independent <ul>s side by side --
+    // when the right column's text wraps taller than the left column's on
+    // one row, two separate lists have no way to keep every later row
+    // aligned with its counterpart (each list stacks purely on its own
+    // height). Flattening left/right into one flat, row-major child list
+    // of a single grid puts left[i] and right[i] in the same grid row, so
+    // the grid's own row-sizing (each row as tall as its tallest cell)
+    // keeps every row aligned regardless of how much either side wraps.
+    const rowCount = Math.max(left.length, right.length)
+    const cells: ReactNode[] = []
+    for (let i = 0; i < rowCount; i++) {
+      cells.push(
+        <div key={`l-${i}`} style={s.wordListCell}>
+          {left[i] ?? ''}
+        </div>,
+        <div key={`r-${i}`} style={s.wordListCell}>
+          {right[i] ?? ''}
+        </div>
+      )
+    }
+    return (
+      <div>
+        <div style={s.wordListGrid}>
+          <div style={{ ...s.wordListLabel, color: t.text.primaryBrand }}>{leftLabel}</div>
+          <div style={{ ...s.wordListLabel, color: t.text.tertiary }}>{rightLabel}</div>
+          {cells}
+        </div>
+        {audioAttachment}
+        {d.note && <p style={s.noteBelow}>{d.note}</p>}
+      </div>
+    )
+  }
+
+  // Explicit 'prose' covers every authored Tone of Voice item. The
+  // no-layout fallback is scoped to item.category === 'tone_of_voice' only
+  // -- never inferred from a missing layout alone -- so it can only ever
+  // apply to a Tone of Voice row inserted with layout unset (e.g. directly
+  // via SQL), not to any pre-existing Guidelines/Assets/Templates item.
+  if (
+    item.content_type === 'document' &&
+    (d.layout === 'prose' || (!d.layout && item.category === 'tone_of_voice')) &&
+    d.content
+  ) {
+    return (
+      <div>
+        <style>{`
+          .ec-tov-prose p { margin: 0 0 14px; }
+          .ec-tov-prose p:last-child { margin-bottom: 0; }
+          .ec-tov-prose strong { font-weight: 600; }
+          .ec-tov-prose h3 { font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: ${t.text.primary}; }
+          .ec-tov-prose h3:first-child { margin-top: 0; }
+          .ec-tov-prose ul, .ec-tov-prose ol { margin: 0 0 14px; padding-left: 22px; }
+          .ec-tov-prose li { margin-bottom: 6px; }
+          .ec-tov-prose li:last-child { margin-bottom: 0; }
+        `}</style>
+        <div className="ec-tov-prose" style={s.prose} dangerouslySetInnerHTML={{ __html: renderProseMarkdown(d.content) }} />
+        {audioAttachment}
+        {d.note && <p style={s.noteBelow}>{d.note}</p>}
+      </div>
+    )
+  }
+
   if (item.content_type === 'image') {
     const isPattern = d.imageTreatment === 'pattern'
     const noPreviewBlock = (
@@ -254,6 +407,29 @@ export function BrandVisualRenderer({
   }
 
   if (item.file_type) {
+    // An audio file with no other structured content is the whole item,
+    // same as a dedicated content_type='audio' item -- plays inline rather
+    // than showing a download-only card the reader can't hear anything from
+    // without leaving the page first.
+    if (isAudioFileType(item.file_type)) {
+      return (
+        <div>
+          <ContentFrame>
+            {loadingFile ? (
+              <Skeleton height={64} borderRadius={8} />
+            ) : fileUrls ? (
+              <audio controls preload="metadata" style={s.mediaFull} src={fileUrls.previewUrl} />
+            ) : (
+              <p style={s.muted}>Audio file unavailable.</p>
+            )}
+          </ContentFrame>
+          <div style={s.metaRow}>
+            <ExtensionBadge ext={item.file_type} />
+            {d.note && <p style={s.note}>{d.note}</p>}
+          </div>
+        </div>
+      )
+    }
     return (
       <div>
         <ContentFrame>
@@ -342,6 +518,28 @@ const s: Record<string, CSSProperties> = {
   },
   sectionLabel: { fontFamily: mono, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: t.text.tertiary, marginBottom: 4 },
   sectionValue: { fontSize: 14, color: t.text.primary, lineHeight: 1.6 },
+  prose: { fontSize: 14.5, lineHeight: 1.68, color: t.text.primary },
+  beforeAfterTable: { width: '100%', borderCollapse: 'collapse', fontSize: 13.5 },
+  beforeAfterTh: {
+    textAlign: 'left',
+    fontFamily: mono,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    color: t.text.tertiary,
+    padding: '0 12px 10px',
+    fontWeight: 600,
+  },
+  beforeAfterTdOff: { padding: 12, verticalAlign: 'top', borderTop: `1px solid ${t.border.subtle}`, lineHeight: 1.5, color: t.text.secondary, width: '50%' },
+  beforeAfterTdOn: { padding: 12, verticalAlign: 'top', borderTop: `1px solid ${t.border.subtle}`, lineHeight: 1.5, color: t.text.primary, fontWeight: 500, width: '50%' },
+  // Row-major flat grid (see the wordlist branch above): label cells form
+  // row 0, then each left[i]/right[i] pair forms one grid row, so the
+  // grid's own per-row height keeps left and right aligned even when one
+  // side wraps taller than the other -- two independent lists stacked
+  // side by side could never do that once any row's heights diverge.
+  wordListGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 20, rowGap: 8, alignItems: 'start' },
+  wordListLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 700 },
+  wordListCell: { fontSize: 14, padding: '8px 10px', borderRadius: 6, background: t.background.subtle, color: t.text.primary, lineHeight: 1.5 },
   fileTitle: { fontSize: 14, color: t.text.primary, fontWeight: 600 },
   fileTypeLine: { fontFamily: mono, fontSize: 11, color: t.text.tertiary, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.04em' },
   downloadBtn: {
