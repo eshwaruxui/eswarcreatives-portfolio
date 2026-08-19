@@ -1,6 +1,15 @@
 # Eswar Creatives Portal - Component Patterns
 
-Last updated: 19 August 2026 (a second shared-component bug found live in
+Last updated: 19 August 2026 (a shared-code request, not a bug this time:
+the newly-added-row gold-flash highlight already existed independently in
+three admin lists -- `ClientsList`, `ProjectsList`, `ProposalsAdmin` -- each
+with its own copy of the same `highlightId` state/timer/cleanup logic and
+the same gold styling restated per file. Extracted into a new
+`useHighlightRow` hook plus `highlightBackgroundStyle`/`highlightBorderStyle`
+helpers, all three existing consumers refactored onto it with no behavior
+change, and Brand Visual Guide's Tone of Voice list became its fourth
+consumer. See the new Newly-Added-Row Highlight Pattern section below.
+Earlier the same day: a second shared-component bug found live in
 the same testing pass, also not Tone-of-Voice-specific: drag-selecting
 text inside `Modal` or `SidePanel` and releasing the mouse after it left
 the panel's bounds closed the dialog, discarding the edit — see the new
@@ -1375,6 +1384,68 @@ any interaction that began inside the panel, regardless of where it ends.
 `SidePanel`'s backdrop (`SidePanel.tsx`, always gated — it has no
 `closeOnBackdrop`-equivalent prop). Both fixed the same way, once each, in
 the shared component — never add this guard locally inside a consumer.
+
+---
+
+## Newly-Added-Row Highlight Pattern
+
+### Rule
+A list that just gained a new row briefly highlights it (gold flash, fading
+over 0.6s) so the user can find what they just added without hunting for it.
+Use the shared `useHighlightRow` hook and `highlightBackgroundStyle` /
+`highlightBorderStyle` helpers — never hand-roll the `highlightId` state +
+timeout ref + cleanup effect per screen.
+
+### Found 19 Aug 2026
+Three admin lists (`ClientsList`, `ProjectsList`, `ProposalsAdmin`) had
+independently implemented the exact same `useState<string | null>` +
+`useRef<Timeout>` + cleanup-on-unmount `useEffect` + "set id, clear any
+prior timer, schedule clearing after 2500ms" logic, each as its own private
+copy, with the visual treatment (`tokens.goldLight` background / `tokens.gold`
+3px left border, 0.6s ease) also restated per file. Spotted live while
+testing Brand Visual Guide's Tone of Voice list, which needed the same
+capability for a fourth time — consolidated rather than adding a fourth
+independent copy.
+
+### Hook
+`src/portal/hooks/useHighlightRow.ts` — `useHighlightRow()` returns
+`{ highlightId, triggerHighlight }`. Call `triggerHighlight(id)` right after
+a successful insert; `highlightId` is `null` otherwise and clears itself
+2500ms after each trigger (retriggering resets the timer, same as before).
+Owns its own timeout ref and unmount cleanup — callers need neither.
+
+### Style helpers, and why there are two
+```ts
+highlightBackgroundStyle(active: boolean): CSSProperties
+highlightBorderStyle(active: boolean): CSSProperties
+```
+Both always include their own `transition` property regardless of `active`,
+so the fade plays whether a caller spreads the result unconditionally every
+render or only while `active` is true — a property that doesn't exist on
+the "before" style can't transition in from nothing.
+
+- **`highlightBackgroundStyle`**: safe to spread unconditionally on every
+  row. When inactive it contributes only the transition (no `background`
+  key at all), so the row's own base background always shows through
+  untouched.
+- **`highlightBorderStyle`**: sets `borderLeftColor` to `tokens.gold` when
+  active, `'transparent'` when inactive — **only safe to spread
+  unconditionally when the row has no other left-border of its own**
+  (`ClientsList`'s cell, which has none at rest). A row with a *permanent*
+  left accent border (`ProposalsAdmin`'s cards, always teal via
+  `t.border.brand`) must spread this **conditionally** — `active ? {
+  ...highlightBorderStyle(true), ...highlightBackgroundStyle(true) } : null`
+  — so the permanent accent shows through when not highlighted, at the cost
+  of the border only (not the background) popping in/out instantly rather
+  than fading. Get this backwards and a permanent accent border either
+  disappears at rest or never resets after the gold flash clears.
+
+### Where it's applied
+`ClientsList.tsx`, `ProjectsList.tsx`, `ProposalsAdmin.tsx` (all refactored
+onto the shared hook, 19 Aug 2026, no behavior change) and
+`BrandVisualTab.tsx`'s `AdminRow` (`triggerHighlight` called from
+`handleSaved`, gated on `!exists` so an *edit* save never highlights —
+only a genuine insert does).
 
 ---
 
