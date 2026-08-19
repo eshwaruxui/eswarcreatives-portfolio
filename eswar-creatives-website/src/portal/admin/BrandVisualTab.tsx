@@ -17,7 +17,7 @@ import {
   Video,
   X,
 } from 'lucide-react'
-import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { supabase } from '../../lib/supabase'
 import { t, fonts } from '../theme'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -411,13 +411,20 @@ function ItemFormModal({
   // Tone of Voice only, content_type='document'.
   const [layout, setLayout] = useState<NonNullable<BrandVisualItem['detail']['layout']>>(item?.detail?.layout ?? 'prose')
   const [wordListLeftLabel, setWordListLeftLabel] = useState(item?.detail?.wordList?.leftLabel ?? 'Reach for')
-  const [wordListLeft, setWordListLeft] = useState<string[]>(
-    item?.detail?.wordList?.left && item.detail.wordList.left.length > 0 ? item.detail.wordList.left : ['']
-  )
   const [wordListRightLabel, setWordListRightLabel] = useState(item?.detail?.wordList?.rightLabel ?? 'Avoid')
-  const [wordListRight, setWordListRight] = useState<string[]>(
-    item?.detail?.wordList?.right && item.detail.wordList.right.length > 0 ? item.detail.wordList.right : ['']
-  )
+  // One shared row array, not two independent left/right lists -- a single
+  // "Add Row" CTA and a single remove-per-row button, same editing pattern
+  // as beforeAfterRows. Stored `detail.wordList.left`/`.right` stay two
+  // independent arrays on save (the renderer never assumes matching
+  // lengths), this only simplifies how the admin edits them. Zipped from
+  // whichever existing side is longer, so an item saved before this change
+  // (or ever edited with unequal left/right lengths) still loads correctly.
+  const [wordListRows, setWordListRows] = useState<{ left: string; right: string }[]>(() => {
+    const left = item?.detail?.wordList?.left ?? []
+    const right = item?.detail?.wordList?.right ?? []
+    const rowCount = Math.max(left.length, right.length, 1)
+    return Array.from({ length: rowCount }, (_, i) => ({ left: left[i] ?? '', right: right[i] ?? '' }))
+  })
   const [beforeAfterRows, setBeforeAfterRows] = useState<BrandVisualBeforeAfterRow[]>(
     item?.detail?.beforeAfterRows && item.detail.beforeAfterRows.length > 0 ? item.detail.beforeAfterRows : [{ off: '', on: '' }]
   )
@@ -459,18 +466,14 @@ function ItemFormModal({
     setBeforeAfterRows((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows))
   }
 
-  // Shared by both word-list columns -- left and right are independent
-  // lists (not paired rows the way before/after is), so one generic
-  // helper set parameterized by setter covers both rather than two
-  // near-duplicate copies.
-  function updateListWord(setter: Dispatch<SetStateAction<string[]>>, index: number, value: string) {
-    setter((words) => words.map((w, i) => (i === index ? value : w)))
+  function updateWordListRow(index: number, patch: Partial<{ left: string; right: string }>) {
+    setWordListRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
   }
-  function addListWord(setter: Dispatch<SetStateAction<string[]>>) {
-    setter((words) => [...words, ''])
+  function addWordListRow() {
+    setWordListRows((rows) => [...rows, { left: '', right: '' }])
   }
-  function removeListWord(setter: Dispatch<SetStateAction<string[]>>, index: number) {
-    setter((words) => (words.length > 1 ? words.filter((_, i) => i !== index) : words))
+  function removeWordListRow(index: number) {
+    setWordListRows((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows))
   }
 
   function pickFile(f: File) {
@@ -528,9 +531,9 @@ function ItemFormModal({
         if (layout === 'wordlist') {
           detail.wordList = {
             leftLabel: wordListLeftLabel.trim() || 'Reach for',
-            left: wordListLeft.map((w) => w.trim()).filter(Boolean),
+            left: wordListRows.map((row) => row.left.trim()).filter(Boolean),
             rightLabel: wordListRightLabel.trim() || 'Avoid',
-            right: wordListRight.map((w) => w.trim()).filter(Boolean),
+            right: wordListRows.map((row) => row.right.trim()).filter(Boolean),
           }
         }
         if (layout === 'beforeAfter') {
@@ -734,66 +737,50 @@ function ItemFormModal({
       )}
 
       {isToneOfVoice && contentType === 'document' && layout === 'wordlist' && (
-        <div style={s.formGrid2}>
-          <Field label="Left column label">
-            <input value={wordListLeftLabel} onChange={(e) => setWordListLeftLabel(e.target.value)} className="pf-focus" style={s.input} />
-          </Field>
-          <Field label="Right column label">
-            <input value={wordListRightLabel} onChange={(e) => setWordListRightLabel(e.target.value)} className="pf-focus" style={s.input} />
-          </Field>
-          <Field label="Left words">
+        <>
+          <div style={s.formGrid2}>
+            <Field label="Left column label">
+              <input value={wordListLeftLabel} onChange={(e) => setWordListLeftLabel(e.target.value)} className="pf-focus" style={s.input} />
+            </Field>
+            <Field label="Right column label">
+              <input value={wordListRightLabel} onChange={(e) => setWordListRightLabel(e.target.value)} className="pf-focus" style={s.input} />
+            </Field>
+          </div>
+          <Field label="Words">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {wordListLeft.map((w, i) => (
-                <div key={i} style={s.beforeAfterRowEditor2}>
+              {wordListRows.map((row, i) => (
+                <div key={i} style={s.beforeAfterRowEditor}>
                   <input
-                    value={w}
-                    onChange={(e) => updateListWord(setWordListLeft, i, e.target.value)}
+                    value={row.left}
+                    onChange={(e) => updateWordListRow(i, { left: e.target.value })}
+                    placeholder="Left word"
+                    className="pf-focus"
+                    style={s.input}
+                  />
+                  <input
+                    value={row.right}
+                    onChange={(e) => updateWordListRow(i, { right: e.target.value })}
+                    placeholder="Right word"
                     className="pf-focus"
                     style={s.input}
                   />
                   <button
                     type="button"
                     style={s.fileClearBtn}
-                    onClick={() => removeListWord(setWordListLeft, i)}
-                    aria-label="Remove word"
-                    disabled={wordListLeft.length === 1}
+                    onClick={() => removeWordListRow(i)}
+                    aria-label="Remove row"
+                    disabled={wordListRows.length === 1}
                   >
                     <X size={14} />
                   </button>
                 </div>
               ))}
-              <button type="button" style={s.addSwatchBtn} onClick={() => addListWord(setWordListLeft)}>
-                <Plus size={14} /> Add word
+              <button type="button" style={s.addSwatchBtn} onClick={addWordListRow}>
+                <Plus size={14} /> Add row
               </button>
             </div>
           </Field>
-          <Field label="Right words">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {wordListRight.map((w, i) => (
-                <div key={i} style={s.beforeAfterRowEditor2}>
-                  <input
-                    value={w}
-                    onChange={(e) => updateListWord(setWordListRight, i, e.target.value)}
-                    className="pf-focus"
-                    style={s.input}
-                  />
-                  <button
-                    type="button"
-                    style={s.fileClearBtn}
-                    onClick={() => removeListWord(setWordListRight, i)}
-                    aria-label="Remove word"
-                    disabled={wordListRight.length === 1}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-              <button type="button" style={s.addSwatchBtn} onClick={() => addListWord(setWordListRight)}>
-                <Plus size={14} /> Add word
-              </button>
-            </div>
-          </Field>
-        </div>
+        </>
       )}
 
       {isToneOfVoice && contentType === 'document' && layout === 'beforeAfter' && (
@@ -1051,7 +1038,6 @@ const s: Record<string, CSSProperties> = {
   fieldHint: { display: 'block', fontSize: 11.5, color: t.text.tertiary, marginTop: 4 },
   checkboxRow: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: t.text.primary, cursor: 'pointer' },
   beforeAfterRowEditor: { display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' },
-  beforeAfterRowEditor2: { display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' },
   formGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
   input: {
     width: '100%',
