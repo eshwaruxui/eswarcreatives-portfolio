@@ -274,37 +274,42 @@ export function BrandVisualRenderer({
           </tbody>
         </table>
         {audioAttachment}
+        {d.note && <p style={s.noteBelow}>{d.note}</p>}
       </div>
     )
   }
 
   if (item.content_type === 'document' && d.layout === 'wordlist' && d.wordList) {
     const { leftLabel, left, rightLabel, right } = d.wordList
+    // A real two-column CSS grid, not two independent <ul>s side by side --
+    // when the right column's text wraps taller than the left column's on
+    // one row, two separate lists have no way to keep every later row
+    // aligned with its counterpart (each list stacks purely on its own
+    // height). Flattening left/right into one flat, row-major child list
+    // of a single grid puts left[i] and right[i] in the same grid row, so
+    // the grid's own row-sizing (each row as tall as its tallest cell)
+    // keeps every row aligned regardless of how much either side wraps.
+    const rowCount = Math.max(left.length, right.length)
+    const cells: ReactNode[] = []
+    for (let i = 0; i < rowCount; i++) {
+      cells.push(
+        <div key={`l-${i}`} style={s.wordListCell}>
+          {left[i] ?? ''}
+        </div>,
+        <div key={`r-${i}`} style={s.wordListCell}>
+          {right[i] ?? ''}
+        </div>
+      )
+    }
     return (
       <div>
         <div style={s.wordListGrid}>
-          <div>
-            <div style={{ ...s.wordListLabel, color: t.text.primaryBrand }}>{leftLabel}</div>
-            <ul style={s.wordListUl}>
-              {left.map((w, i) => (
-                <li key={i} style={s.wordListLi}>
-                  {w}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <div style={{ ...s.wordListLabel, color: t.text.tertiary }}>{rightLabel}</div>
-            <ul style={s.wordListUl}>
-              {right.map((w, i) => (
-                <li key={i} style={s.wordListLi}>
-                  {w}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <div style={{ ...s.wordListLabel, color: t.text.primaryBrand }}>{leftLabel}</div>
+          <div style={{ ...s.wordListLabel, color: t.text.tertiary }}>{rightLabel}</div>
+          {cells}
         </div>
         {audioAttachment}
+        {d.note && <p style={s.noteBelow}>{d.note}</p>}
       </div>
     )
   }
@@ -323,6 +328,7 @@ export function BrandVisualRenderer({
       <div>
         <div style={s.prose}>{renderProseInline(d.content)}</div>
         {audioAttachment}
+        {d.note && <p style={s.noteBelow}>{d.note}</p>}
       </div>
     )
   }
@@ -514,10 +520,14 @@ const s: Record<string, CSSProperties> = {
   },
   beforeAfterTdOff: { padding: 12, verticalAlign: 'top', borderTop: `1px solid ${t.border.subtle}`, lineHeight: 1.5, color: t.text.secondary, width: '50%' },
   beforeAfterTdOn: { padding: 12, verticalAlign: 'top', borderTop: `1px solid ${t.border.subtle}`, lineHeight: 1.5, color: t.text.primary, fontWeight: 500, width: '50%' },
-  wordListGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
-  wordListLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 700, marginBottom: 10 },
-  wordListUl: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
-  wordListLi: { fontSize: 14, padding: '8px 10px', borderRadius: 6, background: t.background.subtle, color: t.text.primary },
+  // Row-major flat grid (see the wordlist branch above): label cells form
+  // row 0, then each left[i]/right[i] pair forms one grid row, so the
+  // grid's own per-row height keeps left and right aligned even when one
+  // side wraps taller than the other -- two independent lists stacked
+  // side by side could never do that once any row's heights diverge.
+  wordListGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 20, rowGap: 8, alignItems: 'start' },
+  wordListLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 700 },
+  wordListCell: { fontSize: 14, padding: '8px 10px', borderRadius: 6, background: t.background.subtle, color: t.text.primary, lineHeight: 1.5 },
   fileTitle: { fontSize: 14, color: t.text.primary, fontWeight: 600 },
   fileTypeLine: { fontFamily: mono, fontSize: 11, color: t.text.tertiary, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.04em' },
   downloadBtn: {
