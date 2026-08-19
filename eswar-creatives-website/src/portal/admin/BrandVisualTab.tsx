@@ -13,6 +13,7 @@ import {
   Music,
   Pencil,
   Plus,
+  Share2,
   Trash2,
   Video,
   X,
@@ -94,6 +95,7 @@ export function BrandVisualTab({ clientId, clientLabel }: { clientId: string; cl
   const [items, setItems] = useState<BrandVisualItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [publicToken, setPublicToken] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState<BrandVisualCategory>('guidelines')
   const [activeGroup, setActiveGroup] = useState<string>(groupsForCategory('guidelines')[0])
   const [search, setSearch] = useState('')
@@ -123,6 +125,24 @@ export function BrandVisualTab({ clientId, clientLabel }: { clientId: string; cl
   useEffect(() => {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId])
+
+  // clients.public_token -- the /brand/:token this client's items share.
+  // Admin has full RLS access, so this is a plain select, same column the
+  // client route reads for itself (see BrandVisualPage.tsx).
+  useEffect(() => {
+    let cancelled = false
+    supabase
+      .from('clients')
+      .select('public_token')
+      .eq('id', clientId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setPublicToken((data as { public_token: string } | null)?.public_token ?? null)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [clientId])
 
   function selectNav(category: BrandVisualCategory, group: string | null) {
@@ -161,6 +181,38 @@ export function BrandVisualTab({ clientId, clientLabel }: { clientId: string; cl
       return
     }
     setItems((list) => list.map((i) => (i.id === item.id ? { ...i, visibility: next } : i)))
+  }
+
+  // One click: publish the item (if it isn't already status='published' AND
+  // visibility='public' -- both, since the public listing RPC requires
+  // both) then copy its deep link. Same "publish + copy link" semantics as
+  // the client-facing Share button, but admin writes the row directly
+  // rather than going through the client-only publish-toggle RPC.
+  async function shareItem(item: BrandVisualItem) {
+    if (!publicToken) {
+      showToast('Could not find this client’s public link. Try again.', 'error')
+      return
+    }
+    if (item.status !== 'published' || item.visibility !== 'public') {
+      const { error: err } = await supabase
+        .from('brand_visual_items')
+        .update({ status: 'published', visibility: 'public', updated_at: new Date().toISOString() })
+        .eq('id', item.id)
+      if (err) {
+        showToast('Could not publish this item. Try again.', 'error')
+        return
+      }
+      setItems((list) =>
+        list.map((i) => (i.id === item.id ? { ...i, status: 'published', visibility: 'public' } : i))
+      )
+    }
+    const link = `${window.location.origin}/brand/${publicToken}?item=${item.id}`
+    try {
+      await navigator.clipboard.writeText(link)
+      showToast('Public link copied to clipboard', 'success')
+    } catch {
+      showToast('Link ready, but could not copy automatically.', 'error')
+    }
   }
 
   async function deleteItem(item: BrandVisualItem) {
@@ -282,6 +334,7 @@ export function BrandVisualTab({ clientId, clientLabel }: { clientId: string; cl
                 onDelete={deleteItem}
                 onToggleStatus={toggleStatus}
                 onToggleVisibility={cycleVisibility}
+                onShare={shareItem}
               />
             ))}
           </div>
@@ -316,6 +369,7 @@ function AdminRow({
   onDelete,
   onToggleStatus,
   onToggleVisibility,
+  onShare,
 }: {
   item: BrandVisualItem
   index: number
@@ -329,6 +383,7 @@ function AdminRow({
   onDelete: (item: BrandVisualItem) => void
   onToggleStatus: (item: BrandVisualItem) => void
   onToggleVisibility: (item: BrandVisualItem) => void
+  onShare: (item: BrandVisualItem) => void
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const meta = TYPE_META[item.content_type]
@@ -368,6 +423,9 @@ function AdminRow({
       </button>
       <button type="button" style={s.badgeBtn} onClick={() => onToggleVisibility(item)}>
         <span style={s.pill}>{VISIBILITY_LABEL[item.visibility]}</span>
+      </button>
+      <button type="button" style={s.iconBtn} onClick={() => onShare(item)} aria-label="Copy public share link">
+        <Share2 size={15} />
       </button>
       <button type="button" style={s.iconBtn} onClick={() => onEdit(item)} aria-label="Edit">
         <Pencil size={15} />
