@@ -1,14 +1,18 @@
 # Eswar Creatives Portal - Component Patterns
 
-Last updated: 19 August 2026 (found live while testing Tone of Voice's
-word-list editor, but a shared `Modal`/`FadeOverflow` bug, not a Tone of
-Voice one: pasting into any field inside any `Modal` with a scrollable
-body reset its scroll position to the top, because `Modal` conditionally
-mounted/unmounted `FadeOverflow` around the ref'd scrollable body on every
+Last updated: 19 August 2026 (a second shared-component bug found live in
+the same testing pass, also not Tone-of-Voice-specific: drag-selecting
+text inside `Modal` or `SidePanel` and releasing the mouse after it left
+the panel's bounds closed the dialog, discarding the edit — see the new
+Backdrop Drag-Select Guard Pattern section below. Both `Modal` and
+`SidePanel` fixed once, in the shared component. Earlier the same day:
+pasting into any field inside any `Modal` with a scrollable body reset its
+scroll position to the top, because `Modal` conditionally mounted/
+unmounted `FadeOverflow` around the ref'd scrollable body on every
 fade-state recalculation, which reruns on nearly every keystroke.
 `FadeOverflow` gained an `active` prop so `Modal` can now keep it always
 mounted and just toggle the gradient. See the Overflow Fade Pattern and
-Shared Modal Three-Part Layout sections below for the full account.
+Shared Modal Three-Part Layout sections below for that account.
 Previously, 18 August 2026: Tone of Voice sub-module added to Brand
 Visual Guide, direct on `main`, uncommitted: a new Single-Group Category
 Pattern, see its own section below, plus `BrandVisualTab` (admin) now
@@ -1317,6 +1321,60 @@ both-edges'` — both now mostly vestigial, since the panel bounds and scrolls
 itself internally, but left in place as a defensive fallback rather than
 removed. Not touched by this change; if it is ever found to be genuinely
 dead, verify against a real tall-content case before assuming so.
+
+---
+
+## Backdrop Drag-Select Guard Pattern
+
+### Rule
+Any overlay/backdrop that closes its panel on click (`Modal`'s
+`closeOnBackdrop`, `SidePanel`'s always-on backdrop click) must gate that
+close on where the **mousedown** originated, not just where the resulting
+**click** lands. A `click` event's target is decided by the mouseup
+position, not the mousedown position — so selecting text inside the panel
+by click-and-drag, then releasing the mouse after the pointer has crossed
+outside the panel's bounds, fires a click whose target is the backdrop
+itself. Indistinguishable from a genuine backdrop click unless the
+mousedown origin is also checked.
+
+### Found 19 Aug 2026
+Live in Brand Visual Guide's item form (a `Modal`): drag-selecting a
+sentence in the Summary or Content field and releasing outside the panel
+closed the dialog and discarded the in-progress edit. Not form-specific —
+both `Modal` and `SidePanel` shared the same backdrop-click shape with no
+guard against this at all (confirmed via a full search — every existing
+mitigation was `closeOnBackdrop={false}`, opting a specific consumer out
+of backdrop-click entirely rather than fixing the underlying gap).
+
+### Fix
+A ref set on the overlay/backdrop's own `onMouseDown`, true only when
+`e.target === e.currentTarget` (i.e. the mousedown landed on the
+overlay/backdrop element itself, not a descendant it bubbled up from).
+The close handler on `onClick` only fires when that ref is true **and**
+the click's own target is also the overlay/backdrop itself:
+
+```tsx
+const mouseDownOnOverlayRef = useRef(false)
+// ...
+<div
+  onMouseDown={(e) => { mouseDownOnOverlayRef.current = e.target === e.currentTarget }}
+  onClick={(e) => {
+    if (mouseDownOnOverlayRef.current && e.target === e.currentTarget) onClose()
+  }}
+/>
+```
+
+A mousedown that starts inside the panel bubbles up to this handler too
+(nothing stops it, unlike `onClick` which the panel already stops
+propagating for normal clicks) — `e.target` stays the original innermost
+element throughout that bubbling, so the check correctly reads `false` for
+any interaction that began inside the panel, regardless of where it ends.
+
+### Where it's applied
+`Modal`'s overlay (`ui.tsx`, gated additionally by `closeOnBackdrop`) and
+`SidePanel`'s backdrop (`SidePanel.tsx`, always gated — it has no
+`closeOnBackdrop`-equivalent prop). Both fixed the same way, once each, in
+the shared component — never add this guard locally inside a consumer.
 
 ---
 
