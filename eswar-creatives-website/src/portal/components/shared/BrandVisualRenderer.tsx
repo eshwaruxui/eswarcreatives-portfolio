@@ -8,6 +8,7 @@
 // just an uploaded image file like any other, rendered through
 // ProgressiveImage rather than redrawn from scratch.
 import { Download, ExternalLink, ImageOff } from 'lucide-react'
+import MarkdownIt from 'markdown-it'
 import type { CSSProperties, ReactNode } from 'react'
 import { t, fonts } from '../../theme'
 import { ProgressiveImage } from './ProgressiveImage'
@@ -29,31 +30,22 @@ function isAudioFileType(fileType: string | null): boolean {
   return !!fileType && AUDIO_EXTENSIONS.has(fileType.toUpperCase())
 }
 
-// Tone of Voice's prose layout only. Deliberately minimal -- **bold** plus
-// blank-line paragraph breaks, nothing else -- ported from the reference
-// prototype's own renderInline(). Kept local rather than folded into the
-// generic plain-text fallback at the bottom of this file, so existing
-// Guidelines/Assets/Templates document items (which have no `layout`
-// field and were never authored with this syntax in mind) render exactly
-// as before.
-function renderProseInline(text: string): ReactNode {
-  const paragraphs = text.split('\n\n')
-  return paragraphs.map((para, i) => {
-    const parts = para.split(/(\*\*[^*]+\*\*)/g).map((chunk, j) =>
-      chunk.startsWith('**') && chunk.endsWith('**') ? (
-        <strong key={j} style={{ fontWeight: 600 }}>
-          {chunk.slice(2, -2)}
-        </strong>
-      ) : (
-        <span key={j}>{chunk}</span>
-      )
-    )
-    return (
-      <p key={i} style={{ margin: i === paragraphs.length - 1 ? 0 : '0 0 14px' }}>
-        {parts}
-      </p>
-    )
-  })
+// Tone of Voice's prose layout only, fed by the shared RichTextEditor
+// (src/portal/components/shared/RichTextEditor.tsx), which reads/writes
+// this exact markdown via the same underlying library (tiptap-markdown
+// wraps markdown-it internally) -- what the admin sees in the editor and
+// what a reader sees here are parsed by the same rules. `html: false` is
+// load-bearing, not a default left alone: it makes markdown-it escape any
+// literal HTML the admin ever typed/pasted into the source instead of
+// executing it, which is what makes rendering the result via
+// dangerouslySetInnerHTML safe here -- content is admin-authored (is_admin()
+// gated) but still never trusted as raw HTML. Content written before this
+// editor existed (plain **bold** + blank-line paragraphs, no headings/
+// lists) is valid CommonMark too, so it renders identically, not degraded.
+const proseMd = new MarkdownIt({ html: false, linkify: false, breaks: false })
+
+function renderProseMarkdown(text: string): string {
+  return proseMd.render(text)
 }
 
 // Neutral bounded content area — the generic stand-in for whatever a real
@@ -326,7 +318,17 @@ export function BrandVisualRenderer({
   ) {
     return (
       <div>
-        <div style={s.prose}>{renderProseInline(d.content)}</div>
+        <style>{`
+          .ec-tov-prose p { margin: 0 0 14px; }
+          .ec-tov-prose p:last-child { margin-bottom: 0; }
+          .ec-tov-prose strong { font-weight: 600; }
+          .ec-tov-prose h3 { font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: ${t.text.primary}; }
+          .ec-tov-prose h3:first-child { margin-top: 0; }
+          .ec-tov-prose ul, .ec-tov-prose ol { margin: 0 0 14px; padding-left: 22px; }
+          .ec-tov-prose li { margin-bottom: 6px; }
+          .ec-tov-prose li:last-child { margin-bottom: 0; }
+        `}</style>
+        <div className="ec-tov-prose" style={s.prose} dangerouslySetInnerHTML={{ __html: renderProseMarkdown(d.content) }} />
         {audioAttachment}
         {d.note && <p style={s.noteBelow}>{d.note}</p>}
       </div>
