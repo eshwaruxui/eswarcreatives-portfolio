@@ -59,6 +59,11 @@ export function SidePanel({
   const { isMobile: narrow } = useBreakpoint()
   const [shown, setShown] = useState(false)
   const closingRef = useRef(false)
+  // Same guard as the shared Modal's backdrop (see ui.tsx): a text-selection
+  // drag that starts inside the panel and ends over the backdrop once the
+  // pointer leaves the panel bounds must not close it -- only a mousedown
+  // that itself started on the backdrop counts.
+  const mouseDownOnBackdropRef = useRef(false)
 
   // Resizable width state, seeded from the hint once on mount. Drag updates
   // this directly with no transition (direct manipulation must never fight
@@ -184,7 +189,12 @@ export function SidePanel({
           opacity: shown ? 1 : 0,
           transition: `opacity ${motionTokens.durationBase} ${motionTokens.easeDefault}`,
         }}
-        onClick={requestClose}
+        onMouseDown={(e) => {
+          mouseDownOnBackdropRef.current = e.target === e.currentTarget
+        }}
+        onClick={(e) => {
+          if (mouseDownOnBackdropRef.current && e.target === e.currentTarget) requestClose()
+        }}
       />
       <aside style={panelStyle} role="dialog" aria-label={title}>
         {!narrow && (

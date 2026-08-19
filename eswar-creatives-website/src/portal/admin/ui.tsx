@@ -189,6 +189,14 @@ export function Modal({
   const { isMobile } = useBreakpoint()
   const bodyRef = useRef<HTMLDivElement>(null)
   const [showFade, setShowFade] = useState(false)
+  // Guards against closing on a text-selection drag that starts inside the
+  // panel (e.g. dragging to select a sentence in a textarea) and ends over
+  // the backdrop once the pointer leaves the panel bounds -- the resulting
+  // click's target is the overlay, indistinguishable from a genuine
+  // backdrop click unless the mousedown origin is also checked. Only a
+  // mousedown that *itself* started on the overlay (not a descendant) sets
+  // this, so a drag that merely ends there doesn't count.
+  const mouseDownOnOverlayRef = useRef(false)
 
   // H7: Flexibility and efficiency — Escape closes any open modal. The owning
   // component's onClose handles its own unsaved-work confirmation when needed.
@@ -246,7 +254,12 @@ export function Modal({
   return (
     <div
       style={{ ...ui.modalOverlay, ...(isMobile ? ui.modalOverlayMobile : null) }}
-      onClick={closeOnBackdrop ? onClose : undefined}
+      onMouseDown={(e) => {
+        mouseDownOnOverlayRef.current = e.target === e.currentTarget
+      }}
+      onClick={(e) => {
+        if (closeOnBackdrop && mouseDownOnOverlayRef.current && e.target === e.currentTarget) onClose()
+      }}
     >
       <div
         style={{
