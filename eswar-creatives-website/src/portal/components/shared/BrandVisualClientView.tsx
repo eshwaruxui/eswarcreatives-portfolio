@@ -275,28 +275,6 @@ export function BrandVisualDetailPanel({
     onItemUpdated?.({ ...item, visibility: (data as { visibility: 'client' | 'public' }).visibility })
   }
   const showPrevNext = !!(onPrevious || onNext)
-  const prevNextExtra = showPrevNext ? (
-    <div style={s.prevNextRow}>
-      <button
-        type="button"
-        style={{ ...s.prevNextBtn, ...(!hasPrevious ? s.prevNextBtnDisabled : null) }}
-        onClick={onPrevious}
-        disabled={!hasPrevious}
-        aria-label="Previous item"
-      >
-        <ChevronLeft size={14} /> Previous
-      </button>
-      <button
-        type="button"
-        style={{ ...s.prevNextBtn, ...(!hasNext ? s.prevNextBtnDisabled : null) }}
-        onClick={onNext}
-        disabled={!hasNext}
-        aria-label="Next item"
-      >
-        Next <ChevronRight size={14} />
-      </button>
-    </div>
-  ) : undefined
 
   useEffect(() => {
     let cancelled = false
@@ -332,42 +310,70 @@ export function BrandVisualDetailPanel({
           rendered wordmarks up to ~130px) needs more room than a plain
           document paragraph does. A content-aware hint, not a SidePanel
           change -- the panel is still freely resizable from here. */}
-      <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose} width={720} headerExtra={prevNextExtra}>
+      <SidePanel title={item.title} subtitle={categoryLabel(item.category)} onClose={onClose} width={720}>
         {item.detail.locked && (
           <div style={s.lockedNote}>
             <Lock size={12} /> Locked language — use exactly as written
           </div>
         )}
-        {canManagePublish && (
-          <div style={s.publishRow}>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={item.visibility === 'public'}
-              aria-label="Make available for public"
-              className="pf-focus"
-              disabled={togglePending}
-              onClick={() => handleTogglePublic(item.visibility !== 'public')}
-              style={{
-                ...s.publishSwitch,
-                background: item.visibility === 'public' ? t.text.primaryBrand : t.border.default,
-                opacity: togglePending ? 0.6 : 1,
-              }}
-            >
-              <span
-                style={{
-                  ...s.publishSwitchKnob,
-                  transform: item.visibility === 'public' ? 'translateX(16px)' : 'translateX(0)',
-                }}
-              />
-            </button>
-            <div>
-              <div style={s.publishLabel}>
-                <Globe size={12} />
-                {item.visibility === 'public' ? 'Available publicly' : 'Make available for public'}
-              </div>
-              {toggleError && <div style={s.publishError}>{toggleError}</div>}
+        {(showPrevNext || canManagePublish) && (
+          <div style={s.topActionsRow}>
+            <div style={s.prevNextRow}>
+              {showPrevNext && (
+                <>
+                  <button
+                    type="button"
+                    style={{ ...s.prevNextBtn, ...(!hasPrevious ? s.prevNextBtnDisabled : null) }}
+                    onClick={onPrevious}
+                    disabled={!hasPrevious}
+                    aria-label="Previous item"
+                  >
+                    <ChevronLeft size={14} /> Previous
+                  </button>
+                  <button
+                    type="button"
+                    style={{ ...s.prevNextBtn, ...(!hasNext ? s.prevNextBtnDisabled : null) }}
+                    onClick={onNext}
+                    disabled={!hasNext}
+                    aria-label="Next item"
+                  >
+                    Next <ChevronRight size={14} />
+                  </button>
+                </>
+              )}
             </div>
+            {canManagePublish && (
+              <div style={s.publishRow}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={item.visibility === 'public'}
+                  aria-label="Make available for public"
+                  className="pf-focus"
+                  disabled={togglePending}
+                  onClick={() => handleTogglePublic(item.visibility !== 'public')}
+                  style={{
+                    ...s.publishSwitch,
+                    background: item.visibility === 'public' ? t.text.primaryBrand : t.border.default,
+                    opacity: togglePending ? 0.6 : 1,
+                  }}
+                >
+                  <span
+                    style={{
+                      ...s.publishSwitchKnob,
+                      transform: item.visibility === 'public' ? 'translateX(16px)' : 'translateX(0)',
+                    }}
+                  />
+                </button>
+                <div>
+                  <div style={s.publishLabel}>
+                    <Globe size={12} />
+                    {item.visibility === 'public' ? 'Available publicly' : 'Make available for public'}
+                  </div>
+                  {toggleError && <div style={s.publishError}>{toggleError}</div>}
+                </div>
+              </div>
+            )}
           </div>
         )}
         {item.file_type && (
@@ -471,6 +477,7 @@ const s: Record<string, CSSProperties> = {
     color: t.text.tertiary,
     marginBottom: 12,
   },
+  topActionsRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 16 },
   prevNextRow: { display: 'flex', alignItems: 'center', gap: 6 },
   prevNextBtn: {
     display: 'inline-flex',
@@ -487,7 +494,7 @@ const s: Record<string, CSSProperties> = {
     fontFamily: fonts.body,
   },
   prevNextBtnDisabled: { opacity: 0.5, cursor: 'not-allowed' },
-  publishRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 },
+  publishRow: { display: 'flex', alignItems: 'center', gap: 10 },
   publishSwitch: {
     position: 'relative',
     width: 36,
