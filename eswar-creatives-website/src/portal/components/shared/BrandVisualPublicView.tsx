@@ -9,7 +9,13 @@ import { t, fonts } from '../../theme'
 import { useBrandVisualThumbnails } from '../../hooks/useBrandVisualThumbnails'
 import { BrandVisualCard } from './BrandVisualCard'
 import { BrandVisualDetailPanel } from './BrandVisualClientView'
-import { BRAND_VISUAL_CATEGORIES, isSingleGroupCategory, resolvePublicFileUrls } from '../../utils/brandVisual'
+import {
+  BRAND_VISUAL_CATEGORIES,
+  isSingleGroupCategory,
+  resolvePublicAttachmentUrls,
+  resolvePublicAttachments,
+  resolvePublicFileUrls,
+} from '../../utils/brandVisual'
 import type { BrandVisualCategory, BrandVisualItem } from '../../utils/brandVisual'
 
 export function BrandVisualPublicView({
@@ -97,6 +103,8 @@ export function BrandVisualPublicView({
           item={openItem}
           onClose={() => setOpenItem(null)}
           resolveFileUrls={resolvePublicFileUrls}
+          resolveAttachments={resolvePublicAttachments}
+          resolveAttachmentUrls={resolvePublicAttachmentUrls}
           onPrevious={showNav ? () => setOpenItem(flatSortedItems[openIndex - 1]) : undefined}
           onNext={showNav ? () => setOpenItem(flatSortedItems[openIndex + 1]) : undefined}
           hasPrevious={showNav && openIndex > 0}
