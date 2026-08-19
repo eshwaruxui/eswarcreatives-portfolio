@@ -1542,6 +1542,47 @@ fixing in the shared `Modal`.
 
 ---
 
+## Persisted Selection Pattern
+
+A "major common selection" — one that scopes what a whole screen or several
+screens show, not a transient UI toggle — should survive a refresh instead of
+silently resetting to a default. Discovered 20 Aug 2026: the admin client
+scope (`PortalContext`'s `selectedClientId`, backing the global "All clients"
+dropdown in `TopBar`) was plain `useState`, so refreshing any admin page
+(Proposals, Invoices, Projects, Mockups, Campaigns, Brand Visual Guide — all
+six already read the one shared context) silently dropped back to "All
+clients," discarding whatever the admin had scoped into.
+
+**`usePersistedState<T>(key, initialValue)`** (`src/portal/hooks/usePersistedState.ts`)
+is a drop-in `useState` replacement that mirrors to `localStorage` under an
+`ec-portal:` prefixed key — chosen over `sessionStorage` deliberately: a
+"last workspace" selection should survive closing and reopening the browser,
+not just a refresh within the same tab session. Read failures (corrupt JSON,
+storage disabled) and write failures (quota, private browsing) both fall
+back silently to in-memory state rather than throwing — a selection that
+doesn't persist is a minor inconvenience, not a reason to break the page.
+Deliberately narrow: JSON-serializable values only, single-browser only (no
+cross-device sync), last-write-wins across multiple tabs (no `storage` event
+listener) — exactly what a single-user admin session needs.
+
+**Applied to `PortalContext.selectedClientId`** as the first consumer — one
+line change (`useState` → `usePersistedState`) fixed all six admin
+consumers at once, since they already shared the one context rather than
+each holding their own copy. No stale-id handling needed: `selectedClient`
+was already derived via `clients.find(c => c.id === selectedClientId) ?? null`,
+so a persisted id for a since-deleted client resolves to `null` ("All
+clients") for free.
+
+**Not yet applied elsewhere.** Client and reviewer roles have no equivalent
+cross-page selector today (a client only ever sees their own data), so there
+was nothing else broken in the same way to fix alongside this. Reach for
+`usePersistedState` the next time a genuinely page-spanning selection shows
+the same symptom — a saved filter, a last-used tab, a view mode a user would
+expect still set after a reload — rather than writing a second one-off
+`localStorage` read/write pair.
+
+---
+
 ## Standing rules
 - No em dashes in any component copy or code
 - No raw hex outside theme.ts
