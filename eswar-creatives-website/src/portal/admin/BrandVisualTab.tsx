@@ -277,6 +277,7 @@ export function BrandVisualTab({ clientId, clientLabel }: { clientId: string; cl
           clientId={clientId}
           defaultCategory={activeCategory}
           defaultGroup={activeGroup}
+          existingItems={items}
           onClose={() => setModalItem(undefined)}
           onSaved={handleSaved}
         />
@@ -382,6 +383,7 @@ function ItemFormModal({
   clientId,
   defaultCategory,
   defaultGroup,
+  existingItems,
   onClose,
   onSaved,
 }: {
@@ -389,6 +391,10 @@ function ItemFormModal({
   clientId: string
   defaultCategory: BrandVisualCategory
   defaultGroup: string
+  // Every item currently loaded (all categories/groups), used only to seed
+  // a new item's sort_order -- see handleSave below. Not used for anything
+  // else; this form never renders a list of its own.
+  existingItems: BrandVisualItem[]
   onClose: () => void
   onSaved: (item: BrandVisualItem) => void
 }) {
@@ -566,10 +572,12 @@ function ItemFormModal({
         ...(!isToneOfVoice ? { locked: undefined } : {}),
       }
 
+      const resolvedGroup = isSingleGroupCategory(category) ? groupsForCategory(category)[0] : group
+
       const payload = {
         client_id: clientId,
         category,
-        group_label: isSingleGroupCategory(category) ? groupsForCategory(category)[0] : group,
+        group_label: resolvedGroup,
         title: title.trim(),
         summary: summary.trim() || null,
         content_type: contentType,
@@ -579,6 +587,23 @@ function ItemFormModal({
         detail: mergedDetail,
         storage_path: storagePath,
         updated_at: new Date().toISOString(),
+        // New items only -- appends to the end of whichever (category,
+        // group) it lands in, so it shows up last (most recently added at
+        // the bottom, first-added item stays on top), matching every
+        // existing item's own sort_order (assigned 1-based by reorder()).
+        // Never touched on an edit save: an existing item's position is
+        // only ever changed by dragging, not by editing its other fields.
+        ...(isNew
+          ? {
+              sort_order:
+                Math.max(
+                  0,
+                  ...existingItems
+                    .filter((i) => i.category === category && i.group_label === resolvedGroup)
+                    .map((i) => i.sort_order)
+                ) + 1,
+            }
+          : {}),
       }
 
       if (isNew) {
