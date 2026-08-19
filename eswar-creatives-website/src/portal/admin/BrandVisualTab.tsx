@@ -2,7 +2,7 @@
 // relationship Outputs has to ProjectPanel. Full CRUD, drag reorder within
 // a group, inline status/visibility toggles, an add/edit form (shared
 // Modal), and the two preview buttons.
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import {
   Eye,
   FileText,
@@ -25,6 +25,16 @@ import { highlightBackgroundStyle, useHighlightRow } from '../hooks/useHighlight
 import { Modal } from './ui'
 import { showToast } from './toast'
 import { ExtensionBadge } from '../components/shared/BrandVisualBadge'
+// Lazy-loaded: Tiptap + ProseMirror + markdown-it add real weight (~190KB
+// gzipped), and this app has no other code-splitting at all -- one
+// monolithic bundle serves the public marketing site and the whole portal
+// alike. RichTextEditor's only consumer is this admin-only form, so
+// there's no reason a marketing visitor's or a client's bundle should ever
+// pay for it. Loaded only once an admin actually opens a Tone of Voice
+// item in document/prose layout.
+const RichTextEditor = lazy(() =>
+  import('../components/shared/RichTextEditor').then((m) => ({ default: m.RichTextEditor }))
+)
 import { BrandVisualPreviewBanner } from '../components/shared/BrandVisualPreviewBanner'
 import { BrandVisualClientView, BrandVisualSidebar, filterForPreviewAudience } from '../components/shared/BrandVisualClientView'
 import { BrandVisualPublicView } from '../components/shared/BrandVisualPublicView'
@@ -903,26 +913,28 @@ function ItemFormModal({
         </Field>
       ) : (
         (contentType === 'document' || contentType === 'image') &&
-        !(isToneOfVoice && contentType === 'document' && layout !== 'prose') && (
-          <Field label={isToneOfVoice && contentType === 'document' ? 'Text' : 'Content (optional)'}>
+        !(isToneOfVoice && contentType === 'document' && layout !== 'prose') &&
+        (isToneOfVoice && contentType === 'document' ? (
+          <Field label="Text">
+            <Suspense fallback={<div style={s.rteLoading}>Loading editor…</div>}>
+              <RichTextEditor value={content} onChange={setContent} placeholder="Start writing..." />
+            </Suspense>
+          </Field>
+        ) : (
+          <Field label="Content (optional)">
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              rows={contentType === 'document' && isToneOfVoice ? 8 : 4}
+              rows={4}
               style={s.textarea}
               placeholder={
                 contentType === 'image'
                   ? 'Extended usage notes: minimum tile size, spacing rules, where this should and should not appear.'
-                  : isToneOfVoice
-                    ? 'Use **bold** for emphasis. Leave a blank line between paragraphs.'
-                    : undefined
+                  : undefined
               }
             />
-            {isToneOfVoice && contentType === 'document' && (
-              <span style={s.fieldHint}>Supports **bold**. Separate paragraphs with a blank line.</span>
-            )}
           </Field>
-        )
+        ))
       )}
 
       {contentType === 'image' && (
@@ -1067,7 +1079,6 @@ const s: Record<string, CSSProperties> = {
   confirmDeleteBtn: { color: t.text.danger, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 12.5 },
   confirmCancelBtn: { color: t.text.secondary, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5 },
   fieldLabel: { display: 'block', fontSize: 12, fontWeight: 600, color: t.text.secondary, marginBottom: 6 },
-  fieldHint: { display: 'block', fontSize: 11.5, color: t.text.tertiary, marginTop: 4 },
   checkboxRow: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: t.text.primary, cursor: 'pointer' },
   beforeAfterRowEditor: { display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' },
   formGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
@@ -1081,6 +1092,14 @@ const s: Record<string, CSSProperties> = {
     color: t.text.primary,
     background: t.background.surface,
     boxSizing: 'border-box',
+  },
+  rteLoading: {
+    border: `1px solid ${t.border.default}`,
+    borderRadius: 10,
+    padding: '16px 12px',
+    fontSize: 13,
+    color: t.text.tertiary,
+    textAlign: 'center',
   },
   textarea: {
     width: '100%',
