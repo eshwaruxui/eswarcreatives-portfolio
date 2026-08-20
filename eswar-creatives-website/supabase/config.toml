@@ -41,3 +41,13 @@ verify_jwt = false
 # Same as get-brand-visual-file-url, one level down: the attachment's own
 # public_token is the credential (migration 0097).
 verify_jwt = false
+
+[functions.send-otp]
+# Public /outreach/signup endpoint; the caller has no session yet at this
+# point in the flow. Authenticates the phone number via Msg91, not a JWT.
+verify_jwt = false
+
+[functions.verify-otp]
+# Same reasoning as send-otp: called before any Supabase session exists.
+# Authenticates via the Msg91-verified OTP, then mints the session itself.
+verify_jwt = false
