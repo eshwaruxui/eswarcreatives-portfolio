@@ -73,17 +73,6 @@ export function OutreachOnboardingPage() {
           const { data: promoted } = await supabase.rpc('promote_to_outreach_user')
           if (promoted) {
             role = 'outreach_user'
-          } else {
-            // Landed here once for a genuinely fresh signup (created ~1.5s
-            // before the call) that still got rejected - auth.uid() inside
-            // the RPC likely hadn't settled yet right after the OAuth
-            // redirect. One short-delay retry before treating it as a real
-            // collision with an existing account.
-            await new Promise((resolve) => setTimeout(resolve, 500))
-            const { data: retried } = await supabase.rpc('promote_to_outreach_user')
-            if (retried) {
-              role = 'outreach_user'
-            }
           }
         }
         if (role !== 'outreach_user') {
