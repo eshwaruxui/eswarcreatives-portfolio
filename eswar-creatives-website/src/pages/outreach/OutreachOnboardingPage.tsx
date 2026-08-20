@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Check, Send, Users, UploadCloud, Lightbulb, AlertCircle } from 'lucide-react'
+import { Check, Send, Users, Lightbulb } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { t, tokens, fonts, motionTokens } from '../../portal/theme'
-import { invokeErrorCode } from '../../portal/utils/invokeError'
+import { LeadImageUploader, type ExtractedLead } from './components/LeadImageUploader'
 
 type OnboardingRow = {
   service_selected: string | null
@@ -11,15 +11,6 @@ type OnboardingRow = {
   first_sequence_created: boolean
   first_lead_added: boolean
   onboarding_complete: boolean
-}
-
-type ExtractedLead = {
-  first_name: string | null
-  last_name: string | null
-  company: string | null
-  role_title: string | null
-  email: string | null
-  linkedin_url: string | null
 }
 
 const STEP_LABELS = ['Service', 'Daily limit', 'Sequence', 'First lead', 'Ready']
@@ -45,12 +36,6 @@ export function OutreachOnboardingPage() {
   const [savingStep, setSavingStep] = useState(false)
 
   const [hoveredAction, setHoveredAction] = useState<string | null>(null)
-
-  const [leadImage, setLeadImage] = useState<{ preview: string; base64: string; mediaType: string } | null>(null)
-  const [extractedLead, setExtractedLead] = useState<ExtractedLead | null>(null)
-  const [extracting, setExtracting] = useState(false)
-  const [extractError, setExtractError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -160,56 +145,15 @@ export function OutreachOnboardingPage() {
     setStep(4)
   }
 
-  function handleFileSelect(file: File) {
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setExtractError('Unsupported format. Please use jpg, png, or webp.')
-      return
-    }
-    setExtractError(null)
-    setExtractedLead(null)
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string
-      const base64 = dataUrl.split(',')[1]
-      setLeadImage({ preview: dataUrl, base64, mediaType: file.type })
-    }
-    reader.readAsDataURL(file)
-  }
-
-  async function handleExtract() {
-    if (!leadImage) return
-    setExtracting(true)
-    setExtractError(null)
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData?.session?.access_token ?? ''
-    const { data, error: fnErr } = await supabase.functions.invoke('extract-lead-from-image', {
-      body: { image_base64: leadImage.base64, media_type: leadImage.mediaType },
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    })
-    const code = await invokeErrorCode(data, fnErr)
-    if (code || !data?.data) {
-      // extract-lead-from-image is currently admin/owner only, so a 403
-      // (not_allowed) here is expected for outreach_user callers, not a
-      // bug — self-serve extraction isn't opened up until Phase 3. Skip is
-      // always available below.
-      setExtractError('Could not extract details automatically right now. You can skip and add this lead manually later.')
-      setExtracting(false)
-      return
-    }
-    setExtractedLead(data.data as ExtractedLead)
-    setExtracting(false)
-  }
-
-  async function handleConfirmLead() {
-    if (!userId || !extractedLead?.first_name || !extractedLead?.company) return
-    setSavingStep(true)
+  async function handleConfirmLead(lead: ExtractedLead) {
+    if (!userId || !lead.first_name || !lead.company) return
     await supabase.from('leads').insert({
-      first_name: extractedLead.first_name,
-      last_name: extractedLead.last_name,
-      company: extractedLead.company,
-      role_title: extractedLead.role_title,
-      email: extractedLead.email,
-      linkedin_url: extractedLead.linkedin_url,
+      first_name: lead.first_name,
+      last_name: lead.last_name,
+      company: lead.company,
+      role_title: lead.role_title,
+      email: lead.email,
+      linkedin_url: lead.linkedin_url,
       // Every other insert path in this codebase (CSV import, shortlist,
       // enquiry drawer) falls back to 'saas_product' when nothing more
       // specific applies — see migration 0089. Same default here.
@@ -218,7 +162,6 @@ export function OutreachOnboardingPage() {
       owner_id: userId,
     })
     await saveStep({ step_completed: 4, first_lead_added: true })
-    setSavingStep(false)
     setStep(5)
   }
 
@@ -393,64 +336,7 @@ export function OutreachOnboardingPage() {
               </ol>
             </Callout>
 
-            <div
-              style={styles.uploadArea}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault()
-                const file = e.dataTransfer.files?.[0]
-                if (file) handleFileSelect(file)
-              }}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) handleFileSelect(file)
-                }}
-              />
-              <UploadCloud size={32} color={t.text.muted} />
-              <span style={styles.uploadText}>Drop screenshot here or tap to upload</span>
-              <span style={styles.uploadSub}>JPG, PNG up to 5MB</span>
-            </div>
-
-            {leadImage && !extractedLead && (
-              <>
-                <img src={leadImage.preview} alt="" style={styles.preview} />
-                <PrimaryButton disabled={extracting} onClick={handleExtract}>
-                  {extracting ? 'Extracting...' : 'Extract details'}
-                </PrimaryButton>
-              </>
-            )}
-
-            {extractError && (
-              <div style={styles.error}>
-                <AlertCircle size={14} />
-                <span>{extractError}</span>
-              </div>
-            )}
-
-            {extractedLead && (
-              <>
-                <div style={styles.extractedCard}>
-                  <ExtractedField label="Name" value={[extractedLead.first_name, extractedLead.last_name].filter(Boolean).join(' ')} />
-                  <ExtractedField label="Company" value={extractedLead.company} />
-                  <ExtractedField label="Title" value={extractedLead.role_title} />
-                  <ExtractedField label="Email" value={extractedLead.email} />
-                  <ExtractedField label="LinkedIn" value={extractedLead.linkedin_url} />
-                </div>
-                <PrimaryButton
-                  disabled={savingStep || !extractedLead.first_name || !extractedLead.company}
-                  onClick={handleConfirmLead}
-                >
-                  Confirm and add lead
-                </PrimaryButton>
-              </>
-            )}
+            <LeadImageUploader onConfirm={handleConfirmLead} />
 
             <button type="button" onClick={handleSkipLead} style={styles.ghostLink}>
               Skip for now
@@ -536,15 +422,6 @@ function PrimaryButton({ children, onClick, disabled }: { children: React.ReactN
     >
       {children}
     </button>
-  )
-}
-
-function ExtractedField({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div style={styles.extractedField}>
-      <span style={styles.extractedLabel}>{label}</span>
-      <span style={styles.extractedValue}>{value || '—'}</span>
-    </div>
   )
 }
 
@@ -692,31 +569,6 @@ const styles: Record<string, any> = {
   },
   tipRow: { display: 'flex', gap: 8, alignItems: 'flex-start' },
   tipText: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, lineHeight: 1.5 },
-  uploadArea: {
-    border: `2px dashed ${t.border.default}`,
-    borderRadius: 12,
-    padding: '40px 24px',
-    textAlign: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 8,
-    cursor: 'pointer',
-  },
-  uploadText: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary },
-  uploadSub: { fontFamily: fonts.body, fontSize: 12, color: t.text.muted },
-  preview: { width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8, border: `1px solid ${t.border.subtle}` },
-  extractedCard: {
-    border: `1px solid ${t.border.subtle}`,
-    borderRadius: 10,
-    padding: 16,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 10,
-  },
-  extractedField: { display: 'flex', justifyContent: 'space-between', gap: 12 },
-  extractedLabel: { fontFamily: fonts.body, fontSize: 13, color: t.text.muted },
-  extractedValue: { fontFamily: fonts.body, fontSize: 13, color: t.text.primary, fontWeight: 500, textAlign: 'right' },
   ghostLink: {
     background: 'none',
     border: 'none',
@@ -727,14 +579,6 @@ const styles: Record<string, any> = {
     textDecoration: 'underline',
     cursor: 'pointer',
     minHeight: 44,
-  },
-  error: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 6,
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: tokens.ruby,
   },
   actionCard: {
     display: 'flex',

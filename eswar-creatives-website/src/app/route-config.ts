@@ -55,7 +55,7 @@ import { OutreachLandingPage } from "../pages/outreach/OutreachLandingPage";
 import { OutreachSignupPage } from "../pages/outreach/OutreachSignupPage";
 import { OutreachVerifyPage } from "../pages/outreach/OutreachVerifyPage";
 import { OutreachOnboardingPage } from "../pages/outreach/OutreachOnboardingPage";
-import { OutreachAppShell } from "../pages/outreach/OutreachAppShell";
+import { OutreachAppShell, OutreachDashboardIndex } from "../pages/outreach/OutreachAppShell";
 import { OutreachLeadsPage } from "../pages/outreach/OutreachLeadsPage";
 import { OutreachSequencesPage } from "../pages/outreach/OutreachSequencesPage";
 import { OutreachActivityPage } from "../pages/outreach/OutreachActivityPage";
@@ -123,11 +123,16 @@ export const routeConfig = [
   { path: "/outreach/signup",      Component: OutreachSignupPage },
   { path: "/outreach/verify",      Component: OutreachVerifyPage },
   { path: "/outreach/onboarding",  Component: OutreachOnboardingPage },
-  { path: "/outreach/app",              Component: OutreachAppShell },
-  { path: "/outreach/app/leads",        Component: OutreachLeadsPage },
-  { path: "/outreach/app/sequences",    Component: OutreachSequencesPage },
-  { path: "/outreach/app/activity",     Component: OutreachActivityPage },
-  { path: "/outreach/app/settings",     Component: OutreachSettingsPage },
+  {
+    Component: OutreachAppShell,
+    children: [
+      { path: "/outreach/app",              Component: OutreachDashboardIndex },
+      { path: "/outreach/app/leads",        Component: OutreachLeadsPage },
+      { path: "/outreach/app/sequences",    Component: OutreachSequencesPage },
+      { path: "/outreach/app/activity",     Component: OutreachActivityPage },
+      { path: "/outreach/app/settings",     Component: OutreachSettingsPage },
+    ],
+  },
   {
     Component: RootLayout,
     children: [
