@@ -44,6 +44,8 @@ export function OutreachOnboardingPage() {
   const [sequenceName, setSequenceName] = useState('')
   const [savingStep, setSavingStep] = useState(false)
 
+  const [hoveredAction, setHoveredAction] = useState<string | null>(null)
+
   const [leadImage, setLeadImage] = useState<{ preview: string; base64: string; mediaType: string } | null>(null)
   const [extractedLead, setExtractedLead] = useState<ExtractedLead | null>(null)
   const [extracting, setExtracting] = useState(false)
@@ -85,11 +87,27 @@ export function OutreachOnboardingPage() {
       // through OutreachVerifyPage where the phone flow already calls this).
       await supabase.rpc('bootstrap_outreach_user')
 
+      // This mount is the one place both auth paths converge: the phone flow
+      // navigates here right after OutreachVerifyPage establishes a session,
+      // and Google OAuth's redirectTo always points here too. That makes it
+      // the single correct spot to count a login - calling this anywhere
+      // else as well would double-count the phone path, and calling it only
+      // on the OAuth path would miss phone signups entirely.
+      await supabase.rpc('increment_outreach_login_count')
+
       const { data: onboarding } = await supabase
         .from('outreach_user_onboarding')
         .select('service_selected, step_completed, first_sequence_created, first_lead_added, onboarding_complete')
         .eq('user_id', session.user.id)
         .single<OnboardingRow>()
+
+      // Returning user who already finished onboarding - don't show the
+      // stepper again, go straight to the app (which is where the
+      // second-login ICP popup lives).
+      if (onboarding?.onboarding_complete) {
+        navigate('/outreach/app')
+        return
+      }
 
       const { data: settings } = await supabase
         .from('outreach_user_settings')
@@ -446,9 +464,36 @@ export function OutreachOnboardingPage() {
             subtitle="Your sequence is created and your first lead is added. Here is what happens next."
           >
             <div style={styles.cardList}>
-              <ActionCard icon={<Send size={20} color={tokens.primary} />} title="Write your email sequence" body="Draft 2-3 follow-up emails for your sequence." cta="Open sequences" />
-              <ActionCard icon={<Users size={20} color={tokens.primary} />} title="Add more leads" body="Upload LinkedIn screenshots to add more prospects." cta="Go to leads" />
-              <ActionCard icon={<Send size={20} color={tokens.primary} />} title="Start sending" body="Enroll leads into your sequence and send." cta="Go to activity" />
+              <ActionCard
+                id="sequences"
+                icon={<Send size={20} color={tokens.primary} />}
+                title="Write your email sequence"
+                body="Draft 2-3 follow-up emails for your sequence."
+                cta="Open sequences"
+                hovered={hoveredAction === 'sequences'}
+                onHover={setHoveredAction}
+                onClick={() => navigate('/outreach/app/sequences')}
+              />
+              <ActionCard
+                id="leads"
+                icon={<Users size={20} color={tokens.primary} />}
+                title="Add more leads"
+                body="Upload LinkedIn screenshots to add more prospects."
+                cta="Go to leads"
+                hovered={hoveredAction === 'leads'}
+                onHover={setHoveredAction}
+                onClick={() => navigate('/outreach/app/leads')}
+              />
+              <ActionCard
+                id="activity"
+                icon={<Send size={20} color={tokens.primary} />}
+                title="Start sending"
+                body="Enroll leads into your sequence and send."
+                cta="Go to activity"
+                hovered={hoveredAction === 'activity'}
+                onHover={setHoveredAction}
+                onClick={() => navigate('/outreach/app/activity')}
+              />
             </div>
             <PrimaryButton onClick={handleFinish}>Open my dashboard</PrimaryButton>
           </StepShell>
@@ -503,16 +548,44 @@ function ExtractedField({ label, value }: { label: string; value: string | null 
   )
 }
 
-function ActionCard({ icon, title, body, cta }: { icon: React.ReactNode; title: string; body: string; cta: string }) {
+function ActionCard({
+  id,
+  icon,
+  title,
+  body,
+  cta,
+  hovered,
+  onHover,
+  onClick,
+}: {
+  id: string
+  icon: React.ReactNode
+  title: string
+  body: string
+  cta: string
+  hovered: boolean
+  onHover: (id: string | null) => void
+  onClick: () => void
+}) {
   return (
-    <div style={styles.actionCard}>
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => onHover(id)}
+      onMouseLeave={() => onHover(null)}
+      style={{
+        ...styles.actionCard,
+        borderColor: hovered ? tokens.primary : t.border.subtle,
+        background: hovered ? t.background.tint1 : t.background.surface,
+      }}
+    >
       {icon}
       <div style={styles.serviceCardText}>
         <div style={styles.serviceCardTitle}>{title}</div>
         <div style={styles.serviceCardSub}>{body}</div>
         <span style={styles.actionCta}>{cta} →</span>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -671,6 +744,12 @@ const styles: Record<string, any> = {
     borderRadius: 10,
     border: `1px solid ${t.border.subtle}`,
     background: t.background.surface,
+    width: '100%',
+    textAlign: 'left',
+    cursor: 'pointer',
+    minHeight: 44,
+    fontFamily: fonts.body,
+    transition: `border-color ${motionTokens.durationFast} ${motionTokens.easeDefault}, background ${motionTokens.durationFast} ${motionTokens.easeDefault}`,
   },
   actionCta: { fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: tokens.primary, marginTop: 4, display: 'inline-block' },
   primaryButton: {

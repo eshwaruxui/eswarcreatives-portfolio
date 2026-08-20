@@ -2,8 +2,14 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Extracts lead fields from an uploaded screenshot using Anthropic Claude.
-// Auth: admin JWT required. Input: { image_base64, media_type }.
-// Returns { data: {...} } on success, { error: code } on soft failure.
+// Auth: admin/owner or outreach_user JWT required. Input: { image_base64,
+// media_type }. Returns { data: {...} } on success, { error: code } on soft
+// failure.
+//
+// outreach_user is capped at 20 calls per rolling 24h (outreach_lead_extractions,
+// migration 0102) - opening this endpoint to self-serve signups without a
+// limit would be an unmetered cost vector, since every call hits the
+// Anthropic API. admin/owner are unrestricted, same as before this change.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -50,8 +56,30 @@ Deno.serve(async (req: Request) => {
     .select("role")
     .eq("id", auth.user.id)
     .single();
-  if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+  const role = profile?.role;
+  if (!profile || (role !== "admin" && role !== "owner" && role !== "outreach_user")) {
     return fail("not_allowed", 403);
+  }
+
+  if (role === "outreach_user") {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count, error: countErr } = await callerClient
+      .from("outreach_lead_extractions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", auth.user.id)
+      .gte("created_at", since);
+    if (countErr) {
+      return fail("rate_limit_check_failed", 500);
+    }
+    if ((count ?? 0) >= 20) {
+      return fail("rate_limit_exceeded", 429);
+    }
+    const { error: logErr } = await callerClient
+      .from("outreach_lead_extractions")
+      .insert({ user_id: auth.user.id });
+    if (logErr) {
+      return fail("rate_limit_check_failed", 500);
+    }
   }
 
   let body: { image_base64?: string; media_type?: string };
