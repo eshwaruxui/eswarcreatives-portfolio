@@ -155,6 +155,7 @@ export function FooterSection() {
               { label: "Work", href: "/" },
               { label: "About", href: "/about" },
               { label: "Contact", href: "/contact" },
+              { label: "Outreach", href: "/outreach" },
               { label: "Portal", href: "/portal/login" },
             ].map((link) => (
               <a
