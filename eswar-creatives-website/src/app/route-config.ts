@@ -51,6 +51,15 @@ import { ClientInvoicesPage } from "../portal/client/ClientInvoices";
 import { ClientCampaignsPage } from "../portal/client/ClientCampaigns";
 import { BrandVisualClientPage } from "../portal/client/BrandVisualPage";
 import { ReviewCampaignPage } from "../portal/review/ReviewCampaignPage";
+import { OutreachLandingPage } from "../pages/outreach/OutreachLandingPage";
+import { OutreachSignupPage } from "../pages/outreach/OutreachSignupPage";
+import { OutreachVerifyPage } from "../pages/outreach/OutreachVerifyPage";
+import { OutreachOnboardingPage } from "../pages/outreach/OutreachOnboardingPage";
+import { OutreachAppShell } from "../pages/outreach/OutreachAppShell";
+import { OutreachLeadsPage } from "../pages/outreach/OutreachLeadsPage";
+import { OutreachSequencesPage } from "../pages/outreach/OutreachSequencesPage";
+import { OutreachActivityPage } from "../pages/outreach/OutreachActivityPage";
+import { OutreachSettingsPage } from "../pages/outreach/OutreachSettingsPage";
 
 export const routeConfig = [
   { path: "/portal/login",          Component: LoginPage  },
@@ -108,6 +117,17 @@ export const routeConfig = [
       { path: "/portal/admin/sketches",    Component: AdminSketchUpload },
     ],
   },
+  // New self-serve outreach product surface — /outreach/* — additive only,
+  // no changes to the existing /portal/admin/outreach admin flow.
+  { path: "/outreach",             Component: OutreachLandingPage },
+  { path: "/outreach/signup",      Component: OutreachSignupPage },
+  { path: "/outreach/verify",      Component: OutreachVerifyPage },
+  { path: "/outreach/onboarding",  Component: OutreachOnboardingPage },
+  { path: "/outreach/app",              Component: OutreachAppShell },
+  { path: "/outreach/app/leads",        Component: OutreachLeadsPage },
+  { path: "/outreach/app/sequences",    Component: OutreachSequencesPage },
+  { path: "/outreach/app/activity",     Component: OutreachActivityPage },
+  { path: "/outreach/app/settings",     Component: OutreachSettingsPage },
   {
     Component: RootLayout,
     children: [
