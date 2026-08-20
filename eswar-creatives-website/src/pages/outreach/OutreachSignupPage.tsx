@@ -120,8 +120,7 @@ export function OutreachSignupPage() {
       </div>
 
       <p style={styles.footerNote}>
-        Already have an account?{' '}
-        <Link to="/outreach/app" style={styles.link}>Sign in</Link>
+        Already have an account? Use Google or your mobile number above to sign back in.
       </p>
       <p style={styles.terms}>
         By signing up, you agree to use this tool responsibly. Max 25 emails per day.
