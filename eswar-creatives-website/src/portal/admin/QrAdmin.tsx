@@ -90,6 +90,11 @@ export function QrAdmin() {
   useEffect(() => { void load() }, [load])
 
   // ?add=1 opens the create drawer, same convention as LeadsTab's ?addLead=1.
+  // Depends on searchParams (not []): the TopBar's Add QR button navigates to
+  // this same route with the param appended, which does not remount this
+  // component, so a mount-only effect would never see it. Safe to depend on
+  // searchParams here because the param is deleted immediately after being
+  // read, so this can't re-fire into a loop.
   useEffect(() => {
     if (searchParams.get('add') === '1') {
       setDrawer({ mode: 'create' })
@@ -98,8 +103,7 @@ export function QrAdmin() {
         return prev
       }, { replace: true })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [searchParams, setSearchParams])
 
   function scanCount(row: QrRow): number {
     return row.qr_scans?.[0]?.count ?? 0
