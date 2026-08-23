@@ -40,6 +40,7 @@ import { DiscoveryPlaceholder } from "../portal/admin/DiscoveryPlaceholder";
 import { CampaignsAdmin } from "../portal/admin/CampaignsAdmin";
 import { OutreachAdmin } from "../portal/admin/OutreachAdmin";
 import { BrandVisualGuideAdmin } from "../portal/admin/BrandVisualGuideAdmin";
+import { QrAdmin } from "../portal/admin/QrAdmin";
 import { SettingsPage } from "../portal/admin/settings/SettingsPage";
 import { MockupsPage } from "../portal/client/MockupsPage";
 import { ClientShell } from "../portal/client/ClientShell";
@@ -50,6 +51,7 @@ import { ClientProposalsPage } from "../portal/client/ClientProposals";
 import { ClientInvoicesPage } from "../portal/client/ClientInvoices";
 import { ClientCampaignsPage } from "../portal/client/ClientCampaigns";
 import { BrandVisualClientPage } from "../portal/client/BrandVisualPage";
+import { ClientQr } from "../portal/client/ClientQr";
 import { ReviewCampaignPage } from "../portal/review/ReviewCampaignPage";
 import { OutreachLandingPage } from "../pages/outreach/OutreachLandingPage";
 import { OutreachSignupPage } from "../pages/outreach/OutreachSignupPage";
@@ -78,6 +80,7 @@ export const routeConfig = [
       { path: "/portal/mockups",    Component: MockupsPage },
       { path: "/portal/campaigns",  Component: ClientCampaignsPage },
       { path: "/portal/brand",      Component: BrandVisualClientPage },
+      { path: "/portal/qr",         Component: ClientQr },
       { path: "/portal/account",    Component: AccountPage },
     ],
   },
@@ -113,6 +116,7 @@ export const routeConfig = [
       { path: "/portal/admin/campaigns",   Component: CampaignsAdmin },
       { path: "/portal/admin/outreach",    Component: OutreachAdmin },
       { path: "/portal/admin/brand-visual-guide", Component: BrandVisualGuideAdmin },
+      { path: "/portal/admin/qr",          Component: QrAdmin },
       { path: "/portal/admin/settings",    Component: SettingsPage },
       { path: "/portal/admin/sketches",    Component: AdminSketchUpload },
     ],

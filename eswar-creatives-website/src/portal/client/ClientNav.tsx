@@ -5,7 +5,7 @@
 // Theme tokens only; no raw hex; no em dashes.
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { NavLink, useLocation } from 'react-router'
-import { LayoutDashboard, FolderKanban, FileText, Receipt, Images, Megaphone, Palette, User } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, FileText, Receipt, Images, Megaphone, Palette, QrCode, User } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { PortalProfile } from '../PortalGuard'
@@ -48,6 +48,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/portal/mockups',   label: 'Mockups',   badge: 'mockups',   Icon: Images },
   { to: '/portal/campaigns', label: 'Campaigns', badge: null,         Icon: Megaphone },
   { to: '/portal/brand',     label: 'Brand',     badge: null,         Icon: Palette },
+  { to: '/portal/qr',        label: 'QR Codes',  badge: null,         Icon: QrCode },
   { to: '/portal/account',   label: 'Account',   badge: null,         Icon: User },
 ]
 

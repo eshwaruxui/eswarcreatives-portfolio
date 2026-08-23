@@ -10,6 +10,7 @@ import {
   Megaphone,
   Send,
   Palette,
+  QrCode,
   Users,
   X,
 } from 'lucide-react'
@@ -47,6 +48,7 @@ const NAV_BASE: NavItem[] = [
   { to: '/portal/admin/campaigns', label: 'Campaigns', Icon: Megaphone },
   { to: '/portal/admin/outreach', label: 'Outreach', Icon: Send },
   { to: '/portal/admin/brand-visual-guide', label: 'Brand Visual Guide', Icon: Palette },
+  { to: '/portal/admin/qr', label: 'QR Codes', Icon: QrCode },
 ]
 
 // Mobile drawer only: the desktop sidebar doesn't surface a Clients route (it's
