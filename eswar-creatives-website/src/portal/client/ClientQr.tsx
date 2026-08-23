@@ -148,7 +148,7 @@ export function ClientQr() {
                 <div style={styles.badgeRow}>
                   <span style={styles.badge}>{USE_CASE_LABELS[row.use_case ?? ''] ?? row.use_case}</span>
                   <span style={styles.badge}>{MEDIUM_LABELS[row.medium ?? ''] ?? row.medium}</span>
-                  <span style={styles.scans}>{scanCount(row)} scans</span>
+                  <span style={styles.scans}>{scanCount(row)} {scanCount(row) === 1 ? 'scan' : 'scans'}</span>
                 </div>
                 <FadeOverflow style={{ maxWidth: '100%' }}>
                   <span style={styles.destination}>{row.destination_url}</span>
