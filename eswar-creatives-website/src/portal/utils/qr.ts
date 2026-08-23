@@ -49,3 +49,10 @@ export function generateQrSlugSuggestion(clientInitials: string, useCase: string
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 }
+
+// Two-tone active/inactive pill, same shape as CampaignsAdmin's statusTone.
+// Built once here so the admin list and the client card render the identical
+// pill rather than two copies that can drift.
+export function qrStatusTone(isActive: boolean): { bg: string; fg: string } {
+  return isActive ? { bg: tokens.tealLight, fg: tokens.primary } : { bg: tokens.bg, fg: t.text.tertiary }
+}

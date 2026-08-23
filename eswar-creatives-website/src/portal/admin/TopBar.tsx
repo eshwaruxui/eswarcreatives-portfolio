@@ -5,7 +5,7 @@
 //   3. a settings gear that opens a slide-in panel (manage/add clients, sign out).
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router'
-import { Check, ChevronDown, Menu, Settings, UserPlus, X } from 'lucide-react'
+import { Check, ChevronDown, Menu, QrCode, Settings, UserPlus, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { clientLabel, usePortal } from '../PortalContext'
 import { tokens, t, fonts, motionTokens } from '../theme'
@@ -23,6 +23,10 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
   const { clients, selectedClientId, setSelectedClientId, selectedClient, reloadClients } =
     usePortal()
   const isPortalRoute = location.pathname.startsWith('/portal')
+  // Add QR is scoped to its own screen, unlike Add Lead's isPortalRoute
+  // (shown everywhere) -- QR codes are looked up and created from one list,
+  // not jumped into from arbitrary admin screens the way a lead can be.
+  const isQrRoute = location.pathname.startsWith('/portal/admin/qr')
   const { isMobile } = useBreakpoint()
 
   const { signingOut, error: signOutError, signOut } = useSignOut()
@@ -78,6 +82,19 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
                 title="Add Lead"
               >
                 <UserPlus size={15} />
+              </button>
+            )}
+
+            {/* Add QR: icon-only on mobile, QR route only */}
+            {isQrRoute && (
+              <button
+                type="button"
+                style={styles.addLeadBtnIconOnly}
+                onClick={() => navigate('/portal/admin/qr?add=1')}
+                aria-label="Add QR"
+                title="Add QR"
+              >
+                <QrCode size={15} />
               </button>
             )}
 
@@ -163,6 +180,18 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
               >
                 <UserPlus size={15} />
                 Add Lead
+              </button>
+            )}
+
+            {/* Add QR CTA — QR route only */}
+            {isQrRoute && (
+              <button
+                type="button"
+                style={styles.addLeadBtn}
+                onClick={() => navigate('/portal/admin/qr?add=1')}
+              >
+                <QrCode size={15} />
+                Add QR
               </button>
             )}
 
