@@ -28,6 +28,7 @@ import { PublicOutputFilePage } from "../portal/PublicOutputFilePage";
 import { PublicBrandPage } from "../portal/PublicBrandPage";
 import { UnsubscribePage } from "../portal/UnsubscribePage";
 import { AdminShell } from "../portal/admin/AdminShell";
+import { withModuleGate } from "../portal/tenant/withModuleGate";
 import { AdminDashboard } from "../portal/admin/AdminDashboard";
 import { ClientsList } from "../portal/admin/ClientsList";
 import { ClientDetail } from "../portal/admin/ClientDetail";
@@ -111,12 +112,12 @@ export const routeConfig = [
       { path: "/portal/admin/invoices",    Component: InvoicesAdmin },
       { path: "/portal/admin/projects",    Component: ProjectsList },
       { path: "/portal/admin/mockups",     Component: MockupsAdmin },
-      { path: "/portal/admin/discovery",   Component: DiscoveryPlaceholder },
+      { path: "/portal/admin/discovery",   Component: withModuleGate("discovery", DiscoveryPlaceholder) },
       // Phase 5 (Task 6): review_campaigns management with visibility + status.
       { path: "/portal/admin/campaigns",   Component: CampaignsAdmin },
       { path: "/portal/admin/outreach",    Component: OutreachAdmin },
       { path: "/portal/admin/brand-visual-guide", Component: BrandVisualGuideAdmin },
-      { path: "/portal/admin/qr",          Component: QrAdmin },
+      { path: "/portal/admin/qr",          Component: withModuleGate("qrCode", QrAdmin) },
       { path: "/portal/admin/settings",    Component: SettingsPage },
       { path: "/portal/admin/sketches",    Component: AdminSketchUpload },
     ],
