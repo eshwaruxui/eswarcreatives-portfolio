@@ -3,13 +3,15 @@
 // SmartShortlistTab's Section A (Fix 1). Route: /portal/admin/settings.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Upload, SlidersHorizontal, Sparkles, Trash2, FileText } from 'lucide-react'
+import { Upload, SlidersHorizontal, Sparkles, ToggleLeft, Trash2, FileText } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts } from '../../theme'
 import { mono, PageHeader, Modal } from '../ui'
 import { showToast } from '../toast'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { sanitizeFilename } from '../../../lib/sanitizeFilename'
+import { useTenantConfig } from '../../tenant/useTenantConfig'
+import { Toggle } from '../../components/shared/Toggle'
 import {
   VERTICAL_LABELS,
   type Vertical,
@@ -20,11 +22,12 @@ const VERTICALS: Vertical[] = ['design_systems', 'branding']
 const ATTACHMENT_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp'
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
-type SettingsSection = 'icp' | 'skills'
+type SettingsSection = 'icp' | 'skills' | 'modules'
 
 const SECTIONS: { id: SettingsSection; label: string; Icon: React.ComponentType<{ size?: number; color?: string }> }[] = [
   { id: 'icp', label: 'ICP configuration', Icon: SlidersHorizontal },
   { id: 'skills', label: 'Outreach skills', Icon: Sparkles },
+  { id: 'modules', label: 'Modules', Icon: ToggleLeft as React.ComponentType<{ size?: number; color?: string }> },
 ]
 
 export function SettingsPage() {
@@ -33,7 +36,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" subtitle="Configure how Smart Shortlist scores and targets leads" />
+      <PageHeader title="Settings" subtitle="Configure Smart Shortlist targeting and which portal sections are live" />
       <div style={{ ...s.layout, ...(isMobile ? s.layoutMobile : null) }}>
         <nav style={{ ...s.subNav, ...(isMobile ? s.subNavMobile : null) }}>
           {SECTIONS.map(({ id, label, Icon }) => (
@@ -51,6 +54,7 @@ export function SettingsPage() {
         <div style={s.content}>
           {activeSection === 'icp' && <ICPConfigPanel />}
           {activeSection === 'skills' && <SkillsPanel />}
+          {activeSection === 'modules' && <ModulesPanel />}
         </div>
       </div>
     </>
@@ -302,6 +306,62 @@ function processSkillErrorMessage(code: string | undefined): string {
   return SKILL_UPLOAD_ERROR_MESSAGES[code] ?? `Could not process that skill file (${code}).`
 }
 
+// Phase 2 of the multi-tenant sprint. Proof-of-concept scope: only the two
+// modules AdminShell actually gates today (discovery, qrCode) — see
+// AdminShell.tsx's NavItem.moduleKey and route-config.ts's withModuleGate
+// calls. The other 8 sidebar modules are a fast-follow once this pattern is
+// confirmed working end to end.
+const POC_MODULES: { key: string; label: string }[] = [
+  { key: 'discovery', label: 'Discovery' },
+  { key: 'qrCode', label: 'QR Codes' },
+]
+
+function ModulesPanel() {
+  const { tenant, modules, loading, error, setModuleEnabled } = useTenantConfig()
+  const [pendingKey, setPendingKey] = useState<string | null>(null)
+
+  async function handleToggle(moduleKey: string, next: boolean) {
+    setPendingKey(moduleKey)
+    const ok = await setModuleEnabled(moduleKey, next)
+    setPendingKey(null)
+    // H9: never surface the raw Supabase error, a friendly toast only. The
+    // hook itself already rolled the optimistic flip back on failure.
+    if (!ok) showToast('Could not update that module. Please try again.', 'error')
+  }
+
+  return (
+    <div style={s.card}>
+      <h2 style={s.modulesTitle}>Modules</h2>
+      <p style={s.modulesSubtitle}>
+        Control which sections are visible for each portal. Changes take effect
+        immediately, no deploy needed.
+      </p>
+      {error && <p style={s.skillEmpty}>Could not load module configuration.</p>}
+      {!error && (
+        <div style={s.modulesSection}>
+          <h3 style={s.modulesSectionTitle}>{tenant?.name ?? 'Eswar Creatives'}</h3>
+          <div style={s.modulesList}>
+            {POC_MODULES.map(({ key, label }) => (
+              <div key={key} style={s.moduleRow}>
+                <span style={s.moduleLabel}>{label}</span>
+                <Toggle
+                  checked={modules[key] !== false}
+                  onChange={(next) => handleToggle(key, next)}
+                  disabled={loading || pendingKey === key}
+                  label={label}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <p style={s.modulesNote}>
+        More modules and multi-tenant support are being rolled out incrementally.
+      </p>
+    </div>
+  )
+}
+
 // Skill files are .skill bundles (a zip of SKILL.md + optional references —
 // the same format Claude Code's own Skill system uses). Unzipping needs a
 // real zip library, so the browser just uploads the raw file to storage and
@@ -513,6 +573,20 @@ const s: Record<string, CSSProperties> = {
   },
   cardTitle: { fontFamily: fonts.heading, fontSize: 18, fontWeight: 600, color: t.text.primary, margin: '0 0 16px' },
   cardSubtitle: { fontFamily: fonts.body, fontSize: 13, color: t.text.secondary, margin: '-8px 0 16px' },
+  modulesTitle: { fontFamily: fonts.heading, fontSize: 20, fontWeight: 600, color: t.text.primary, margin: '0 0 16px' },
+  modulesSubtitle: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: '-8px 0 24px' },
+  modulesSection: { marginBottom: 8 },
+  modulesSectionTitle: { fontFamily: fonts.heading, fontSize: 14, fontWeight: 600, color: t.text.primary, margin: '0 0 12px' },
+  modulesList: { display: 'flex', flexDirection: 'column', gap: 4 },
+  moduleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 4px',
+    borderBottom: `1px solid ${t.border.subtle}`,
+  },
+  moduleLabel: { fontFamily: fonts.body, fontSize: 14, color: t.text.primary },
+  modulesNote: { fontFamily: fonts.body, fontSize: 12.5, color: t.text.muted, margin: '20px 0 0' },
   skillList: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 },
   skillEmpty: { fontFamily: fonts.body, fontSize: 13, color: t.text.muted, margin: 0 },
   skillRow: {
