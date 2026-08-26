@@ -1,10 +1,16 @@
-// Phase 2 of the multi-tenant sprint. Live, in-database module visibility —
-// distinct from tenant.types.ts's static theme config. One shared fetch via
-// Context, same idiom as PortalContext.tsx's clients list: AdminShell's nav
-// and the Settings "Modules" toggle panel both read this and both see the
-// same live state, so a toggle write updates the nav immediately with no
-// reload. Always resolves to Tenant 0 ('eswar') for now — per-domain
-// resolution is Phase 3 territory.
+// Phase 2 of the multi-tenant sprint, tenant resolution fixed in Phase 3.
+// Live, in-database module visibility — distinct from tenant.types.ts's
+// static theme config. One shared fetch via Context, same idiom as
+// PortalContext.tsx's clients list: AdminShell's nav and the Settings
+// "Modules" toggle panel both read this and both see the same live state,
+// so a toggle write updates the nav immediately with no reload.
+//
+// Resolves the active tenant from ACTIVE_TENANT_ID (see activeTenantId.ts),
+// not a hardcoded slug — that hardcoding was the Phase 3 bug. A slug that
+// doesn't match any row in `tenants` sets `error` and leaves `tenant`/
+// `modules` empty; it must never silently resolve to a different tenant's
+// row just because one happens to exist. AdminShell renders a blocking
+// "tenant not found" screen on this state rather than the normal shell.
 import {
   createContext,
   useCallback,
@@ -15,8 +21,7 @@ import {
 } from 'react'
 import type { ReactNode } from 'react'
 import { supabase } from '../../lib/supabase'
-
-const TENANT_SLUG = 'eswar'
+import { ACTIVE_TENANT_ID } from './activeTenantId'
 
 export type TenantModules = Record<string, boolean>
 
@@ -44,11 +49,11 @@ export function TenantConfigProvider({ children }: { children: ReactNode }) {
       const { data: tenantRow, error: tenantErr } = await supabase
         .from('tenants')
         .select('id, name')
-        .eq('slug', TENANT_SLUG)
+        .eq('slug', ACTIVE_TENANT_ID)
         .maybeSingle()
       if (cancelled) return
       if (tenantErr || !tenantRow) {
-        setError('Could not load tenant configuration.')
+        setError(`Tenant "${ACTIVE_TENANT_ID}" not found.`)
         setLoading(false)
         return
       }

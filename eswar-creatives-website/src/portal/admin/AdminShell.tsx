@@ -92,7 +92,7 @@ function Shell({ profile }: { profile: PortalProfile }) {
   // Desktop (1024px+): full-width sidebar with labels. Below 768px the sidebar
   // is replaced entirely by a hamburger-triggered drawer (see MobileNavDrawer).
   const { isMobile, isTablet } = useBreakpoint()
-  const { modules: enabledModules } = useTenantConfig()
+  const { modules: enabledModules, tenant, loading: tenantLoading, error: tenantError } = useTenantConfig()
   const [outreachDue, setOutreachDue] = useState(0)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const location = useLocation()
@@ -129,6 +129,13 @@ function Shell({ profile }: { profile: PortalProfile }) {
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
   }, [mobileNavOpen])
+
+  // Blocking, not a banner: the sidebar/dashboard below is meaningless
+  // without a resolved tenant, and this must never render Eswar's shell
+  // for a misconfigured VITE_TENANT_ID — see useTenantConfig.tsx.
+  if (!tenantLoading && (tenantError || !tenant)) {
+    return <TenantNotFoundScreen error={tenantError} />
+  }
 
   const NAV: NavItem[] = NAV_BASE.filter(isNavItemVisible).map((item) =>
     item.to === '/portal/admin/outreach'
@@ -208,6 +215,25 @@ function Shell({ profile }: { profile: PortalProfile }) {
           onClose={() => setMobileNavOpen(false)}
         />
       )}
+    </div>
+  )
+}
+
+// Deliberately not styled from tenant theme values — the whole point of
+// this screen is that the tenant couldn't be resolved, so there's no theme
+// to render it with. Uses the app's static tokens/t fallback set instead.
+// This is a deploy-misconfiguration state (wrong VITE_TENANT_ID at build
+// time), not something a real user should ever reach in correct operation.
+function TenantNotFoundScreen({ error }: { error: string | null }) {
+  return (
+    <div style={styles.tenantNotFound}>
+      <h1 style={styles.tenantNotFoundTitle}>Tenant not found</h1>
+      <p style={styles.tenantNotFoundBody}>
+        {error ?? 'Could not resolve the active tenant.'}
+      </p>
+      <p style={styles.tenantNotFoundHint}>
+        Check VITE_TENANT_ID for this deployment against the tenants table.
+      </p>
     </div>
   )
 }
@@ -295,6 +321,20 @@ function MobileNavDrawer({
 }
 
 const styles: Record<string, CSSProperties> = {
+  tenantNotFound: {
+    minHeight: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 32,
+    textAlign: 'center',
+    background: t.background.page,
+  },
+  tenantNotFoundTitle: { fontFamily: fonts.heading, fontSize: 22, fontWeight: 600, color: t.text.primary, margin: 0 },
+  tenantNotFoundBody: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
+  tenantNotFoundHint: { fontFamily: fonts.body, fontSize: 12.5, color: t.text.muted, margin: 0 },
   layout: {
     display: 'flex',
     flexDirection: 'column',
