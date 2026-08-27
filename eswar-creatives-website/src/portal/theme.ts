@@ -1,6 +1,7 @@
 // Phase 3 — portal Atelier theme tokens.
 // Imported by LoginPage, ClientDashboard, ProposalView, and PortalGuard's
 // loading screen so the palette lives in exactly one place.
+import { getTenantTheme } from './tenant/getTenantTheme'
 
 export const tokens = {
   // Page canvas. Was the warm cream #FAF8F4 ("Atelier cream") until 9 August
@@ -211,5 +212,10 @@ export const phaseUI = {
     pending: { bg: '#F5F5F4', border: '#E5E5E4', label: 'Pending' },  // status/draft-bg + draft-border
   },
 } as const
+
+// Multi-tenant sprint, Phase 1 — additive only. `tokens` and `t` above are
+// untouched; this is the new gateway for theme/branding values, unconsumed
+// by any component yet. See src/portal/tenant/.
+export const tenantTheme = getTenantTheme()
 
 export type PhaseState = keyof typeof phaseUI.status

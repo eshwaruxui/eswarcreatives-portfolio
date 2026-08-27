@@ -18,6 +18,7 @@ import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { PortalGuard } from '../PortalGuard'
 import { PortalProvider } from '../PortalContext'
+import { TenantConfigProvider, useTenantConfig } from '../tenant/useTenantConfig'
 import { tokens, t, fonts, motionTokens } from '../theme'
 import { TopBar } from './TopBar'
 import { ToastHost } from './toast'
@@ -31,6 +32,11 @@ type NavItem = {
   Icon: React.ComponentType<{ size?: number; color?: string }>
   end?: boolean
   badge?: number
+  // Phase 2 of the multi-tenant sprint: only items with a moduleKey are
+  // gated against live tenant_modules state (see useTenantConfig). Items
+  // without one always render, same as before this phase — proof-of-concept
+  // scope is 'discovery' and 'qrCode' only, the rest are a fast-follow.
+  moduleKey?: string
 }
 
 // Persistent admin layout: a global TopBar (brand + client selector + settings)
@@ -44,11 +50,11 @@ const NAV_BASE: NavItem[] = [
   { to: '/portal/admin/invoices', label: 'Invoices', Icon: Receipt },
   { to: '/portal/admin/projects', label: 'Projects', Icon: FolderKanban },
   { to: '/portal/admin/mockups', label: 'Mockups', Icon: Images },
-  { to: '/portal/admin/discovery', label: 'Discovery', Icon: Compass },
+  { to: '/portal/admin/discovery', label: 'Discovery', Icon: Compass, moduleKey: 'discovery' },
   { to: '/portal/admin/campaigns', label: 'Campaigns', Icon: Megaphone },
   { to: '/portal/admin/outreach', label: 'Outreach', Icon: Send },
   { to: '/portal/admin/brand-visual-guide', label: 'Brand Visual Guide', Icon: Palette },
-  { to: '/portal/admin/qr', label: 'QR Codes', Icon: QrCode },
+  { to: '/portal/admin/qr', label: 'QR Codes', Icon: QrCode, moduleKey: 'qrCode' },
 ]
 
 // Mobile drawer only: the desktop sidebar doesn't surface a Clients route (it's
@@ -71,7 +77,9 @@ export function AdminShell() {
           <Navigate to="/portal/login" replace />
         ) : (
           <PortalProvider>
-            <Shell profile={profile} />
+            <TenantConfigProvider>
+              <Shell profile={profile} />
+            </TenantConfigProvider>
           </PortalProvider>
         )
       }
@@ -84,9 +92,15 @@ function Shell({ profile }: { profile: PortalProfile }) {
   // Desktop (1024px+): full-width sidebar with labels. Below 768px the sidebar
   // is replaced entirely by a hamburger-triggered drawer (see MobileNavDrawer).
   const { isMobile, isTablet } = useBreakpoint()
+  const { modules: enabledModules, tenant, loading: tenantLoading, error: tenantError } = useTenantConfig()
   const [outreachDue, setOutreachDue] = useState(0)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const location = useLocation()
+
+  // modules[key] === false hides explicitly; undefined (still loading, or no
+  // moduleKey at all) fails open — see useTenantConfig.tsx.
+  const isNavItemVisible = (item: NavItem) =>
+    !item.moduleKey || enabledModules[item.moduleKey] !== false
 
   useEffect(() => {
     // scheduled_for is timestamptz (migration 0092) — "due" means anything
@@ -116,12 +130,19 @@ function Shell({ profile }: { profile: PortalProfile }) {
     return () => { document.body.style.overflow = prev }
   }, [mobileNavOpen])
 
-  const NAV: NavItem[] = NAV_BASE.map((item) =>
+  // Blocking, not a banner: the sidebar/dashboard below is meaningless
+  // without a resolved tenant, and this must never render Eswar's shell
+  // for a misconfigured VITE_TENANT_ID — see useTenantConfig.tsx.
+  if (!tenantLoading && (tenantError || !tenant)) {
+    return <TenantNotFoundScreen error={tenantError} />
+  }
+
+  const NAV: NavItem[] = NAV_BASE.filter(isNavItemVisible).map((item) =>
     item.to === '/portal/admin/outreach'
       ? { ...item, badge: outreachDue }
       : item
   )
-  const MOBILE_NAV_WITH_BADGE: NavItem[] = MOBILE_NAV.map((item) =>
+  const MOBILE_NAV_WITH_BADGE: NavItem[] = MOBILE_NAV.filter(isNavItemVisible).map((item) =>
     item.to === '/portal/admin/outreach'
       ? { ...item, badge: outreachDue }
       : item
@@ -194,6 +215,25 @@ function Shell({ profile }: { profile: PortalProfile }) {
           onClose={() => setMobileNavOpen(false)}
         />
       )}
+    </div>
+  )
+}
+
+// Deliberately not styled from tenant theme values — the whole point of
+// this screen is that the tenant couldn't be resolved, so there's no theme
+// to render it with. Uses the app's static tokens/t fallback set instead.
+// This is a deploy-misconfiguration state (wrong VITE_TENANT_ID at build
+// time), not something a real user should ever reach in correct operation.
+function TenantNotFoundScreen({ error }: { error: string | null }) {
+  return (
+    <div style={styles.tenantNotFound}>
+      <h1 style={styles.tenantNotFoundTitle}>Tenant not found</h1>
+      <p style={styles.tenantNotFoundBody}>
+        {error ?? 'Could not resolve the active tenant.'}
+      </p>
+      <p style={styles.tenantNotFoundHint}>
+        Check VITE_TENANT_ID for this deployment against the tenants table.
+      </p>
     </div>
   )
 }
@@ -281,6 +321,20 @@ function MobileNavDrawer({
 }
 
 const styles: Record<string, CSSProperties> = {
+  tenantNotFound: {
+    minHeight: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 32,
+    textAlign: 'center',
+    background: t.background.page,
+  },
+  tenantNotFoundTitle: { fontFamily: fonts.heading, fontSize: 22, fontWeight: 600, color: t.text.primary, margin: 0 },
+  tenantNotFoundBody: { fontFamily: fonts.body, fontSize: 14, color: t.text.secondary, margin: 0 },
+  tenantNotFoundHint: { fontFamily: fonts.body, fontSize: 12.5, color: t.text.muted, margin: 0 },
   layout: {
     display: 'flex',
     flexDirection: 'column',
