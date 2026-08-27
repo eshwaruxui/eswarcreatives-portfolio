@@ -2,26 +2,91 @@
 // Imported by LoginPage, ClientDashboard, ProposalView, and PortalGuard's
 // loading screen so the palette lives in exactly one place.
 import { getTenantTheme } from './tenant/getTenantTheme'
+import { lightTint, subtleTint, midTint, darkShade, tintRgba } from './tenant/derivePalette'
+import eswarLogo from '../imports/eswar-logo.svg'
+
+// Phase 4 of the multi-tenant sprint: resolved once per module load, not per
+// render — VITE_TENANT_ID is fixed at build time for a given deployment, so
+// this is the same "compute once at import time" idiom every other constant
+// in this file already uses.
+const tenantTheme = getTenantTheme()
+
+// Eswar's own hex/rgba literals throughout this file are audited against the
+// Figma Design System Master and must render byte-identical to today
+// regardless of this phase's wiring — every derived value below branches on
+// isEswarPalette to guarantee that. An unresolved tenant (misconfigured
+// VITE_TENANT_ID) falls back to the same branch: AdminShell already blocks
+// the actual admin UI in that case (see useTenantConfig.tsx's error state),
+// so the only surface this fallback reaches is public/login pages under a
+// broken build — inheriting Eswar's palette there matches this app's
+// behaviour from before tenants existed, rather than inventing a third,
+// undesigned palette for a state that should never occur in production.
+const isEswarPalette = !tenantTheme || tenantTheme.id === 'eswar'
+const brandPrimary = isEswarPalette ? '#024C4F' : tenantTheme!.theme.primary
+const brandGold = isEswarPalette ? '#D5B067' : tenantTheme!.theme.gold
+
+// Colour/text roles that don't reduce to a clean formula from primary/gold
+// (verified: tealLight is not a single-ratio mix of primary and white at any
+// consistent ratio — it's its own Figma-sourced primitive, same for the
+// others below). Each tenant with an audited Figma palette gets its own
+// branch with real designer-picked values; any tenant without one yet falls
+// back to derivePalette.ts's generic formula rather than inheriting a wrong
+// hue by omission.
+const derived = isEswarPalette
+  ? {
+      accent: '#007872', // teal-mid
+      goldDark: '#8B6200',
+      goldLight: '#FAF4EA',
+      primaryLight: '#E0F7F6', // tealLight
+      onAccent: '#4A2A00',
+      nodeFill: '#009990', // icon/brand-subtle
+      activeBorder: '#EDDDB5', // phaseUI status.active.border
+    }
+  : tenantTheme!.id === 'futurenorms'
+  ? {
+      // Figma-sourced (design-tokens/🔗 Semantic Tokens.Light.tokens.json +
+      // 🎨 Primitives.Mode 1.tokens.json, fileKey HNcvu8LtGe4eAfM7R5fA61) —
+      // FutureNorms has an audited palette, not the generic formula below.
+      accent: '#5f449c', // icon/brand-subtle, violet.400
+      goldDark: '#523e14', // brand/accent-dark, gold.700
+      goldLight: '#fbf6e4', // brand/accent-subtle, gold.50
+      primaryLight: '#ede6f9', // brand/primary-tint-subtle, violet.50
+      onAccent: '#322711', // text/on-accent, gold.800
+      nodeFill: '#5f449c', // icon/brand-subtle, violet.400
+      activeBorder: '#ebd9a3', // status/pending-border, gold.200 (Phase 2 = gold, not her violet "active" status)
+    }
+  : {
+      // Generic derivation — any tenant without an audited palette yet. See
+      // derivePalette.ts for the exact ratios and why they're a reasonable
+      // default rather than a design-reviewed one.
+      accent: subtleTint(brandPrimary),
+      goldDark: darkShade(brandGold),
+      goldLight: lightTint(brandGold),
+      primaryLight: lightTint(brandPrimary),
+      onAccent: darkShade(brandGold),
+      nodeFill: subtleTint(brandPrimary),
+      activeBorder: midTint(brandGold),
+    }
 
 export const tokens = {
   // Page canvas. Was the warm cream #FAF8F4 ("Atelier cream") until 9 August
   // 2026, now Figma background/subtle (neutral.10). This is the single value
   // every page background in the portal resolves through, so changing it here
   // is what removes the cream everywhere rather than editing 74 call sites.
-  bg:         '#FAFAF9',  // Figma background/subtle (neutral.10)
+  bg:         isEswarPalette ? '#FAFAF9' : tenantTheme!.theme.cream,  // Figma background/subtle (neutral.10)
   surface:    '#FFFFFF',
   // Overlay-based neutral border (was a low-contrast teal tint #D8E8E8). A
   // semi-transparent near-black reads with consistent contrast on both the
   // white surfaces and the neutral page. See t.border.* for the full scale.
   border:     'rgba(10, 10, 23, 0.12)',
-  primary:    '#024C4F',  // deep teal
-  accent:     '#007872',  // teal-mid
-  gold:       '#D5B067',
-  goldDark:   '#8B6200',
-  goldLight:  '#FAF4EA',  // Figma: brand/accent-subtle, status/sent-bg (gold.50)
+  primary:    brandPrimary,  // deep teal (Eswar) / tenant primary
+  accent:     derived.accent,  // teal-mid (Eswar) / tenant accent step
+  gold:       brandGold,
+  goldDark:   derived.goldDark,
+  goldLight:  derived.goldLight,
   text:       '#0A1A1B',
   textMuted:  '#3D6163',
-  tealLight:  '#E0F7F6',  // Figma: brand/primary-tint-subtle, status/viewed-bg, phase/1-bg (teal.50)
+  tealLight:  derived.primaryLight,  // Figma: brand/primary-tint-subtle, status/viewed-bg, phase/1-bg (teal.50, Eswar)
   ruby:       '#B00D2D',
   rubyLight:  '#FCEEF1',  // Figma: state/danger-subtle, status/declined-bg, phase/3-bg (ruby.50)
   // Figma's state/danger-text switches by mode: Light = {ruby.700} #820026 (dark
@@ -35,7 +100,7 @@ export const tokens = {
   greenLight: '#E8F8F0',  // Figma: state/success-subtle, status/accepted-bg, status/paid-bg (success.50)
   // Matches the page canvas above, as it always has. Both were the cream
   // #FAF8F4 before 9 August 2026.
-  inputBg:    '#FAFAF9',  // Figma background/subtle (neutral.10)
+  inputBg:    isEswarPalette ? '#FAFAF9' : tenantTheme!.theme.cream,  // Figma background/subtle (neutral.10)
 } as const
 
 // EC Design System semantic tokens (canonical Figma mapping).
@@ -49,7 +114,7 @@ export const tokens = {
 export const t = {
   text: {
     primary:      '#111111',  // body text, headings, labels — Figma text/primary (neutral.900)
-    primaryBrand: '#024C4F',  // interactive only: CTAs, links, active nav
+    primaryBrand: brandPrimary,  // interactive only: CTAs, links, active nav
     secondary:    '#555555',  // supporting text, subtitles — Figma text/secondary (neutral.600)
     tertiary:     '#717171',  // placeholder text, hints — Figma text/tertiary (neutral.500)
     // Figma spec is neutral.450 #888888, but that's 3.5:1 on white / 3.3:1 on
@@ -74,7 +139,7 @@ export const t = {
     disabled:     '#AAAAAA',  // disabled state text — Figma text/disabled (neutral.350)
     inverse:      '#FFFFFF',  // text on dark backgrounds
     onPrimary:    '#FFFFFF',  // text on teal primary buttons
-    onAccent:     '#4A2A00',  // text on gold accent fills — Figma text/on-accent (gold.800); was #FFFFFF (unused, low contrast on gold)
+    onAccent:     derived.onAccent,  // text on gold accent fills — Figma text/on-accent (gold.800); was #FFFFFF (unused, low contrast on gold)
     urlLink:      '#0A66C2',  // hyperlinks only — Figma text/url-link (Blue.500). Reverses an earlier deliberate teal-not-blue override; now intentionally matches Figma exactly per explicit request.
     // "On-dark" text roles: for content on permanently-dark surfaces (e.g. the
     // BeforeAfterCard Before panel) within an otherwise light-mode app.
@@ -92,13 +157,13 @@ export const t = {
     default:            'rgba(10,10,23,0.12)',  // standard input/card borders
     medium:             'rgba(10,10,23,0.18)',  // stronger dividers
     strong:             'rgba(10,10,23,0.30)',  // emphasis borders
-    focus:              '#024C4F',              // focus ring on inputs
+    focus:              brandPrimary,           // focus ring on inputs
     overlaySubtle:      'rgba(10,10,23,0.04)',  // frosted/glass panels subtle edge
     overlayMedium:      'rgba(10,10,23,0.08)',  // panel borders on overlays
     overlayStrong:      'rgba(10,10,23,0.14)',  // modal/drawer borders
     overlay:            'rgba(10,10,23,0.20)',  // standard overlay border
     overlayExtraStrong: 'rgba(10,10,23,0.30)',  // high contrast overlay edge
-    brand:              '#024C4F',              // active/selected states only
+    brand:              brandPrimary,           // active/selected states only
     danger:             '#B00D2D',              // error states — Figma border/danger (ruby.600)
     success:            '#1B6B4A',              // success states — Figma border/success (success.600)
     // Warning still reuses the gold/accent hue rather than Figma's dedicated
@@ -106,7 +171,7 @@ export const t = {
     // saturated orange). This app has never had a distinct warning colour
     // family; flagged for Eswar to confirm before repointing the 3 live
     // usages (DeleteProposalModal, DeleteInvoiceModal, CandidateCard).
-    warning:            '#D5B067',              // warning states
+    warning:            brandGold,              // warning states
     // "On-dark" border roles: for content on permanently-dark surfaces.
     onDark:             'rgba(210,212,217,0.24)',  // Figma border/on-dark
     onDarkSubtle:       'rgba(210,212,217,0.30)',  // Figma border/on-dark-subtle
@@ -126,9 +191,9 @@ export const t = {
     surface:        '#FFFFFF',              // card/panel surfaces
     raised:         '#FAFAF9',              // elevated cards — Figma background/raised (neutral.10)
     sunken:         '#F5F5F4',              // inset areas — Figma background/sunken (neutral.50)
-    tint1:          'rgba(2,76,79,0.04)',   // tinted fills
-    tint2:          'rgba(2,76,79,0.08)',
-    tint3:          'rgba(2,76,79,0.12)',
+    tint1:          tintRgba(brandPrimary, 0.04),   // tinted fills
+    tint2:          tintRgba(brandPrimary, 0.08),
+    tint3:          tintRgba(brandPrimary, 0.12),
     overlaySubtle:  'rgba(10,10,23,0.04)',  // overlay layers
     overlayNormal:  'rgba(10,10,23,0.08)',
     overlayMedium:  'rgba(10,10,23,0.18)',
@@ -154,8 +219,8 @@ export const t = {
 } as const
 
 export const fonts = {
-  heading: "'Fraunces', Georgia, 'Times New Roman', serif",
-  body:    "'Inter', system-ui, -apple-system, sans-serif",
+  heading: isEswarPalette ? "'Fraunces', Georgia, 'Times New Roman', serif" : tenantTheme!.theme.fontHeading,
+  body:    isEswarPalette ? "'Inter', system-ui, -apple-system, sans-serif" : tenantTheme!.theme.fontBody,
 } as const
 
 // Motion tokens — the single source of truth for portal transitions.
@@ -205,17 +270,28 @@ export const phasePalette: Record<
 // the per-phase Done / Active / Pending pills. Badge label text uses
 // t.text.primary. Raw hex is allowed here because this IS the token source.
 export const phaseUI = {
-  nodeFill: '#009990', // icon/brand-subtle: done + active node circles and the joining connector
+  nodeFill: derived.nodeFill, // icon/brand-subtle: done + active node circles and the joining connector
   status: {
     done:    { bg: '#E8F8F0', border: '#A8E2C4', label: 'Done' },     // state/success-subtle + success-border
-    active:  { bg: '#FAF4EA', border: '#EDDDB5', label: 'Active' },   // status/sent-bg + sent-border
+    active:  { bg: tokens.goldLight, border: derived.activeBorder, label: 'Active' },   // status/sent-bg + sent-border
     pending: { bg: '#F5F5F4', border: '#E5E5E4', label: 'Pending' },  // status/draft-bg + draft-border
   },
 } as const
 
-// Multi-tenant sprint, Phase 1 — additive only. `tokens` and `t` above are
-// untouched; this is the new gateway for theme/branding values, unconsumed
-// by any component yet. See src/portal/tenant/.
-export const tenantTheme = getTenantTheme()
+// Multi-tenant sprint, Phase 4 — theme.ts now consumes tenantTheme directly
+// (see isEswarPalette/brandPrimary/brandGold/derived above), so tokens/t/
+// fonts resolve per-tenant without any change to their ~360 existing call
+// sites. Still exported for the few places that need tenant-specific content
+// theme.ts's colour/font tokens can't express — see brandName/brandLogo below.
+export { tenantTheme }
+
+// The wordmark text and logo image are literal content, not colour/font
+// tokens, so they can't be folded into tokens/t/fonts above. Eswar's own
+// values stay the exact literals live today ('EswarCreatives', no space —
+// tenantTheme.name is 'Eswar Creatives', with a space, which would be a
+// visible wordmark change for a phase that must not have one). Every other
+// tenant reads its own config directly.
+export const brandName = isEswarPalette ? 'EswarCreatives' : tenantTheme!.name
+export const brandLogo = isEswarPalette ? eswarLogo : tenantTheme!.theme.logo
 
 export type PhaseState = keyof typeof phaseUI.status

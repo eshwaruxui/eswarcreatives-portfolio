@@ -9,7 +9,7 @@ import { LayoutDashboard, FolderKanban, FileText, Receipt, Images, Megaphone, Pa
 import type { CSSProperties } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { PortalProfile } from '../PortalGuard'
-import { tokens, t, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens, brandName, brandLogo } from '../theme'
 import { useSignOut } from '../useSignOut'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { Spinner } from '../Spinner'
@@ -21,7 +21,6 @@ import {
   subscribeBadges,
 } from './clientNotifications'
 import type { BadgeSection } from './clientNotifications'
-import eswarLogo from '../../imports/eswar-logo.svg'
 
 // Height the fixed top bar occupies; client pages offset their top padding.
 export const CLIENT_NAV_HEIGHT = 56
@@ -110,8 +109,8 @@ export function ClientNav({ profile }: { profile: PortalProfile }) {
       <nav style={styles.nav}>
         <div style={{ ...styles.inner, ...(isMobile ? styles.innerMobile : null) }}>
           <div style={styles.brand}>
-            <img src={eswarLogo} alt="Eswar Creatives logo" width={28} height={28} style={styles.logo} />
-            <span style={styles.brandName}>EswarCreatives</span>
+            <img src={brandLogo} alt={`${brandName} logo`} width={28} height={28} style={styles.logo} />
+            <span style={styles.brandName}>{brandName}</span>
           </div>
 
           {/* Desktop nav links -- hidden on mobile (bottom tab bar takes over) */}

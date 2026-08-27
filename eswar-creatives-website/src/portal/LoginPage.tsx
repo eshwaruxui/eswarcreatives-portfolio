@@ -3,7 +3,7 @@ import { Helmet } from 'react-helmet-async'
 import { useNavigate } from 'react-router'
 import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { tokens, t, fonts } from './theme'
+import { tokens, t, fonts, tenantTheme } from './theme'
 import { PortalNav } from './PortalNav'
 
 type Mode = 'password' | 'magic'
@@ -86,20 +86,31 @@ export function LoginPage() {
     }
   }
 
+  // Full display name for SEO/social copy — distinct from theme.ts's
+  // brandName (the compact nav wordmark, 'EswarCreatives' with no space).
+  // Falls back to the exact literal live today so an unresolved tenant
+  // renders identically to before this phase.
+  const displayName = tenantTheme?.name ?? 'Eswar Creatives'
+  // og-portal.png only exists on Eswar's own deployment; no per-tenant OG
+  // image exists yet, and inventing a path to an asset that isn't there
+  // would be worse than omitting the tag for a tenant that doesn't have one.
+  const isEswar = !tenantTheme || tenantTheme.id === 'eswar'
+  const portalUrl = `${window.location.origin}/portal/`
+
   return (
     <>
       <Helmet>
-        <title>Client Portal — Eswar Creatives</title>
-        <meta property="og:title" content="Client Portal — Eswar Creatives" />
+        <title>Client Portal — {displayName}</title>
+        <meta property="og:title" content={`Client Portal — ${displayName}`} />
         <meta property="og:description" content="Track projects, approve proposals, and pay invoices all in one place." />
-        <meta property="og:image" content="https://www.eswarcreatives.in/og-portal.png" />
-        <meta property="og:url" content="https://www.eswarcreatives.in/portal/" />
+        {isEswar && <meta property="og:image" content="https://www.eswarcreatives.in/og-portal.png" />}
+        <meta property="og:url" content={portalUrl} />
         <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="Eswar Creatives" />
+        <meta property="og:site_name" content={displayName} />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Client Portal — Eswar Creatives" />
+        <meta name="twitter:title" content={`Client Portal — ${displayName}`} />
         <meta name="twitter:description" content="Track projects, approve proposals, and pay invoices all in one place." />
-        <meta name="twitter:image" content="https://www.eswarcreatives.in/og-portal.png" />
+        {isEswar && <meta name="twitter:image" content="https://www.eswarcreatives.in/og-portal.png" />}
       </Helmet>
       <div style={styles.page}>
         <PortalNav />

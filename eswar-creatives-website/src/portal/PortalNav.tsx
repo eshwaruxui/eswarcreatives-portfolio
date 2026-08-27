@@ -1,10 +1,9 @@
-import { tokens, fonts, motionTokens } from './theme'
+import { tokens, fonts, motionTokens, brandName, brandLogo } from './theme'
 import { useSignOut } from './useSignOut'
 import { Spinner } from './Spinner'
-import eswarLogo from '../imports/eswar-logo.svg'
 
 // Light nav bar shared across the portal pages, matching the main site style:
-// EC logo and wordmark on the left, an optional "Sign out" link on the right.
+// tenant logo and wordmark on the left, an optional "Sign out" link on the right.
 export function PortalNav({ showSignOut = false }: { showSignOut?: boolean }) {
   const { signingOut, error: signOutError, signOut } = useSignOut()
 
@@ -12,13 +11,13 @@ export function PortalNav({ showSignOut = false }: { showSignOut?: boolean }) {
     <nav style={styles.nav}>
       <div style={styles.brand}>
         <img
-          src={eswarLogo}
-          alt="Eswar Creatives logo"
+          src={brandLogo}
+          alt={`${brandName} logo`}
           width={32}
           height={32}
           style={styles.logo}
         />
-        <span style={styles.brandName}>EswarCreatives</span>
+        <span style={styles.brandName}>{brandName}</span>
       </div>
       {showSignOut && (
         <div style={styles.signOutWrap}>

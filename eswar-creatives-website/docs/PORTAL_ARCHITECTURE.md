@@ -1225,6 +1225,27 @@ Two exports:
   - `t.border.*` (subtle, default, medium, strong, focus, overlay variants, brand, danger, success, warning)
   - `t.background.*` (page, subtle, muted, surface, raised, sunken, tint1/2/3, overlay variants, scrim, success)
 
+**Tenant wiring (Phase 4 of the multi-tenant sprint, added 27 August 2026):**
+`tokens`/`t`/`fonts`/`phaseUI` resolve from `getTenantTheme()` at module load
+instead of being fixed Eswar literals — this is why 109 files can import from
+`theme.ts` unchanged (the ~360-usages/do-not-restructure shape above is still
+true; only specific *values* became conditional). Eswar's own hex/rgba
+literals are preserved exactly via an `isEswarPalette` branch on every derived
+value — verified via a before/after production build diff (identical hex
+counts in the minified bundle) rather than by inspection alone. Values with no
+clean formula from `primary`/`gold` (`tealLight`, `goldDark`/`goldLight`,
+`onAccent`, `phaseUI.nodeFill`, the phase-active border — none of these reduce
+to a single-ratio mix of the base colour and white/black) get a per-tenant
+branch of real, Figma-audited literals; a tenant with no audited palette yet
+falls back to `src/portal/tenant/derivePalette.ts`'s generic tint/shade
+formulas rather than silently inheriting the wrong hue. Two more exports,
+`brandName`/`brandLogo`, carry the literal content the colour/font tokens
+can't express (wordmark text, logo image) — consumed by `PortalNav`,
+`ClientNav`, `TopBar`, and `AdminShell`'s mobile drawer, the only places that
+rendered Eswar's brand mark directly rather than through a token. See
+`docs/TENANT_PROVISIONING_LOG.md` for the FutureNorms-specific palette values
+and their Figma source.
+
 **Figma Design System Master:** `0SGbENUggpj9Fe6NebJ9QM`
 Token collections: teal (20), gold (20), neutral (21), ruby (20), success (20), warning (20), neutral-alpha (18), teal-alpha (20), yellow (20), avatar-palette (42), radius (15), spacing (33). Semantic Tokens: 268 total.
 

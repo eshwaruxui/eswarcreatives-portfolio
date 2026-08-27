@@ -19,7 +19,7 @@ import { useEffect, useState } from 'react'
 import { PortalGuard } from '../PortalGuard'
 import { PortalProvider } from '../PortalContext'
 import { TenantConfigProvider, useTenantConfig } from '../tenant/useTenantConfig'
-import { tokens, t, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens, brandName } from '../theme'
 import { TopBar } from './TopBar'
 import { ToastHost } from './toast'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -284,7 +284,7 @@ function MobileNavDrawer({
         aria-label="Navigation menu"
       >
         <div style={styles.drawerHead}>
-          <span style={styles.drawerBrand}>EswarCreatives</span>
+          <span style={styles.drawerBrand}>{brandName}</span>
           <button type="button" style={styles.drawerClose} onClick={onClose} aria-label="Close menu">
             <X size={20} />
           </button>

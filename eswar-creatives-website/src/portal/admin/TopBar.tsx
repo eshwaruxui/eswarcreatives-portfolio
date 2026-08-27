@@ -8,7 +8,7 @@ import { useNavigate, useLocation } from 'react-router'
 import { Check, ChevronDown, Menu, QrCode, Settings, UserPlus, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { clientLabel, usePortal } from '../PortalContext'
-import { tokens, t, fonts, motionTokens } from '../theme'
+import { tokens, t, fonts, motionTokens, brandName } from '../theme'
 import { useSignOut } from '../useSignOut'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { Spinner } from '../Spinner'
@@ -69,7 +69,7 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
 
             {/* Wordmark, centered */}
             <div style={styles.brandMobile}>
-              <span style={styles.brandName}>EswarCreatives</span>
+              <span style={styles.brandName}>{brandName}</span>
             </div>
 
             {/* Add Lead: icon-only on mobile */}
@@ -113,9 +113,9 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
             {/* Brand */}
             <div style={styles.brand}>
               <span style={styles.logoCircle}>
-                <span style={styles.logoLetter}>e</span>
+                <span style={styles.logoLetter}>{brandName.charAt(0).toLowerCase()}</span>
               </span>
-              <span style={styles.brandName}>EswarCreatives</span>
+              <span style={styles.brandName}>{brandName}</span>
             </div>
 
             {/* Client selector */}
