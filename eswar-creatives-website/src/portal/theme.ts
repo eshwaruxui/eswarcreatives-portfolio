@@ -3,6 +3,7 @@
 // loading screen so the palette lives in exactly one place.
 import { getTenantTheme } from './tenant/getTenantTheme'
 import { lightTint, subtleTint, midTint, darkShade, tintRgba } from './tenant/derivePalette'
+import eswarLogo from '../imports/eswar-logo.svg'
 
 // Phase 4 of the multi-tenant sprint: resolved once per module load, not per
 // render — VITE_TENANT_ID is fixed at build time for a given deployment, so
@@ -281,8 +282,16 @@ export const phaseUI = {
 // (see isEswarPalette/brandPrimary/brandGold/derived above), so tokens/t/
 // fonts resolve per-tenant without any change to their ~360 existing call
 // sites. Still exported for the few places that need tenant-specific content
-// theme.ts's colour/font tokens can't express (brand name text, logo image) —
-// see PortalNav/ClientNav/TopBar/AdminShell.
+// theme.ts's colour/font tokens can't express — see brandName/brandLogo below.
 export { tenantTheme }
+
+// The wordmark text and logo image are literal content, not colour/font
+// tokens, so they can't be folded into tokens/t/fonts above. Eswar's own
+// values stay the exact literals live today ('EswarCreatives', no space —
+// tenantTheme.name is 'Eswar Creatives', with a space, which would be a
+// visible wordmark change for a phase that must not have one). Every other
+// tenant reads its own config directly.
+export const brandName = isEswarPalette ? 'EswarCreatives' : tenantTheme!.name
+export const brandLogo = isEswarPalette ? eswarLogo : tenantTheme!.theme.logo
 
 export type PhaseState = keyof typeof phaseUI.status
