@@ -553,3 +553,34 @@ gold, Phase 3 ruby"). Using her `status/pending-*` tokens (gold-hued) for
 the phase-active border instead of her same-named `status/active-*` tokens
 is intentional — matching the token *name* would have matched the wrong
 *meaning*.
+
+## FutureNorms — portal custom domain decision, 27 August 2026
+
+**`futurenorms.in` (the apex) is FutureNorms' existing live marketing
+site, unrelated to this portal** — confirmed via screenshots of its
+homepage and About page before any DNS change was made. Attaching the
+apex to the `futurenorms-portal` Cloudflare Pages project would have
+repointed the marketing site's DNS and taken it down. **The portal's
+custom domain is `portal.futurenorms.in` (a subdomain), not the apex —
+do not re-litigate this.**
+
+DNS for `futurenorms.in` resolves to `ns61/62.domaincontrol.com`
+(GoDaddy) — confirmed via `dig NS futurenorms.in` — and is **not** a zone
+in the Cloudflare account this portal's other infrastructure lives in
+(`eswarcreatives.in`, `vimeventsdecor.com`, `vimeventsdecor.in` are the
+only three zones there). Whoever holds the GoDaddy login for
+`futurenorms.in` (likely Kiruthika, not necessarily the same person
+managing the Supabase/Cloudflare side) needs to add a CNAME record there:
+`portal` → `futurenorms-portal.pages.dev`. This is a distinct credential
+boundary from everything else in this provisioning arc — worth surfacing
+explicitly if a future tenant also already has an existing site on their
+apex domain, since the "one Cloudflare Pages deployment per client on
+custom domain" architecture decision (Section 1) doesn't by itself say
+apex vs. subdomain, and assuming apex is available is not safe by
+default.
+
+`PORTAL_URL` on `ywppmokydzlxtqbfpzra` (the secret introduced during the
+Edge Function sender-identity fix, PR #28) must be
+`https://portal.futurenorms.in` to match — update it via Dashboard →
+Project Settings → Edge Functions → Secrets before relying on any
+outreach email's unsubscribe/portal links being correct for FutureNorms.
