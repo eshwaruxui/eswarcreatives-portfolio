@@ -480,6 +480,22 @@ next tenant rather than rediscovering migration-by-migration:
    under `supabase/functions/_shared/` on the next tenant, since this
    category is the easiest to miss (the file *looks* generic from its
    name and location).
+5. **Migrations authored on the sprint branch after the tenant's replay
+   already ran.** Found live, post-deploy: migration `0109_tenants_and_
+   modules.sql` (the table `useTenantConfig` itself depends on) was
+   written and committed to `feat/tenant-theme` *during* this same
+   session, after FutureNorms' migration replay had already finished
+   through `0108`. It was never applied to her project — `select * from
+   tenants` returned `42P01: relation "public.tenants" does not exist`,
+   and her deployed portal showed a blocking "Tenant not found" screen.
+   Applied a modified copy directly (same table/RLS shape, seeded with
+   her own self-referential row instead of Eswar's — see the pattern
+   used for `0018`). **The general lesson: a migration replay done
+   mid-sprint is a snapshot of the branch at that moment, not a
+   standing guarantee — always diff `list_migrations` against the
+   branch's current `supabase/migrations/` directory right before
+   declaring a tenant's onboarding complete, not just at the start of
+   the replay.**
 
 ### Recommendation for future tenant onboarding
 
