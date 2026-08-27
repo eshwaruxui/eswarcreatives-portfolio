@@ -523,3 +523,33 @@ comprehensive by design from the start. A future session running the
 four greps above as literal Step 0 — before reading a single migration
 file in detail — would likely front-load all of this into one report
 instead of a running discovery across the whole provisioning session.
+
+## FutureNorms — Phase 4 palette values, 27 August 2026
+
+Theme wiring (`src/portal/theme.ts`'s `isEswarPalette`/`derived` branches,
+see `docs/PORTAL_ARCHITECTURE.md` §7) needed a real palette for values with
+no formula from `primary`/`gold` — `accent`, `goldDark`, `goldLight`,
+`tealLight`-equivalent, `text.onAccent`, `phaseUI.nodeFill`, and the
+phase-active border. FutureNorms has an audited Figma palette (unlike a
+brand-new tenant with only `primary`/`gold` declared), so these are her
+real designer-picked values, not `derivePalette.ts`'s generic formula.
+Source: `design-tokens/🔗 Semantic Tokens.Light.tokens.json` +
+`🎨 Primitives.Mode 1.tokens.json` (fileKey `HNcvu8LtGe4eAfM7R5fA61`).
+
+| theme.ts role | Value | Figma token |
+|---|---|---|
+| `accent` / `phaseUI.nodeFill` | `#5f449c` | `icon/brand-subtle`, violet.400 |
+| `goldDark` | `#523e14` | `brand/accent-dark`, gold.700 |
+| `goldLight` | `#fbf6e4` | `brand/accent-subtle`, gold.50 |
+| `tealLight`-equivalent | `#ede6f9` | `brand/primary-tint-subtle`, violet.50 |
+| `text.onAccent` | `#322711` | `text/on-accent`, gold.800 |
+| phase-active border | `#ebd9a3` | `status/pending-border`, gold.200 |
+
+**One deliberate mismatch worth flagging:** her Figma file's own
+`status/active-*` tokens are violet-hued (a "live/active" status meaning),
+but `phaseUI.status.active` in this codebase specifically means "Phase 2,
+gold" (see `theme.ts`'s own `phasePalette` comment: "Phase 1 teal, Phase 2
+gold, Phase 3 ruby"). Using her `status/pending-*` tokens (gold-hued) for
+the phase-active border instead of her same-named `status/active-*` tokens
+is intentional — matching the token *name* would have matched the wrong
+*meaning*.
