@@ -30,9 +30,16 @@ import { resolveTimezone, computeSendDecision } from "../_shared/businessHours.t
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const PORTAL_URL = Deno.env.get("PORTAL_URL") ?? "https://www.eswarcreatives.in";
+// No hardcoded fallback — see the matching comment in send-outreach-email.
+const PORTAL_URL = Deno.env.get("PORTAL_URL") ?? "";
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
-const FROM = "Eswar Maheswaran <eswar@eswarcreatives.in>";
+// Tenant-specific sender identity — no hardcoded fallback, shared with
+// send-outreach-email's identical values (same project, same secret names).
+// Found during FutureNorms provisioning, 26 Aug 2026 — this was previously
+// a bare "Eswar Maheswaran <eswar@eswarcreatives.in>" constant.
+const OUTREACH_SENDER_NAME = Deno.env.get("OUTREACH_SENDER_NAME") ?? "";
+const OUTREACH_SENDER_EMAIL = Deno.env.get("OUTREACH_SENDER_EMAIL") ?? "";
+const FROM = `${OUTREACH_SENDER_NAME} <${OUTREACH_SENDER_EMAIL}>`;
 const DAILY_CAP = 25;
 // Raised 50 -> 200 (11 Aug 2026) so the business-hours gate below cannot let
 // out-of-window rows crowd in-window rows out of a tick. The batch is only a
@@ -74,6 +81,14 @@ Deno.serve(async (req: Request) => {
 
   if (!CRON_SECRET || req.headers.get("x-cron-secret") !== CRON_SECRET) {
     return new Response("not_authenticated", { status: 401, headers: CORS });
+  }
+
+  if (!OUTREACH_SENDER_NAME || !OUTREACH_SENDER_EMAIL || !PORTAL_URL) {
+    console.error("send-confirmed-outreach-touches: OUTREACH_SENDER_NAME / OUTREACH_SENDER_EMAIL / PORTAL_URL not configured");
+    return new Response(JSON.stringify({ error: "sender_not_configured" }), {
+      status: 500,
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
   }
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -225,7 +240,7 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({
           from: FROM,
           to: lead.email,
-          reply_to: "eswar@eswarcreatives.in",
+          reply_to: OUTREACH_SENDER_EMAIL,
           subject: renderedSubject,
           text: renderedBody,
           html: htmlBody(renderedBody, unsubUrl),

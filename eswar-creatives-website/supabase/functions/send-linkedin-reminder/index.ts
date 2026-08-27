@@ -3,14 +3,27 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Sends a weekly LinkedIn post reminder email every Sunday 12:30 UTC (18:00 IST).
 // Triggered via pg_cron. Can also be triggered manually (admin "Send Test Reminder" button).
-// If fewer than 3 posts are scheduled for next week, sends reminder to eswar@eswarcreatives.in.
+// If fewer than 3 posts are scheduled for next week, sends reminder to LINKEDIN_ADMIN_EMAIL.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM = "EswarCreatives <eswar@eswarcreatives.in>";
-const PORTAL_URL = Deno.env.get("PORTAL_URL") ?? "https://www.eswarcreatives.in";
-const ADMIN_EMAIL = "eswar@eswarcreatives.in";
+// Tenant-specific sender + recipient — no hardcoded fallback. Own env vars
+// (not shared with OUTREACH_SENDER_*) because this function's current
+// display name ("EswarCreatives") differs from send-outreach-email's
+// ("Eswar Maheswaran") even though both use the same address on Eswar's
+// project — preserving that distinction rather than merging it away.
+// Found during FutureNorms provisioning, 26 Aug 2026.
+const LINKEDIN_SENDER_NAME = Deno.env.get("LINKEDIN_SENDER_NAME") ?? "";
+const LINKEDIN_SENDER_EMAIL = Deno.env.get("LINKEDIN_SENDER_EMAIL") ?? "";
+const FROM = `${LINKEDIN_SENDER_NAME} <${LINKEDIN_SENDER_EMAIL}>`;
+// No hardcoded fallback — see the matching comment in send-outreach-email.
+const PORTAL_URL = Deno.env.get("PORTAL_URL") ?? "";
+// ADMIN_EMAIL is the RECIPIENT of this reminder, not a sender field — if
+// left hardcoded to Eswar's address, Eswar would receive notifications
+// about a different tenant's LinkedIn posting queue instead of that
+// tenant's own admin.
+const ADMIN_EMAIL = Deno.env.get("LINKEDIN_ADMIN_EMAIL") ?? "";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -54,6 +67,14 @@ function htmlReminder(missing: number, monDate: Date, friDate: Date): string {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+
+  if (!LINKEDIN_SENDER_NAME || !LINKEDIN_SENDER_EMAIL || !ADMIN_EMAIL || !PORTAL_URL) {
+    console.error("send-linkedin-reminder: LINKEDIN_SENDER_NAME / LINKEDIN_SENDER_EMAIL / LINKEDIN_ADMIN_EMAIL / PORTAL_URL not configured");
+    return new Response(JSON.stringify({ error: "sender_not_configured" }), {
+      status: 500,
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 

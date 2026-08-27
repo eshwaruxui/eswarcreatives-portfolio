@@ -12,7 +12,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const ANON_KEY     = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM = "Eswar Creatives <hello@eswarcreatives.in>";
+// Tenant-specific sender identity — no hardcoded fallback. Own env vars
+// (not shared with OUTREACH_SENDER_*) since this function currently uses a
+// third, distinct sender persona ("hello@" vs the outreach functions'
+// "eswar@") on Eswar's project. Found during FutureNorms provisioning,
+// 26 Aug 2026.
+const INVOICE_SENDER_NAME = Deno.env.get("INVOICE_SENDER_NAME") ?? "";
+const INVOICE_SENDER_EMAIL = Deno.env.get("INVOICE_SENDER_EMAIL") ?? "";
+const FROM = `${INVOICE_SENDER_NAME} <${INVOICE_SENDER_EMAIL}>`;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -69,6 +76,11 @@ type Body = {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return fail("method_not_allowed", 405);
+
+  if (!INVOICE_SENDER_NAME || !INVOICE_SENDER_EMAIL) {
+    console.error("send-invoice-nudge: INVOICE_SENDER_NAME / INVOICE_SENDER_EMAIL not configured");
+    return fail("sender_not_configured", 500);
+  }
 
   // Verify the caller is a signed-in admin.
   const authHeader = req.headers.get("Authorization");

@@ -12,8 +12,18 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const PORTAL_URL = Deno.env.get("PORTAL_URL") ?? "https://www.eswarcreatives.in";
-const FROM = "Eswar Maheswaran <eswar@eswarcreatives.in>";
+// No hardcoded fallback — a project that hasn't set this must fail loudly
+// rather than silently sending unsubscribe links to a different tenant's
+// site. Found during FutureNorms provisioning, 26 Aug 2026.
+const PORTAL_URL = Deno.env.get("PORTAL_URL") ?? "";
+// Tenant-specific sender identity — no hardcoded fallback. A project that
+// hasn't set these must fail loudly rather than silently send as a
+// different tenant's identity (found during FutureNorms provisioning, 26
+// Aug 2026 — this was previously a bare "Eswar Maheswaran <eswar@
+// eswarcreatives.in>" constant).
+const OUTREACH_SENDER_NAME = Deno.env.get("OUTREACH_SENDER_NAME") ?? "";
+const OUTREACH_SENDER_EMAIL = Deno.env.get("OUTREACH_SENDER_EMAIL") ?? "";
+const FROM = `${OUTREACH_SENDER_NAME} <${OUTREACH_SENDER_EMAIL}>`;
 const DAILY_CAP = 25;
 
 const CORS = {
@@ -47,6 +57,11 @@ function substitute(template: string, vars: Record<string, string>): string {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return fail("method_not_allowed", 405);
+
+  if (!OUTREACH_SENDER_NAME || !OUTREACH_SENDER_EMAIL || !PORTAL_URL) {
+    console.error("send-outreach-email: OUTREACH_SENDER_NAME / OUTREACH_SENDER_EMAIL / PORTAL_URL not configured");
+    return fail("sender_not_configured", 500);
+  }
 
   // Verify admin JWT
   const authHeader = req.headers.get("Authorization");
@@ -242,7 +257,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: FROM,
         to: lead.email,
-        reply_to: "eswar@eswarcreatives.in",
+        reply_to: OUTREACH_SENDER_EMAIL,
         subject: renderedSubject,
         text: renderedBody,
         html: htmlBody(renderedBody, unsubUrl),
