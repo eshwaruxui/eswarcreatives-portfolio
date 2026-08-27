@@ -524,6 +524,112 @@ four greps above as literal Step 0 — before reading a single migration
 file in detail — would likely front-load all of this into one report
 instead of a running discovery across the whole provisioning session.
 
+## FutureNorms — Kiruthika's admin account (bootstrap-admin), 27 August 2026
+
+Eswar's project already has a working "create a client login" pattern
+(`admin-create-client`) — server-side, uses the service-role key, never
+exposed to the browser. Not directly reusable for Kiruthika: it requires
+the *caller* to already be an authenticated owner/admin (it checks the
+caller's own `profiles.role` before creating anyone else), which is a
+chicken-and-egg problem on a brand-new project with zero existing users.
+It also creates role=`client` plus a `clients` row and sends
+`send-welcome-email` — none of which fit "the tenant's own first admin,"
+which needs role=`admin`, no `clients` row, and content that doesn't
+read like client-onboarding copy.
+
+**Resolution:** a small, purpose-built `bootstrap-admin` function
+(`supabase/functions/bootstrap-admin/`), deployed to FutureNorms' project
+only, deliberately different from `admin-create-client` in three ways:
+- **Guarded by a shared secret (`BOOTSTRAP_ADMIN_SECRET`), not a caller
+  JWT** — there is no existing admin to authenticate as yet.
+- **Refuses to run a second time**: checks for an existing `owner`/`admin`
+  row before creating anyone, and fails closed if one exists. A bootstrap
+  endpoint that stays silently re-runnable is unnecessary attack surface.
+- **Does not call `send-welcome-email`** — sidesteps that function's own
+  hardcoded-identity problem entirely (see the correction note above)
+  rather than fixing a fifth Edge Function under time pressure. Its
+  content (`company_name`/`contact_name` framing) doesn't fit "you're now
+  the admin of your own portal" anyway.
+
+Generates a random temp password server-side, returns it once in the
+response for relay to Kiruthika through a channel outside this session
+(never round-tripped through chat to her directly). **Operational note,
+not yet acted on:** the function is still deployed to
+`ywppmokydzlxtqbfpzra`. Its own "refuses to run twice" guard makes it
+inert now that her admin row exists, but it should still be deleted (or
+have its secret unset) from that project rather than left live
+indefinitely — a dormant account-creation endpoint is not something to
+leave deployed just because it currently no-ops.
+
+Verified: `profiles` row created with `role='admin'` (matching Eswar's
+own actual role on his project, not the separate `owner` seed row —
+confirmed via direct query before choosing which role to assign).
+
+## FutureNorms — Supabase publishable-key mixup, 27 August 2026
+
+First login attempt after the Cloudflare Pages deploy failed with
+`Invalid API key`, not a `VITE_TENANT_ID` problem. Pulled the live
+bundle and checked what was actually baked in: `VITE_SUPABASE_URL` was
+correct (`ywppmokydzlxtqbfpzra.supabase.co`), but
+`VITE_SUPABASE_PUBLISHABLE_KEY` resolved to
+`sb_publishable_RIwXLj2WWMuXKpq7rI5nhw_Gcnpyirz` — not a typo of the
+right value, an entirely different key, most likely pasted from the
+wrong project/browser tab during setup. Confirmed the actual correct key
+for this project via `get_publishable_keys`
+(`sb_publishable__vfBtJ5DHxVHVQbbupIOeg_KUk5Dh86`) rather than guessing.
+
+**Lesson for future tenant onboarding:** don't assume a reported "Invalid
+API key" or auth failure is necessarily a `VITE_TENANT_ID`/theme
+resolution issue just because that's the more novel system in play —
+pull the actual deployed bundle and check what's really baked into it
+before diagnosing further up the stack. This was found by grepping the
+built JS for the literal key string and confirming it against
+`get_publishable_keys`, not by inspecting Cloudflare's dashboard (which
+only shows the env var *name* was set, not whether its *value* is
+correct for the target project).
+
+Also surfaced as a **second, independent bug at the same time**: after
+fixing the key, the next failure was `Tenant "futurenorms" not found` —
+migration `0109` (which creates the `tenants`/`tenant_modules` tables
+`useTenantConfig` depends on) had been authored on `feat/tenant-theme`
+*after* FutureNorms' migration replay had already finished. See the
+"Migrations authored on the sprint branch after the tenant's replay
+already ran" entry above (category 5) for the fix — noted here only to
+record that both bugs were diagnosed from the same pair of screenshots,
+not conflated with each other despite surfacing together.
+
+## FutureNorms — module-gating bug (PR #29), 27 August 2026
+
+After login succeeded, Kiruthika's nav showed Projects, Mockups,
+Campaigns, and Brand Visual Guide despite all four being `enabled=false`
+in her `tenant_modules` row. Root cause: Phase 2's live module-toggle
+system was only ever wired up for two nav items (`discovery`, `qrCode`)
+as an explicit proof of concept (`AdminShell.tsx`'s `NAV_BASE` comment
+said as much: "proof-of-concept scope is 'discovery' and 'qrCode' only,
+the rest are a fast-follow") — every other item rendered unconditionally
+regardless of `tenant_modules` state, and that fast-follow never
+happened before FutureNorms went live. This was live-tested, not
+anticipated: nothing in Phase 1-3's provisioning work would have
+surfaced it, since Eswar's own tenant has every module enabled and so
+never exercises the "hidden" path at all.
+
+**Fix (PR #29):** extended the same `moduleKey` pattern already proven
+on `discovery`/`qrCode` to all four remaining gateable items — both the
+nav-item filter in `AdminShell.tsx` and the route-level `ModuleGate`
+wrap in `route-config.ts`, so a disabled module is unreachable by direct
+URL too, not just hidden from the sidebar. `brandVisualGuide` also
+needed a data change (it was `enabled=true` in her `tenant_modules` row
+from initial provisioning, per the originally-confirmed module list —
+Projects/Mockups/Campaigns were already `false` in the data, just not
+gated in code).
+
+**Lesson for future tenant onboarding:** a tenant whose enabled-module
+set differs from Eswar's own (which has everything on) is the only way
+this class of gap gets exercised. Before a new tenant's first login,
+verify every `NAV_BASE` item that should be conditionally hidden
+actually has a `moduleKey` — don't assume "it's wired for `tenant_modules`"
+generalizes past the two items it happened to be proven on.
+
 ## FutureNorms — Phase 4 palette values, 27 August 2026
 
 Theme wiring (`src/portal/theme.ts`'s `isEswarPalette`/`derived` branches,

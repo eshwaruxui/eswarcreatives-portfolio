@@ -1246,6 +1246,38 @@ rendered Eswar's brand mark directly rather than through a token. See
 `docs/TENANT_PROVISIONING_LOG.md` for the FutureNorms-specific palette values
 and their Figma source.
 
+**Standing pattern for a new tenant's theme (do this for tenant #3, not
+just historical record of #2):**
+1. Add `<slug>.config.ts` under `src/portal/tenant/tenants/`, matching
+   `TenantTheme`'s shape (`primary`, `gold`, `cream`, `fontHeading`,
+   `fontBody`, `logo`) — see `futurenorms.config.ts` for the pattern.
+   Register it in `getTenantTheme.ts`'s `TENANTS` map.
+2. If the tenant has an audited Figma palette (semantic tokens with real
+   light/dark steps, not just two base colours), add a branch for it in
+   `theme.ts`'s `derived` object — real designer-picked values, the same
+   treatment Eswar's and FutureNorms' literals get. If they don't have
+   one yet, they fall through to `derivePalette.ts`'s generic formula
+   automatically — no code change required, but flag it as a known
+   approximation rather than a design-reviewed palette.
+3. Do **not** touch `isEswarPalette`'s literal branch, and do not modify
+   any existing tenant's branch while adding a new one — each tenant's
+   literals are independent, copy-paste the shape, don't factor out a
+   "shared" formula across audited tenants.
+4. Every `NAV_BASE` item in `AdminShell.tsx` that should be conditionally
+   hidden for this tenant needs its own `moduleKey`, wired to both the
+   nav filter and the corresponding `route-config.ts` entry via
+   `withModuleGate`. Do not assume this generalizes from having been
+   proven on a couple of items — verify each one explicitly (see the
+   module-gating bug in `docs/TENANT_PROVISIONING_LOG.md`, found live on
+   FutureNorms because her enabled-module set differs from Eswar's
+   everything-on default).
+5. Before declaring the tenant's first login "done," pull the actual
+   deployed JS bundle and grep for the expected `VITE_TENANT_ID` literal
+   and hex values rather than trusting the Cloudflare dashboard's env-var
+   *names* — a wrong *value* (see the publishable-key mixup in
+   `docs/TENANT_PROVISIONING_LOG.md`) looks identical to a correct one
+   from the dashboard alone.
+
 **Figma Design System Master:** `0SGbENUggpj9Fe6NebJ9QM`
 Token collections: teal (20), gold (20), neutral (21), ruby (20), success (20), warning (20), neutral-alpha (18), teal-alpha (20), yellow (20), avatar-palette (42), radius (15), spacing (33). Semantic Tokens: 268 total.
 
