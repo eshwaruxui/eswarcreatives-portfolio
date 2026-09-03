@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   FileText,
   Receipt,
+  ReceiptText,
   FolderKanban,
   Images,
   Compass,
@@ -46,13 +47,14 @@ type NavItem = {
 // panel, so they no longer appear in the desktop sidebar nav.
 const NAV_BASE: NavItem[] = [
   { to: '/portal/admin', label: 'Dashboard', Icon: LayoutDashboard, end: true },
-  { to: '/portal/admin/proposals', label: 'Proposals', Icon: FileText },
-  { to: '/portal/admin/invoices', label: 'Invoices', Icon: Receipt },
+  { to: '/portal/admin/proposals', label: 'Proposals', Icon: FileText, moduleKey: 'proposals' },
+  { to: '/portal/admin/invoices', label: 'Invoices', Icon: Receipt, moduleKey: 'invoices' },
+  { to: '/portal/admin/quotations', label: 'Quotations', Icon: ReceiptText, moduleKey: 'quotations' },
   { to: '/portal/admin/projects', label: 'Projects', Icon: FolderKanban, moduleKey: 'projects' },
   { to: '/portal/admin/mockups', label: 'Mockups', Icon: Images, moduleKey: 'mockups' },
   { to: '/portal/admin/discovery', label: 'Discovery', Icon: Compass, moduleKey: 'discovery' },
   { to: '/portal/admin/campaigns', label: 'Campaigns', Icon: Megaphone, moduleKey: 'campaigns' },
-  { to: '/portal/admin/outreach', label: 'Outreach', Icon: Send },
+  { to: '/portal/admin/outreach', label: 'Outreach', Icon: Send, moduleKey: 'outreach' },
   { to: '/portal/admin/brand-visual-guide', label: 'Brand Visual Guide', Icon: Palette, moduleKey: 'brandVisualGuide' },
   { to: '/portal/admin/qr', label: 'QR Codes', Icon: QrCode, moduleKey: 'qrCode' },
 ]
