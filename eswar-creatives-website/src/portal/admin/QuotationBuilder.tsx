@@ -421,7 +421,7 @@ export function QuotationBuilder() {
               total_amount: total,
               advance_amount: advanceAmount,
             }}
-            items={items}
+            items={items.map((it) => ({ ...it, amount: it.qty * it.rate }))}
           />
         </div>
       </div>
