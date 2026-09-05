@@ -16,6 +16,7 @@ import {
   type InvoicePaymentRow,
 } from './components/shared/InvoiceDocument'
 import { tokens, t, fonts } from './theme'
+import { formatPortalDate } from './utils/formatDate'
 import eswarLogo from '../imports/eswar-logo.svg'
 import type { CSSProperties } from 'react'
 
@@ -109,19 +110,6 @@ function fmtCurrency(amount: number, currency: string): string {
     }).format(amount)
   } catch {
     return `${currency} ${amount.toLocaleString()}`
-  }
-}
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    })
-  } catch {
-    return iso
   }
 }
 
@@ -336,7 +324,7 @@ export function PublicInvoicePage() {
                     {fmtCurrency(balanceDue, inv.currency)}
                   </div>
                   {inv.due_date && (
-                    <div style={styles.heroDue}>Due {fmtDate(inv.due_date)}</div>
+                    <div style={styles.heroDue}>Due {formatPortalDate(inv.due_date)}</div>
                   )}
                   {amountPaid > 0 && (
                     <div style={styles.heroMeta}>

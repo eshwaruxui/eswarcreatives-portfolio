@@ -26,6 +26,7 @@ import { PublicInvoicePage } from "../portal/PublicInvoicePage";
 import { PublicProposalPage } from "../portal/PublicProposalPage";
 import { PublicOutputFilePage } from "../portal/PublicOutputFilePage";
 import { PublicBrandPage } from "../portal/PublicBrandPage";
+import { PublicQuotationPage } from "../portal/PublicQuotationPage";
 import { UnsubscribePage } from "../portal/UnsubscribePage";
 import { AdminShell } from "../portal/admin/AdminShell";
 import { withModuleGate } from "../portal/tenant/withModuleGate";
@@ -42,6 +43,8 @@ import { CampaignsAdmin } from "../portal/admin/CampaignsAdmin";
 import { OutreachAdmin } from "../portal/admin/OutreachAdmin";
 import { BrandVisualGuideAdmin } from "../portal/admin/BrandVisualGuideAdmin";
 import { QrAdmin } from "../portal/admin/QrAdmin";
+import { QuotationsAdmin } from "../portal/admin/QuotationsAdmin";
+import { QuotationBuilder } from "../portal/admin/QuotationBuilder";
 import { SettingsPage } from "../portal/admin/settings/SettingsPage";
 import { MockupsPage } from "../portal/client/MockupsPage";
 import { ClientShell } from "../portal/client/ClientShell";
@@ -98,6 +101,8 @@ export const routeConfig = [
   { path: "/output/:token",         Component: PublicOutputFilePage },
   // Public Brand Visual Guide view — no auth required; clients.public_token enforced server-side (0094-0095).
   { path: "/brand/:token",          Component: PublicBrandPage },
+  // Public quotation view — no auth required; token + status<>'draft' enforced server-side (0110).
+  { path: "/quotation/:token",      Component: PublicQuotationPage },
   // Public unsubscribe page — no auth required; calls unsubscribe_by_token RPC.
   { path: "/unsubscribe/:token",    Component: UnsubscribePage },
   // Phase 3 admin portal — persistent shell (sidebar + Outlet), admin-gated.
@@ -107,15 +112,17 @@ export const routeConfig = [
       { path: "/portal/admin",             Component: AdminDashboard },
       { path: "/portal/admin/clients",     Component: ClientsList },
       { path: "/portal/admin/clients/:id", Component: ClientDetail },
-      { path: "/portal/admin/proposals",   Component: ProposalsAdmin },
-      { path: "/portal/admin/proposals/:id", Component: ProposalDetail },
-      { path: "/portal/admin/invoices",    Component: InvoicesAdmin },
+      { path: "/portal/admin/proposals",   Component: withModuleGate("proposals", ProposalsAdmin) },
+      { path: "/portal/admin/proposals/:id", Component: withModuleGate("proposals", ProposalDetail) },
+      { path: "/portal/admin/invoices",    Component: withModuleGate("invoices", InvoicesAdmin) },
+      { path: "/portal/admin/quotations",     Component: withModuleGate("quotations", QuotationsAdmin) },
+      { path: "/portal/admin/quotations/:id", Component: withModuleGate("quotations", QuotationBuilder) },
       { path: "/portal/admin/projects",    Component: withModuleGate("projects", ProjectsList) },
       { path: "/portal/admin/mockups",     Component: withModuleGate("mockups", MockupsAdmin) },
       { path: "/portal/admin/discovery",   Component: withModuleGate("discovery", DiscoveryPlaceholder) },
       // Phase 5 (Task 6): review_campaigns management with visibility + status.
       { path: "/portal/admin/campaigns",   Component: withModuleGate("campaigns", CampaignsAdmin) },
-      { path: "/portal/admin/outreach",    Component: OutreachAdmin },
+      { path: "/portal/admin/outreach",    Component: withModuleGate("outreach", OutreachAdmin) },
       { path: "/portal/admin/brand-visual-guide", Component: withModuleGate("brandVisualGuide", BrandVisualGuideAdmin) },
       { path: "/portal/admin/qr",          Component: withModuleGate("qrCode", QrAdmin) },
       { path: "/portal/admin/settings",    Component: SettingsPage },

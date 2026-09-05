@@ -13,6 +13,7 @@ import {
   relativeTime,
 } from './ui'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { useTenantConfig } from '../tenant/useTenantConfig'
 import type { CSSProperties } from 'react'
 
 type ProposalRow = {
@@ -66,6 +67,16 @@ function displayName(r: { client_name: string | null; company_name: string | nul
 
 export function AdminDashboard() {
   const { isMobile, isTablet } = useBreakpoint()
+  // Fails open on an unresolved/absent module row (undefined !== false),
+  // same convention as ModuleGate/NAV_BASE — a tenant with every module
+  // seeded true (Eswar's own) is unaffected. This is what actually fixes
+  // the crash risk: a tenant without a module never issues that module's
+  // query at all, not just hides the card after the fact.
+  const { modules, loading: tenantLoading } = useTenantConfig()
+  const showProposals = modules.proposals !== false
+  const showInvoices = modules.invoices !== false
+  const showCampaigns = modules.campaigns !== false
+  const showOutreach = modules.outreach !== false
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [outstanding, setOutstanding] = useState<Record<string, number>>({})
@@ -76,29 +87,44 @@ export function AdminDashboard() {
   const [outreach, setOutreach] = useState<OutreachStats>({ dueToday: 0, overdue: 0, repliesThisWeek: 0 })
 
   useEffect(() => {
+    // Wait for tenant module state to resolve before deciding which queries
+    // to run — otherwise the first render (modules still {}) would fail
+    // open and fire every query regardless, defeating the point.
+    if (tenantLoading) return
     let cancelled = false
     ;(async () => {
       try {
         const today = new Date().toISOString().slice(0, 10)
         const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        const noRows = Promise.resolve({ data: [], error: null, count: 0 } as {
+          data: unknown[] | null
+          error: null
+          count: number
+        })
         const [proposalsRes, invoicesRes, campaignsRes, clientsRes, dueTodayRes, overdueRes, repliesRes] = await Promise.all([
-          supabase
-            .from('proposals')
-            .select(
-              'id, proposal_number, title, client_name, company_name, total_amount, currency, status, created_at'
-            )
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('invoices')
-            .select(
-              'id, invoice_number, client_name, company_name, label, amount, currency, status, created_at'
-            )
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('public_campaigns')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'active'),
+          showProposals
+            ? supabase
+                .from('proposals')
+                .select(
+                  'id, proposal_number, title, client_name, company_name, total_amount, currency, status, created_at'
+                )
+                .order('created_at', { ascending: false })
+            : noRows,
+          showInvoices
+            ? supabase
+                .from('invoices')
+                .select(
+                  'id, invoice_number, client_name, company_name, label, amount, currency, status, created_at'
+                )
+                .order('created_at', { ascending: false })
+            : noRows,
+          showCampaigns
+            ? supabase
+                .from('public_campaigns')
+                .select('id', { count: 'exact', head: true })
+                .eq('status', 'active')
+            : noRows,
           supabase.from('clients').select('id', { count: 'exact', head: true }),
           // scheduled_for is timestamptz (migration 0092) — "due today" is a
           // range (today's midnight through tomorrow's), not exact equality
@@ -106,9 +132,15 @@ export function AdminDashboard() {
           // draft_confirmed_at excluded here too — a confirmed touch has
           // already been sent/deferred and is waiting on the auto-send cron,
           // not actually due (mirrors the TodayTab.tsx queue filter).
-          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').gte('scheduled_for', `${today}T00:00:00.000Z`).lt('scheduled_for', `${tomorrow}T00:00:00.000Z`).is('draft_confirmed_at', null),
-          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').lt('scheduled_for', `${today}T00:00:00.000Z`).is('draft_confirmed_at', null),
-          supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').eq('skipped_reason', 'lead_replied').gte('created_at', sevenDaysAgo),
+          showOutreach
+            ? supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').gte('scheduled_for', `${today}T00:00:00.000Z`).lt('scheduled_for', `${tomorrow}T00:00:00.000Z`).is('draft_confirmed_at', null)
+            : noRows,
+          showOutreach
+            ? supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'scheduled').lt('scheduled_for', `${today}T00:00:00.000Z`).is('draft_confirmed_at', null)
+            : noRows,
+          showOutreach
+            ? supabase.from('outreach_touches').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').eq('skipped_reason', 'lead_replied').gte('created_at', sevenDaysAgo)
+            : noRows,
         ])
         if (proposalsRes.error) throw proposalsRes.error
         if (invoicesRes.error) throw invoicesRes.error
@@ -177,7 +209,7 @@ export function AdminDashboard() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [tenantLoading, showProposals, showInvoices, showCampaigns, showOutreach])
 
   const outstandingEntries = Object.entries(outstanding)
   const outstandingValue =
@@ -192,28 +224,31 @@ export function AdminDashboard() {
       {error && <div style={styles.error}>{error}</div>}
 
       <div style={{ ...styles.statRow, ...((isMobile || isTablet) ? styles.statRowNarrow : null) }}>
-        <Stat label="Outstanding invoices" value={outstandingValue} mono />
-        <Stat label="Active proposals" value={loading ? '—' : String(activeProposals)} />
-        <Stat label="Active campaigns" value={loading ? '—' : String(activeCampaigns)} />
+        {showInvoices && <Stat label="Outstanding invoices" value={outstandingValue} mono />}
+        {showProposals && <Stat label="Active proposals" value={loading ? '—' : String(activeProposals)} />}
+        {showCampaigns && <Stat label="Active campaigns" value={loading ? '—' : String(activeCampaigns)} />}
         <Stat label="Total clients" value={loading ? '—' : String(totalClients)} />
       </div>
 
       {/* Outreach card */}
-      <Card style={{ marginTop: 20 }}>
-        <div style={styles.outreachHead}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Send size={16} color={tokens.primary} />
-            <h2 style={{ ...styles.sectionTitle, margin: 0 }}>Outreach</h2>
+      {showOutreach && (
+        <Card style={{ marginTop: 20 }}>
+          <div style={styles.outreachHead}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Send size={16} color={tokens.primary} />
+              <h2 style={{ ...styles.sectionTitle, margin: 0 }}>Outreach</h2>
+            </div>
+            <Link to="/portal/admin/outreach" style={styles.viewQueueLink}>View queue</Link>
           </div>
-          <Link to="/portal/admin/outreach" style={styles.viewQueueLink}>View queue</Link>
-        </div>
-        <div style={{ ...styles.outreachStats, ...(isMobile ? styles.outreachStatsMobile : null) }}>
-          <OutreachStat label="Due today" value={outreach.dueToday} />
-          <OutreachStat label="Overdue" value={outreach.overdue} danger />
-          <OutreachStat label="Replies this week" value={outreach.repliesThisWeek} />
-        </div>
-      </Card>
+          <div style={{ ...styles.outreachStats, ...(isMobile ? styles.outreachStatsMobile : null) }}>
+            <OutreachStat label="Due today" value={outreach.dueToday} />
+            <OutreachStat label="Overdue" value={outreach.overdue} danger />
+            <OutreachStat label="Replies this week" value={outreach.repliesThisWeek} />
+          </div>
+        </Card>
+      )}
 
+      {(showProposals || showInvoices) && (
       <Card style={{ marginTop: 20 }}>
         <h2 style={styles.sectionTitle}>Recent activity</h2>
         {loading ? (
@@ -247,6 +282,7 @@ export function AdminDashboard() {
           </div>
         )}
       </Card>
+      )}
     </>
   )
 }

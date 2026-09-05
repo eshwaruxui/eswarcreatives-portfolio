@@ -1,11 +1,13 @@
 import type { TenantTheme } from './tenant.types'
 import { eswarConfig } from './tenants/eswar.config'
 import { futurenormsConfig } from './tenants/futurenorms.config'
+import { newgenConfig } from './tenants/newgen.config'
 import { ACTIVE_TENANT_ID } from './activeTenantId'
 
 const TENANTS: Record<string, TenantTheme> = {
   eswar: eswarConfig,
   futurenorms: futurenormsConfig,
+  newgen: newgenConfig,
 }
 
 // Single gateway for theme/branding values. Module visibility is not part of
