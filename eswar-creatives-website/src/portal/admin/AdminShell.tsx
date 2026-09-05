@@ -99,10 +99,27 @@ function Shell({ profile }: { profile: PortalProfile }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const location = useLocation()
 
-  // modules[key] === false hides explicitly; undefined (still loading, or no
-  // moduleKey at all) fails open — see useTenantConfig.tsx.
-  const isNavItemVisible = (item: NavItem) =>
-    !item.moduleKey || enabledModules[item.moduleKey] !== false
+  // Ungated items always show. Gated items show only once tenant_modules has
+  // actually resolved.
+  //
+  // This used to fail OPEN while loading, on the reasoning that most modules
+  // are enabled for most tenants so hiding-then-showing would flash. That
+  // reasoning does not survive a tenant who has almost everything switched
+  // off: Newgen has 2 of 11 modules enabled, so every single page load
+  // rendered nine modules that are not theirs — Proposals, Invoices,
+  // Projects, Mockups, Discovery, Campaigns, Outreach, Brand Visual Guide,
+  // QR Codes — as real, clickable links for about three seconds before
+  // filtering them away. It reads as an unfinished product, and it invites
+  // clicks into routes the tenant does not have.
+  //
+  // Failing closed shows nothing wrong at any point. The gap is covered by
+  // skeleton rows below rather than an empty sidebar, so the nav still has
+  // presence and stable height while the gate resolves.
+  const isNavItemVisible = (item: NavItem) => {
+    if (!item.moduleKey) return true
+    if (tenantLoading) return false
+    return enabledModules[item.moduleKey] !== false
+  }
 
   useEffect(() => {
     // scheduled_for is timestamptz (migration 0092) — "due" means anything
@@ -174,6 +191,10 @@ function Shell({ profile }: { profile: PortalProfile }) {
         {!isMobile && (
           <aside style={{ ...styles.sidebar, width: isTablet ? 180 : 240 }}>
             <nav style={styles.nav}>
+              {tenantLoading &&
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={`nav-skeleton-${i}`} style={styles.navSkeleton} aria-hidden="true" />
+                ))}
               {NAV.map(({ to, label, Icon, end, badge }) => (
                 <NavLink
                   key={to}
@@ -443,6 +464,15 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     gap: 2,
     flex: 1,
+  },
+  // Placeholder for a gated nav item while tenant_modules resolves. Keeps
+  // the sidebar from being briefly empty without asserting anything about
+  // which modules the tenant actually has.
+  navSkeleton: {
+    height: 38,
+    borderRadius: 8,
+    margin: '2px 0',
+    background: 'rgba(10, 10, 23, 0.06)',
   },
   navItem: {
     display: 'flex',

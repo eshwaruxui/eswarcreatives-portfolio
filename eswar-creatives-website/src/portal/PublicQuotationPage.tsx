@@ -43,6 +43,9 @@ type TokenPayload = {
   quotation: QuotationDocumentData
   reception_finish_label: string | null
   muhurtham_finish_label: string | null
+  // Already a client-facing sentence when it arrives; the RPC strips the
+  // stored key, so this page has no access to the internal value.
+  muhurtham_reuse_label: string | null
   items: RpcItem[]
 }
 
@@ -134,6 +137,7 @@ export function PublicQuotationPage() {
             quotation={payload.quotation}
             items={items}
             finishLabels={finishLabels}
+            muhurthamReuseLabel={payload.muhurtham_reuse_label ?? null}
           />
         )}
       </main>

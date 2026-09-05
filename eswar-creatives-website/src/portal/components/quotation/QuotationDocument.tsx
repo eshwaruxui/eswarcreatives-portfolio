@@ -70,6 +70,15 @@ export type FinishLabels = {
   muhurtham: string | null
 }
 
+/**
+ * "Reception setup retained, with additions" / "Setup fully changed for the
+ * muhurtham" — already a client-facing sentence, never the stored key.
+ * This is a commitment the client is paying for and the most consequential
+ * line on some two-function weddings, so it prints on the document rather
+ * than living only in the builder.
+ */
+export type MuhurthamReuseLabel = string | null
+
 const FUNCTION_LABELS: Record<QuotationFunctionKey, string> = {
   reception: 'Reception',
   muhurtham: 'Muhurtham',
@@ -133,11 +142,13 @@ export function QuotationDocument({
   quotation,
   items,
   finishLabels,
+  muhurthamReuseLabel = null,
 }: {
   tenantId: string
   quotation: QuotationDocumentData
   items: QuotationDocumentItem[]
   finishLabels: FinishLabels
+  muhurthamReuseLabel?: MuhurthamReuseLabel
 }) {
   const b = getDocumentTheme(tenantId)
   const F = b.fontUI
@@ -205,6 +216,7 @@ export function QuotationDocument({
 
         {sections.map((section) => {
           const finishLabel = finishLabels[section.key]
+          const muhurthamReuseLine = section.key === 'muhurtham' && !!muhurthamReuseLabel
           return (
             <div key={section.key} style={{ marginBottom: sections.length > 1 ? 28 : 0 }}>
               {section.heading && (
@@ -213,8 +225,15 @@ export function QuotationDocument({
                 </div>
               )}
               {finishLabel && (
-                <div style={{ color: b.ochre, fontFamily: F, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
+                <div style={{ color: b.ochre, fontFamily: F, fontSize: 12, fontWeight: 600, marginBottom: muhurthamReuseLine ? 2 : 12 }}>
                   Finish: {finishLabel}
+                </div>
+              )}
+              {/* Only under the muhurtham: it describes what happens to the
+                  reception setup, so it is meaningless above the reception. */}
+              {section.key === 'muhurtham' && muhurthamReuseLabel && (
+                <div style={{ color: b.ochre, fontFamily: F, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
+                  Setup: {muhurthamReuseLabel}
                 </div>
               )}
 

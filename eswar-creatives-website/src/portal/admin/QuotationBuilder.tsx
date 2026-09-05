@@ -38,6 +38,10 @@ import {
   type PricingContext,
   type QuotationFunctionKey,
 } from '../components/quotation/quotationMath'
+import {
+  persistQuotationScope,
+  type QuotationSettings,
+} from '../components/quotation/persistQuotation'
 import type { CSSProperties } from 'react'
 
 const EVENT_TYPES = [
@@ -103,6 +107,9 @@ export function QuotationBuilder() {
   const [view, setView] = useState<'form' | 'builder' | 'preview'>('form')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // Surfaced in the cart rail: the operator must be able to tell whether
+  // what they are looking at has reached the database.
+  const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
 
   const [quotationId, setQuotationId] = useState<string | null>(isNew ? null : id ?? null)
@@ -136,6 +143,12 @@ export function QuotationBuilder() {
   const [showManual, setShowManual] = useState(false)
   const [manualItem, setManualItem] = useState({ name: '', system: '', unit: 'per unit', rate: '', qty: '1' })
 
+  // The id this session has already hydrated from the database. Set both on
+  // load and immediately after insert, so the post-insert URL change never
+  // triggers a reload that overwrites unsaved in-memory state.
+  const loadedIdRef = useRef<string | null>(null)
+  const [vocabLoaded, setVocabLoaded] = useState(false)
+
   const [mockupFile, setMockupFile] = useState<File | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [mockupNotice, setMockupNotice] = useState('')
@@ -146,7 +159,12 @@ export function QuotationBuilder() {
   const [validDays, setValidDays] = useState(7)
   const [gstEnabled, setGstEnabled] = useState(false)
 
+  // Vocabulary is tenant reference data: it depends on nothing in the URL
+  // and is fetched exactly once. It used to live in the same effect as the
+  // quotation load, which meant every id change refetched four tables for
+  // no reason — and, far worse, dragged the quotation load along with it.
   useEffect(() => {
+    let cancelled = false
     void (async () => {
       const [zonesRes, systemsRes, finishRes, libRes] = await Promise.all([
         supabase.from('quotation_zones').select('key, label, sort_order').order('sort_order'),
@@ -156,9 +174,9 @@ export function QuotationBuilder() {
         supabase.from('quotation_finish_levels').select('key, label, description, floral_multiplier, has_colour_variant, sort_order').order('sort_order'),
         supabase.from('quotation_item_library').select('id, system, name, unit, default_rate, is_motion').eq('is_active', true).order('sort_order'),
       ])
-      const zoneRows = (zonesRes.data ?? []) as Zone[]
+      if (cancelled) return
       const finishRows = (finishRes.data ?? []) as FinishLevel[]
-      setZones(zoneRows)
+      setZones((zonesRes.data ?? []) as Zone[])
       setSystems((systemsRes.data ?? []) as SystemRow[])
       setFinishLevels(finishRows)
       setLibrary((libRes.data ?? []) as LibraryItem[])
@@ -168,74 +186,103 @@ export function QuotationBuilder() {
       // element silently filed a stage garden into valet parking. Nothing
       // is selected until the operator picks a zone, which is also what
       // makes the cart's "Pick a zone above" instruction literally true.
-
-      if (!isNew && id) {
-        const { data: q, error: qErr } = await supabase.from('quotations').select('*').eq('id', id).single()
-        if (qErr || !q) {
-          setError('Could not load this quotation.')
-          setLoading(false)
-          return
-        }
-        setQuotationId(q.id)
-        setQuotationNumber(q.quotation_number)
-        setCreatedAt(q.created_at)
-        setStatus(q.status)
-        setPublicToken(q.public_token)
-        setClient({
-          name: q.client_name ?? '', phone: q.client_phone ?? '',
-          email: q.client_email ?? '', address: q.client_address ?? '',
-        })
-        setEventInfo({
-          type: q.event_type ?? '', date: q.event_date ?? '', venue: q.venue ?? '',
-          guestCount: q.guest_count ? String(q.guest_count) : '', notes: q.notes ?? '',
-        })
-        if (q.community) {
-          setCommunity(COMMUNITIES.includes(q.community) ? q.community : 'Other')
-          if (!COMMUNITIES.includes(q.community)) setCommunityOther(q.community)
-        }
-        setHasMuhurtham(!!q.has_muhurtham)
-        setMuhurthamReuse(q.muhurtham_reuse ?? '')
-        setReceptionFinish(q.reception_finish_key ?? '')
-        setMuhurthamFinish(q.muhurtham_finish_key ?? '')
-        setReadymadeVariant(q.readymade_variant ?? '')
-        setDiscount(Number(q.discount_pct) || 0)
-        setAdvance(Number(q.advance_pct) || 50)
-        setValidDays(Number(q.validity_days) || 7)
-        setGstEnabled(!!q.gst_enabled)
-
-        const { data: itemRows } = await supabase
-          .from('quotation_items')
-          .select('id, system, zone_key, function_key, label, unit, qty, rate, note, gerbera_fill, source')
-          .eq('quotation_id', id)
-          .order('sort_order')
-        setItems(
-          (itemRows ?? []).map((r) => ({
-            key: r.id,
-            functionKey: r.function_key as QuotationFunctionKey,
-            zoneKey: r.zone_key,
-            system: r.system,
-            label: r.label,
-            unit: r.unit,
-            qty: Number(r.qty),
-            rate: Number(r.rate),
-            note: r.note,
-            gerberaFill: !!r.gerbera_fill,
-            source: r.source,
-          }))
-        )
-        setView('builder')
-      } else {
-        // Default both functions to the middle of the ladder rather than
-        // the cheapest or dearest, so an unset finish is never silently a
-        // pricing decision.
-        const mid = finishRows[Math.floor(finishRows.length / 2)]
-        if (mid) {
-          setReceptionFinish((f) => f || mid.key)
-          setMuhurthamFinish((f) => f || mid.key)
-        }
+      //
+      // Both functions default to the middle of the ladder rather than the
+      // cheapest or dearest, so an unset finish is never silently a pricing
+      // decision. Functional updates, so a finish the operator has already
+      // chosen (or one a loaded quotation supplied) is never overwritten by
+      // this arriving late.
+      const mid = finishRows[Math.floor(finishRows.length / 2)]
+      if (mid) {
+        setReceptionFinish((f) => f || mid.key)
+        setMuhurthamFinish((f) => f || mid.key)
       }
+      setVocabLoaded(true)
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  // Loading an EXISTING quotation. Guarded by loadedIdRef so it never runs
+  // for a quotation this session created itself.
+  //
+  // THE BUG THIS GUARD EXISTS FOR (found on NES-2026-1006): saveClientEvent
+  // inserts the row and then navigates from /quotations/new to
+  // /quotations/<uuid> so the URL is shareable. That changes the :id param,
+  // which re-ran this load — against the row that had just been inserted,
+  // whose muhurtham_finish_key and muhurtham_reuse were still NULL because
+  // the insert had never carried them. The reload then wrote those NULLs
+  // straight over the operator's in-memory choices. The muhurtham finish
+  // silently became "no finish" (multiplier 1, so 15000 stored as 15000),
+  // and "Retained with additions" was discarded before it was ever written.
+  // Nothing in the UI moved, so there was no way to see it happen.
+  useEffect(() => {
+    if (isNew || !id) { setLoading(false); return }
+    if (loadedIdRef.current === id) { setLoading(false); return }
+    let cancelled = false
+    void (async () => {
+      const { data: q, error: qErr } = await supabase.from('quotations').select('*').eq('id', id).single()
+      if (cancelled) return
+      if (qErr || !q) {
+        setError('Could not load this quotation.')
+        setLoading(false)
+        return
+      }
+      loadedIdRef.current = q.id
+      setQuotationId(q.id)
+      setQuotationNumber(q.quotation_number)
+      setCreatedAt(q.created_at)
+      setStatus(q.status)
+      setPublicToken(q.public_token)
+      setClient({
+        name: q.client_name ?? '', phone: q.client_phone ?? '',
+        email: q.client_email ?? '', address: q.client_address ?? '',
+      })
+      setEventInfo({
+        type: q.event_type ?? '', date: q.event_date ?? '', venue: q.venue ?? '',
+        guestCount: q.guest_count ? String(q.guest_count) : '', notes: q.notes ?? '',
+      })
+      if (q.community) {
+        setCommunity(COMMUNITIES.includes(q.community) ? q.community : 'Other')
+        if (!COMMUNITIES.includes(q.community)) setCommunityOther(q.community)
+      }
+      setHasMuhurtham(!!q.has_muhurtham)
+      setMuhurthamReuse(q.muhurtham_reuse ?? '')
+      // A stored NULL finish must not become '' and silently price at
+      // multiplier 1. Fall back to the ladder's middle step, the same
+      // default a new quotation gets.
+      setReceptionFinish(q.reception_finish_key ?? '')
+      setMuhurthamFinish(q.muhurtham_finish_key ?? '')
+      setReadymadeVariant(q.readymade_variant ?? '')
+      setDiscount(Number(q.discount_pct) || 0)
+      setAdvance(Number(q.advance_pct) || 50)
+      setValidDays(Number(q.validity_days) || 7)
+      setGstEnabled(!!q.gst_enabled)
+
+      const { data: itemRows } = await supabase
+        .from('quotation_items')
+        .select('id, system, zone_key, function_key, label, unit, qty, rate, note, gerbera_fill, source')
+        .eq('quotation_id', id)
+        .order('sort_order')
+      if (cancelled) return
+      setItems(
+        (itemRows ?? []).map((r) => ({
+          key: r.id,
+          functionKey: r.function_key as QuotationFunctionKey,
+          zoneKey: r.zone_key,
+          system: r.system,
+          label: r.label,
+          unit: r.unit,
+          qty: Number(r.qty),
+          rate: Number(r.rate),
+          note: r.note,
+          gerberaFill: !!r.gerbera_fill,
+          source: r.source,
+        }))
+      )
+      setView('builder')
       setLoading(false)
     })()
+    return () => { cancelled = true }
   }, [id, isNew])
 
   const multiplierOf = useCallback(
@@ -305,6 +352,18 @@ export function QuotationBuilder() {
       notes: eventInfo.notes.trim() || null,
       community: resolvedCommunity,
       has_muhurtham: muhurthamAvailable && hasMuhurtham,
+      // muhurtham_reuse is chosen on THIS step, so it has to be written by
+      // this save. It was previously written only by the scope save, which
+      // meant the operator's answer lived in memory alone until then — and
+      // was lost outright when the post-insert reload cleared it.
+      muhurtham_reuse:
+        muhurthamAvailable && hasMuhurtham ? muhurthamReuse || null : null,
+      // Carried so a freshly inserted row is never a row with no finish.
+      // A NULL finish reads back as "" and prices at multiplier 1, which is
+      // how a 15000 muhurtham garden stored as 15000 instead of 12750.
+      reception_finish_key: receptionFinish || null,
+      muhurtham_finish_key:
+        muhurthamAvailable && hasMuhurtham ? muhurthamFinish || null : null,
     }
     if (quotationId) {
       const { error: upErr } = await supabase.from('quotations').update(payload).eq('id', quotationId)
@@ -325,6 +384,10 @@ export function QuotationBuilder() {
       setError('Could not create the quotation. Try again.')
       return null
     }
+    // Claim the id BEFORE navigating. The navigate below changes the :id
+    // param, and without this the load effect would fetch the row we just
+    // created and write its NULLs over the state that created it.
+    loadedIdRef.current = inserted.id
     setQuotationId(inserted.id)
     setQuotationNumber(inserted.quotation_number)
     setCreatedAt(inserted.created_at)
@@ -332,66 +395,63 @@ export function QuotationBuilder() {
     return inserted.id
   }
 
-  async function saveScopeAndSettings(qId: string) {
-    setSaving(true)
-    setError(null)
+  // Everything this screen persists about scope and money, in one object,
+  // so the autosave effect and the explicit saves cannot drift apart.
+  const scopeSettings: QuotationSettings = useMemo(
+    () => ({
+      discountPct: discount,
+      advancePct: advance,
+      validityDays: validDays,
+      gstEnabled,
+      twoFunction,
+      receptionFinishKey: receptionFinish,
+      muhurthamFinishKey: muhurthamFinish,
+      readymadeVariant,
+      muhurthamReuse,
+    }),
+    [discount, advance, validDays, gstEnabled, twoFunction, receptionFinish,
+     muhurthamFinish, readymadeVariant, muhurthamReuse]
+  )
 
-    const { error: upErr } = await supabase
-      .from('quotations')
-      .update({
-        discount_pct: discount,
-        advance_pct: advance,
-        validity_days: validDays,
-        gst_enabled: gstEnabled,
-        has_muhurtham: twoFunction,
-        reception_finish_key: receptionFinish || null,
-        muhurtham_finish_key: twoFunction ? muhurthamFinish || null : null,
-        readymade_variant: readymadeVariant || null,
-        muhurtham_reuse: twoFunction ? muhurthamReuse || null : null,
-        subtotal: totals.subtotal,
-        discount_amount: totals.discountAmount,
-        gst_amount: totals.gstAmount,
-        total_amount: totals.total,
-        advance_amount: totals.advanceAmount,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', qId)
-    if (upErr) {
-      setSaving(false)
-      setError('Could not save the scope. Try again.')
-      return false
-    }
-
-    await supabase.from('quotation_items').delete().eq('quotation_id', qId)
-    if (items.length > 0) {
-      const { error: itemsErr } = await supabase.from('quotation_items').insert(
-        items.map((it, idx) => ({
-          quotation_id: qId,
-          function_key: it.functionKey,
-          zone_key: it.zoneKey,
-          system: it.system,
-          label: it.label,
-          unit: it.unit,
-          qty: it.qty,
-          rate: it.rate,
-          // Persisted from the same helper the cart and preview render, so
-          // the public page re-reads exactly what was quoted.
-          amount: lineAmount(it, pricingCtx),
-          note: it.note,
-          gerbera_fill: it.gerberaFill,
-          source: it.source,
-          sort_order: idx,
-        }))
-      )
-      if (itemsErr) {
-        setSaving(false)
-        setError('Could not save the line items. Try again.')
+  // Note there is no `totals` argument. persistQuotationScope recomputes
+  // every money value from the lines and the pricing context at write time,
+  // so a stored total cannot disagree with the stored lines it came from.
+  const saveScopeAndSettings = useCallback(
+    async (qId: string): Promise<boolean> => {
+      setSaveState('saving')
+      const result = await persistQuotationScope(supabase, qId, items, pricingCtx, scopeSettings)
+      if (result.status === 'failed') {
+        setSaveState('error')
+        setError(
+          result.stage === 'items'
+            ? 'Could not save the line items. Try again.'
+            : 'Could not save the scope. Try again.'
+        )
         return false
       }
-    }
-    setSaving(false)
-    return true
-  }
+      setSaveState('saved')
+      setError(null)
+      return true
+    },
+    [items, pricingCtx, scopeSettings]
+  )
+
+  // Autosave. The stored row is what the client's public link renders, so
+  // any window where the screen and the database disagree is a window where
+  // Newgen quotes one price on the phone and the client reads another.
+  // Saving only on "Preview and Print" left that window open for as long as
+  // the operator kept editing: on NES-2026-1006 the muhurtham finish was
+  // changed to Fresh-led, the cart correctly showed 50,350, and the row kept
+  // 52,600 because nothing had told it otherwise.
+  //
+  // Skipped until the quotation exists and the builder is actually showing,
+  // so it never races the insert or fires while the form step is open.
+  useEffect(() => {
+    if (!quotationId || view !== 'builder' || !vocabLoaded) return
+    setSaveState('dirty')
+    const t = setTimeout(() => { void saveScopeAndSettings(quotationId) }, 900)
+    return () => clearTimeout(t)
+  }, [quotationId, view, vocabLoaded, saveScopeAndSettings])
 
   async function handleContinueFromForm() {
     const savedId = await saveClientEvent()
@@ -603,6 +663,16 @@ export function QuotationBuilder() {
     note: it.note,
   }))
 
+  // The two client-facing sentences for the reuse decision, matching
+  // get_quotation_by_token's mapping exactly so the admin preview and the
+  // public page cannot word the same commitment differently.
+  const MUHURTHAM_REUSE_LABELS: Record<string, string> = {
+    retain_with_additions: 'Reception setup retained, with additions',
+    fully_changed: 'Setup fully changed for the muhurtham',
+  }
+  const muhurthamReuseLabel =
+    twoFunction && muhurthamReuse ? MUHURTHAM_REUSE_LABELS[muhurthamReuse] ?? null : null
+
   const finishLabels: FinishLabels = {
     reception: finishLevels.find((f) => f.key === receptionFinish)?.label ?? null,
     muhurtham: twoFunction ? finishLevels.find((f) => f.key === muhurthamFinish)?.label ?? null : null,
@@ -688,6 +758,7 @@ export function QuotationBuilder() {
               advance_amount: totals.advanceAmount,
             }}
             items={docItems}
+            muhurthamReuseLabel={muhurthamReuseLabel}
           />
         </div>
       </div>
@@ -1207,6 +1278,18 @@ export function QuotationBuilder() {
               </div>
             </div>
 
+            {/* The client's public link renders the STORED row, so the
+                operator needs to know whether what they are looking at has
+                got there yet. */}
+            <div style={styles.saveState}>
+              {saveState === 'saving' && 'Saving…'}
+              {saveState === 'dirty' && 'Unsaved changes'}
+              {saveState === 'saved' && 'All changes saved'}
+              {saveState === 'error' && (
+                <span style={{ color: tokens.ruby, fontWeight: 700 }}>Not saved — retrying on next change</span>
+              )}
+            </div>
+
             {hasUnpriced && (
               <div style={styles.unpricedNotice}>
                 {unpricedCount} {unpricedCount === 1 ? 'line has' : 'lines have'} no rate yet. The total below is
@@ -1254,7 +1337,7 @@ export function QuotationBuilder() {
                 fontFamily: fonts.body, fontSize: 14, fontWeight: 700,
               }}
             >
-              {saving ? 'Saving...' : 'Preview and Print →'}
+              {saveState === 'saving' ? 'Saving...' : 'Preview and Print →'}
             </button>
             {items.length === 0 && (
               <div style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary, textAlign: 'center', marginTop: 6 }}>
@@ -1327,6 +1410,10 @@ const styles: Record<string, CSSProperties> = {
     padding: '3px 8px', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap',
     border: `1px solid ${tokens.border}`, background: '#fff',
     fontFamily: fonts.body, fontSize: 11, fontWeight: 600, color: tokens.primary,
+  },
+  saveState: {
+    fontFamily: fonts.body, fontSize: 10, color: t.text.tertiary,
+    textAlign: 'right', minHeight: 13, marginBottom: 6, letterSpacing: 0.2,
   },
   unpricedNotice: {
     fontFamily: fonts.body, fontSize: 11, lineHeight: 1.5, color: tokens.goldDark,
