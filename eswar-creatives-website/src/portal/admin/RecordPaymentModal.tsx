@@ -12,7 +12,7 @@ import { Trash2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { tokens, t, fonts } from '../theme'
 import { Modal, mono, formatMoney } from './ui'
-import { formatPortalDate } from '../utils/formatDate'
+import { formatDocumentDate } from '../utils/formatDate'
 import { ConfirmPaymentModal } from './ConfirmPaymentModal'
 import {
   useInvoicePayments,
@@ -116,7 +116,7 @@ export function RecordPaymentModal({ invoice, onClose, onSaved }: Props) {
         <div style={styles.historyList}>
           {payments.map((p) => (
             <div key={p.id} style={styles.historyRow}>
-              <span style={styles.historyDate}>{formatPortalDate(p.paid_on)}</span>
+              <span style={styles.historyDate}>{formatDocumentDate(p.paid_on)}</span>
               {p.method && <span style={styles.historyMethod}>{p.method}</span>}
               <span style={styles.historyAmount}>{formatMoney(Number(p.amount), invoice.currency)}</span>
               {confirmDeleteId === p.id ? (

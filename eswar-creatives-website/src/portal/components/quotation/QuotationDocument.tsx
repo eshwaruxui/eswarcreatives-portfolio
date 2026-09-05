@@ -23,7 +23,7 @@
 // else. No internal code, no ratio, no percentage, ever — not here, not in
 // the PDF, not on the public page.
 import type { CSSProperties } from 'react'
-import { formatPortalDate } from '../../utils/formatDate'
+import { formatDocumentDate } from '../../utils/formatDate'
 import { getDocumentTheme } from './documentThemes'
 import type { QuotationFunctionKey } from './quotationMath'
 
@@ -73,6 +73,27 @@ export type FinishLabels = {
 const FUNCTION_LABELS: Record<QuotationFunctionKey, string> = {
   reception: 'Reception',
   muhurtham: 'Muhurtham',
+}
+
+/**
+ * Renders a stored phone number, adding the tenant's dial code only when the
+ * number does not already carry one.
+ *
+ * The stored value is authoritative and is never rewritten: pasting
+ * "+91 98407 12233" out of WhatsApp is the normal way these numbers arrive,
+ * and the previous unconditional "+91 " prefix turned that into
+ * "+91 +91 98407 12233" on a client-facing document.
+ *
+ * A leading "+" is the only signal treated as "a country code is present".
+ * A bare leading "91" deliberately is not: a ten-digit Indian mobile can
+ * legitimately begin 91 (Newgen's own 9176045045 does), so inferring from
+ * digits would mangle real local numbers to fix a case the "+" already
+ * covers.
+ */
+function formatPhone(stored: string, dialCode: string | null): string {
+  const value = stored.trim()
+  if (!value || !dialCode) return value
+  return value.startsWith('+') ? value : `${dialCode} ${value}`
 }
 
 function formatCurrency(amount: number): string {
@@ -151,7 +172,7 @@ export function QuotationDocument({
         <div style={{ textAlign: 'right' }}>
           <div style={{ color: b.gold, fontSize: 20, fontFamily: b.fontDisplay, fontStyle: 'italic', marginBottom: 6 }}>Quotation</div>
           <div style={{ color: b.cream, fontFamily: F, fontSize: 13, fontWeight: 500 }}>{quotation.quotation_number}</div>
-          <div style={{ color: b.cream, fontFamily: F, fontSize: 12, marginTop: 2, opacity: 0.75 }}>Date: {formatPortalDate(quotation.created_at)}</div>
+          <div style={{ color: b.cream, fontFamily: F, fontSize: 12, marginTop: 2, opacity: 0.75 }}>Date: {formatDocumentDate(quotation.created_at)}</div>
           <div style={{ color: b.cream, fontFamily: F, fontSize: 12, opacity: 0.75 }}>Valid for {quotation.validity_days} days</div>
         </div>
       </div>
@@ -162,7 +183,7 @@ export function QuotationDocument({
           <div style={styles.sectionLabel(b, F)}>PREPARED FOR</div>
           <div style={styles.sectionValue(b, F)}>{quotation.client_name}</div>
           <div style={styles.detailBlock(F)}>
-            {quotation.client_phone && <div>+91 {quotation.client_phone}</div>}
+            {quotation.client_phone && <div>{formatPhone(quotation.client_phone, b.defaultDialCode)}</div>}
             {quotation.client_email && <div>{quotation.client_email}</div>}
             {quotation.client_address && <div>{quotation.client_address}</div>}
           </div>
@@ -171,7 +192,7 @@ export function QuotationDocument({
           <div style={styles.sectionLabel(b, F)}>EVENT DETAILS</div>
           <div style={styles.sectionValue(b, F)}>{quotation.event_type}</div>
           <div style={styles.detailBlock(F)}>
-            {quotation.event_date && <div>{formatPortalDate(quotation.event_date)}</div>}
+            {quotation.event_date && <div>{formatDocumentDate(quotation.event_date)}</div>}
             {quotation.venue && <div>{quotation.venue}</div>}
             {quotation.guest_count && <div>{quotation.guest_count} guests</div>}
           </div>

@@ -8,7 +8,7 @@ import { Plus, ReceiptText } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import { PageHeader, Card, StatusBadge, ui, mono, formatMoney } from './ui'
-import { formatPortalDate } from '../utils/formatDate'
+import { formatDocumentDate } from '../utils/formatDate'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import type { CSSProperties } from 'react'
 
@@ -82,7 +82,7 @@ export function QuotationsAdmin() {
                 <div style={styles.mobileClient}>{r.client_name}</div>
                 <div style={styles.mobileMeta}>
                   {r.event_type}
-                  {r.event_date ? ` · ${formatPortalDate(r.event_date)}` : ''}
+                  {r.event_date ? ` · ${formatDocumentDate(r.event_date)}` : ''}
                 </div>
                 <div style={styles.mobileAmount}>{formatMoney(r.total_amount, 'INR')}</div>
               </div>
@@ -106,7 +106,7 @@ export function QuotationsAdmin() {
                   <td style={{ ...styles.td, fontFamily: mono }}>{r.quotation_number}</td>
                   <td style={styles.td}>{r.client_name}</td>
                   <td style={styles.td}>{r.event_type}</td>
-                  <td style={styles.td}>{formatPortalDate(r.event_date)}</td>
+                  <td style={styles.td}>{formatDocumentDate(r.event_date)}</td>
                   <td style={{ ...styles.td, fontFamily: mono }}>{formatMoney(r.total_amount, 'INR')}</td>
                   <td style={styles.td}>
                     <StatusBadge status={r.status} />

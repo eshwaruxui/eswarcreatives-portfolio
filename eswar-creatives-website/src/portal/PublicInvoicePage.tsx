@@ -16,7 +16,7 @@ import {
   type InvoicePaymentRow,
 } from './components/shared/InvoiceDocument'
 import { tokens, t, fonts } from './theme'
-import { formatPortalDate } from './utils/formatDate'
+import { formatDocumentDate } from './utils/formatDate'
 import eswarLogo from '../imports/eswar-logo.svg'
 import type { CSSProperties } from 'react'
 
@@ -324,7 +324,7 @@ export function PublicInvoicePage() {
                     {fmtCurrency(balanceDue, inv.currency)}
                   </div>
                   {inv.due_date && (
-                    <div style={styles.heroDue}>Due {formatPortalDate(inv.due_date)}</div>
+                    <div style={styles.heroDue}>Due {formatDocumentDate(inv.due_date)}</div>
                   )}
                   {amountPaid > 0 && (
                     <div style={styles.heroMeta}>

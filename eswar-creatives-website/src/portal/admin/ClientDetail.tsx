@@ -10,7 +10,7 @@ import {
   mono,
   formatMoney,
 } from './ui'
-import { formatPortalDate } from '../utils/formatDate'
+import { formatDocumentDate } from '../utils/formatDate'
 import type { CSSProperties, ReactNode } from 'react'
 
 type Client = {
@@ -151,7 +151,7 @@ export function ClientDetail() {
               <span style={styles.itemTitle}>{p.title}</span>
               <span style={styles.itemAmount}>{formatMoney(Number(p.total_amount), p.currency)}</span>
               <StatusBadge status={p.status} />
-              <span style={styles.itemMeta}>Valid {formatPortalDate(p.valid_until)}</span>
+              <span style={styles.itemMeta}>Valid {formatDocumentDate(p.valid_until)}</span>
             </Link>
           ))
         )}
@@ -167,7 +167,7 @@ export function ClientDetail() {
               <span style={styles.itemTitle}>{inv.label || '—'}</span>
               <span style={styles.itemAmount}>{formatMoney(Number(inv.amount), inv.currency)}</span>
               <StatusBadge status={inv.status} />
-              <span style={styles.itemMeta}>Due {formatPortalDate(inv.due_date)}</span>
+              <span style={styles.itemMeta}>Due {formatDocumentDate(inv.due_date)}</span>
             </Link>
           ))
         )}

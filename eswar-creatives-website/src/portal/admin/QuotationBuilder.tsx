@@ -28,7 +28,7 @@ import { ArrowLeft, Printer, Mail, Send } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import { ui, mono, formatMoney } from './ui'
-import { formatPortalDate } from '../utils/formatDate'
+import { formatDocumentDate } from '../utils/formatDate'
 import { ACTIVE_TENANT_ID } from '../tenant/activeTenantId'
 import { QuotationDocument, type QuotationDocumentItem, type FinishLabels } from '../components/quotation/QuotationDocument'
 import {
@@ -62,7 +62,10 @@ function supportsMuhurtham(eventType: string): boolean {
 
 type Zone = { key: string; label: string; sort_order: number }
 type SystemRow = { key: string; label: string; scales_with_finish: boolean; sort_order: number }
-type FinishLevel = { key: string; label: string; description: string | null; floral_multiplier: number; sort_order: number }
+type FinishLevel = {
+  key: string; label: string; description: string | null
+  floral_multiplier: number; has_colour_variant: boolean; sort_order: number
+}
 type LibraryItem = { id: string; system: string; name: string; unit: string | null; default_rate: number | null; is_motion: boolean }
 
 type CartItem = {
@@ -148,7 +151,9 @@ export function QuotationBuilder() {
       const [zonesRes, systemsRes, finishRes, libRes] = await Promise.all([
         supabase.from('quotation_zones').select('key, label, sort_order').order('sort_order'),
         supabase.from('quotation_systems').select('key, label, scales_with_finish, sort_order').order('sort_order'),
-        supabase.from('quotation_finish_levels').select('key, label, description, floral_multiplier, sort_order').order('sort_order'),
+        // internal_code is deliberately never selected: it carries the
+        // operator's ratio shorthand and must not reach any rendered DOM.
+        supabase.from('quotation_finish_levels').select('key, label, description, floral_multiplier, has_colour_variant, sort_order').order('sort_order'),
         supabase.from('quotation_item_library').select('id, system, name, unit, default_rate, is_motion').eq('is_active', true).order('sort_order'),
       ])
       const zoneRows = (zonesRes.data ?? []) as Zone[]
@@ -157,7 +162,12 @@ export function QuotationBuilder() {
       setSystems((systemsRes.data ?? []) as SystemRow[])
       setFinishLevels(finishRows)
       setLibrary((libRes.data ?? []) as LibraryItem[])
-      if (zoneRows.length > 0) setActiveZone((z) => z || zoneRows[0].key)
+      // Deliberately NO default active zone. Defaulting to zone 1 meant the
+      // builder opened with "Valet parking area" already selected in teal —
+      // and since the zone strip sits above the fold, the first tap on an
+      // element silently filed a stage garden into valet parking. Nothing
+      // is selected until the operator picks a zone, which is also what
+      // makes the cart's "Pick a zone above" instruction literally true.
 
       if (!isNew && id) {
         const { data: q, error: qErr } = await supabase.from('quotations').select('*').eq('id', id).single()
@@ -254,6 +264,17 @@ export function QuotationBuilder() {
   const zoneOrder = useCallback((key: string | null) => zones.find((z) => z.key === key)?.sort_order ?? 999, [zones])
   const systemLabel = useCallback((key: string) => systems.find((s) => s.key === key)?.label ?? key, [systems])
 
+  // Nothing may enter the cart until the operator has said where it goes.
+  const zoneChosen = activeZone !== ''
+
+  // Every seeded default_rate is 0, which the library renders honestly as
+  // "rate TBC". The cart used to turn that into a confident editable 0 with
+  // an amount of ₹0, and Send stayed enabled on a ₹0 total — a client could
+  // be sent a quotation for nothing. Counted across BOTH functions, because
+  // Send activates the whole quotation, not the function on screen.
+  const unpricedCount = items.filter((i) => i.rate <= 0).length
+  const hasUnpriced = unpricedCount > 0
+
   const canProceedFromForm = client.name.trim() && client.phone.trim() && eventInfo.type && eventInfo.date
   const muhurthamAvailable = supportsMuhurtham(eventInfo.type)
   const twoFunction = muhurthamAvailable && hasMuhurtham
@@ -262,7 +283,11 @@ export function QuotationBuilder() {
   // a stored muhurtham finish, whatever the operator toggled earlier.
   const activeFinishKey = activeFunction === 'muhurtham' ? muhurthamFinish : receptionFinish
   const setActiveFinishKey = activeFunction === 'muhurtham' ? setMuhurthamFinish : setReceptionFinish
-  const readymadeSelected = finishLevels.find((f) => f.key === activeFinishKey)?.key === 'readymade'
+  // Which finish offers a colour choice is tenant data, not a key this file
+  // knows the name of — the same reason "floral scales with the finish" is
+  // a column on quotation_systems rather than a literal in quotationMath.
+  const colourVariantOffered =
+    finishLevels.find((f) => f.key === activeFinishKey)?.has_colour_variant === true
 
   async function saveClientEvent(): Promise<string | null> {
     setSaving(true)
@@ -379,7 +404,9 @@ export function QuotationBuilder() {
   }
 
   async function handleSend() {
-    if (!quotationId) return
+    // Guarded here as well as on the button: activating the public link is
+    // the irreversible step that puts a price in front of a client.
+    if (!quotationId || hasUnpriced) return
     const expiresAt = new Date(Date.now() + validDays * 24 * 60 * 60 * 1000).toISOString()
     const { data, error: sendErr } = await supabase
       .from('quotations')
@@ -394,6 +421,7 @@ export function QuotationBuilder() {
   }
 
   function addLibraryItem(li: LibraryItem) {
+    if (!activeZone) return
     setItems((prev) => {
       // Same element in the same zone AND the same function is a quantity
       // bump; the same element in another zone is a genuinely separate line.
@@ -423,6 +451,22 @@ export function QuotationBuilder() {
   function removeItem(key: string) {
     setItems((prev) => prev.filter((i) => i.key !== key))
   }
+  // Recovery from a misfiling has to be a correction, not a rebuild. Before
+  // this, the only line controls were qty -/+ and remove, so a line in the
+  // wrong zone meant delete, scroll up, reselect the zone, find the element
+  // again, re-add — six lines in the wrong function was a rebuild of the
+  // whole function.
+  function moveItemZone(key: string, zoneKey: string | null) {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, zoneKey } : i)))
+  }
+  // The finish is scoped to the function, so this is the move that can change
+  // a line's money: a floral line priced at the reception's finish reprices
+  // at the muhurtham's the moment it lands there. lineAmount() reads
+  // functionKey, so the cart, the document and the persisted amount all
+  // follow from this one field with no separate recalculation.
+  function moveItemFunction(key: string, functionKey: QuotationFunctionKey) {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, functionKey } : i)))
+  }
   function updateItemQty(key: string, qty: number) {
     if (qty < 1) return
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, qty } : i)))
@@ -435,7 +479,7 @@ export function QuotationBuilder() {
   }
 
   function addManualItem() {
-    if (!manualItem.name.trim() || !manualItem.system) return
+    if (!manualItem.name.trim() || !manualItem.system || !activeZone) return
     setItems((prev) => [
       ...prev,
       {
@@ -481,9 +525,13 @@ export function QuotationBuilder() {
       setItems((prev) => {
         const combined = [...prev]
         for (const f of found) {
-          // Land in the zone the analyser suggested; fall back to whichever
-          // zone the operator is standing in.
-          const zoneKey = f.zone_key && zones.some((z) => z.key === f.zone_key) ? f.zone_key : activeZone
+          // Land in the zone the analyser suggested, else the active zone.
+          // With no zone chosen the line lands unassigned rather than being
+          // filed somewhere arbitrary — it then shows under "Unassigned" in
+          // the cart with a zone control on it, which is an honest prompt
+          // instead of a silent misfiling.
+          const zoneKey =
+            f.zone_key && zones.some((z) => z.key === f.zone_key) ? f.zone_key : activeZone || null
           const dupe = combined.find(
             (i) => i.label === f.label && i.zoneKey === zoneKey && i.functionKey === activeFunction
           )
@@ -574,22 +622,43 @@ export function QuotationBuilder() {
           <button type="button" style={styles.toolbarBtnPrimary} onClick={() => window.print()}>
             <Printer size={14} /> Print / Save PDF
           </button>
-          {client.email && (
+          {client.email && !hasUnpriced && (
             <a
               style={styles.toolbarBtnGhost}
               href={`mailto:${client.email}?subject=${encodeURIComponent(`Quotation ${quotationNumber} - ${eventInfo.type} - Newgen Event Studio`)}&body=${encodeURIComponent(
-                `Dear ${client.name},\n\nPlease find your quotation ${quotationNumber} for ${eventInfo.type}${eventInfo.date ? ` on ${formatPortalDate(eventInfo.date)}` : ''}${eventInfo.venue ? ` at ${eventInfo.venue}` : ''}.\n\nTotal: ${formatMoney(totals.total, 'INR')}\nAdvance (${advance}%): ${formatMoney(totals.advanceAmount, 'INR')}\nValid for ${validDays} days.\n\nWarm regards,\nNewgen Event Studio\nWhatsApp: 9176045045`
+                `Dear ${client.name},\n\nPlease find your quotation ${quotationNumber} for ${eventInfo.type}${eventInfo.date ? ` on ${formatDocumentDate(eventInfo.date)}` : ''}${eventInfo.venue ? ` at ${eventInfo.venue}` : ''}.\n\nTotal: ${formatMoney(totals.total, 'INR')}\nAdvance (${advance}%): ${formatMoney(totals.advanceAmount, 'INR')}\nValid for ${validDays} days.\n\nWarm regards,\nNewgen Event Studio\nWhatsApp: 9176045045`
               )}`}
             >
               <Mail size={14} /> Send via Email
             </a>
           )}
           {status === 'draft' ? (
-            <button type="button" style={styles.toolbarBtnPrimary} onClick={() => void handleSend()}>
+            <button
+              type="button"
+              disabled={hasUnpriced}
+              title={hasUnpriced ? 'Every line needs a rate before this can be sent' : undefined}
+              style={{
+                ...styles.toolbarBtnPrimary,
+                background: hasUnpriced ? '#C8C4BC' : tokens.primary,
+                color: hasUnpriced ? '#999' : tokens.gold,
+                cursor: hasUnpriced ? 'not-allowed' : 'pointer',
+              }}
+              onClick={() => void handleSend()}
+            >
               <Send size={14} /> Send (activate link)
             </button>
           ) : (
             publicUrl && <span style={styles.publicLink}>{publicUrl}</span>
+          )}
+          {/* Preview and Print stay available on an unpriced draft on
+              purpose: printing the draft to walk Mohan through it and collect
+              the missing rates is a real step in how these get built. Only
+              the two paths that put the document in front of a *client* —
+              the public link and the client email — are held back. */}
+          {hasUnpriced && (
+            <span style={styles.sendBlockedNote}>
+              {unpricedCount} {unpricedCount === 1 ? 'line still needs' : 'lines still need'} a rate before this can be sent
+            </span>
           )}
         </div>
         <div style={{ padding: '24px 0' }}>
@@ -751,6 +820,12 @@ export function QuotationBuilder() {
     <div>
       {error && <div style={styles.error}>{error}</div>}
 
+      {/* The function switch and the zone strip together answer "where is
+          the next tap going to land", so they stay pinned while the operator
+          works down the element list. The strip used to scroll away above
+          the fold, which is precisely how a stage garden ended up in valet
+          parking. top: 56 clears the sticky TopBar; zIndex sits below it. */}
+      <div style={styles.placementBar}>
       {twoFunction && (
         <div style={styles.functionSwitch}>
           {(['reception', 'muhurtham'] as QuotationFunctionKey[]).map((fn) => {
@@ -778,7 +853,10 @@ export function QuotationBuilder() {
       )}
 
       {/* Zone strip — the venue walk. All zones stay visible; an empty one
-          is a prompt, not clutter. */}
+          is a prompt, not clutter. Wraps to as many rows as it needs rather
+          than scrolling sideways: at 1280 the horizontal scroller put only 9
+          of the 13 zones within reach, which defeated the point of showing
+          all thirteen as upsell prompts. */}
       <div style={styles.zoneStrip}>
         {zones.map((z) => {
           const count = countByZone[z.key] ?? 0
@@ -787,7 +865,7 @@ export function QuotationBuilder() {
             <button
               key={z.key}
               type="button"
-              onClick={() => setActiveZone(z.key)}
+              onClick={() => setActiveZone(isActive ? '' : z.key)}
               style={{
                 padding: '7px 12px', borderRadius: 20, cursor: 'pointer', whiteSpace: 'nowrap',
                 fontFamily: fonts.body, fontSize: 12, fontWeight: isActive ? 700 : 400,
@@ -805,13 +883,29 @@ export function QuotationBuilder() {
         })}
       </div>
 
+        {/* The reason the add controls are inert, stated where the operator
+            is looking rather than left to be inferred from a greyed-out UI. */}
+        {!zoneChosen ? (
+          <div style={styles.zonePrompt}>
+            Pick a zone above to start adding elements. Nothing can be added until you do.
+          </div>
+        ) : (
+          <div style={styles.zoneActiveNote}>
+            Adding to <strong style={{ fontWeight: 700 }}>{zoneLabel(activeZone)}</strong>
+            {twoFunction ? ` · ${activeFunction === 'reception' ? 'Reception' : 'Muhurtham'}` : ''}
+            {' · '}
+            <button type="button" style={styles.linkBtn} onClick={() => setActiveZone('')}>clear</button>
+          </div>
+        )}
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
         {/* Left — element catalog */}
         <div>
           <div style={styles.mockupCard}>
             <div style={styles.formCardTitle}>ANALYSE A MOCKUP</div>
             <div style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary, margin: '6px 0 12px', lineHeight: 1.5 }}>
-              Upload a concept image to auto-identify elements. Items land in the zone the analyser suggests, or the active zone.
+              Upload a concept image to auto-identify elements. Items land in the zone the analyser suggests, then the active zone, and otherwise arrive unassigned for you to place from the cart.
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => setMockupFile(e.target.files?.[0] ?? null)} />
@@ -857,14 +951,18 @@ export function QuotationBuilder() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {filteredLibrary.map((li) => {
-              const isAdded = functionItems.some((i) => i.label === li.name && i.zoneKey === activeZone)
+              const isAdded = zoneChosen && functionItems.some((i) => i.label === li.name && i.zoneKey === activeZone)
               return (
                 <div
                   key={li.id}
                   onClick={() => addLibraryItem(li)}
+                  title={zoneChosen ? undefined : 'Pick a zone first'}
+                  aria-disabled={!zoneChosen}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '11px 14px', borderRadius: 6, cursor: 'pointer',
+                    padding: '11px 14px', borderRadius: 6,
+                    cursor: zoneChosen ? 'pointer' : 'not-allowed',
+                    opacity: zoneChosen ? 1 : 0.55,
                     background: isAdded ? `${tokens.primary}15` : '#fff',
                     border: `1px solid ${isAdded ? tokens.primary : tokens.border}`,
                   }}
@@ -884,8 +982,9 @@ export function QuotationBuilder() {
                     </div>
                     <div style={{
                       width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: isAdded ? tokens.primary : '#fff', border: `1.5px solid ${isAdded ? tokens.primary : tokens.border}`,
-                      color: isAdded ? tokens.gold : t.text.tertiary, fontSize: 16, fontWeight: 700,
+                      background: isAdded ? tokens.primary : '#fff',
+                      border: `1.5px solid ${isAdded ? tokens.primary : zoneChosen ? tokens.border : '#DDD8D0'}`,
+                      color: isAdded ? tokens.gold : zoneChosen ? t.text.tertiary : '#C8C4BC', fontSize: 16, fontWeight: 700,
                     }}>
                       {isAdded ? '✓' : '+'}
                     </div>
@@ -930,10 +1029,15 @@ export function QuotationBuilder() {
                   <input style={inputStyle} value={manualItem.unit} onChange={(e) => setManualItem({ ...manualItem, unit: e.target.value })} placeholder="per unit" />
                 </div>
               </div>
-              <div style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary, marginBottom: 10 }}>
-                Lands in {zoneLabel(activeZone) || 'the active zone'}.
+              <div style={{ fontFamily: fonts.body, fontSize: 11, color: zoneChosen ? t.text.tertiary : tokens.ruby, marginBottom: 10 }}>
+                {zoneChosen ? `Lands in ${zoneLabel(activeZone)}.` : 'Pick a zone above before adding this.'}
               </div>
-              <button type="button" style={{ ...styles.toolbarBtnPrimary, opacity: manualItem.name.trim() && manualItem.system ? 1 : 0.5 }} onClick={addManualItem}>
+              <button
+                type="button"
+                disabled={!zoneChosen || !manualItem.name.trim() || !manualItem.system}
+                style={{ ...styles.toolbarBtnPrimary, opacity: zoneChosen && manualItem.name.trim() && manualItem.system ? 1 : 0.5 }}
+                onClick={addManualItem}
+              >
                 Add to Quotation
               </button>
             </div>
@@ -945,7 +1049,7 @@ export function QuotationBuilder() {
           <div style={styles.cartHeader}>
             <div style={{ fontFamily: fonts.body, fontSize: 15, fontWeight: 700, color: tokens.gold }}>{client.name || 'Client Name'}</div>
             <div style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: '#fff', marginTop: 2, opacity: 0.85 }}>
-              {eventInfo.type}{eventInfo.date ? ` · ${formatPortalDate(eventInfo.date)}` : ''}
+              {eventInfo.type}{eventInfo.date ? ` · ${formatDocumentDate(eventInfo.date)}` : ''}
             </div>
             {twoFunction && (
               <div style={{ fontFamily: fonts.body, fontSize: 11, color: tokens.gold, marginTop: 4, opacity: 0.9 }}>
@@ -967,6 +1071,7 @@ export function QuotationBuilder() {
                     const eff = effectiveRate(item, pricingCtx)
                     const scaled = Math.abs(eff - item.rate) > 0.005
                     const isFloralLike = pricingCtx.scalesWithFinish[item.system] === true
+                    const unpriced = item.rate <= 0
                     return (
                       <div key={item.key} style={styles.cartItem}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -985,15 +1090,27 @@ export function QuotationBuilder() {
                           <span style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary }}>{item.unit}</span>
                           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3 }}>
                             <span style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary }}>₹</span>
+                            {/* An unpriced line reads as "rate TBC" here, the
+                                same words the library uses, instead of a
+                                confident 0 that looks like a decision. */}
                             <input
-                              type="number" value={item.rate}
+                              type="number"
+                              value={unpriced ? '' : item.rate}
+                              placeholder="TBC"
                               onChange={(e) => updateItemRate(item.key, Number(e.target.value) || 0)}
                               title="Base rate before finish"
-                              style={{ width: 68, padding: '4px 6px', border: `1px solid ${tokens.border}`, borderRadius: 4, fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: tokens.primary, textAlign: 'right' }}
+                              style={{
+                                width: 68, padding: '4px 6px', borderRadius: 4, textAlign: 'right',
+                                border: `1px solid ${unpriced ? tokens.goldDark : tokens.border}`,
+                                fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: tokens.primary,
+                              }}
                             />
                           </div>
-                          <div style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: 700, color: tokens.primary, minWidth: 70, textAlign: 'right' }}>
-                            {formatMoney(lineAmount(item, pricingCtx), 'INR')}
+                          <div style={{
+                            fontFamily: fonts.body, fontSize: unpriced ? 11 : 13, fontWeight: 700,
+                            color: unpriced ? t.text.muted : tokens.primary, minWidth: 70, textAlign: 'right',
+                          }}>
+                            {unpriced ? 'rate TBC' : formatMoney(lineAmount(item, pricingCtx), 'INR')}
                           </div>
                         </div>
                         {/* Admin-only. Never rendered on any client document. */}
@@ -1008,6 +1125,37 @@ export function QuotationBuilder() {
                             gerbera fill
                           </label>
                         )}
+
+                        {/* Move controls. A line in the wrong place is now a
+                            correction, not a delete-and-rebuild. */}
+                        <div style={styles.moveRow}>
+                          <select
+                            value={item.zoneKey ?? ''}
+                            onChange={(e) => moveItemZone(item.key, e.target.value || null)}
+                            title="Move this line to another zone"
+                            style={styles.moveSelect}
+                          >
+                            <option value="">Unassigned</option>
+                            {zones.map((z) => (
+                              <option key={z.key} value={z.key}>{z.sort_order}. {z.label}</option>
+                            ))}
+                          </select>
+                          {/* Only meaningful when there are two functions to
+                              move between. This is the move that reprices:
+                              each function carries its own finish. */}
+                          {twoFunction && (
+                            <button
+                              type="button"
+                              style={styles.moveFnBtn}
+                              title="Move this line to the other function. Floral lines reprice at that function's finish."
+                              onClick={() =>
+                                moveItemFunction(item.key, item.functionKey === 'reception' ? 'muhurtham' : 'reception')
+                              }
+                            >
+                              → {item.functionKey === 'reception' ? 'Muhurtham' : 'Reception'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )
                   })}
@@ -1022,13 +1170,13 @@ export function QuotationBuilder() {
               FINISH{twoFunction ? ` — ${activeFunction === 'reception' ? 'RECEPTION' : 'MUHURTHAM'}` : ''}
             </label>
             <select
-              style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: readymadeSelected ? 8 : 12 }}
+              style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: colourVariantOffered ? 8 : 12 }}
               value={activeFinishKey}
               onChange={(e) => setActiveFinishKey(e.target.value)}
             >
               {finishLevels.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
             </select>
-            {readymadeSelected && (
+            {colourVariantOffered && (
               <select
                 style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: 12 }}
                 value={readymadeVariant}
@@ -1058,6 +1206,13 @@ export function QuotationBuilder() {
                 <label htmlFor="gst" style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: tokens.primary, cursor: 'pointer' }}>GST 18%</label>
               </div>
             </div>
+
+            {hasUnpriced && (
+              <div style={styles.unpricedNotice}>
+                {unpricedCount} {unpricedCount === 1 ? 'line has' : 'lines have'} no rate yet. The total below is
+                incomplete, and this quotation cannot be sent until every line is priced.
+              </div>
+            )}
 
             <div style={{ borderTop: `1px solid ${tokens.border}`, paddingTop: 10 }}>
               {twoFunction && (
@@ -1129,9 +1284,57 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex', gap: 4, padding: 4, marginBottom: 12,
     background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 8,
   },
+  // Pinned under the 56px sticky TopBar (zIndex 90), so the strip cannot
+  // scroll out of view while elements are being tapped. The negative
+  // margins + padding let the background span the full content width so
+  // rows passing underneath are covered rather than showing through.
+  placementBar: {
+    position: 'sticky',
+    top: 56,
+    zIndex: 80,
+    background: tokens.bg,
+    margin: '0 -8px 16px',
+    padding: '10px 8px 0',
+    borderBottom: `1px solid ${tokens.border}`,
+  },
+  // Wraps to as many rows as the 13 zones need. Deliberately not a
+  // horizontal scroller: at 1280 that hid 4 of the 13 behind a sideways
+  // scroll, so the zones meant to act as upsell prompts were invisible.
   zoneStrip: {
-    display: 'flex', gap: 6, marginBottom: 16, paddingBottom: 8,
-    overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+    display: 'flex', gap: 6, flexWrap: 'wrap',
+  },
+  zonePrompt: {
+    fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.ruby,
+    background: tokens.rubyLight, border: `1px solid ${tokens.ruby}55`,
+    borderRadius: 6, padding: '7px 10px', margin: '10px 0',
+  },
+  zoneActiveNote: {
+    fontFamily: fonts.body, fontSize: 12, color: t.text.secondary, padding: '9px 2px',
+  },
+  linkBtn: {
+    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+    fontFamily: fonts.body, fontSize: 12, color: tokens.primary, textDecoration: 'underline',
+  },
+  moveRow: {
+    display: 'flex', alignItems: 'center', gap: 6, marginTop: 6,
+  },
+  moveSelect: {
+    flex: 1, minWidth: 0, padding: '3px 6px', borderRadius: 4,
+    border: `1px solid ${tokens.border}`, background: '#fff',
+    fontFamily: fonts.body, fontSize: 11, color: t.text.secondary, cursor: 'pointer',
+  },
+  moveFnBtn: {
+    padding: '3px 8px', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap',
+    border: `1px solid ${tokens.border}`, background: '#fff',
+    fontFamily: fonts.body, fontSize: 11, fontWeight: 600, color: tokens.primary,
+  },
+  unpricedNotice: {
+    fontFamily: fonts.body, fontSize: 11, lineHeight: 1.5, color: tokens.goldDark,
+    background: tokens.goldLight, border: `1px solid ${tokens.gold}`,
+    borderRadius: 6, padding: '7px 10px', marginBottom: 10,
+  },
+  sendBlockedNote: {
+    fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.goldDark,
   },
   mockupCard: { background: '#fff', borderRadius: 8, padding: 20, marginBottom: 16, border: `1px dashed ${tokens.gold}` },
   chooseBtn: {
