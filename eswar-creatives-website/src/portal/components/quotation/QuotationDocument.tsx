@@ -1,16 +1,31 @@
-// Quotation Module Phase 1 — the branded, print-ready document (Step 4).
-// Pure content only, no toolbar: callers (QuotationBuilder's preview step,
-// PublicQuotationPage) own Print/PDF/mailto actions around this. Brand comes
-// from documentThemes.ts (decision 6 — the tenant's *document* brand, kept
-// separate from the shared portal-chrome TenantTheme), never hardcoded here,
-// so the same component works for any future tenant.
+// Quotation Module — the branded, print-ready document (Step 3 of the
+// builder, and the whole of the public /quotation/:token page).
+//
+// Pure renderer. It never computes a line's value: `amount` arrives already
+// derived by quotationMath.ts (live in the admin preview, persisted for the
+// public page), which is what keeps the cart, the PDF and the public page
+// agreeing to the rupee. See that module's header for the bug this avoids.
+//
+// Scope reads as the venue walk: function, then zone in quoting order, then
+// the elements in that zone. A zone with no lines never appears here — an
+// empty zone is a prompt for the operator in the builder, not something a
+// client should read.
+//
+// Brand comes from documentThemes.ts (the tenant's *document* brand, kept
+// separate from the shared portal-chrome TenantTheme), never hardcoded, so
+// the same component serves any future tenant.
 //
 // Copy is deliberately label/total-only — no marketing language, no em
 // dashes, no exclamation marks, no rhetorical questions (Tone of Voice
 // guide: quotation/invoice documents sit in the lowest-copy tier).
+//
+// HARD RULE: the finish ladder reaches the client as a LABEL and nothing
+// else. No internal code, no ratio, no percentage, ever — not here, not in
+// the PDF, not on the public page.
 import type { CSSProperties } from 'react'
 import { formatPortalDate } from '../../utils/formatDate'
 import { getDocumentTheme } from './documentThemes'
+import type { QuotationFunctionKey } from './quotationMath'
 
 export type QuotationDocumentData = {
   quotation_number: string
@@ -32,16 +47,32 @@ export type QuotationDocumentData = {
   gst_amount: number
   total_amount: number
   advance_amount: number
+  has_muhurtham?: boolean
 }
 
 export type QuotationDocumentItem = {
-  category: string
+  functionKey: QuotationFunctionKey
+  zoneKey: string | null
+  zoneLabel: string | null
+  zoneOrder: number
+  system: string
   label: string
   unit: string | null
   qty: number
   rate: number
   amount: number
   note?: string | null
+}
+
+/** Client-facing finish label per function. Never a code or a ratio. */
+export type FinishLabels = {
+  reception: string | null
+  muhurtham: string | null
+}
+
+const FUNCTION_LABELS: Record<QuotationFunctionKey, string> = {
+  reception: 'Reception',
+  muhurtham: 'Muhurtham',
 }
 
 function formatCurrency(amount: number): string {
@@ -52,22 +83,58 @@ function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
+type ZoneGroup = { key: string; label: string; order: number; items: QuotationDocumentItem[] }
+
+/** Zones in quoting order, empty ones dropped. */
+function groupByZone(items: QuotationDocumentItem[]): ZoneGroup[] {
+  const groups = new Map<string, ZoneGroup>()
+  for (const item of items) {
+    // A line with no zone (a pre-zones record, or one never assigned) still
+    // has to appear somewhere rather than vanish from a priced document.
+    const key = item.zoneKey ?? '__unzoned__'
+    const existing = groups.get(key)
+    if (existing) {
+      existing.items.push(item)
+    } else {
+      groups.set(key, {
+        key,
+        label: item.zoneLabel ?? 'Additional items',
+        order: item.zoneKey ? item.zoneOrder : 9999,
+        items: [item],
+      })
+    }
+  }
+  return [...groups.values()].sort((a, b) => a.order - b.order)
+}
+
 export function QuotationDocument({
   tenantId,
   quotation,
   items,
+  finishLabels,
 }: {
   tenantId: string
   quotation: QuotationDocumentData
   items: QuotationDocumentItem[]
+  finishLabels: FinishLabels
 }) {
   const b = getDocumentTheme(tenantId)
   const F = b.fontUI
 
-  const categories: string[] = []
-  for (const item of items) {
-    if (!categories.includes(item.category)) categories.push(item.category)
-  }
+  const receptionItems = items.filter((i) => i.functionKey === 'reception')
+  const muhurthamItems = items.filter((i) => i.functionKey === 'muhurtham')
+
+  // Only name the functions when there are genuinely two of them. On a
+  // single-function quotation a "Reception" heading would be actively wrong
+  // for a birthday or a shop opening, which also run as one function.
+  const isTwoFunction = muhurthamItems.length > 0
+  type Section = { key: QuotationFunctionKey; heading: string | null; items: QuotationDocumentItem[] }
+  const sections: Section[] = isTwoFunction
+    ? ([
+        { key: 'reception', heading: FUNCTION_LABELS.reception, items: receptionItems },
+        { key: 'muhurtham', heading: FUNCTION_LABELS.muhurtham, items: muhurthamItems },
+      ] as Section[]).filter((s) => s.items.length > 0)
+    : [{ key: 'reception', heading: null, items }]
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', background: 'white', borderRadius: 4 }}>
@@ -111,30 +178,47 @@ export function QuotationDocument({
         </div>
       </div>
 
-      {/* Scope of work */}
+      {/* Scope of work — function, then zone in quoting order */}
       <div style={{ padding: '32px 52px' }}>
         <div style={{ ...styles.sectionLabel(b, F), marginBottom: 16 }}>SCOPE OF WORK</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, padding: '8px 0', borderBottom: `2px solid ${b.teal}` }}>
-          {['Item', 'Qty / Unit', 'Rate', 'Amount'].map((h) => (
-            <div key={h} style={{ color: b.teal, fontFamily: F, fontSize: 11, letterSpacing: 1.5, fontWeight: 700 }}>{h}</div>
-          ))}
-        </div>
-        {categories.map((cat) => {
-          const catItems = items.filter((i) => i.category === cat)
+
+        {sections.map((section) => {
+          const finishLabel = finishLabels[section.key]
           return (
-            <div key={cat}>
-              <div style={{ color: b.ochre, fontFamily: F, fontSize: 11, fontWeight: 700, padding: '14px 0 4px', borderBottom: `1px solid ${b.gold}22`, letterSpacing: 0.5 }}>
-                {cat.toUpperCase()}
+            <div key={section.key} style={{ marginBottom: sections.length > 1 ? 28 : 0 }}>
+              {section.heading && (
+                <div style={{ color: b.teal, fontFamily: b.fontDisplay, fontSize: 20, fontWeight: 700, marginBottom: 2, paddingTop: 4 }}>
+                  {section.heading}
+                </div>
+              )}
+              {finishLabel && (
+                <div style={{ color: b.ochre, fontFamily: F, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
+                  Finish: {finishLabel}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, padding: '8px 0', borderBottom: `2px solid ${b.teal}` }}>
+                {['Item', 'Qty / Unit', 'Rate', 'Amount'].map((h) => (
+                  <div key={h} style={{ color: b.teal, fontFamily: F, fontSize: 11, letterSpacing: 1.5, fontWeight: 700 }}>{h}</div>
+                ))}
               </div>
-              {catItems.map((item, idx) => (
-                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, padding: '10px 0', borderBottom: '1px solid #f4f0ea' }}>
-                  <div>
-                    <div style={{ color: '#1A1A1A', fontFamily: F, fontSize: 13, fontWeight: 500 }}>{item.label}</div>
-                    {item.note && <div style={{ color: '#999', fontFamily: F, fontSize: 11, marginTop: 2 }}>{item.note}</div>}
+
+              {groupByZone(section.items).map((zone) => (
+                <div key={zone.key}>
+                  <div style={{ color: b.ochre, fontFamily: F, fontSize: 11, fontWeight: 700, padding: '14px 0 4px', borderBottom: `1px solid ${b.gold}22`, letterSpacing: 0.5 }}>
+                    {zone.label.toUpperCase()}
                   </div>
-                  <div style={{ color: '#555', fontFamily: F, fontSize: 13 }}>{item.qty} {item.unit}</div>
-                  <div style={{ color: '#555', fontFamily: F, fontSize: 13 }}>{formatCurrency(item.rate)}</div>
-                  <div style={{ color: b.teal, fontFamily: F, fontSize: 13, fontWeight: 600 }}>{formatCurrency(item.amount)}</div>
+                  {zone.items.map((item, idx) => (
+                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, padding: '10px 0', borderBottom: '1px solid #f4f0ea' }}>
+                      <div>
+                        <div style={{ color: '#1A1A1A', fontFamily: F, fontSize: 13, fontWeight: 500 }}>{item.label}</div>
+                        {item.note && <div style={{ color: '#999', fontFamily: F, fontSize: 11, marginTop: 2 }}>{item.note}</div>}
+                      </div>
+                      <div style={{ color: '#555', fontFamily: F, fontSize: 13 }}>{item.qty} {item.unit}</div>
+                      <div style={{ color: '#555', fontFamily: F, fontSize: 13 }}>{formatCurrency(item.amount / (item.qty || 1))}</div>
+                      <div style={{ color: b.teal, fontFamily: F, fontSize: 13, fontWeight: 600 }}>{formatCurrency(item.amount)}</div>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
