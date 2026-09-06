@@ -19,6 +19,11 @@ export type DocumentTheme = {
   gstin: string | null
   addressLines: string[]
   contactLines: string[]
+  /** Dial code to prefix onto a client phone number that does not already
+   *  carry one. Tenant data, not a constant in the renderer: the document
+   *  component must not assume its reader is in any one country. `null`
+   *  means render the stored number exactly as typed and add nothing. */
+  defaultDialCode: string | null
 }
 
 export const NEUTRAL_DOCUMENT_THEME: DocumentTheme = {
@@ -34,6 +39,7 @@ export const NEUTRAL_DOCUMENT_THEME: DocumentTheme = {
   gstin: null,
   addressLines: [],
   contactLines: [],
+  defaultDialCode: null,
 }
 
 // Newgen: colours/GSTIN/address/tagline confirmed in Newgen_Architecture.md
@@ -55,6 +61,7 @@ const DOCUMENT_THEMES: Record<string, DocumentTheme> = {
     gstin: '33CJWPD2137G1ZA',
     addressLines: ['#15, Major Mukund Varadarajan Rd., Pallikaranai, Chennai 600100'],
     contactLines: ['WhatsApp: +91 9176045045', 'studio@newgeneventstudio.com', 'newgeneventstudio.com'],
+    defaultDialCode: '+91',
   },
 }
 

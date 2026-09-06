@@ -35,7 +35,9 @@ function fail(code: string, status = 400) {
   });
 }
 
-type LibraryItem = { category: string; name: string; unit: string | null; default_rate: number | null };
+type LibraryItem = { system: string; name: string; unit: string | null; default_rate: number | null };
+type SystemRow = { key: string; label: string };
+type ZoneRow = { key: string; label: string; sort_order: number };
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -83,17 +85,24 @@ Deno.serve(async (req: Request) => {
     return fail("invalid_image");
   }
 
-  // Load the active library so the model can match against real names/
-  // categories instead of inventing its own vocabulary.
-  const { data: libraryRows, error: libraryErr } = await callerClient
-    .from("quotation_item_library")
-    .select("category, name, unit, default_rate")
-    .eq("is_active", true);
-  if (libraryErr) {
+  // Load the tenant's own vocabulary so the model matches against real
+  // elements, systems and zones instead of inventing its own. Nothing here
+  // is hardcoded: a different tenant seeds different rows and this function
+  // adapts without a redeploy.
+  const [libraryRes, systemsRes, zonesRes] = await Promise.all([
+    callerClient
+      .from("quotation_item_library")
+      .select("system, name, unit, default_rate")
+      .eq("is_active", true),
+    callerClient.from("quotation_systems").select("key, label").order("sort_order"),
+    callerClient.from("quotation_zones").select("key, label, sort_order").order("sort_order"),
+  ]);
+  if (libraryRes.error || systemsRes.error || zonesRes.error) {
     return fail("library_load_failed", 500);
   }
-  const library = (libraryRows ?? []) as LibraryItem[];
-  const categories = [...new Set(library.map((i) => i.category))];
+  const library = (libraryRes.data ?? []) as LibraryItem[];
+  const systems = (systemsRes.data ?? []) as SystemRow[];
+  const zones = (zonesRes.data ?? []) as ZoneRow[];
 
   let anthropicRes: Response;
   try {
@@ -119,17 +128,22 @@ Deno.serve(async (req: Request) => {
                 type: "text",
                 text: `You are an expert event decoration analyst for South Indian weddings and events. Analyze this event decoration mockup or concept image and identify all decoration elements present.
 
-Return ONLY a JSON array: [{"name": "item name", "category": "category", "qty": number, "unit": "unit type"}]
+Return ONLY a JSON array: [{"name": "element name", "system": "system key", "zone_key": "zone key or null", "qty": number, "unit": "unit type"}]
 
-Categories: ${categories.length > 0 ? categories.join(", ") : "Stage & Backdrop, Floral Decoration, Lighting & AV, Photography & Video, Event Management, Furniture & Props"}
+Valid system keys (how an element is built):
+${systems.map((s) => `- ${s.key}: ${s.label}`).join("\n")}
 
-Match names to known items where possible: ${library.map((i) => i.name).join(", ")}
+Valid zone keys (areas of a venue, listed in the order they are walked from outside in):
+${zones.map((z) => `- ${z.key}: ${z.label}`).join("\n")}
+
+Match names to known elements where possible: ${library.map((i) => i.name).join(", ")}
 
 Rules:
-- name: the decoration element, matched to a known item name above where one clearly applies, otherwise a short descriptive name.
-- category: one of the categories listed above.
-- qty: a reasonable count for what's visible (default 1 if not countable).
-- unit: a short unit label (e.g. "per event", "per sqft", "per unit").
+- name: the element, matched to a known element name above where one clearly applies, otherwise a short descriptive name.
+- system: exactly one of the system keys above. Use the key, not the label.
+- zone_key: the area of the venue this element belongs to, as one of the zone keys above. Use the key, not the label. Use null if the image does not make the area clear.
+- qty: a reasonable count for what is visible (default 1 if not countable).
+- unit: a short unit label (e.g. "per unit", "per sqft", "per event").
 - Return only JSON array, no explanation, no markdown, no code fences.`,
               },
             ],
@@ -157,20 +171,32 @@ Rules:
   try {
     const parsed = JSON.parse(text.replace(/```json|```/g, "").trim()) as {
       name?: string;
-      category?: string;
+      system?: string;
+      zone_key?: string | null;
       qty?: number;
       unit?: string;
     }[];
 
+    const systemKeys = new Set(systems.map((s) => s.key));
+    const zoneKeys = new Set(zones.map((z) => z.key));
+
     const items = parsed.map((p) => {
       const name = (p.name ?? "").trim();
+      // Exact name match first, then fall back to any element in the same
+      // system so a rate is at least in the right ballpark.
       const match =
         library.find((lib) => lib.name.toLowerCase() === name.toLowerCase()) ??
-        library.find((lib) => lib.category === p.category);
+        library.find((lib) => lib.system === p.system);
+      const system = p.system && systemKeys.has(p.system)
+        ? p.system
+        : match?.system ?? systems[0]?.key ?? "";
       return {
-        category: p.category || match?.category || categories[0] || "Stage & Backdrop",
-        label: name || match?.name || "Decoration item",
-        unit: p.unit || match?.unit || "per event",
+        system,
+        // Only pass through a zone the tenant actually has; the client lands
+        // anything else in whichever zone the operator is working in.
+        zone_key: p.zone_key && zoneKeys.has(p.zone_key) ? p.zone_key : null,
+        label: name || match?.name || "Decoration element",
+        unit: p.unit || match?.unit || "per unit",
         qty: typeof p.qty === "number" && p.qty > 0 ? p.qty : 1,
         rate: match?.default_rate ?? 0,
         source: "mockup_ai",

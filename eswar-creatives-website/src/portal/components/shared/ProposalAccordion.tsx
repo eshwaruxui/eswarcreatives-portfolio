@@ -20,7 +20,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { ChevronRight, FileText } from 'lucide-react'
 import { tokens, t, fonts, motionTokens, phasePalette } from '../../theme'
 import { mono, formatMoney } from '../../admin/ui'
-import { formatPortalDate } from '../../utils/formatDate'
+import { formatDocumentDate } from '../../utils/formatDate'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 
 export type ProposalStatus =
@@ -268,7 +268,7 @@ export function ProposalAccordion({
             />
           )}
           {proposal.validUntil && (
-            <Meta label="Valid until" value={formatPortalDate(proposal.validUntil)} />
+            <Meta label="Valid until" value={formatDocumentDate(proposal.validUntil)} />
           )}
           {proposal.proposalNumber && (
             <Meta label="Proposal" value={proposal.proposalNumber} numeric />

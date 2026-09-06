@@ -9,7 +9,12 @@ import { useTenantConfig } from './useTenantConfig'
 
 export function ModuleGate({ moduleKey, children }: { moduleKey: string; children: ReactNode }) {
   const { modules, loading } = useTenantConfig()
-  if (!loading && modules[moduleKey] === false) {
+  // Hold while the gate resolves. This previously rendered `children`
+  // during load, so a direct link to a disabled module mounted the real
+  // page — firing its queries and painting its UI — before the redirect.
+  // For the tenant this was found on that is nine of eleven routes.
+  if (loading) return null
+  if (modules[moduleKey] === false) {
     return <Navigate to="/portal/admin" replace />
   }
   return <>{children}</>

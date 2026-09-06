@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import { Modal, mono } from './ui'
-import { formatPortalDate } from '../utils/formatDate'
+import { formatDocumentDate } from '../utils/formatDate'
 import type { CSSProperties } from 'react'
 
 // Statuses where a nudge makes sense (invoice still has an outstanding balance).
@@ -67,7 +67,7 @@ function buildMessage(
 ): { preview: string; subject?: string } {
   const name = clientName || 'there'
   const project = label || 'your project'
-  const dateStr = dueDate ? formatPortalDate(dueDate) : 'the due date'
+  const dateStr = dueDate ? formatDocumentDate(dueDate) : 'the due date'
 
   if (channel === 'whatsapp') {
     return {
@@ -238,7 +238,7 @@ export function NudgeModal({
             highlight
           />
           {invoice.due_date && (
-            <SummaryRow label="Due date" value={formatPortalDate(invoice.due_date)} />
+            <SummaryRow label="Due date" value={formatDocumentDate(invoice.due_date)} />
           )}
         </div>
 

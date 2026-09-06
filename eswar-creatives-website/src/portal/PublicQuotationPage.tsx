@@ -4,18 +4,49 @@
 // (SECURITY DEFINER, anon-callable), which enforces the token + expiry +
 // status <> 'draft' check entirely server-side — a draft quotation's token
 // is never reachable here even if guessed.
+//
+// The RPC returns finish LABELS, never the internal code, ratio or
+// multiplier, and this page has no access to those values as a result. Line
+// amounts are read as persisted; nothing is recomputed here, so what the
+// client sees is exactly what was quoted.
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router'
 import { supabase } from '../lib/supabase'
-import { QuotationDocument, type QuotationDocumentData, type QuotationDocumentItem } from './components/quotation/QuotationDocument'
+import {
+  QuotationDocument,
+  type QuotationDocumentData,
+  type QuotationDocumentItem,
+  type FinishLabels,
+} from './components/quotation/QuotationDocument'
+import type { QuotationFunctionKey } from './components/quotation/quotationMath'
 import { ACTIVE_TENANT_ID } from './tenant/activeTenantId'
 import { t, fonts } from './theme'
 import newgenLogo from '../imports/newgen-logo.svg'
 import type { CSSProperties } from 'react'
 
+type RpcItem = {
+  function_key: QuotationFunctionKey
+  zone_key: string | null
+  zone_label: string | null
+  zone_order: number
+  system: string
+  system_label: string | null
+  label: string
+  unit: string | null
+  qty: number
+  rate: number
+  amount: number
+  note: string | null
+}
+
 type TokenPayload = {
-  quotation: QuotationDocumentData & { client_name: string; event_type: string }
-  items: QuotationDocumentItem[]
+  quotation: QuotationDocumentData
+  reception_finish_label: string | null
+  muhurtham_finish_label: string | null
+  // Already a client-facing sentence when it arrives; the RPC strips the
+  // stored key, so this page has no access to the internal value.
+  muhurtham_reuse_label: string | null
+  items: RpcItem[]
 }
 
 export function PublicQuotationPage() {
@@ -54,6 +85,25 @@ export function PublicQuotationPage() {
     }
   }, [payload])
 
+  const items: QuotationDocumentItem[] = (payload?.items ?? []).map((i) => ({
+    functionKey: i.function_key,
+    zoneKey: i.zone_key,
+    zoneLabel: i.zone_label,
+    zoneOrder: i.zone_order,
+    system: i.system,
+    label: i.label,
+    unit: i.unit,
+    qty: Number(i.qty),
+    rate: Number(i.rate),
+    amount: Number(i.amount),
+    note: i.note,
+  }))
+
+  const finishLabels: FinishLabels = {
+    reception: payload?.reception_finish_label ?? null,
+    muhurtham: payload?.muhurtham_finish_label ?? null,
+  }
+
   return (
     <div style={styles.page}>
       <header style={styles.topBar} className="no-print">
@@ -82,7 +132,13 @@ export function PublicQuotationPage() {
         )}
 
         {!loading && payload && (
-          <QuotationDocument tenantId={ACTIVE_TENANT_ID} quotation={payload.quotation} items={payload.items} />
+          <QuotationDocument
+            tenantId={ACTIVE_TENANT_ID}
+            quotation={payload.quotation}
+            items={items}
+            finishLabels={finishLabels}
+            muhurthamReuseLabel={payload.muhurtham_reuse_label ?? null}
+          />
         )}
       </main>
     </div>
