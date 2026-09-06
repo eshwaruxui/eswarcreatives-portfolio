@@ -42,6 +42,32 @@ const derived = isEswarPalette
       nodeFill: '#009990', // icon/brand-subtle
       activeBorder: '#EDDDB5', // phaseUI status.active.border
     }
+  : tenantTheme!.id === 'newgen'
+  ? {
+      // Figma-sourced (newgen-design-tokens-v1/🔗 Semantic Tokens.Light.tokens.json
+      // + 🎨 Primitives.Mode 1.tokens.json, fileKey DRl9rzNzWKYhdVkOrGK8IK) —
+      // Newgen has an audited palette, so these are real designer-picked
+      // values rather than derivePalette.ts's generic formula, which produced
+      // a grey-reading #C0D2D3 accent at 1.57:1 on white (below even the 3:1
+      // non-text floor) and collapsed goldDark and onAccent onto one #756139.
+      //
+      // accent/nodeFill deliberately do NOT use the name-matching
+      // icon/brand-subtle (teal.400 #14adb8): it measures 2.73:1 on white and
+      // 2.57:1 on cream, failing the 3:1 non-text floor for the filled phase
+      // nodes and connectors these roles paint. teal.450, the adjacent
+      // darker step, measures 4.84:1 / 4.56:1, and being one step brighter
+      // than primary (teal.500) it
+      // preserves the primary/accent/nodeFill separation Eswar's branch has
+      // (#024C4F / #007872 / #009990) rather than collapsing accent onto
+      // primary.
+      accent: '#077e87', // teal.450 — substituted for icon/brand-subtle (teal.400), which fails 3:1
+      goldDark: '#7f5310', // brand/accent-dark, gold.700
+      goldLight: '#f9f4e8', // brand/accent-subtle, gold.50
+      primaryLight: '#e8f3f4', // brand/primary-tint-subtle, teal.50
+      onAccent: '#492e09', // text/on-accent, gold.800
+      nodeFill: '#077e87', // teal.450 — same substitution as accent above, for the same 3:1 reason
+      activeBorder: '#eddbb8', // status/pending-border, gold.200 (Phase 2 = gold, not Newgen's teal "active" status)
+    }
   : tenantTheme!.id === 'futurenorms'
   ? {
       // Figma-sourced (design-tokens/🔗 Semantic Tokens.Light.tokens.json +
