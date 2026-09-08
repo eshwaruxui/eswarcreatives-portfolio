@@ -3,7 +3,7 @@
 // SmartShortlistTab's Section A (Fix 1). Route: /portal/admin/settings.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Upload, SlidersHorizontal, Sparkles, ToggleLeft, Trash2, FileText } from 'lucide-react'
+import { Upload, SlidersHorizontal, Sparkles, ToggleLeft, Trash2, FileText, IndianRupee } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { tokens, t, fonts } from '../../theme'
 import { mono, PageHeader, Modal } from '../ui'
@@ -11,6 +11,7 @@ import { showToast } from '../toast'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { sanitizeFilename } from '../../../lib/sanitizeFilename'
 import { useTenantConfig } from '../../tenant/useTenantConfig'
+import { PricingPanel } from './PricingPanel'
 import { Toggle } from '../../components/shared/Toggle'
 import {
   VERTICAL_LABELS,
@@ -22,24 +23,34 @@ const VERTICALS: Vertical[] = ['design_systems', 'branding']
 const ATTACHMENT_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp'
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
-type SettingsSection = 'icp' | 'skills' | 'modules'
+type SettingsSection = 'icp' | 'skills' | 'modules' | 'pricing'
 
-const SECTIONS: { id: SettingsSection; label: string; Icon: React.ComponentType<{ size?: number; color?: string }> }[] = [
+const SECTIONS: { id: SettingsSection; label: string; Icon: React.ComponentType<{ size?: number; color?: string }>; moduleKey?: string }[] = [
   { id: 'icp', label: 'ICP configuration', Icon: SlidersHorizontal },
   { id: 'skills', label: 'Outreach skills', Icon: Sparkles },
+  // Gated on the quotation module (same tenant_modules mechanism
+  // ModulesPanel drives): a tenant without quotations never sees Pricing.
+  { id: 'pricing', label: 'Pricing', Icon: IndianRupee as React.ComponentType<{ size?: number; color?: string }>, moduleKey: 'quotations' },
   { id: 'modules', label: 'Modules', Icon: ToggleLeft as React.ComponentType<{ size?: number; color?: string }> },
 ]
 
 export function SettingsPage() {
   const { isMobile } = useBreakpoint()
   const [activeSection, setActiveSection] = useState<SettingsSection>('icp')
+  const { modules, loading: modulesLoading } = useTenantConfig()
+
+  // Fail closed while tenant_modules resolves, matching AdminShell's nav
+  // gating: a gated section appears only once its module is known enabled.
+  const visibleSections = SECTIONS.filter(
+    ({ moduleKey }) => !moduleKey || (!modulesLoading && modules[moduleKey] !== false)
+  )
 
   return (
     <>
       <PageHeader title="Settings" subtitle="Configure Smart Shortlist targeting and which portal sections are live" />
       <div style={{ ...s.layout, ...(isMobile ? s.layoutMobile : null) }}>
         <nav style={{ ...s.subNav, ...(isMobile ? s.subNavMobile : null) }}>
-          {SECTIONS.map(({ id, label, Icon }) => (
+          {visibleSections.map(({ id, label, Icon }) => (
             <button
               key={id}
               type="button"
@@ -54,6 +65,7 @@ export function SettingsPage() {
         <div style={s.content}>
           {activeSection === 'icp' && <ICPConfigPanel />}
           {activeSection === 'skills' && <SkillsPanel />}
+          {activeSection === 'pricing' && <PricingPanel />}
           {activeSection === 'modules' && <ModulesPanel />}
         </div>
       </div>
