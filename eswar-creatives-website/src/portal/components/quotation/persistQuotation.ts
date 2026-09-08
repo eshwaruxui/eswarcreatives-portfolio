@@ -126,47 +126,41 @@ export async function persistQuotationScope(
     .eq('id', quotationId)
   if (upErr) return { status: 'failed', stage: 'quotation', message: upErr.message }
 
-  await supabase.from('quotation_items').delete().eq('quotation_id', quotationId)
-  if (lines.length > 0) {
-    const { error: itemsErr } = await supabase.from('quotation_items').insert(
-      lines.map((it, idx) => ({
-        quotation_id: quotationId,
-        function_key: it.functionKey,
-        zone_key: it.zoneKey,
-        system: it.system,
-        label: it.label,
-        unit: it.unit,
-        qty: it.qty,
-        anchor_rate: it.anchorRate,
-        curve_key: it.curveKey,
-        finish_level: it.curveKey ? it.finishLevel : null,
-        commission_applied: it.commissionApplied,
-        commission_flat: it.commissionFlat,
-        // Same helpers the cart and the document render, so a stored line
-        // and a rendered line can never be computed differently.
-        rate: unitRate(it, ctx),
-        amount: lineAmount(it, ctx),
-        note: it.note,
-        gerbera_fill: it.gerberaFill,
-        source: it.source,
-        sort_order: idx,
-      }))
-    )
-    if (itemsErr) return { status: 'failed', stage: 'items', message: itemsErr.message }
-  }
-
-  await supabase.from('quotation_day_sessions').delete().eq('quotation_id', quotationId)
-  if (sessions.length > 0) {
-    const { error: sessErr } = await supabase.from('quotation_day_sessions').insert(
-      sessions.map((s, idx) => ({
-        quotation_id: quotationId,
-        day_number: s.dayNumber,
-        slot: s.slot,
-        sort_order: idx,
-      }))
-    )
-    if (sessErr) return { status: 'failed', stage: 'sessions', message: sessErr.message }
-  }
+  // One transactional replace (migration 0120): a client-side delete
+  // followed by a client-side insert left two real failure shapes — delete
+  // lands and insert doesn't (a quotation whose stored totals reference
+  // zero stored lines, exactly what the public link renders), or two saves
+  // interleave and every row doubles. The RPC is SECURITY INVOKER, so the
+  // caller's admin-only RLS still applies; every money value in the
+  // payload comes from the same two helpers the cart and document render.
+  const { error: rowsErr } = await supabase.rpc('replace_quotation_scope_rows', {
+    p_quotation_id: quotationId,
+    p_items: lines.map((it, idx) => ({
+      function_key: it.functionKey,
+      zone_key: it.zoneKey,
+      system: it.system,
+      label: it.label,
+      unit: it.unit,
+      qty: it.qty,
+      anchor_rate: it.anchorRate,
+      curve_key: it.curveKey,
+      finish_level: it.curveKey ? it.finishLevel : null,
+      commission_applied: it.commissionApplied,
+      commission_flat: it.commissionFlat,
+      rate: unitRate(it, ctx),
+      amount: lineAmount(it, ctx),
+      note: it.note,
+      gerbera_fill: it.gerberaFill,
+      source: it.source,
+      sort_order: idx,
+    })),
+    p_sessions: sessions.map((s, idx) => ({
+      day_number: s.dayNumber,
+      slot: s.slot,
+      sort_order: idx,
+    })),
+  })
+  if (rowsErr) return { status: 'failed', stage: 'items', message: rowsErr.message }
 
   return { status: 'saved', totals }
 }

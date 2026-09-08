@@ -43,7 +43,6 @@ import { QuotationDocument, type QuotationDocumentItem, type FinishLabels } from
 import {
   computeTotals,
   unitRate,
-  listRate,
   commissionComponent,
   lineAmount,
   type PricingContext,
@@ -370,7 +369,12 @@ export function QuotationBuilder() {
         map[s.curve_key][s.finish_level] = Number(s.ratio)
       }
       setRatios(map)
-      setSnapshotLoaded(!ratesRes.error && !stepsRes.error)
+      const ok = !ratesRes.error && !stepsRes.error
+      setSnapshotLoaded(ok)
+      // A failed snapshot fetch must be loud: with snapshotLoaded false
+      // every save path is (correctly) blocked, and silence here would
+      // let an hour of cart edits pile up with no way to store them.
+      if (!ok) setError('Could not load this quotation’s rate card. Reload the page before editing.')
     })()
     return () => { cancelled = true }
   }, [quotationId])
@@ -549,6 +553,31 @@ export function QuotationBuilder() {
   const muhurthamAvailable = supportsMuhurtham(eventInfo.type)
   const twoFunction = muhurthamAvailable && hasMuhurtham
 
+  // Switching muhurtham OFF (or changing the event type off Wedding) must
+  // not strand its lines: they would stay in the totals and print on the
+  // client document while the function switch that reveals them is hidden.
+  // They move to the reception — visible, correctable, deletable — and
+  // curved ones reprice at the reception's finish like any function move.
+  useEffect(() => {
+    if (twoFunction) return
+    setActiveFunction('reception')
+    setItems((prev) =>
+      prev.some((i) => i.functionKey === 'muhurtham')
+        ? prev.map((i) =>
+            i.functionKey === 'muhurtham'
+              ? {
+                  ...i,
+                  functionKey: 'reception' as QuotationFunctionKey,
+                  finishLevel: i.curveKey
+                    ? resolveFinish(i.curveKey, receptionFinish) ?? i.finishLevel
+                    : i.finishLevel,
+                }
+              : i
+          )
+        : prev
+    )
+  }, [twoFunction, resolveFinish, receptionFinish])
+
   const activeFinishKey = activeFunction === 'muhurtham' ? muhurthamFinish : receptionFinish
   // Which finish offers a colour choice is tenant data, not a key this file
   // knows the name of.
@@ -567,7 +596,10 @@ export function QuotationBuilder() {
       setItems((prev) =>
         prev.map((i) =>
           i.functionKey === fn && i.curveKey
-            ? { ...i, finishLevel: resolveFinish(i.curveKey, finishKey) }
+            // ?? keeps the line's current finish if the snapshot hasn't
+            // arrived yet (resolveFinish knows no levels then) — a remap
+            // must never null a finish and silently price a line at 0.
+            ? { ...i, finishLevel: resolveFinish(i.curveKey, finishKey) ?? i.finishLevel }
             : i
         )
       )
@@ -586,7 +618,8 @@ export function QuotationBuilder() {
   }
 
   async function saveSessions(qId: string): Promise<boolean> {
-    await supabase.from('quotation_day_sessions').delete().eq('quotation_id', qId)
+    const { error: delErr } = await supabase.from('quotation_day_sessions').delete().eq('quotation_id', qId)
+    if (delErr) return false
     const rows = sessions.map((s, idx) => ({
       quotation_id: qId, day_number: s.dayNumber, slot: s.slot, sort_order: idx,
     }))
@@ -683,11 +716,20 @@ export function QuotationBuilder() {
     [sessions]
   )
 
+  // The save chain — see saveScopeAndSettings below.
+  const saveChainRef = useRef<Promise<boolean>>(Promise.resolve(true))
+
   // Note there is no `totals` argument. persistQuotationScope recomputes
   // every money value from the lines and the pricing context at write time,
   // so a stored total cannot disagree with the stored lines it came from.
+  //
+  // Saves are CHAINED on saveChainRef: the debounced autosave doesn't await
+  // an in-flight save, and an explicit save can start while an autosave
+  // timer is still armed — unserialized, an older save landing after a
+  // newer one would win. Each queued save reads state from its call time.
   const saveScopeAndSettings = useCallback(
-    async (qId: string): Promise<boolean> => {
+    (qId: string): Promise<boolean> => {
+      const run = async (): Promise<boolean> => {
       // Same guard as the autosave effect, for the explicit save paths:
       // writing lines against an absent snapshot would store zeros.
       if (!snapshotLoaded) {
@@ -710,6 +752,10 @@ export function QuotationBuilder() {
       setSaveState('saved')
       setError(null)
       return true
+      }
+      const chained = saveChainRef.current.then(run, run)
+      saveChainRef.current = chained
+      return chained
     },
     [items, pricingCtx, scopeSettings, persistableSessions, snapshotLoaded]
   )
@@ -763,6 +809,21 @@ export function QuotationBuilder() {
     [snapshotRates]
   )
 
+  /** The rate row an add should start from: the one matching the library
+   *  item's own unit ('per sqft' matches the snapshot's 'sqft'), falling
+   *  back to the first — never silently a different unit than the catalog
+   *  shows when a matching one exists. */
+  const defaultRateFor = useCallback(
+    (itemName: string, libUnit: string | null): SnapshotRate | undefined => {
+      const rates = ratesForItem(itemName)
+      if (rates.length === 0) return undefined
+      const norm = (u: string) => u.toLowerCase().replace(/^per\s+/, '').trim()
+      const wanted = libUnit ? norm(libUnit) : ''
+      return rates.find((r) => norm(r.unit) === wanted) ?? rates[0]
+    },
+    [ratesForItem]
+  )
+
   /** Builds a cart line from a snapshot rate row (curved or flat). */
   const lineFromRate = useCallback(
     (base: Omit<CartItem, 'unit' | 'anchorRate' | 'curveKey' | 'finishLevel' | 'commissionFlat'>, sr: SnapshotRate): CartItem => {
@@ -800,9 +861,9 @@ export function QuotationBuilder() {
         gerberaFill: false,
         source: 'library' as const,
       }
-      const rates = ratesForItem(li.name)
-      if (rates.length > 0) {
-        return [...prev, lineFromRate(base, rates[0])]
+      const sr = defaultRateFor(li.name, li.unit)
+      if (sr) {
+        return [...prev, lineFromRate(base, sr)]
       }
       return [
         ...prev,
@@ -836,7 +897,9 @@ export function QuotationBuilder() {
           ? {
               ...i,
               functionKey,
-              finishLevel: i.curveKey ? resolveFinish(i.curveKey, fnFinish) : i.finishLevel,
+              finishLevel: i.curveKey
+                ? resolveFinish(i.curveKey, fnFinish) ?? i.finishLevel
+                : i.finishLevel,
             }
           : i
       )
@@ -997,8 +1060,8 @@ export function QuotationBuilder() {
         }
         // A candidate matching a rate-card item prices from the snapshot;
         // anything else lands flat at the analyser's guess for review.
-        const rates = ratesForItem(c.label)
-        if (rates.length > 0) combined.push(lineFromRate(base, rates[0]))
+        const sr = defaultRateFor(c.label, c.unit)
+        if (sr) combined.push(lineFromRate(base, sr))
         else combined.push({ ...base, unit: c.unit, anchorRate: c.rate, curveKey: null, finishLevel: null, commissionFlat: null })
       }
       return combined
@@ -1736,7 +1799,6 @@ export function QuotationBuilder() {
                   <div style={styles.cartZoneHeading}>{group.label}</div>
                   {group.items.map((item) => {
                     const charged = unitRate(item, pricingCtx)
-                    const list = listRate(item, pricingCtx)
                     const commission = commissionComponent(item, pricingCtx)
                     const isFloralLike = systems.find((s) => s.key === item.system)?.scales_with_finish === true
                     const unpriced = charged <= 0
@@ -1805,6 +1867,7 @@ export function QuotationBuilder() {
                               title="Finish for this line — only the levels its curve defines"
                               style={styles.moveSelect}
                             >
+                              {item.finishLevel == null && <option value="">choose finish…</option>}
                               {levels.map((lvl) => <option key={lvl} value={lvl}>{finishLabel(lvl)}</option>)}
                             </select>
                             {!unpriced && charged !== item.anchorRate && (
