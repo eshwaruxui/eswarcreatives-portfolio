@@ -9,6 +9,12 @@ export interface TenantTheme {
   name: string
   domain: string
   supabaseRef: string
+  /** Microsoft Clarity project id for THIS tenant's deployment. Optional:
+   *  a tenant with no Clarity project simply records nothing. Public value
+   *  (it ships in page source), so a static config entry is fine. Each
+   *  tenant gets its OWN Clarity project — sessions from one tenant's
+   *  portal must never land in another tenant's analytics. */
+  clarityProjectId?: string
   theme: {
     primary: string
     gold: string

@@ -99,6 +99,17 @@ function Shell({ profile }: { profile: PortalProfile }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const location = useLocation()
 
+  // Tenant-aware tab title, e.g. "Quotations · Newgen Event Studio". Admin
+  // routes otherwise keep the marketing site's <title> from index.html,
+  // which for a tenant deployment is another business's name entirely.
+  useEffect(() => {
+    const active = [...MOBILE_NAV]
+      .sort((a, b) => b.to.length - a.to.length)
+      .find((n) => (n.end ? location.pathname === n.to : location.pathname.startsWith(n.to)))
+    const tenantName = tenant?.name ?? 'Client Portal'
+    document.title = active ? `${active.label} · ${tenantName}` : tenantName
+  }, [location.pathname, tenant])
+
   // Ungated items always show. Gated items show only once tenant_modules has
   // actually resolved.
   //

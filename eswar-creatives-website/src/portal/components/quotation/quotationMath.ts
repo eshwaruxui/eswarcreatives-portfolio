@@ -7,44 +7,90 @@
 // deliberately no DB-side generated column or trigger doing it a second
 // time either.
 //
-// Tenant-neutral by construction: the rule "floral work scales with the
-// chosen finish" is not encoded here as a system key. It arrives as data
-// via `scalesWithFinish` (quotation_systems.scales_with_finish), so this
-// file names no tenant's vocabulary.
+// BUILD 2 (8 Sept): the finish ladder is no longer one global multiplier.
+// It is a set of named curves — each a list of ratios per finish level —
+// applied to an anchor price that belongs to the item and its unit:
+//
+//   list price = round(anchor_rate * ratio)     to the nearest rupee
+//
+// A line with no curve is a flat rate with no finish selection. The ratios
+// come from the QUOTATION'S OWN snapshot (quotation_snapshot_curve_steps),
+// never from the global tables, so editing the global rate card can never
+// reprice an existing quotation.
+//
+// COMMISSION. The rate card figures already CONTAIN commission — the
+// client bakes it in. So "Commission applied" (the default) means the list
+// price passes through untouched, and UNCHECKING it strips commission out:
+// a flat override is subtracted; a percentage is DIVIDED out (1000 at 10%
+// has a base of 909.09, not 900). Commission never reaches any client
+// surface; commissionComponent below exists for the builder's internal
+// figure only.
 
 export type QuotationFunctionKey = 'reception' | 'muhurtham'
 
 /** Minimum shape this module needs. Callers pass richer objects freely. */
 export type PricedLine = {
-  system: string
   qty: number
-  rate: number
-  functionKey: QuotationFunctionKey
+  /** The rate-card anchor for curved lines; the entered rate for flat ones. */
+  anchorRate: number
+  curveKey: string | null
+  finishLevel: string | null
+  commissionApplied: boolean
+  /** Per-item flat rupee commission override; null means the global %. */
+  commissionFlat: number | null
 }
 
 export type PricingContext = {
-  /** system key -> whether the finish multiplier applies to it. */
-  scalesWithFinish: Record<string, boolean>
-  /** function -> multiplier. Each function carries its OWN finish; a
-   *  muhurtham never inherits the reception's, and vice versa. */
-  multiplierByFunction: Record<QuotationFunctionKey, number>
+  /** curve key -> finish level -> ratio, from the quotation's snapshot. */
+  ratios: Record<string, Record<string, number>>
+  /** The quotation's own frozen commission percentage. */
+  commissionPct: number
 }
 
 /**
- * The effective per-unit rate for a line: the base rate, scaled by the
- * finish multiplier of the line's own function when its system scales.
- * Surfaced in the admin cart so the operator can see what a finish choice
- * actually does to a rate. Never shown to the client.
+ * The rate-card price for one unit: round(anchor * ratio) for a curved
+ * line, the anchor itself for a flat one. A curved line whose finish is
+ * not defined on its curve prices at 0 — which the builder already treats
+ * as "unpriced", so a data mismatch is a visible TBC, never a silent
+ * wrong number.
  */
-export function effectiveRate(line: PricedLine, ctx: PricingContext): number {
-  const scales = ctx.scalesWithFinish[line.system] === true
-  const multiplier = scales ? (ctx.multiplierByFunction[line.functionKey] ?? 1) : 1
-  return line.rate * multiplier
+export function listRate(line: PricedLine, ctx: PricingContext): number {
+  if (!line.curveKey) return round2(line.anchorRate)
+  const ratio = ctx.ratios[line.curveKey]?.[line.finishLevel ?? '']
+  if (ratio === undefined) return 0
+  return Math.round(line.anchorRate * ratio)
 }
 
-/** amount = qty x rate x (finish multiplier when the system scales). */
+/**
+ * What the client is actually charged per unit. Checked (default): the
+ * rate card figure exactly — toggling commission ON must never change the
+ * number. Unchecked: the commission is stripped out of the figure.
+ */
+export function unitRate(line: PricedLine, ctx: PricingContext): number {
+  const list = listRate(line, ctx)
+  if (list <= 0 || line.commissionApplied) return list
+  if (line.commissionFlat !== null && line.commissionFlat !== undefined) {
+    return round2(Math.max(0, list - line.commissionFlat))
+  }
+  return round2(list / (1 + ctx.commissionPct / 100))
+}
+
+/**
+ * The commission rupees contained in one unit at list price — builder-view
+ * internal figure ONLY, never rendered on any client surface.
+ */
+export function commissionComponent(line: PricedLine, ctx: PricingContext): number {
+  const list = listRate(line, ctx)
+  if (list <= 0) return 0
+  if (line.commissionFlat !== null && line.commissionFlat !== undefined) {
+    return round2(Math.min(list, line.commissionFlat))
+  }
+  return round2(list - list / (1 + ctx.commissionPct / 100))
+}
+
+/** amount = qty x the charged per-unit rate. */
 export function lineAmount(line: PricedLine, ctx: PricingContext): number {
-  return round2(line.qty * effectiveRate(line, ctx))
+  return round2(line.qty * unitRate(line, ctx))
 }
 
 export type TotalsInput = {
@@ -67,7 +113,7 @@ export const GST_RATE = 0.18
  * Whole-quotation totals, built from the same per-line amounts the cart and
  * the document render. Both functions' lines are summed together: a
  * quotation carrying a reception and a muhurtham is one quotation with one
- * total, even though each function priced its floral work at its own finish.
+ * total, even though each function's floral work carries its own finish.
  */
 export function computeTotals(
   lines: PricedLine[],

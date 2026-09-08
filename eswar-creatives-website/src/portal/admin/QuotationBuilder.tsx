@@ -1,23 +1,32 @@
-// Quotation Module Phase 1.5 — the 3-view create/edit flow, restructured to
-// mirror how the client actually quotes: walking the venue from outside in,
-// one zone at a time.
+// Quotation Module build 2 — the 3-view create/edit flow, priced from the
+// audited curve model locked with the client on 8 Sept 2026.
 //
 // Client + event form -> Builder (element catalog by system on the left, a
-// persistent cart grouped by zone on the right, with the finish selector and
-// live totals in the same panel) -> Preview.
+// persistent cart grouped by zone on the right, with finish and totals in
+// the same panel) -> Preview.
 //
-// Two things drive the structure:
+// What drives the structure:
 //   * ZONES. The venue walk is the quoting order, so the cart is grouped by
-//     zone, and all 13 zones stay visible in the builder even when empty —
+//     zone, and all 14 zones stay visible in the builder even when empty —
 //     an empty zone is an upsell prompt for the operator. Empty zones never
 //     reach the client document.
 //   * FUNCTIONS. A wedding can carry a reception and a muhurtham. The
 //     muhurtham is a separate overnight job, not a discount on the
 //     reception, so each function holds its own finish and neither ever
 //     inherits from the other.
+//   * CURVES. Pricing is round(anchor * ratio) from the quotation's OWN
+//     rate-card snapshot, frozen at creation. A line's finish can only be
+//     a level its curve defines; a line with no curve is a flat rate with
+//     no finish selection. The global rate card is never a live dependency
+//     of an existing quotation.
+//   * COMMISSION. The rate card already contains it. The per-line checkbox
+//     (checked by default) leaves the figure exactly as the card holds it;
+//     unchecking strips it (divide for the percentage, subtract for a flat
+//     override). Internal figure only — never on a client surface.
 //
-// Zones, systems, finish levels and the element library are all loaded from
-// the tenant's own database. No tenant vocabulary is hardcoded here.
+// Zones, systems, finish levels, curves, venues and the element library are
+// all loaded from the tenant's own database. No tenant vocabulary is
+// hardcoded here.
 //
 // Every rupee shown comes from quotationMath.ts. This file does no pricing
 // arithmetic of its own — see that module's header for the bug that rule
@@ -33,7 +42,9 @@ import { ACTIVE_TENANT_ID } from '../tenant/activeTenantId'
 import { QuotationDocument, type QuotationDocumentItem, type FinishLabels } from '../components/quotation/QuotationDocument'
 import {
   computeTotals,
-  effectiveRate,
+  unitRate,
+  listRate,
+  commissionComponent,
   lineAmount,
   type PricingContext,
   type QuotationFunctionKey,
@@ -41,6 +52,7 @@ import {
 import {
   persistQuotationScope,
   type QuotationSettings,
+  type PersistableSession,
 } from '../components/quotation/persistQuotation'
 import type { CSSProperties } from 'react'
 
@@ -64,13 +76,28 @@ function supportsMuhurtham(eventType: string): boolean {
   return eventType.toLowerCase().includes('wedding')
 }
 
+// "Evening reception", never "night". Muhurtham is the morning slot.
+const SLOT_LABELS: Record<'morning' | 'evening', string> = {
+  morning: 'Morning',
+  evening: 'Evening',
+}
+
 type Zone = { key: string; label: string; sort_order: number }
 type SystemRow = { key: string; label: string; scales_with_finish: boolean; sort_order: number }
 type FinishLevel = {
   key: string; label: string; description: string | null
-  floral_multiplier: number; has_colour_variant: boolean; sort_order: number
+  has_colour_variant: boolean; sort_order: number
 }
 type LibraryItem = { id: string; system: string; name: string; unit: string | null; default_rate: number | null; is_motion: boolean }
+
+/** One row of the quotation's own frozen rate card. */
+type SnapshotRate = {
+  itemName: string
+  unit: string
+  curveKey: string | null
+  anchorRate: number
+  commissionFlat: number | null
+}
 
 type CartItem = {
   key: string
@@ -80,10 +107,30 @@ type CartItem = {
   label: string
   unit: string | null
   qty: number
-  rate: number
+  anchorRate: number
+  curveKey: string | null
+  finishLevel: string | null
+  commissionApplied: boolean
+  commissionFlat: number | null
   note: string | null
   gerberaFill: boolean
   source: 'library' | 'mockup_ai' | 'manual'
+}
+
+type SessionRow = { key: string; dayNumber: number; slot: 'morning' | 'evening' }
+
+/** A mockup-extraction candidate. NOTHING enters the quotation until the
+ *  operator ticks it and confirms — the user selects, the system does not
+ *  decide. Checkboxes start UNCHECKED by design. */
+type MockupCandidate = {
+  key: string
+  checked: boolean
+  system: string
+  label: string
+  unit: string
+  qty: number
+  rate: number
+  zoneKey: string | null
 }
 
 type ClientForm = { name: string; phone: string; email: string; address: string }
@@ -97,6 +144,80 @@ const inputStyle: CSSProperties = {
 const labelStyle: CSSProperties = {
   fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: t.text.secondary,
   marginBottom: 6, display: 'block', letterSpacing: 0.2,
+}
+
+let sessionKeySeq = 0
+function newSessionKey(): string {
+  sessionKeySeq += 1
+  return `sess-${sessionKeySeq}-${Date.now()}`
+}
+
+// Sessions render and persist in chronological order everywhere: by day,
+// then Morning before Evening — never insertion order.
+const SLOT_RANK: Record<'morning' | 'evening', number> = { morning: 0, evening: 1 }
+function sortSessions(rows: SessionRow[]): SessionRow[] {
+  return [...rows].sort(
+    (a, z) => a.dayNumber - z.dayNumber || SLOT_RANK[a.slot] - SLOT_RANK[z.slot]
+  )
+}
+
+/** Every day 1..dayCount holds at least one session (a new day defaults to
+ *  one Evening session); days beyond the count are dropped; a day holds at
+ *  most two sessions (default one, option to add a second). */
+function normalizeSessions(dayCount: number, prev: SessionRow[]): SessionRow[] {
+  const out: SessionRow[] = []
+  for (let d = 1; d <= dayCount; d += 1) {
+    const forDay = prev.filter((s) => s.dayNumber === d).slice(0, 2)
+    if (forDay.length === 0) out.push({ key: newSessionKey(), dayNumber: d, slot: 'evening' })
+    else out.push(...forDay)
+  }
+  return sortSessions(out)
+}
+
+/** Venue combobox: filter by typing, pick from the list, or keep a new name
+ *  not on it — the new name persists as a venue row on save. */
+function VenueCombobox({
+  value, onChange, options,
+}: {
+  value: string
+  onChange: (v: string) => void
+  options: string[]
+}) {
+  const [open, setOpen] = useState(false)
+  const filtered = options.filter((o) => o.toLowerCase().includes(value.trim().toLowerCase()))
+  const isNew = value.trim() !== '' && !options.some((o) => o.toLowerCase() === value.trim().toLowerCase())
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        style={inputStyle}
+        data-clarity-mask="True"
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Type to search venues, or enter a new one"
+      />
+      {open && (filtered.length > 0 || isNew) && (
+        <div style={styles.comboList}>
+          {filtered.map((o) => (
+            <button
+              key={o}
+              type="button"
+              style={styles.comboOption}
+              onMouseDown={(e) => { e.preventDefault(); onChange(o); setOpen(false) }}
+            >
+              {o}
+            </button>
+          ))}
+          {isNew && (
+            <div style={styles.comboNewNote}>
+              “{value.trim()}” is not on the list — it will be saved as a new venue.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function QuotationBuilder() {
@@ -124,11 +245,28 @@ export function QuotationBuilder() {
   const [communityOther, setCommunityOther] = useState('')
   const [items, setItems] = useState<CartItem[]>([])
 
+  // Days and sessions — explicit selection, never inferred from dates. A
+  // day holds a LIST of sessions (the client confirmed one day can carry
+  // more than one event).
+  const [dayCount, setDayCount] = useState(1)
+  const [sessions, setSessions] = useState<SessionRow[]>(() => normalizeSessions(1, []))
+
   // Tenant vocabulary, loaded not hardcoded.
   const [zones, setZones] = useState<Zone[]>([])
   const [systems, setSystems] = useState<SystemRow[]>([])
   const [finishLevels, setFinishLevels] = useState<FinishLevel[]>([])
   const [library, setLibrary] = useState<LibraryItem[]>([])
+  const [venues, setVenues] = useState<string[]>([])
+
+  // The quotation's OWN rate card, copied onto it at creation. Pricing
+  // reads this and only this — never the global tables.
+  const [snapshotRates, setSnapshotRates] = useState<SnapshotRate[]>([])
+  const [ratios, setRatios] = useState<Record<string, Record<string, number>>>({})
+  const [commissionPct, setCommissionPct] = useState(0)
+  // No write may happen before the snapshot is in memory: a curved line
+  // priced against an absent ratio computes 0, and an autosave firing in
+  // that window would overwrite correct stored amounts with zeros.
+  const [snapshotLoaded, setSnapshotLoaded] = useState(false)
 
   const [activeFunction, setActiveFunction] = useState<QuotationFunctionKey>('reception')
   const [activeZone, setActiveZone] = useState<string>('')
@@ -143,6 +281,20 @@ export function QuotationBuilder() {
   const [showManual, setShowManual] = useState(false)
   const [manualItem, setManualItem] = useState({ name: '', system: '', unit: 'per unit', rate: '', qty: '1' })
 
+  // Disclosure on the intake form: venue, guests, community and notes sit
+  // behind one quiet control. Auto-opened when an existing quotation
+  // already carries any of them.
+  const [showEventDetails, setShowEventDetails] = useState(false)
+  const [missingNote, setMissingNote] = useState<string[]>([])
+
+  // Days/sessions inline editor on the builder (summary always visible).
+  const [editingDays, setEditingDays] = useState(false)
+
+  // The finish/discount/advance/validity/GST controls collapse into one
+  // "Quotation settings" group so the line list gets the panel height
+  // (client feedback: two lines already clipped behind the finish block).
+  const [showQuotationSettings, setShowQuotationSettings] = useState(false)
+
   // The id this session has already hydrated from the database. Set both on
   // load and immediately after insert, so the post-insert URL change never
   // triggers a reload that overwrites unsaved in-memory state.
@@ -152,6 +304,7 @@ export function QuotationBuilder() {
   const [mockupFile, setMockupFile] = useState<File | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [mockupNotice, setMockupNotice] = useState('')
+  const [mockupCandidates, setMockupCandidates] = useState<MockupCandidate[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [discount, setDiscount] = useState(0)
@@ -160,19 +313,18 @@ export function QuotationBuilder() {
   const [gstEnabled, setGstEnabled] = useState(false)
 
   // Vocabulary is tenant reference data: it depends on nothing in the URL
-  // and is fetched exactly once. It used to live in the same effect as the
-  // quotation load, which meant every id change refetched four tables for
-  // no reason — and, far worse, dragged the quotation load along with it.
+  // and is fetched exactly once.
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const [zonesRes, systemsRes, finishRes, libRes] = await Promise.all([
+      const [zonesRes, systemsRes, finishRes, libRes, venuesRes] = await Promise.all([
         supabase.from('quotation_zones').select('key, label, sort_order').order('sort_order'),
         supabase.from('quotation_systems').select('key, label, scales_with_finish, sort_order').order('sort_order'),
         // internal_code is deliberately never selected: it carries the
         // operator's ratio shorthand and must not reach any rendered DOM.
-        supabase.from('quotation_finish_levels').select('key, label, description, floral_multiplier, has_colour_variant, sort_order').order('sort_order'),
+        supabase.from('quotation_finish_levels').select('key, label, description, has_colour_variant, sort_order').order('sort_order'),
         supabase.from('quotation_item_library').select('id, system, name, unit, default_rate, is_motion').eq('is_active', true).order('sort_order'),
+        supabase.from('quotation_venues').select('name').eq('is_active', true).order('name'),
       ])
       if (cancelled) return
       const finishRows = (finishRes.data ?? []) as FinishLevel[]
@@ -180,12 +332,8 @@ export function QuotationBuilder() {
       setSystems((systemsRes.data ?? []) as SystemRow[])
       setFinishLevels(finishRows)
       setLibrary((libRes.data ?? []) as LibraryItem[])
-      // Deliberately NO default active zone. Defaulting to zone 1 meant the
-      // builder opened with "Valet parking area" already selected in teal —
-      // and since the zone strip sits above the fold, the first tap on an
-      // element silently filed a stage garden into valet parking. Nothing
-      // is selected until the operator picks a zone, which is also what
-      // makes the cart's "Pick a zone above" instruction literally true.
+      setVenues(((venuesRes.data ?? []) as { name: string }[]).map((v) => v.name))
+      // Deliberately NO default active zone (see the zone strip note below).
       //
       // Both functions default to the middle of the ladder rather than the
       // cheapest or dearest, so an unset finish is never silently a pricing
@@ -202,19 +350,55 @@ export function QuotationBuilder() {
     return () => { cancelled = true }
   }, [])
 
+  // The quotation's own rate-card snapshot, created by a DB trigger the
+  // moment the quotation row is inserted, so it exists by the time this
+  // effect can run for either a loaded or a freshly created quotation.
+  useEffect(() => {
+    if (!quotationId) return
+    let cancelled = false
+    void (async () => {
+      const [ratesRes, stepsRes] = await Promise.all([
+        supabase
+          .from('quotation_snapshot_rates')
+          .select('item_name, unit, curve_key, anchor_rate, commission_flat')
+          .eq('quotation_id', quotationId)
+          .order('unit'),
+        supabase
+          .from('quotation_snapshot_curve_steps')
+          .select('curve_key, finish_level, ratio')
+          .eq('quotation_id', quotationId),
+      ])
+      if (cancelled) return
+      setSnapshotRates(
+        ((ratesRes.data ?? []) as { item_name: string; unit: string; curve_key: string | null; anchor_rate: number; commission_flat: number | null }[]).map((r) => ({
+          itemName: r.item_name,
+          unit: r.unit,
+          curveKey: r.curve_key,
+          anchorRate: Number(r.anchor_rate),
+          commissionFlat: r.commission_flat === null ? null : Number(r.commission_flat),
+        }))
+      )
+      const map: Record<string, Record<string, number>> = {}
+      for (const s of (stepsRes.data ?? []) as { curve_key: string; finish_level: string; ratio: number }[]) {
+        if (!map[s.curve_key]) map[s.curve_key] = {}
+        map[s.curve_key][s.finish_level] = Number(s.ratio)
+      }
+      setRatios(map)
+      const ok = !ratesRes.error && !stepsRes.error
+      setSnapshotLoaded(ok)
+      // A failed snapshot fetch must be loud: with snapshotLoaded false
+      // every save path is (correctly) blocked, and silence here would
+      // let an hour of cart edits pile up with no way to store them.
+      if (!ok) setError('Could not load this quotation’s rate card. Reload the page before editing.')
+    })()
+    return () => { cancelled = true }
+  }, [quotationId])
+
   // Loading an EXISTING quotation. Guarded by loadedIdRef so it never runs
-  // for a quotation this session created itself.
-  //
-  // THE BUG THIS GUARD EXISTS FOR (found on NES-2026-1006): saveClientEvent
-  // inserts the row and then navigates from /quotations/new to
-  // /quotations/<uuid> so the URL is shareable. That changes the :id param,
-  // which re-ran this load — against the row that had just been inserted,
-  // whose muhurtham_finish_key and muhurtham_reuse were still NULL because
-  // the insert had never carried them. The reload then wrote those NULLs
-  // straight over the operator's in-memory choices. The muhurtham finish
-  // silently became "no finish" (multiplier 1, so 15000 stored as 15000),
-  // and "Retained with additions" was discarded before it was ever written.
-  // Nothing in the UI moved, so there was no way to see it happen.
+  // for a quotation this session created itself (the post-insert navigate
+  // changes the :id param; without the guard the reload would write the
+  // fresh row's NULLs over the operator's in-memory choices — the
+  // NES-2026-1006 bug).
   useEffect(() => {
     if (isNew || !id) { setLoading(false); return }
     if (loadedIdRef.current === id) { setLoading(false); return }
@@ -241,15 +425,13 @@ export function QuotationBuilder() {
         type: q.event_type ?? '', date: q.event_date ?? '', venue: q.venue ?? '',
         guestCount: q.guest_count ? String(q.guest_count) : '', notes: q.notes ?? '',
       })
+      setShowEventDetails(!!(q.venue || q.guest_count || q.community || q.notes))
       if (q.community) {
         setCommunity(COMMUNITIES.includes(q.community) ? q.community : 'Other')
         if (!COMMUNITIES.includes(q.community)) setCommunityOther(q.community)
       }
       setHasMuhurtham(!!q.has_muhurtham)
       setMuhurthamReuse(q.muhurtham_reuse ?? '')
-      // A stored NULL finish must not become '' and silently price at
-      // multiplier 1. Fall back to the ladder's middle step, the same
-      // default a new quotation gets.
       setReceptionFinish(q.reception_finish_key ?? '')
       setMuhurthamFinish(q.muhurtham_finish_key ?? '')
       setReadymadeVariant(q.readymade_variant ?? '')
@@ -257,12 +439,23 @@ export function QuotationBuilder() {
       setAdvance(Number(q.advance_pct) || 50)
       setValidDays(Number(q.validity_days) || 7)
       setGstEnabled(!!q.gst_enabled)
+      setCommissionPct(Number(q.commission_pct) || 0)
+      const loadedDayCount = Number(q.day_count) || 1
+      setDayCount(loadedDayCount)
 
-      const { data: itemRows } = await supabase
-        .from('quotation_items')
-        .select('id, system, zone_key, function_key, label, unit, qty, rate, note, gerbera_fill, source')
-        .eq('quotation_id', id)
-        .order('sort_order')
+      const [{ data: itemRows }, { data: sessionRows }] = await Promise.all([
+        supabase
+          .from('quotation_items')
+          .select('id, system, zone_key, function_key, label, unit, qty, rate, anchor_rate, curve_key, finish_level, commission_applied, commission_flat, note, gerbera_fill, source')
+          .eq('quotation_id', id)
+          .order('sort_order'),
+        supabase
+          .from('quotation_day_sessions')
+          .select('id, day_number, slot')
+          .eq('quotation_id', id)
+          .order('day_number')
+          .order('sort_order'),
+      ])
       if (cancelled) return
       setItems(
         (itemRows ?? []).map((r) => ({
@@ -273,11 +466,27 @@ export function QuotationBuilder() {
           label: r.label,
           unit: r.unit,
           qty: Number(r.qty),
-          rate: Number(r.rate),
+          // Lines from before the curve model carry no anchor; their
+          // stored rate becomes a flat anchor so nothing changes value.
+          anchorRate: r.anchor_rate !== null ? Number(r.anchor_rate) : Number(r.rate),
+          curveKey: r.curve_key,
+          finishLevel: r.finish_level,
+          commissionApplied: r.commission_applied !== false,
+          commissionFlat: r.commission_flat === null ? null : Number(r.commission_flat),
           note: r.note,
           gerberaFill: !!r.gerbera_fill,
           source: r.source,
         }))
+      )
+      setSessions(
+        normalizeSessions(
+          loadedDayCount,
+          (sessionRows ?? []).map((s) => ({
+            key: s.id as string,
+            dayNumber: Number(s.day_number),
+            slot: s.slot as 'morning' | 'evening',
+          }))
+        )
       )
       setView('builder')
       setLoading(false)
@@ -285,21 +494,11 @@ export function QuotationBuilder() {
     return () => { cancelled = true }
   }, [id, isNew])
 
-  const multiplierOf = useCallback(
-    (finishKey: string) => Number(finishLevels.find((f) => f.key === finishKey)?.floral_multiplier ?? 1),
-    [finishLevels]
-  )
-
-  // The one pricing context every rupee on this screen flows through.
+  // The one pricing context every rupee on this screen flows through: the
+  // quotation's own snapshot ratios and its frozen commission percentage.
   const pricingCtx: PricingContext = useMemo(
-    () => ({
-      scalesWithFinish: Object.fromEntries(systems.map((s) => [s.key, s.scales_with_finish])),
-      multiplierByFunction: {
-        reception: multiplierOf(receptionFinish),
-        muhurtham: multiplierOf(muhurthamFinish),
-      },
-    }),
-    [systems, multiplierOf, receptionFinish, muhurthamFinish]
+    () => ({ ratios, commissionPct }),
+    [ratios, commissionPct]
   )
 
   const totals = useMemo(
@@ -310,35 +509,144 @@ export function QuotationBuilder() {
   const zoneLabel = useCallback((key: string | null) => zones.find((z) => z.key === key)?.label ?? '', [zones])
   const zoneOrder = useCallback((key: string | null) => zones.find((z) => z.key === key)?.sort_order ?? 999, [zones])
   const systemLabel = useCallback((key: string) => systems.find((s) => s.key === key)?.label ?? key, [systems])
+  const finishLabel = useCallback((key: string) => finishLevels.find((f) => f.key === key)?.label ?? key, [finishLevels])
+  const finishOrder = useCallback((key: string) => finishLevels.find((f) => f.key === key)?.sort_order ?? 999, [finishLevels])
+
+  /** The finish levels a curve actually defines, in ladder order. The UI
+   *  shows only these — a curve with no step for a level does not offer
+   *  that level. */
+  const curveLevels = useCallback(
+    (curveKey: string) => Object.keys(ratios[curveKey] ?? {}).sort((a, b) => finishOrder(a) - finishOrder(b)),
+    [ratios, finishOrder]
+  )
+
+  /** The level a curved line lands on when `wanted` is asked of it: the
+   *  exact level when the curve defines it, otherwise the nearest defined
+   *  step (ties go to the fuller finish). Never silently prices — a curve
+   *  with no levels at all yields null, which renders as unpriced. */
+  const resolveFinish = useCallback(
+    (curveKey: string, wanted: string): string | null => {
+      const levels = curveLevels(curveKey)
+      if (levels.length === 0) return null
+      if (levels.includes(wanted)) return wanted
+      // No finish asked for at all (a stored NULL function finish): the
+      // curve's fullest level, never a silent nearest-to-nothing pick.
+      if (!wanted) return levels[0]
+      const target = finishOrder(wanted)
+      return levels.reduce((best, lvl) => {
+        const d = Math.abs(finishOrder(lvl) - target)
+        const bd = Math.abs(finishOrder(best) - target)
+        if (d < bd) return lvl
+        if (d === bd && finishOrder(lvl) < finishOrder(best)) return lvl
+        return best
+      }, levels[0])
+    },
+    [curveLevels, finishOrder]
+  )
 
   // Nothing may enter the cart until the operator has said where it goes.
   const zoneChosen = activeZone !== ''
 
-  // Every seeded default_rate is 0, which the library renders honestly as
-  // "rate TBC". The cart used to turn that into a confident editable 0 with
-  // an amount of ₹0, and Send stayed enabled on a ₹0 total — a client could
-  // be sent a quotation for nothing. Counted across BOTH functions, because
-  // Send activates the whole quotation, not the function on screen.
-  const unpricedCount = items.filter((i) => i.rate <= 0).length
+  // Unpriced lines cannot be sent. With curves this also catches a curved
+  // line whose finish its curve does not define (prices at 0), so a data
+  // mismatch is a visible TBC rather than a silent wrong number. Counted
+  // across BOTH functions, because Send activates the whole quotation.
+  const unpricedCount = items.filter((i) => unitRate(i, pricingCtx) <= 0).length
   const hasUnpriced = unpricedCount > 0
 
-  const canProceedFromForm = client.name.trim() && client.phone.trim() && eventInfo.type && eventInfo.date
+  // Required to create: client name, phone, event type. The date is
+  // OPTIONAL in practice — muhurtham dates come from an astrologer and are
+  // often unknown at first enquiry.
+  const missingRequired = useMemo(() => {
+    const missing: string[] = []
+    if (!client.name.trim()) missing.push('client name')
+    if (!client.phone.trim()) missing.push('phone number')
+    if (!eventInfo.type) missing.push('event type')
+    return missing
+  }, [client.name, client.phone, eventInfo.type])
+
   const muhurthamAvailable = supportsMuhurtham(eventInfo.type)
   const twoFunction = muhurthamAvailable && hasMuhurtham
 
-  // A quotation that is not two-function must never carry muhurtham lines or
-  // a stored muhurtham finish, whatever the operator toggled earlier.
+  // Switching muhurtham OFF (or changing the event type off Wedding) must
+  // not strand its lines: they would stay in the totals and print on the
+  // client document while the function switch that reveals them is hidden.
+  // They move to the reception — visible, correctable, deletable — and
+  // curved ones reprice at the reception's finish like any function move.
+  useEffect(() => {
+    if (twoFunction) return
+    setActiveFunction('reception')
+    setItems((prev) =>
+      prev.some((i) => i.functionKey === 'muhurtham')
+        ? prev.map((i) =>
+            i.functionKey === 'muhurtham'
+              ? {
+                  ...i,
+                  functionKey: 'reception' as QuotationFunctionKey,
+                  finishLevel: i.curveKey
+                    ? resolveFinish(i.curveKey, receptionFinish) ?? i.finishLevel
+                    : i.finishLevel,
+                }
+              : i
+          )
+        : prev
+    )
+  }, [twoFunction, resolveFinish, receptionFinish])
+
   const activeFinishKey = activeFunction === 'muhurtham' ? muhurthamFinish : receptionFinish
-  const setActiveFinishKey = activeFunction === 'muhurtham' ? setMuhurthamFinish : setReceptionFinish
   // Which finish offers a colour choice is tenant data, not a key this file
-  // knows the name of — the same reason "floral scales with the finish" is
-  // a column on quotation_systems rather than a literal in quotationMath.
+  // knows the name of.
   const colourVariantOffered =
     finishLevels.find((f) => f.key === activeFinishKey)?.has_colour_variant === true
+
+  /** The function-level finish selector: sets the function's finish AND
+   *  re-defaults every curved line in that function onto it (or the
+   *  nearest level its curve defines). This is the "one selector
+   *  recalculates all floral work" behaviour from the walkthrough; a line
+   *  can still be deviated afterwards with its own selector. */
+  const changeFunctionFinish = useCallback(
+    (fn: QuotationFunctionKey, finishKey: string) => {
+      if (fn === 'reception') setReceptionFinish(finishKey)
+      else setMuhurthamFinish(finishKey)
+      setItems((prev) =>
+        prev.map((i) =>
+          i.functionKey === fn && i.curveKey
+            // ?? keeps the line's current finish if the snapshot hasn't
+            // arrived yet (resolveFinish knows no levels then) — a remap
+            // must never null a finish and silently price a line at 0.
+            ? { ...i, finishLevel: resolveFinish(i.curveKey, finishKey) ?? i.finishLevel }
+            : i
+        )
+      )
+    },
+    [resolveFinish]
+  )
+
+  /** Persists any new venue name so the next quotation offers it. */
+  async function persistVenueIfNew() {
+    const v = eventInfo.venue.trim()
+    if (!v) return
+    if (venues.some((n) => n.toLowerCase() === v.toLowerCase())) return
+    // Unique-violation on a concurrent insert is harmless; ignore errors.
+    await supabase.from('quotation_venues').insert({ name: v })
+    setVenues((prev) => [...prev, v].sort((a, b) => a.localeCompare(b)))
+  }
+
+  async function saveSessions(qId: string): Promise<boolean> {
+    const { error: delErr } = await supabase.from('quotation_day_sessions').delete().eq('quotation_id', qId)
+    if (delErr) return false
+    const rows = sessions.map((s, idx) => ({
+      quotation_id: qId, day_number: s.dayNumber, slot: s.slot, sort_order: idx,
+    }))
+    if (rows.length === 0) return true
+    const { error: sessErr } = await supabase.from('quotation_day_sessions').insert(rows)
+    return !sessErr
+  }
 
   async function saveClientEvent(): Promise<string | null> {
     setSaving(true)
     setError(null)
+    await persistVenueIfNew()
     const resolvedCommunity = community === 'Other' ? communityOther.trim() || null : community || null
     const payload = {
       client_name: client.name.trim(),
@@ -351,24 +659,22 @@ export function QuotationBuilder() {
       guest_count: eventInfo.guestCount ? Number(eventInfo.guestCount) : null,
       notes: eventInfo.notes.trim() || null,
       community: resolvedCommunity,
+      day_count: dayCount,
       has_muhurtham: muhurthamAvailable && hasMuhurtham,
       // muhurtham_reuse is chosen on THIS step, so it has to be written by
-      // this save. It was previously written only by the scope save, which
-      // meant the operator's answer lived in memory alone until then — and
-      // was lost outright when the post-insert reload cleared it.
+      // this save (the NES-2026-1006 lesson).
       muhurtham_reuse:
         muhurthamAvailable && hasMuhurtham ? muhurthamReuse || null : null,
       // Carried so a freshly inserted row is never a row with no finish.
-      // A NULL finish reads back as "" and prices at multiplier 1, which is
-      // how a 15000 muhurtham garden stored as 15000 instead of 12750.
       reception_finish_key: receptionFinish || null,
       muhurtham_finish_key:
         muhurthamAvailable && hasMuhurtham ? muhurthamFinish || null : null,
     }
     if (quotationId) {
       const { error: upErr } = await supabase.from('quotations').update(payload).eq('id', quotationId)
+      const sessionsOk = !upErr && (await saveSessions(quotationId))
       setSaving(false)
-      if (upErr) {
+      if (upErr || !sessionsOk) {
         setError('Could not save. Try again.')
         return null
       }
@@ -377,10 +683,10 @@ export function QuotationBuilder() {
     const { data: inserted, error: insErr } = await supabase
       .from('quotations')
       .insert(payload)
-      .select('id, quotation_number, created_at')
+      .select('id, quotation_number, created_at, commission_pct')
       .single()
-    setSaving(false)
     if (insErr || !inserted) {
+      setSaving(false)
       setError('Could not create the quotation. Try again.')
       return null
     }
@@ -391,6 +697,12 @@ export function QuotationBuilder() {
     setQuotationId(inserted.id)
     setQuotationNumber(inserted.quotation_number)
     setCreatedAt(inserted.created_at)
+    setCommissionPct(Number(inserted.commission_pct) || 0)
+    const sessionsOk = await saveSessions(inserted.id)
+    setSaving(false)
+    if (!sessionsOk) {
+      setError('Created, but the day sessions did not save. They will retry with the next change.')
+    }
     navigate(`/portal/admin/quotations/${inserted.id}`, { replace: true })
     return inserted.id
   }
@@ -408,52 +720,78 @@ export function QuotationBuilder() {
       muhurthamFinishKey: muhurthamFinish,
       readymadeVariant,
       muhurthamReuse,
+      dayCount,
     }),
     [discount, advance, validDays, gstEnabled, twoFunction, receptionFinish,
-     muhurthamFinish, readymadeVariant, muhurthamReuse]
+     muhurthamFinish, readymadeVariant, muhurthamReuse, dayCount]
   )
+
+  const persistableSessions: PersistableSession[] = useMemo(
+    () => sessions.map((s) => ({ dayNumber: s.dayNumber, slot: s.slot })),
+    [sessions]
+  )
+
+  // The save chain — see saveScopeAndSettings below.
+  const saveChainRef = useRef<Promise<boolean>>(Promise.resolve(true))
 
   // Note there is no `totals` argument. persistQuotationScope recomputes
   // every money value from the lines and the pricing context at write time,
   // so a stored total cannot disagree with the stored lines it came from.
+  //
+  // Saves are CHAINED on saveChainRef: the debounced autosave doesn't await
+  // an in-flight save, and an explicit save can start while an autosave
+  // timer is still armed — unserialized, an older save landing after a
+  // newer one would win. Each queued save reads state from its call time.
   const saveScopeAndSettings = useCallback(
-    async (qId: string): Promise<boolean> => {
+    (qId: string): Promise<boolean> => {
+      const run = async (): Promise<boolean> => {
+      // Same guard as the autosave effect, for the explicit save paths:
+      // writing lines against an absent snapshot would store zeros.
+      if (!snapshotLoaded) {
+        setError('Still loading the rate card for this quotation — try again in a moment.')
+        return false
+      }
       setSaveState('saving')
-      const result = await persistQuotationScope(supabase, qId, items, pricingCtx, scopeSettings)
+      const result = await persistQuotationScope(supabase, qId, items, pricingCtx, scopeSettings, persistableSessions)
       if (result.status === 'failed') {
         setSaveState('error')
         setError(
           result.stage === 'items'
             ? 'Could not save the line items. Try again.'
-            : 'Could not save the scope. Try again.'
+            : result.stage === 'sessions'
+              ? 'Could not save the day sessions. Try again.'
+              : 'Could not save the scope. Try again.'
         )
         return false
       }
       setSaveState('saved')
       setError(null)
       return true
+      }
+      const chained = saveChainRef.current.then(run, run)
+      saveChainRef.current = chained
+      return chained
     },
-    [items, pricingCtx, scopeSettings]
+    [items, pricingCtx, scopeSettings, persistableSessions, snapshotLoaded]
   )
 
   // Autosave. The stored row is what the client's public link renders, so
   // any window where the screen and the database disagree is a window where
   // Newgen quotes one price on the phone and the client reads another.
-  // Saving only on "Preview and Print" left that window open for as long as
-  // the operator kept editing: on NES-2026-1006 the muhurtham finish was
-  // changed to Fresh-led, the cart correctly showed 50,350, and the row kept
-  // 52,600 because nothing had told it otherwise.
-  //
-  // Skipped until the quotation exists and the builder is actually showing,
-  // so it never races the insert or fires while the form step is open.
+  // Skipped until the quotation exists and the builder is actually showing.
   useEffect(() => {
-    if (!quotationId || view !== 'builder' || !vocabLoaded) return
+    if (!quotationId || view !== 'builder' || !vocabLoaded || !snapshotLoaded) return
     setSaveState('dirty')
-    const t = setTimeout(() => { void saveScopeAndSettings(quotationId) }, 900)
-    return () => clearTimeout(t)
-  }, [quotationId, view, vocabLoaded, saveScopeAndSettings])
+    const timer = setTimeout(() => { void saveScopeAndSettings(quotationId) }, 900)
+    return () => clearTimeout(timer)
+  }, [quotationId, view, vocabLoaded, snapshotLoaded, saveScopeAndSettings])
 
   async function handleContinueFromForm() {
+    if (missingRequired.length > 0) {
+      setMissingNote(missingRequired)
+      return
+    }
+    setMissingNote([])
     const savedId = await saveClientEvent()
     if (savedId) setView('builder')
   }
@@ -480,6 +818,43 @@ export function QuotationBuilder() {
     }
   }
 
+  /** The snapshot rate rows for one item name, one per unit. */
+  const ratesForItem = useCallback(
+    (itemName: string) => snapshotRates.filter((r) => r.itemName === itemName),
+    [snapshotRates]
+  )
+
+  /** The rate row an add should start from: the one matching the library
+   *  item's own unit ('per sqft' matches the snapshot's 'sqft'), falling
+   *  back to the first — never silently a different unit than the catalog
+   *  shows when a matching one exists. */
+  const defaultRateFor = useCallback(
+    (itemName: string, libUnit: string | null): SnapshotRate | undefined => {
+      const rates = ratesForItem(itemName)
+      if (rates.length === 0) return undefined
+      const norm = (u: string) => u.toLowerCase().replace(/^per\s+/, '').trim()
+      const wanted = libUnit ? norm(libUnit) : ''
+      return rates.find((r) => norm(r.unit) === wanted) ?? rates[0]
+    },
+    [ratesForItem]
+  )
+
+  /** Builds a cart line from a snapshot rate row (curved or flat). */
+  const lineFromRate = useCallback(
+    (base: Omit<CartItem, 'unit' | 'anchorRate' | 'curveKey' | 'finishLevel' | 'commissionFlat'>, sr: SnapshotRate): CartItem => {
+      const fnFinish = base.functionKey === 'muhurtham' ? muhurthamFinish : receptionFinish
+      return {
+        ...base,
+        unit: sr.unit,
+        anchorRate: sr.anchorRate,
+        curveKey: sr.curveKey,
+        finishLevel: sr.curveKey ? resolveFinish(sr.curveKey, fnFinish) : null,
+        commissionFlat: sr.commissionFlat,
+      }
+    },
+    [muhurthamFinish, receptionFinish, resolveFinish]
+  )
+
   function addLibraryItem(li: LibraryItem) {
     if (!activeZone) return
     setItems((prev) => {
@@ -489,20 +864,31 @@ export function QuotationBuilder() {
         (i) => i.label === li.name && i.zoneKey === activeZone && i.functionKey === activeFunction
       )
       if (match) return prev.map((i) => (i === match ? { ...i, qty: i.qty + 1 } : i))
+      const base = {
+        key: `lib-${li.id}-${Date.now()}`,
+        functionKey: activeFunction,
+        zoneKey: activeZone,
+        system: li.system,
+        label: li.name,
+        qty: 1,
+        commissionApplied: true,
+        note: null,
+        gerberaFill: false,
+        source: 'library' as const,
+      }
+      const sr = defaultRateFor(li.name, li.unit)
+      if (sr) {
+        return [...prev, lineFromRate(base, sr)]
+      }
       return [
         ...prev,
         {
-          key: `lib-${li.id}-${Date.now()}`,
-          functionKey: activeFunction,
-          zoneKey: activeZone,
-          system: li.system,
-          label: li.name,
+          ...base,
           unit: li.unit ?? 'per unit',
-          qty: 1,
-          rate: Number(li.default_rate ?? 0),
-          note: null,
-          gerberaFill: false,
-          source: 'library',
+          anchorRate: Number(li.default_rate ?? 0),
+          curveKey: null,
+          finishLevel: null,
+          commissionFlat: null,
         },
       ]
     })
@@ -511,28 +897,67 @@ export function QuotationBuilder() {
   function removeItem(key: string) {
     setItems((prev) => prev.filter((i) => i.key !== key))
   }
-  // Recovery from a misfiling has to be a correction, not a rebuild. Before
-  // this, the only line controls were qty -/+ and remove, so a line in the
-  // wrong zone meant delete, scroll up, reselect the zone, find the element
-  // again, re-add — six lines in the wrong function was a rebuild of the
-  // whole function.
+  // Recovery from a misfiling has to be a correction, not a rebuild.
   function moveItemZone(key: string, zoneKey: string | null) {
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, zoneKey } : i)))
   }
-  // The finish is scoped to the function, so this is the move that can change
-  // a line's money: a floral line priced at the reception's finish reprices
-  // at the muhurtham's the moment it lands there. lineAmount() reads
-  // functionKey, so the cart, the document and the persisted amount all
-  // follow from this one field with no separate recalculation.
+  // The finish is scoped to the function, so this is the move that can
+  // change a line's money: a curved line re-defaults onto the destination
+  // function's finish the moment it lands there.
   function moveItemFunction(key: string, functionKey: QuotationFunctionKey) {
-    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, functionKey } : i)))
+    const fnFinish = functionKey === 'muhurtham' ? muhurthamFinish : receptionFinish
+    setItems((prev) =>
+      prev.map((i) =>
+        i.key === key
+          ? {
+              ...i,
+              functionKey,
+              finishLevel: i.curveKey
+                ? resolveFinish(i.curveKey, fnFinish) ?? i.finishLevel
+                : i.finishLevel,
+            }
+          : i
+      )
+    )
   }
   function updateItemQty(key: string, qty: number) {
     if (qty < 1) return
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, qty } : i)))
   }
-  function updateItemRate(key: string, rate: number) {
-    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, rate } : i)))
+  // "Per quotation edits write to that copy": the editable number on a line
+  // is its own anchor. The global card is untouched, and other lines keep
+  // theirs.
+  function updateItemAnchor(key: string, anchorRate: number) {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, anchorRate } : i)))
+  }
+  function updateItemFinish(key: string, finishLevel: string) {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, finishLevel } : i)))
+  }
+  function toggleItemCommission(key: string) {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, commissionApplied: !i.commissionApplied } : i)))
+  }
+  /** Switching a line's unit swaps in that unit's anchor and curve from the
+   *  quotation's snapshot (Stage garden per running foot and per sqft are
+   *  different anchors on different curves). */
+  function changeItemUnit(key: string, unit: string) {
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.key !== key) return i
+        const sr = ratesForItem(i.label).find((r) => r.unit === unit)
+        if (!sr) return { ...i, unit }
+        const fnFinish = i.functionKey === 'muhurtham' ? muhurthamFinish : receptionFinish
+        return {
+          ...i,
+          unit: sr.unit,
+          anchorRate: sr.anchorRate,
+          curveKey: sr.curveKey,
+          commissionFlat: sr.commissionFlat,
+          finishLevel: sr.curveKey
+            ? resolveFinish(sr.curveKey, i.finishLevel ?? fnFinish)
+            : null,
+        }
+      })
+    )
   }
   function toggleGerbera(key: string) {
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, gerberaFill: !i.gerberaFill } : i)))
@@ -550,7 +975,11 @@ export function QuotationBuilder() {
         label: manualItem.name.trim(),
         unit: manualItem.unit || 'per unit',
         qty: Number(manualItem.qty) || 1,
-        rate: Number(manualItem.rate) || 0,
+        anchorRate: Number(manualItem.rate) || 0,
+        curveKey: null,
+        finishLevel: null,
+        commissionApplied: true,
+        commissionFlat: null,
         note: null,
         gerberaFill: false,
         source: 'manual',
@@ -560,10 +989,15 @@ export function QuotationBuilder() {
     setShowManual(false)
   }
 
+  // Analysis produces CANDIDATES, not lines. Every row arrives unchecked;
+  // nothing touches the quotation until the operator picks and confirms.
+  // This is what the client asked for directly: upload a design, see the
+  // ten to fifteen items come back, keep only the ones he picks.
   const analyzeMockup = useCallback(async () => {
     if (!mockupFile) return
     setAnalyzing(true)
     setMockupNotice('')
+    setMockupCandidates([])
     try {
       const base64: string = await new Promise((resolve, reject) => {
         const reader = new FileReader()
@@ -582,48 +1016,99 @@ export function QuotationBuilder() {
       const found = (data.data ?? []) as {
         system: string; label: string; unit: string; qty: number; rate: number; zone_key: string | null
       }[]
-      setItems((prev) => {
-        const combined = [...prev]
-        for (const f of found) {
-          // Land in the zone the analyser suggested, else the active zone.
-          // With no zone chosen the line lands unassigned rather than being
-          // filed somewhere arbitrary — it then shows under "Unassigned" in
-          // the cart with a zone control on it, which is an honest prompt
-          // instead of a silent misfiling.
-          const zoneKey =
-            f.zone_key && zones.some((z) => z.key === f.zone_key) ? f.zone_key : activeZone || null
-          const dupe = combined.find(
-            (i) => i.label === f.label && i.zoneKey === zoneKey && i.functionKey === activeFunction
-          )
-          if (dupe) continue
-          combined.push({
-            key: `ai-${f.label}-${zoneKey}-${Date.now()}`,
-            functionKey: activeFunction,
-            zoneKey,
-            system: systems.some((s) => s.key === f.system) ? f.system : (systems[0]?.key ?? ''),
-            label: f.label,
-            unit: f.unit || 'per unit',
-            qty: f.qty || 1,
-            rate: Number(f.rate) || 0,
-            note: null,
-            gerberaFill: false,
-            source: 'mockup_ai',
-          })
-        }
-        return combined
-      })
-      setMockupNotice(`${found.length} item${found.length === 1 ? '' : 's'} identified and added. Review zones and rates.`)
+      setMockupCandidates(
+        found.map((f, idx) => ({
+          key: `cand-${idx}-${Date.now()}`,
+          checked: false,
+          system: systems.some((s) => s.key === f.system) ? f.system : (systems[0]?.key ?? ''),
+          label: f.label,
+          unit: f.unit || 'per unit',
+          qty: f.qty || 1,
+          rate: Number(f.rate) || 0,
+          zoneKey: f.zone_key && zones.some((z) => z.key === f.zone_key) ? f.zone_key : null,
+        }))
+      )
+      setMockupNotice(
+        found.length === 0
+          ? 'No elements identified in this mockup.'
+          : `${found.length} candidate${found.length === 1 ? '' : 's'} identified. Tick the ones to add — nothing is added until you confirm.`
+      )
     } catch {
       setMockupNotice('Could not analyze the mockup. Add items manually.')
     }
     setAnalyzing(false)
-  }, [mockupFile, activeZone, activeFunction, zones, systems])
+  }, [mockupFile, zones, systems])
+
+  function toggleCandidate(key: string) {
+    setMockupCandidates((prev) => prev.map((c) => (c.key === key ? { ...c, checked: !c.checked } : c)))
+  }
+  function setCandidateZone(key: string, zoneKey: string | null) {
+    setMockupCandidates((prev) => prev.map((c) => (c.key === key ? { ...c, zoneKey } : c)))
+  }
+
+  const checkedCandidateCount = mockupCandidates.filter((c) => c.checked).length
+
+  function addSelectedCandidates() {
+    const chosen = mockupCandidates.filter((c) => c.checked)
+    if (chosen.length === 0) return
+    setItems((prev) => {
+      const combined = [...prev]
+      for (const c of chosen) {
+        // Land in the candidate's zone, else the active zone, else
+        // unassigned — an honest prompt instead of a silent misfiling.
+        const zoneKey = c.zoneKey ?? (activeZone || null)
+        const dupe = combined.find(
+          (i) => i.label === c.label && i.zoneKey === zoneKey && i.functionKey === activeFunction
+        )
+        if (dupe) continue
+        const base = {
+          key: `ai-${c.label}-${zoneKey}-${Date.now()}`,
+          functionKey: activeFunction,
+          zoneKey,
+          system: c.system,
+          label: c.label,
+          qty: c.qty,
+          commissionApplied: true,
+          note: null,
+          gerberaFill: false,
+          source: 'mockup_ai' as const,
+        }
+        // A candidate matching a rate-card item prices from the snapshot;
+        // anything else lands flat at the analyser's guess for review.
+        const sr = defaultRateFor(c.label, c.unit)
+        if (sr) combined.push(lineFromRate(base, sr))
+        else combined.push({ ...base, unit: c.unit, anchorRate: c.rate, curveKey: null, finishLevel: null, commissionFlat: null })
+      }
+      return combined
+    })
+    setMockupCandidates([])
+    setMockupNotice(`${chosen.length} item${chosen.length === 1 ? '' : 's'} added. Review zones and rates in the cart.`)
+  }
 
   const filteredLibrary = library.filter((li) => {
     const matchSystem = activeSystem === 'All' || li.system === activeSystem
     const matchSearch = li.name.toLowerCase().includes(search.toLowerCase())
     return matchSystem && matchSearch
   })
+
+  // Quick mitigation for the seventy-row flat list (the full catalogue
+  // treatment stays parked): sticky group headings in the existing system
+  // order, priced items above rate-TBC within each group. Array.sort is
+  // stable, so equal-priced items keep their seeded order.
+  const groupedLibrary = useMemo(() => {
+    const isPriced = (li: LibraryItem) =>
+      defaultRateFor(li.name, li.unit) !== undefined || Number(li.default_rate) > 0
+    return systems
+      .map((sys) => ({
+        key: sys.key,
+        label: sys.label,
+        items: [...filteredLibrary.filter((li) => li.system === sys.key)]
+          .sort((a, b) => Number(isPriced(b)) - Number(isPriced(a))),
+      }))
+      .filter((g) => g.items.length > 0)
+    // filteredLibrary is derived fresh each render; this memo keys off its inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [systems, library, activeSystem, search, defaultRateFor])
 
   const functionItems = items.filter((i) => i.functionKey === activeFunction)
   const countByZone = useMemo(() => {
@@ -658,9 +1143,10 @@ export function QuotationBuilder() {
     label: it.label,
     unit: it.unit,
     qty: it.qty,
-    rate: it.rate,
+    rate: unitRate(it, pricingCtx),
     amount: lineAmount(it, pricingCtx),
     note: it.note,
+    finishLabel: it.curveKey && it.finishLevel ? finishLabel(it.finishLevel) : null,
   }))
 
   // The two client-facing sentences for the reuse decision, matching
@@ -676,6 +1162,99 @@ export function QuotationBuilder() {
   const finishLabels: FinishLabels = {
     reception: finishLevels.find((f) => f.key === receptionFinish)?.label ?? null,
     muhurtham: twoFunction ? finishLevels.find((f) => f.key === muhurthamFinish)?.label ?? null : null,
+  }
+
+  const sessionsSummary = useMemo(() => {
+    const parts: string[] = []
+    for (let d = 1; d <= dayCount; d += 1) {
+      const forDay = sessions.filter((s) => s.dayNumber === d)
+      if (forDay.length === 0) continue
+      parts.push(`Day ${d}: ${forDay.map((s) => SLOT_LABELS[s.slot]).join(' + ')}`)
+    }
+    return parts.join(' · ')
+  }, [dayCount, sessions])
+
+  function setDayCountNormalized(n: number) {
+    setDayCount(n)
+    setSessions((prev) => normalizeSessions(n, prev))
+  }
+  function addSessionToDay(dayNumber: number) {
+    setSessions((prev) => {
+      const forDay = prev.filter((s) => s.dayNumber === dayNumber)
+      if (forDay.length >= 2) return prev
+      const slot = forDay.some((s) => s.slot === 'evening') ? 'morning' : 'evening'
+      return sortSessions([...prev, { key: newSessionKey(), dayNumber, slot: slot as 'morning' | 'evening' }])
+    })
+  }
+  function removeSession(key: string) {
+    setSessions((prev) => {
+      const target = prev.find((s) => s.key === key)
+      if (!target) return prev
+      // A day always keeps at least one session.
+      if (prev.filter((s) => s.dayNumber === target.dayNumber).length <= 1) return prev
+      return prev.filter((s) => s.key !== key)
+    })
+  }
+  function setSessionSlot(key: string, slot: 'morning' | 'evening') {
+    setSessions((prev) => sortSessions(prev.map((s) => (s.key === key ? { ...s, slot } : s))))
+  }
+
+  // Days and sessions controls — shared between the intake form's own step
+  // and the builder's always-visible strip.
+  function renderDaysSessions(compact: boolean) {
+    return (
+      <div>
+        <div style={{ display: 'flex', gap: 6, marginBottom: compact ? 8 : 12 }}>
+          {[1, 2, 3].map((n) => {
+            const isActive = dayCount === n
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setDayCountNormalized(n)}
+                style={{
+                  padding: compact ? '5px 12px' : '8px 18px', borderRadius: 6, cursor: 'pointer',
+                  fontFamily: fonts.body, fontSize: compact ? 12 : 13, fontWeight: isActive ? 700 : 500,
+                  background: isActive ? tokens.primary : '#fff',
+                  color: isActive ? tokens.gold : t.text.secondary,
+                  border: `1px solid ${isActive ? tokens.primary : tokens.border}`,
+                }}
+              >
+                {n} day{n > 1 ? 's' : ''}
+              </button>
+            )
+          })}
+        </div>
+        {Array.from({ length: dayCount }, (_, idx) => idx + 1).map((d) => {
+          const forDay = sessions.filter((s) => s.dayNumber === d)
+          return (
+            <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 700, color: tokens.primary, width: 46 }}>Day {d}</span>
+              {forDay.map((s) => (
+                <span key={s.key} style={styles.sessionChip}>
+                  <select
+                    value={s.slot}
+                    onChange={(e) => setSessionSlot(s.key, e.target.value as 'morning' | 'evening')}
+                    style={styles.sessionSelect}
+                  >
+                    <option value="morning">{SLOT_LABELS.morning}</option>
+                    <option value="evening">{SLOT_LABELS.evening}</option>
+                  </select>
+                  {forDay.length > 1 && (
+                    <button type="button" style={styles.removeBtn} onClick={() => removeSession(s.key)} title="Remove this session">×</button>
+                  )}
+                </span>
+              ))}
+              {forDay.length < 2 && (
+                <button type="button" style={styles.linkBtn} onClick={() => addSessionToDay(d)}>
+                  + add a session
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
   }
 
   if (loading) return <p style={ui.muted}>Loading...</p>
@@ -751,6 +1330,7 @@ export function QuotationBuilder() {
               validity_days: validDays,
               gst_enabled: gstEnabled,
               has_muhurtham: twoFunction,
+              day_count: dayCount,
               subtotal: totals.subtotal,
               discount_amount: totals.discountAmount,
               gst_amount: totals.gstAmount,
@@ -759,6 +1339,7 @@ export function QuotationBuilder() {
             }}
             items={docItems}
             muhurthamReuseLabel={muhurthamReuseLabel}
+            sessions={sessions.map((x) => ({ day_number: x.dayNumber, slot: x.slot }))}
           />
         </div>
       </div>
@@ -766,6 +1347,10 @@ export function QuotationBuilder() {
   }
 
   // ── CLIENT + EVENT FORM ─────────────────────────────────────────────
+  // Disclosed by importance, not by sequence: the four-field client grid,
+  // then event type + date, with the rest behind one quiet control. NOT a
+  // one-field-at-a-time flow — the operator runs this many times a day on
+  // phone calls, receiving answers out of order.
   if (view === 'form') {
     return (
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
@@ -780,19 +1365,19 @@ export function QuotationBuilder() {
           <div style={styles.formGrid}>
             <div>
               <label style={labelStyle}>Client Name *</label>
-              <input style={inputStyle} value={client.name} onChange={(e) => setClient({ ...client, name: e.target.value })} placeholder="Full name" />
+              <input style={inputStyle} data-clarity-mask="True" value={client.name} onChange={(e) => setClient({ ...client, name: e.target.value })} placeholder="Full name" />
             </div>
             <div>
               <label style={labelStyle}>Phone Number *</label>
-              <input style={inputStyle} value={client.phone} onChange={(e) => setClient({ ...client, phone: e.target.value })} placeholder="9876543210" />
+              <input style={inputStyle} data-clarity-mask="True" value={client.phone} onChange={(e) => setClient({ ...client, phone: e.target.value })} placeholder="9876543210" />
             </div>
             <div>
               <label style={labelStyle}>Email Address</label>
-              <input style={inputStyle} value={client.email} onChange={(e) => setClient({ ...client, email: e.target.value })} placeholder="email@example.com" />
+              <input style={inputStyle} data-clarity-mask="True" value={client.email} onChange={(e) => setClient({ ...client, email: e.target.value })} placeholder="email@example.com" />
             </div>
             <div>
               <label style={labelStyle}>Address / City</label>
-              <input style={inputStyle} value={client.address} onChange={(e) => setClient({ ...client, address: e.target.value })} placeholder="Area, City" />
+              <input style={inputStyle} data-clarity-mask="True" value={client.address} onChange={(e) => setClient({ ...client, address: e.target.value })} placeholder="Area, City" />
             </div>
           </div>
         </section>
@@ -808,35 +1393,50 @@ export function QuotationBuilder() {
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Event Date *</label>
-              <input type="date" style={inputStyle} value={eventInfo.date} onChange={(e) => setEventInfo({ ...eventInfo, date: e.target.value })} />
-            </div>
-            <div>
-              <label style={labelStyle}>Venue / Mandapam</label>
-              <input style={inputStyle} value={eventInfo.venue} onChange={(e) => setEventInfo({ ...eventInfo, venue: e.target.value })} placeholder="Venue name and location" />
-            </div>
-            <div>
-              <label style={labelStyle}>Expected Guests</label>
-              <input style={inputStyle} value={eventInfo.guestCount} onChange={(e) => setEventInfo({ ...eventInfo, guestCount: e.target.value })} placeholder="e.g. 300" />
-            </div>
-            <div>
-              <label style={labelStyle}>Community</label>
-              <select style={inputStyle} value={community} onChange={(e) => setCommunity(e.target.value)}>
-                <option value="">Not specified</option>
-                {COMMUNITIES.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            {community === 'Other' && (
-              <div>
-                <label style={labelStyle}>Community (specify)</label>
-                <input style={inputStyle} value={communityOther} onChange={(e) => setCommunityOther(e.target.value)} placeholder="Community name" />
-              </div>
-            )}
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={labelStyle}>Special Requirements / Notes</label>
-              <textarea style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} rows={3} value={eventInfo.notes} onChange={(e) => setEventInfo({ ...eventInfo, notes: e.target.value })} placeholder="Theme preferences, specific requirements, or client notes" />
+              {/* Optional in practice: muhurtham dates come from an
+                  astrologer and are often unknown at first enquiry. */}
+              <label style={labelStyle}>Event Date</label>
+              <input type="date" style={inputStyle} data-clarity-mask="True" value={eventInfo.date} onChange={(e) => setEventInfo({ ...eventInfo, date: e.target.value })} />
             </div>
           </div>
+
+          {!showEventDetails ? (
+            <button type="button" style={styles.disclosureBtn} onClick={() => setShowEventDetails(true)}>
+              + Add event details (venue, guests, community, notes)
+            </button>
+          ) : (
+            <div style={{ ...styles.formGrid, marginTop: 16 }}>
+              <div>
+                <label style={labelStyle}>Venue</label>
+                <VenueCombobox
+                  value={eventInfo.venue}
+                  onChange={(v) => setEventInfo({ ...eventInfo, venue: v })}
+                  options={venues}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Expected Guests</label>
+                <input style={inputStyle} value={eventInfo.guestCount} onChange={(e) => setEventInfo({ ...eventInfo, guestCount: e.target.value })} placeholder="e.g. 300" />
+              </div>
+              <div>
+                <label style={labelStyle}>Community</label>
+                <select style={inputStyle} value={community} onChange={(e) => setCommunity(e.target.value)}>
+                  <option value="">Not specified</option>
+                  {COMMUNITIES.map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              {community === 'Other' && (
+                <div>
+                  <label style={labelStyle}>Community (specify)</label>
+                  <input style={inputStyle} value={communityOther} onChange={(e) => setCommunityOther(e.target.value)} placeholder="Community name" />
+                </div>
+              )}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Special Requirements / Notes</label>
+                <textarea style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} data-clarity-mask="True" rows={3} value={eventInfo.notes} onChange={(e) => setEventInfo({ ...eventInfo, notes: e.target.value })} placeholder="Theme preferences, specific requirements, or client notes" />
+              </div>
+            </div>
+          )}
 
           {muhurthamAvailable && (
             <div style={styles.muhurthamBox}>
@@ -863,23 +1463,43 @@ export function QuotationBuilder() {
           )}
         </section>
 
+        {/* The one part that earns its own step: the number of days
+            determines how many session controls appear. */}
+        <section style={styles.formCard}>
+          <div style={styles.formCardTitle}>DAYS AND SESSIONS</div>
+          <div style={{ fontFamily: fonts.body, fontSize: 12, color: t.text.tertiary, margin: '8px 0 14px', lineHeight: 1.5 }}>
+            One day can carry more than one event. Muhurtham is the morning slot; the reception is the evening.
+          </div>
+          {renderDaysSessions(false)}
+        </section>
+
+        {/* Not a grey refusal: the button carries a live count of what
+            remains, and tapping it names the missing fields. */}
         <button
           type="button"
-          disabled={!canProceedFromForm || saving}
+          disabled={saving}
           onClick={() => void handleContinueFromForm()}
           style={{
             width: '100%', padding: 14,
-            background: canProceedFromForm ? tokens.primary : '#C8C4BC',
-            color: canProceedFromForm ? tokens.gold : '#999',
-            border: 'none', cursor: canProceedFromForm ? 'pointer' : 'not-allowed',
+            background: missingRequired.length === 0 ? tokens.primary : `${tokens.primary}CC`,
+            color: tokens.gold,
+            border: 'none', cursor: 'pointer',
             fontFamily: fonts.body, fontSize: 15, fontWeight: 700, borderRadius: 6,
           }}
         >
-          {saving ? 'Saving...' : 'Build the Scope →'}
+          {saving
+            ? 'Saving...'
+            : missingRequired.length === 0
+              ? 'Build the Scope →'
+              : `${missingRequired.length} detail${missingRequired.length === 1 ? '' : 's'} to go`}
         </button>
-        {!canProceedFromForm && (
-          <div style={{ fontFamily: fonts.body, fontSize: 12, color: t.text.tertiary, textAlign: 'center', marginTop: 8 }}>
-            Fill in all required fields (*) to continue
+        {missingRequired.length > 0 && (
+          <div style={{
+            fontFamily: fonts.body, fontSize: 12, textAlign: 'center', marginTop: 8,
+            color: missingNote.length > 0 ? tokens.ruby : t.text.tertiary,
+            fontWeight: missingNote.length > 0 ? 600 : 400,
+          }}>
+            Still needed: {missingRequired.join(', ')}
           </div>
         )}
       </div>
@@ -891,11 +1511,31 @@ export function QuotationBuilder() {
     <div>
       {error && <div style={styles.error}>{error}</div>}
 
+      {/* Page header. One H1 only: the event type. The venue is the H2.
+          Everything else is supporting metadata — visual prominence does
+          not have to follow heading level. */}
+      <header style={{ marginBottom: 12 }}>
+        <h1 style={styles.pageH1}>{eventInfo.type || 'Quotation'}</h1>
+        {eventInfo.venue.trim() !== '' && <h2 style={styles.pageH2}>{eventInfo.venue.trim()}</h2>}
+        <div style={styles.headerMeta} data-clarity-mask="True">
+          {quotationNumber && <span style={{ fontFamily: mono }}>{quotationNumber}</span>}
+          {eventInfo.date && <span>{formatDocumentDate(eventInfo.date)}</span>}
+          <span>{dayCount} day{dayCount > 1 ? 's' : ''}</span>
+          {sessionsSummary && <span>{sessionsSummary}</span>}
+          <span>{client.name}{client.phone ? ` · ${client.phone}` : ''}</span>
+          <button type="button" style={styles.linkBtn} onClick={() => setEditingDays((v) => !v)}>
+            {editingDays ? 'done' : 'edit days'}
+          </button>
+          <button type="button" style={styles.linkBtn} onClick={() => setView('form')}>
+            edit details
+          </button>
+        </div>
+        {editingDays && <div style={styles.daysEditorBox}>{renderDaysSessions(true)}</div>}
+      </header>
+
       {/* The function switch and the zone strip together answer "where is
           the next tap going to land", so they stay pinned while the operator
-          works down the element list. The strip used to scroll away above
-          the fold, which is precisely how a stage garden ended up in valet
-          parking. top: 56 clears the sticky TopBar; zIndex sits below it. */}
+          works down the element list. top: 56 clears the sticky TopBar. */}
       <div style={styles.placementBar}>
       {twoFunction && (
         <div style={styles.functionSwitch}>
@@ -923,11 +1563,9 @@ export function QuotationBuilder() {
         </div>
       )}
 
-      {/* Zone strip — the venue walk. All zones stay visible; an empty one
-          is a prompt, not clutter. Wraps to as many rows as it needs rather
-          than scrolling sideways: at 1280 the horizontal scroller put only 9
-          of the 13 zones within reach, which defeated the point of showing
-          all thirteen as upsell prompts. */}
+      {/* Zone strip — the venue walk. All 14 zones stay visible; an empty
+          one is a prompt, not clutter. Wraps rather than scrolling
+          sideways so every zone stays within reach. */}
       <div style={styles.zoneStrip}>
         {zones.map((z) => {
           const count = countByZone[z.key] ?? 0
@@ -958,7 +1596,7 @@ export function QuotationBuilder() {
             is looking rather than left to be inferred from a greyed-out UI. */}
         {!zoneChosen ? (
           <div style={styles.zonePrompt}>
-            Pick a zone above to start adding elements. Nothing can be added until you do.
+            Pick a zone to start adding elements.
           </div>
         ) : (
           <div style={styles.zoneActiveNote}>
@@ -976,7 +1614,8 @@ export function QuotationBuilder() {
           <div style={styles.mockupCard}>
             <div style={styles.formCardTitle}>ANALYSE A MOCKUP</div>
             <div style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary, margin: '6px 0 12px', lineHeight: 1.5 }}>
-              Upload a concept image to auto-identify elements. Items land in the zone the analyser suggests, then the active zone, and otherwise arrive unassigned for you to place from the cart.
+              Upload a concept image to identify elements. Analysis returns a candidate list —
+              you pick the ones to add, and nothing lands in the quotation until you confirm.
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => setMockupFile(e.target.files?.[0] ?? null)} />
@@ -993,6 +1632,56 @@ export function QuotationBuilder() {
               </button>
             </div>
             {mockupNotice && <div style={styles.mockupNotice}>{mockupNotice}</div>}
+
+            {mockupCandidates.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                {mockupCandidates.map((c) => (
+                  <div key={c.key} style={styles.candidateRow}>
+                    <input
+                      type="checkbox"
+                      checked={c.checked}
+                      onChange={() => toggleCandidate(c.key)}
+                      style={{ width: 15, height: 15, accentColor: tokens.primary, flexShrink: 0 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: t.text.primary }}>
+                        {c.label}
+                        <span style={{ fontWeight: 400, color: t.text.tertiary }}> · {systemLabel(c.system)} · qty {c.qty}</span>
+                      </div>
+                    </div>
+                    <select
+                      value={c.zoneKey ?? ''}
+                      onChange={(e) => setCandidateZone(c.key, e.target.value || null)}
+                      title="Zone this candidate would land in"
+                      style={styles.moveSelect}
+                    >
+                      <option value="">Unassigned</option>
+                      {zones.map((z) => (
+                        <option key={z.key} value={z.key}>{z.sort_order}. {z.label}</option>
+                      ))}
+                    </select>
+                    <span style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: ratesForItem(c.label).length > 0 ? tokens.goldDark : t.text.muted, width: 84, textAlign: 'right' }}>
+                      {ratesForItem(c.label).length > 0
+                        ? 'rate card'
+                        : c.rate > 0 ? formatMoney(c.rate, 'INR') : 'rate TBC'}
+                    </span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    disabled={checkedCandidateCount === 0}
+                    style={{ ...styles.toolbarBtnPrimary, opacity: checkedCandidateCount === 0 ? 0.5 : 1 }}
+                    onClick={addSelectedCandidates}
+                  >
+                    Add selected ({checkedCandidateCount})
+                  </button>
+                  <button type="button" style={styles.toolbarBtnGhost} onClick={() => { setMockupCandidates([]); setMockupNotice('') }}>
+                    Discard all
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <input style={{ ...inputStyle, marginBottom: 10 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all elements…" />
@@ -1020,49 +1709,80 @@ export function QuotationBuilder() {
             })}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {filteredLibrary.map((li) => {
-              const isAdded = zoneChosen && functionItems.some((i) => i.label === li.name && i.zoneKey === activeZone)
-              return (
-                <div
-                  key={li.id}
-                  onClick={() => addLibraryItem(li)}
-                  title={zoneChosen ? undefined : 'Pick a zone first'}
-                  aria-disabled={!zoneChosen}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '11px 14px', borderRadius: 6,
-                    cursor: zoneChosen ? 'pointer' : 'not-allowed',
-                    opacity: zoneChosen ? 1 : 0.55,
-                    background: isAdded ? `${tokens.primary}15` : '#fff',
-                    border: `1px solid ${isAdded ? tokens.primary : tokens.border}`,
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: isAdded ? 600 : 400, color: t.text.primary }}>
-                      {li.name}
-                      {li.is_motion && <span style={styles.motionTag}>motor</span>}
-                    </div>
-                    <div style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary, marginTop: 2 }}>
-                      {systemLabel(li.system)} · {li.unit}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: Number(li.default_rate) > 0 ? tokens.goldDark : t.text.muted }}>
-                      {Number(li.default_rate) > 0 ? formatMoney(Number(li.default_rate), 'INR') : 'rate TBC'}
-                    </div>
-                    <div style={{
-                      width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: isAdded ? tokens.primary : '#fff',
-                      border: `1.5px solid ${isAdded ? tokens.primary : zoneChosen ? tokens.border : '#DDD8D0'}`,
-                      color: isAdded ? tokens.gold : zoneChosen ? t.text.tertiary : '#C8C4BC', fontSize: 16, fontWeight: 700,
-                    }}>
-                      {isAdded ? '✓' : '+'}
-                    </div>
-                  </div>
+          <div style={styles.catalogueScroll}>
+            {groupedLibrary.map((group) => (
+              <div key={group.key}>
+                <div style={styles.catalogueGroupHeading}>{group.label}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+                  {group.items.map((li) => {
+                    const isAdded = zoneChosen && functionItems.some((i) => i.label === li.name && i.zoneKey === activeZone)
+                    const rates = ratesForItem(li.name)
+                    const sr = defaultRateFor(li.name, li.unit)
+                    // The EFFECTIVE price at the active function's current
+                    // finish — the figure adding this item actually lands
+                    // at — not the anchor. Recomputes when the finish
+                    // changes; a null-curve rate stays flat.
+                    const rowPrice = sr
+                      ? listRate(
+                          {
+                            qty: 1,
+                            anchorRate: sr.anchorRate,
+                            curveKey: sr.curveKey,
+                            finishLevel: sr.curveKey ? resolveFinish(sr.curveKey, activeFinishKey) : null,
+                            commissionApplied: true,
+                            commissionFlat: sr.commissionFlat,
+                          },
+                          pricingCtx
+                        )
+                      : Number(li.default_rate ?? 0)
+                    return (
+                      <div
+                        key={li.id}
+                        onClick={() => addLibraryItem(li)}
+                        title={zoneChosen ? undefined : 'Pick a zone first'}
+                        aria-disabled={!zoneChosen}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '11px 14px', borderRadius: 6,
+                          cursor: zoneChosen ? 'pointer' : 'not-allowed',
+                          opacity: zoneChosen ? 1 : 0.55,
+                          background: isAdded ? `${tokens.primary}15` : '#fff',
+                          border: `1px solid ${isAdded ? tokens.primary : tokens.border}`,
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: isAdded ? 600 : 400, color: t.text.primary }}>
+                            {li.name}
+                            {li.is_motion && <span style={styles.motionTag}>motor</span>}
+                          </div>
+                          <div style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary, marginTop: 2 }}>
+                            {systemLabel(li.system)}
+                            {rates.length > 0
+                              ? ` · ${rates.map((r) => r.unit).join(' / ')}`
+                              : ` · ${li.unit}`}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: rowPrice > 0 ? tokens.goldDark : t.text.muted }}>
+                            {rowPrice > 0
+                              ? `${formatMoney(rowPrice, 'INR')} / ${sr ? sr.unit : li.unit}`
+                              : 'rate TBC'}
+                          </div>
+                          <div style={{
+                            width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: isAdded ? tokens.primary : '#fff',
+                            border: `1.5px solid ${isAdded ? tokens.primary : zoneChosen ? tokens.border : '#DDD8D0'}`,
+                            color: isAdded ? tokens.gold : zoneChosen ? t.text.tertiary : '#C8C4BC', fontSize: 16, fontWeight: 700,
+                          }}>
+                            {isAdded ? '✓' : '+'}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
+              </div>
+            ))}
             {filteredLibrary.length === 0 && (
               <div style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary, padding: '24px 0', textAlign: 'center' }}>
                 No elements match that search.
@@ -1117,7 +1837,7 @@ export function QuotationBuilder() {
 
         {/* Right — cart, finish, totals */}
         <div style={styles.cartRail}>
-          <div style={styles.cartHeader}>
+          <div style={styles.cartHeader} data-clarity-mask="True">
             <div style={{ fontFamily: fonts.body, fontSize: 15, fontWeight: 700, color: tokens.gold }}>{client.name || 'Client Name'}</div>
             <div style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: '#fff', marginTop: 2, opacity: 0.85 }}>
               {eventInfo.type}{eventInfo.date ? ` · ${formatDocumentDate(eventInfo.date)}` : ''}
@@ -1132,17 +1852,21 @@ export function QuotationBuilder() {
           <div style={styles.cartItems}>
             {functionItems.length === 0 ? (
               <div style={{ color: t.text.tertiary, fontFamily: fonts.body, fontSize: 13, textAlign: 'center', padding: '40px 16px', lineHeight: 1.6 }}>
-                Pick a zone above, then tap elements to add them here.
+                {zoneChosen
+                  ? `Tap elements on the left to add them to ${zoneLabel(activeZone)}.`
+                  : 'Pick a zone to start adding elements.'}
               </div>
             ) : (
               cartGroups.map((group) => (
                 <div key={group.key} style={{ marginBottom: 14 }}>
                   <div style={styles.cartZoneHeading}>{group.label}</div>
                   {group.items.map((item) => {
-                    const eff = effectiveRate(item, pricingCtx)
-                    const scaled = Math.abs(eff - item.rate) > 0.005
-                    const isFloralLike = pricingCtx.scalesWithFinish[item.system] === true
-                    const unpriced = item.rate <= 0
+                    const charged = unitRate(item, pricingCtx)
+                    const commission = commissionComponent(item, pricingCtx)
+                    const isFloralLike = systems.find((s) => s.key === item.system)?.scales_with_finish === true
+                    const unpriced = charged <= 0
+                    const unitOptions = ratesForItem(item.label)
+                    const levels = item.curveKey ? curveLevels(item.curveKey) : []
                     return (
                       <div key={item.key} style={styles.cartItem}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1158,18 +1882,29 @@ export function QuotationBuilder() {
                             <span style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: tokens.primary, width: 26, textAlign: 'center' }}>{item.qty}</span>
                             <button type="button" style={styles.stepperBtn} onClick={() => updateItemQty(item.key, item.qty + 1)}>+</button>
                           </div>
-                          <span style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary }}>{item.unit}</span>
+                          {unitOptions.length > 1 ? (
+                            <select
+                              value={item.unit ?? ''}
+                              onChange={(e) => changeItemUnit(item.key, e.target.value)}
+                              title="This element prices per more than one unit"
+                              style={styles.unitSelect}
+                            >
+                              {unitOptions.map((r) => <option key={r.unit} value={r.unit}>{r.unit}</option>)}
+                            </select>
+                          ) : (
+                            <span style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary }}>{item.unit}</span>
+                          )}
                           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3 }}>
                             <span style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary }}>₹</span>
-                            {/* An unpriced line reads as "rate TBC" here, the
-                                same words the library uses, instead of a
-                                confident 0 that looks like a decision. */}
+                            {/* The editable number is the line's own ANCHOR —
+                                the per-quotation copy, never the global card.
+                                An unpriced line reads "TBC", not a confident 0. */}
                             <input
                               type="number"
-                              value={unpriced ? '' : item.rate}
+                              value={item.anchorRate > 0 ? item.anchorRate : ''}
                               placeholder="TBC"
-                              onChange={(e) => updateItemRate(item.key, Number(e.target.value) || 0)}
-                              title="Base rate before finish"
+                              onChange={(e) => updateItemAnchor(item.key, Number(e.target.value) || 0)}
+                              title={item.curveKey ? 'Anchor rate — the full-fresh figure the curve scales from' : 'Rate'}
                               style={{
                                 width: 68, padding: '4px 6px', borderRadius: 4, textAlign: 'right',
                                 border: `1px solid ${unpriced ? tokens.goldDark : tokens.border}`,
@@ -1184,12 +1919,50 @@ export function QuotationBuilder() {
                             {unpriced ? 'rate TBC' : formatMoney(lineAmount(item, pricingCtx), 'INR')}
                           </div>
                         </div>
-                        {/* Admin-only. Never rendered on any client document. */}
-                        {scaled && (
-                          <div style={styles.effectiveRateNote} title={`Base ${formatMoney(item.rate, 'INR')} at the selected finish`}>
-                            effective {formatMoney(eff, 'INR')} / {item.unit}
+
+                        {/* Finish, only the levels this line's curve defines.
+                            A flat line (no curve) offers no finish at all. */}
+                        {item.curveKey && levels.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                            <select
+                              value={item.finishLevel ?? ''}
+                              onChange={(e) => updateItemFinish(item.key, e.target.value)}
+                              title="Finish for this line — only the levels its curve defines"
+                              style={styles.moveSelect}
+                            >
+                              {item.finishLevel == null && <option value="">choose finish…</option>}
+                              {levels.map((lvl) => <option key={lvl} value={lvl}>{finishLabel(lvl)}</option>)}
+                            </select>
+                            {!unpriced && charged !== item.anchorRate && (
+                              <span style={styles.effectiveRateNote} title={`Anchor ${formatMoney(item.anchorRate, 'INR')} at ${item.finishLevel ? finishLabel(item.finishLevel) : 'this finish'}`}>
+                                {formatMoney(charged, 'INR')} / {item.unit}
+                              </span>
+                            )}
                           </div>
                         )}
+
+                        {/* Commission — internal figure, admin builder ONLY.
+                            Checked (default): the rate card figure exactly.
+                            Unchecked: stripped (divide for %, subtract for flat). */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                          <label style={styles.commissionToggle}>
+                            <input
+                              type="checkbox"
+                              checked={item.commissionApplied}
+                              onChange={() => toggleItemCommission(item.key)}
+                              style={{ width: 12, height: 12, accentColor: tokens.primary }}
+                            />
+                            Commission applied
+                          </label>
+                          {commission > 0 && (
+                            <span style={styles.commissionNote}>
+                              {item.commissionApplied
+                                ? `incl. ${formatMoney(commission, 'INR')}/unit`
+                                : `stripped ${item.commissionFlat !== null ? formatMoney(commission, 'INR') : `${commissionPct}%`} → ${formatMoney(charged, 'INR')}/unit`}
+                            </span>
+                          )}
+                        </div>
+
                         {isFloralLike && (
                           <label style={styles.gerberaToggle}>
                             <input type="checkbox" checked={item.gerberaFill} onChange={() => toggleGerbera(item.key)} style={{ width: 12, height: 12, accentColor: tokens.primary }} />
@@ -1197,7 +1970,7 @@ export function QuotationBuilder() {
                           </label>
                         )}
 
-                        {/* Move controls. A line in the wrong place is now a
+                        {/* Move controls. A line in the wrong place is a
                             correction, not a delete-and-rebuild. */}
                         <div style={styles.moveRow}>
                           <select
@@ -1211,14 +1984,11 @@ export function QuotationBuilder() {
                               <option key={z.key} value={z.key}>{z.sort_order}. {z.label}</option>
                             ))}
                           </select>
-                          {/* Only meaningful when there are two functions to
-                              move between. This is the move that reprices:
-                              each function carries its own finish. */}
                           {twoFunction && (
                             <button
                               type="button"
                               style={styles.moveFnBtn}
-                              title="Move this line to the other function. Floral lines reprice at that function's finish."
+                              title="Move this line to the other function. Curved lines reprice at that function's finish."
                               onClick={() =>
                                 moveItemFunction(item.key, item.functionKey === 'reception' ? 'muhurtham' : 'reception')
                               }
@@ -1236,47 +2006,70 @@ export function QuotationBuilder() {
           </div>
 
           <div style={styles.settingsPanel}>
-            {/* Finish applies to the ACTIVE function only. */}
-            <label style={{ ...labelStyle, fontSize: 11 }}>
-              FINISH{twoFunction ? ` — ${activeFunction === 'reception' ? 'RECEPTION' : 'MUHURTHAM'}` : ''}
-            </label>
-            <select
-              style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: colourVariantOffered ? 8 : 12 }}
-              value={activeFinishKey}
-              onChange={(e) => setActiveFinishKey(e.target.value)}
+            {/* Collapsed by default: the summary row carries the current
+                values, and the freed height goes to the line list above. */}
+            <button
+              type="button"
+              style={styles.settingsSummaryRow}
+              onClick={() => setShowQuotationSettings((v) => !v)}
             >
-              {finishLevels.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-            </select>
-            {colourVariantOffered && (
-              <select
-                style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: 12 }}
-                value={readymadeVariant}
-                onChange={(e) => setReadymadeVariant(e.target.value as typeof readymadeVariant)}
-              >
-                <option value="">Colour: not specified</option>
-                <option value="with_red">With red (traditional)</option>
-                <option value="without_red">Without red (pink, peach, white, beige)</option>
-              </select>
-            )}
+              <span style={{ fontWeight: 700 }}>
+                {showQuotationSettings ? '▾' : '▸'} Quotation settings
+              </span>
+              <span style={styles.settingsSummaryValues}>
+                {finishLabels[activeFunction] ?? 'No finish'}
+                {discount > 0 ? ` · ${discount}% discount` : ''}
+                {` · ${advance}% advance · ${validDays}d · GST ${gstEnabled ? 'on' : 'off'}`}
+              </span>
+            </button>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-              <div>
-                <label style={{ ...labelStyle, fontSize: 11 }}>DISCOUNT %</label>
-                <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={discount} onChange={(e) => setDiscount(Number(e.target.value) || 0)} />
+            {showQuotationSettings && (
+              <div style={{ marginTop: 10 }}>
+                {/* Finish applies to the ACTIVE function: it re-defaults every
+                    curved line in that function (or the nearest level a 3-step
+                    curve offers). A line can still be deviated on its own row. */}
+                <label style={{ ...labelStyle, fontSize: 11 }}>
+                  FINISH{twoFunction ? ` — ${activeFunction === 'reception' ? 'RECEPTION' : 'MUHURTHAM'}` : ''}
+                </label>
+                <select
+                  style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: colourVariantOffered ? 8 : 12 }}
+                  value={activeFinishKey}
+                  onChange={(e) => changeFunctionFinish(activeFunction, e.target.value)}
+                >
+                  {finishLevels.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                </select>
+                {colourVariantOffered && (
+                  <select
+                    style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: 12 }}
+                    value={readymadeVariant}
+                    onChange={(e) => setReadymadeVariant(e.target.value as typeof readymadeVariant)}
+                  >
+                    <option value="">Colour: not specified</option>
+                    <option value="with_red">With red (traditional)</option>
+                    <option value="without_red">Without red (pink, peach, white, beige)</option>
+                  </select>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: 11 }}>DISCOUNT %</label>
+                    <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={discount} onChange={(e) => setDiscount(Number(e.target.value) || 0)} />
+                  </div>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: 11 }}>ADVANCE %</label>
+                    <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={advance} onChange={(e) => setAdvance(Number(e.target.value) || 0)} />
+                  </div>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: 11 }}>VALID (DAYS)</label>
+                    <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={validDays} onChange={(e) => setValidDays(Number(e.target.value) || 1)} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 18 }}>
+                    <input type="checkbox" id="gst" checked={gstEnabled} onChange={(e) => setGstEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: tokens.primary }} />
+                    <label htmlFor="gst" style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: tokens.primary, cursor: 'pointer' }}>GST 18%</label>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label style={{ ...labelStyle, fontSize: 11 }}>ADVANCE %</label>
-                <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={advance} onChange={(e) => setAdvance(Number(e.target.value) || 0)} />
-              </div>
-              <div>
-                <label style={{ ...labelStyle, fontSize: 11 }}>VALID (DAYS)</label>
-                <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={validDays} onChange={(e) => setValidDays(Number(e.target.value) || 1)} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 18 }}>
-                <input type="checkbox" id="gst" checked={gstEnabled} onChange={(e) => setGstEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: tokens.primary }} />
-                <label htmlFor="gst" style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: tokens.primary, cursor: 'pointer' }}>GST 18%</label>
-              </div>
-            </div>
+            )}
 
             {/* The client's public link renders the STORED row, so the
                 operator needs to know whether what they are looking at has
@@ -1356,6 +2149,65 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.rubyLight, color: tokens.ruby, border: `1px solid ${tokens.ruby}`,
     borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontFamily: fonts.body, fontSize: 13,
   },
+  pageH1: {
+    fontFamily: fonts.body, fontSize: 24, fontWeight: 700, color: tokens.primary,
+    margin: 0, lineHeight: 1.25,
+  },
+  pageH2: {
+    fontFamily: fonts.body, fontSize: 15, fontWeight: 600, color: tokens.goldDark,
+    margin: '2px 0 0', lineHeight: 1.35,
+  },
+  headerMeta: {
+    display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 6,
+    fontFamily: fonts.body, fontSize: 12, color: t.text.tertiary, alignItems: 'center',
+  },
+  daysEditorBox: {
+    marginTop: 10, padding: 12, background: '#fff',
+    border: `1px solid ${tokens.border}`, borderRadius: 8,
+  },
+  sessionChip: {
+    display: 'inline-flex', alignItems: 'center', gap: 2,
+    border: `1px solid ${tokens.border}`, borderRadius: 6, padding: '2px 4px', background: '#fff',
+  },
+  sessionSelect: {
+    border: 'none', background: 'transparent', fontFamily: fonts.body, fontSize: 12,
+    color: tokens.primary, fontWeight: 600, cursor: 'pointer', outline: 'none',
+  },
+  comboList: {
+    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+    background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 6,
+    marginTop: 4, maxHeight: 220, overflowY: 'auto', boxShadow: '0 6px 20px rgba(0,0,0,0.08)',
+  },
+  comboOption: {
+    display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontFamily: fonts.body, fontSize: 13, color: t.text.primary,
+  },
+  comboNewNote: {
+    padding: '8px 12px', fontFamily: fonts.body, fontSize: 11, color: tokens.goldDark,
+    borderTop: `1px solid ${tokens.border}`, lineHeight: 1.4,
+  },
+  disclosureBtn: {
+    marginTop: 16, padding: '8px 0', background: 'none', border: 'none', cursor: 'pointer',
+    fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: tokens.primary,
+    textDecoration: 'underline', textUnderlineOffset: 3,
+  },
+  candidateRow: {
+    display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0',
+    borderBottom: '1px solid #f0ece4',
+  },
+  commissionToggle: {
+    display: 'flex', alignItems: 'center', gap: 5,
+    fontFamily: fonts.body, fontSize: 10, color: t.text.tertiary, cursor: 'pointer',
+  },
+  commissionNote: {
+    fontFamily: fonts.body, fontSize: 10, color: tokens.goldDark,
+  },
+  unitSelect: {
+    padding: '3px 4px', borderRadius: 4, border: `1px solid ${tokens.gold}`,
+    background: tokens.goldLight, fontFamily: fonts.body, fontSize: 11,
+    color: tokens.goldDark, fontWeight: 600, cursor: 'pointer',
+  },
   formCard: { background: '#fff', borderRadius: 8, padding: 28, marginBottom: 16, border: `1px solid ${tokens.border}` },
   formCardTitle: { fontFamily: fonts.body, fontSize: 13, fontWeight: 700, color: tokens.primary, letterSpacing: 1.5 },
   formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 20 },
@@ -1368,9 +2220,7 @@ const styles: Record<string, CSSProperties> = {
     background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 8,
   },
   // Pinned under the 56px sticky TopBar (zIndex 90), so the strip cannot
-  // scroll out of view while elements are being tapped. The negative
-  // margins + padding let the background span the full content width so
-  // rows passing underneath are covered rather than showing through.
+  // scroll out of view while elements are being tapped.
   placementBar: {
     position: 'sticky',
     top: 56,
@@ -1380,15 +2230,14 @@ const styles: Record<string, CSSProperties> = {
     padding: '10px 8px 0',
     borderBottom: `1px solid ${tokens.border}`,
   },
-  // Wraps to as many rows as the 13 zones need. Deliberately not a
-  // horizontal scroller: at 1280 that hid 4 of the 13 behind a sideways
-  // scroll, so the zones meant to act as upsell prompts were invisible.
   zoneStrip: {
     display: 'flex', gap: 6, flexWrap: 'wrap',
   },
+  // Neutral guidance, not an error: this is a friendly empty state, and
+  // red fill read as "something failed" (client feedback, 8 Sept).
   zonePrompt: {
-    fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.ruby,
-    background: tokens.rubyLight, border: `1px solid ${tokens.ruby}55`,
+    fontFamily: fonts.body, fontSize: 12, color: t.text.secondary,
+    background: '#fff', border: `1px solid ${tokens.border}`,
     borderRadius: 6, padding: '7px 10px', margin: '10px 0',
   },
   zoneActiveNote: {
@@ -1423,6 +2272,18 @@ const styles: Record<string, CSSProperties> = {
   sendBlockedNote: {
     fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.goldDark,
   },
+  // The catalogue scrolls in its own region (like the cart rail) so the
+  // group headings can stick to its top edge.
+  catalogueScroll: {
+    maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', position: 'relative',
+  },
+  catalogueGroupHeading: {
+    position: 'sticky', top: 0, zIndex: 2,
+    background: tokens.bg, padding: '8px 2px 5px',
+    fontFamily: fonts.body, fontSize: 11, fontWeight: 700, letterSpacing: 1,
+    textTransform: 'uppercase', color: tokens.goldDark,
+    borderBottom: `1px solid ${tokens.border}`, marginBottom: 6,
+  },
   mockupCard: { background: '#fff', borderRadius: 8, padding: 20, marginBottom: 16, border: `1px dashed ${tokens.gold}` },
   chooseBtn: {
     padding: '8px 14px', background: tokens.bg, border: `1px solid ${tokens.border}`, color: tokens.primary,
@@ -1456,13 +2317,23 @@ const styles: Record<string, CSSProperties> = {
   removeBtn: { background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 18, padding: '0 2px', lineHeight: 1 },
   stepperBtn: { width: 24, height: 24, background: tokens.bg, border: `1px solid ${tokens.border}`, cursor: 'pointer', color: tokens.primary, fontFamily: fonts.body, fontSize: 16, fontWeight: 700, borderRadius: 4 },
   effectiveRateNote: {
-    fontFamily: fonts.body, fontSize: 10, color: tokens.goldDark, marginTop: 4, textAlign: 'right',
+    fontFamily: fonts.body, fontSize: 10, color: tokens.goldDark, whiteSpace: 'nowrap',
   },
   gerberaToggle: {
     display: 'flex', alignItems: 'center', gap: 5, marginTop: 5,
     fontFamily: fonts.body, fontSize: 10, color: t.text.tertiary, cursor: 'pointer',
   },
-  settingsPanel: { padding: '14px 16px', borderTop: `1px solid ${tokens.border}`, background: tokens.bg },
+  settingsPanel: { padding: '10px 16px 14px', borderTop: `1px solid ${tokens.border}`, background: tokens.bg },
+  settingsSummaryRow: {
+    display: 'flex', alignItems: 'baseline', gap: 8, width: '100%',
+    background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer',
+    fontFamily: fonts.body, fontSize: 12, color: tokens.primary, textAlign: 'left',
+    marginBottom: 4,
+  },
+  settingsSummaryValues: {
+    fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+  },
   totalLine: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 },
   previewToolbar: { display: 'flex', gap: 10, alignItems: 'center', padding: '12px 0', flexWrap: 'wrap' },
   toolbarBtnGhost: {

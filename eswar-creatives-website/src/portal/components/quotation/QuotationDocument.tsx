@@ -48,6 +48,7 @@ export type QuotationDocumentData = {
   total_amount: number
   advance_amount: number
   has_muhurtham?: boolean
+  day_count?: number
 }
 
 export type QuotationDocumentItem = {
@@ -62,6 +63,9 @@ export type QuotationDocumentItem = {
   rate: number
   amount: number
   note?: string | null
+  /** The line's OWN finish, as a client-facing label. Null for flat lines
+   *  (no curve) — those never print a finish. Never a key, code or ratio. */
+  finishLabel?: string | null
 }
 
 /** Client-facing finish label per function. Never a code or a ratio. */
@@ -78,6 +82,27 @@ export type FinishLabels = {
  * than living only in the builder.
  */
 export type MuhurthamReuseLabel = string | null
+
+export type QuotationDocumentSession = { day_number: number; slot: string }
+
+const SLOT_PRINT_LABELS: Record<string, string> = { morning: 'Morning', evening: 'Evening' }
+
+/** "3 days. Day 1: Morning and Evening. Day 2: Evening." Sessions sort
+ *  Morning before Evening regardless of the order they arrive in. */
+function daySummary(dayCount: number, sessions: QuotationDocumentSession[]): string | null {
+  if (!dayCount || sessions.length === 0) return null
+  const slotRank = (slot: string) => (slot === 'morning' ? 0 : 1)
+  const parts: string[] = []
+  for (let d = 1; d <= dayCount; d += 1) {
+    const forDay = sessions
+      .filter((x) => x.day_number === d)
+      .sort((a, z) => slotRank(a.slot) - slotRank(z.slot))
+      .map((x) => SLOT_PRINT_LABELS[x.slot] ?? x.slot)
+    if (forDay.length > 0) parts.push(`Day ${d}: ${forDay.join(' and ')}`)
+  }
+  if (parts.length === 0) return null
+  return `${dayCount} day${dayCount > 1 ? 's' : ''}. ${parts.join('. ')}.`
+}
 
 const FUNCTION_LABELS: Record<QuotationFunctionKey, string> = {
   reception: 'Reception',
@@ -143,12 +168,14 @@ export function QuotationDocument({
   items,
   finishLabels,
   muhurthamReuseLabel = null,
+  sessions = [],
 }: {
   tenantId: string
   quotation: QuotationDocumentData
   items: QuotationDocumentItem[]
   finishLabels: FinishLabels
   muhurthamReuseLabel?: MuhurthamReuseLabel
+  sessions?: QuotationDocumentSession[]
 }) {
   const b = getDocumentTheme(tenantId)
   const F = b.fontUI
@@ -169,7 +196,10 @@ export function QuotationDocument({
     : [{ key: 'reception', heading: null, items }]
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', background: 'white', borderRadius: 4 }}>
+    // data-clarity-mask: the rendered document carries the client's name,
+    // phone, address and event date; the whole thing is masked in any
+    // Clarity recording (admin preview and public page alike).
+    <div data-clarity-mask="True" style={{ maxWidth: 860, margin: '0 auto', background: 'white', borderRadius: 4 }}>
       {/* Header */}
       <div style={{ background: b.teal, padding: '36px 52px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
@@ -204,6 +234,10 @@ export function QuotationDocument({
           <div style={styles.sectionValue(b, F)}>{quotation.event_type}</div>
           <div style={styles.detailBlock(F)}>
             {quotation.event_date && <div>{formatDocumentDate(quotation.event_date)}</div>}
+            {(() => {
+              const summary = daySummary(quotation.day_count ?? 0, sessions)
+              return summary ? <div>{summary}</div> : null
+            })()}
             {quotation.venue && <div>{quotation.venue}</div>}
             {quotation.guest_count && <div>{quotation.guest_count} guests</div>}
           </div>
@@ -215,7 +249,16 @@ export function QuotationDocument({
         <div style={{ ...styles.sectionLabel(b, F), marginBottom: 16 }}>SCOPE OF WORK</div>
 
         {sections.map((section) => {
-          const finishLabel = finishLabels[section.key]
+          // The scope-level finish line prints ONLY when every curved line
+          // in this function carries that same finish. Mixed finishes print
+          // per line instead — a header saying "Full fresh flowers" over a
+          // Balanced blend stage garden misstates what the client is
+          // buying. Flat lines (no finish) never block the scope line.
+          const curvedLines = section.items.filter((i) => i.finishLabel != null)
+          const uniformFinish =
+            curvedLines.length > 0 &&
+            curvedLines.every((i) => i.finishLabel === finishLabels[section.key])
+          const finishLabel = uniformFinish ? finishLabels[section.key] : null
           const muhurthamReuseLine = section.key === 'muhurtham' && !!muhurthamReuseLabel
           return (
             <div key={section.key} style={{ marginBottom: sections.length > 1 ? 28 : 0 }}>
@@ -252,6 +295,9 @@ export function QuotationDocument({
                     <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, padding: '10px 0', borderBottom: '1px solid #f4f0ea' }}>
                       <div>
                         <div style={{ color: '#1A1A1A', fontFamily: F, fontSize: 13, fontWeight: 500 }}>{item.label}</div>
+                        {item.finishLabel && (
+                          <div style={{ color: b.ochre, fontFamily: F, fontSize: 11, marginTop: 2 }}>{item.finishLabel}</div>
+                        )}
                         {item.note && <div style={{ color: '#999', fontFamily: F, fontSize: 11, marginTop: 2 }}>{item.note}</div>}
                       </div>
                       <div style={{ color: '#555', fontFamily: F, fontSize: 13 }}>{item.qty} {item.unit}</div>
