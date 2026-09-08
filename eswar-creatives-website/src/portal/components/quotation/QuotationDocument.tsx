@@ -169,7 +169,10 @@ export function QuotationDocument({
     : [{ key: 'reception', heading: null, items }]
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', background: 'white', borderRadius: 4 }}>
+    // data-clarity-mask: the rendered document carries the client's name,
+    // phone, address and event date; the whole thing is masked in any
+    // Clarity recording (admin preview and public page alike).
+    <div data-clarity-mask="True" style={{ maxWidth: 860, margin: '0 auto', background: 'white', borderRadius: 4 }}>
       {/* Header */}
       <div style={{ background: b.teal, padding: '36px 52px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>

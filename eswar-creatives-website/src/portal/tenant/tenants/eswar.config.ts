@@ -15,6 +15,8 @@ export const eswarConfig: TenantTheme = {
   name: 'Eswar Creatives',
   domain: 'eswarcreatives.in',
   supabaseRef: 'urrinqwcrpivmvenupiu',
+  clarityProjectId: 'xhkxmfh1hd', // moved from the hardcoded index.html snippet — same project, same id
+
   theme: {
     primary: '#024C4F', // tokens.primary / t.border.brand — deep teal, active/selected states
     gold: '#D5B067', // tokens.gold

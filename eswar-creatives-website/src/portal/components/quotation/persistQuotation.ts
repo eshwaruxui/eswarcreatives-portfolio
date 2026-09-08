@@ -8,23 +8,30 @@
 // The bug it exists to prevent, found in the second QA pass on NES-2026-1006:
 // the builder computed totals into a `totals` object and then passed that
 // object to an `update`. Whenever the component's state and the object it
-// passed disagreed — because a save fired before a finish change, or because
-// a reload had quietly reset a finish to empty — the row stored a total that
-// no longer matched its own stored line items. The database held subtotal
-// 52600 while the same items at the same finishes computed 50350, and the
-// public page renders stored data, so the client's link and the operator's
-// screen showed two different prices for one wedding with nothing to reveal
-// the divergence.
+// passed disagreed, the row stored a total that no longer matched its own
+// stored line items, and the public page renders stored data. So this
+// function does not accept totals. It takes the lines and the pricing
+// context and computes them here, immediately before writing, from exactly
+// the same helpers the cart and the document render. A caller cannot pass a
+// wrong total because a caller cannot pass a total at all.
 //
-// So this function does not accept totals. It takes the lines and the
-// pricing context and computes them here, immediately before writing, from
-// exactly the same helpers the cart and the document render. A caller cannot
-// pass a wrong total because a caller cannot pass a total at all.
+// BUILD 2: a line now persists everything its price is computed FROM
+// (anchor, curve, finish level, commission flags) as well as the computed
+// rate and amount, so the stored row is auditable against the quotation's
+// own rate-card snapshot. Days and sessions ride along in the same write:
+// they are quotation structure, and splitting them into a second save path
+// would recreate exactly the state-drift this module exists to prevent.
 //
-// Tenant-neutral: it names no zone, system or finish, and takes the finish
-// multipliers as data via PricingContext, exactly as quotationMath does.
+// Tenant-neutral: it names no zone, system, finish or curve, and takes the
+// snapshot ratios as data via PricingContext, exactly as quotationMath does.
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { computeTotals, lineAmount, type PricingContext, type QuotationFunctionKey } from './quotationMath'
+import {
+  computeTotals,
+  lineAmount,
+  unitRate,
+  type PricingContext,
+  type QuotationFunctionKey,
+} from './quotationMath'
 
 /** A cart line as the builder holds it. Structural, so the builder's richer
  *  CartItem satisfies it without a conversion step that could drop a field. */
@@ -35,10 +42,19 @@ export type PersistableLine = {
   label: string
   unit: string | null
   qty: number
-  rate: number
+  anchorRate: number
+  curveKey: string | null
+  finishLevel: string | null
+  commissionApplied: boolean
+  commissionFlat: number | null
   note: string | null
   gerberaFill: boolean
   source: string
+}
+
+export type PersistableSession = {
+  dayNumber: number
+  slot: 'morning' | 'evening'
 }
 
 /** Everything about a quotation that is not a line item and not a total. */
@@ -52,6 +68,7 @@ export type QuotationSettings = {
   muhurthamFinishKey: string
   readymadeVariant: string
   muhurthamReuse: string
+  dayCount: number
 }
 
 // Discriminated on a string, not a boolean: this project does not compile
@@ -59,7 +76,7 @@ export type QuotationSettings = {
 // widens to boolean, so `if (!result.ok)` narrows to nothing useful.
 export type PersistResult =
   | { status: 'saved'; totals: ReturnType<typeof computeTotals> }
-  | { status: 'failed'; stage: 'quotation' | 'items'; message: string }
+  | { status: 'failed'; stage: 'quotation' | 'items' | 'sessions'; message: string }
 
 /**
  * Writes the scope and settings of one quotation, recomputing every money
@@ -77,7 +94,8 @@ export async function persistQuotationScope(
   quotationId: string,
   lines: PersistableLine[],
   ctx: PricingContext,
-  settings: QuotationSettings
+  settings: QuotationSettings,
+  sessions: PersistableSession[]
 ): Promise<PersistResult> {
   const totals = computeTotals(lines, ctx, {
     discountPct: settings.discountPct,
@@ -97,6 +115,7 @@ export async function persistQuotationScope(
       muhurtham_finish_key: settings.twoFunction ? settings.muhurthamFinishKey || null : null,
       readymade_variant: settings.readymadeVariant || null,
       muhurtham_reuse: settings.twoFunction ? settings.muhurthamReuse || null : null,
+      day_count: settings.dayCount,
       subtotal: totals.subtotal,
       discount_amount: totals.discountAmount,
       gst_amount: totals.gstAmount,
@@ -118,9 +137,14 @@ export async function persistQuotationScope(
         label: it.label,
         unit: it.unit,
         qty: it.qty,
-        rate: it.rate,
-        // Same helper the cart and the document render, so a stored line
+        anchor_rate: it.anchorRate,
+        curve_key: it.curveKey,
+        finish_level: it.curveKey ? it.finishLevel : null,
+        commission_applied: it.commissionApplied,
+        commission_flat: it.commissionFlat,
+        // Same helpers the cart and the document render, so a stored line
         // and a rendered line can never be computed differently.
+        rate: unitRate(it, ctx),
         amount: lineAmount(it, ctx),
         note: it.note,
         gerbera_fill: it.gerberaFill,
@@ -129,6 +153,19 @@ export async function persistQuotationScope(
       }))
     )
     if (itemsErr) return { status: 'failed', stage: 'items', message: itemsErr.message }
+  }
+
+  await supabase.from('quotation_day_sessions').delete().eq('quotation_id', quotationId)
+  if (sessions.length > 0) {
+    const { error: sessErr } = await supabase.from('quotation_day_sessions').insert(
+      sessions.map((s, idx) => ({
+        quotation_id: quotationId,
+        day_number: s.dayNumber,
+        slot: s.slot,
+        sort_order: idx,
+      }))
+    )
+    if (sessErr) return { status: 'failed', stage: 'sessions', message: sessErr.message }
   }
 
   return { status: 'saved', totals }

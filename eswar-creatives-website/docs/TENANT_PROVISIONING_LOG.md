@@ -690,3 +690,55 @@ Edge Function sender-identity fix, PR #28) must be
 `https://portal.futurenorms.in` to match — update it via Dashboard →
 Project Settings → Edge Functions → Secrets before relying on any
 outreach email's unsubscribe/portal links being correct for FutureNorms.
+
+## Newgen — portal domain, auth URLs and Clarity (Quotation Module build 2), 9 September 2026
+
+Code side shipped in the build-2 PR; the three dashboard steps below are
+the remaining manual actions. They have been open since Quotation Phase 1
+and login on the custom domain fails until step 2 is done.
+
+**Decided domain: `portal.newgeneventstudio.com`** — already recorded in
+`newgen.config.ts` since Phase 1, and consistent with the FutureNorms
+decision above: the apex belongs to the marketing site (the coming-soon
+page is live on it), the portal takes a subdomain. The
+`newgeneventstudio.com` zone HAS been in this Cloudflare account since
+2 Sep 2026 (coming-soon go-live), so unlike FutureNorms there is no
+external-registrar credential boundary: the CNAME and the Pages project
+live in the same account.
+
+1. **Cloudflare Pages custom domain.** On the `newgen-portal` Pages
+   project (built with `VITE_TENANT_ID=newgen`): Custom domains → add
+   `portal.newgeneventstudio.com`. Cloudflare creates the CNAME in the
+   zone automatically since both live in the same account.
+
+2. **Supabase Auth URL Configuration** on `mqkvguzyjvhlnilmollp`
+   (Dashboard → Authentication → URL Configuration). Both values still
+   point at `localhost:3000`; the login page uses `signInWithOtp` with
+   `emailRedirectTo = window.location.origin`, so until this changes the
+   magic-link flow bounces to localhost and login fails on the new host.
+   - Site URL: `https://portal.newgeneventstudio.com`
+   - Redirect URLs (allowlist):
+     `https://portal.newgeneventstudio.com/**`,
+     the Pages preview host (`https://*.<project>.pages.dev/**`) for
+     pre-merge testing, and `http://localhost:3000/**` for local dev.
+
+3. **Microsoft Clarity, own project.** Create a NEW Clarity project for
+   the Newgen portal (do not reuse eswarcreatives' — build 2 removed the
+   hardcoded eswar id from `index.html` precisely because it was recording
+   every tenant into one project; the loader is now per-tenant in
+   `src/lib/clarity.ts`). Then either set `clarityProjectId` in
+   `newgen.config.ts` or set `VITE_CLARITY_PROJECT_ID` on the Pages
+   project and redeploy. In the Clarity project settings turn masking to
+   Strict for input content; the code additionally carries
+   `data-clarity-mask="True"` on the client name/phone/email/address
+   inputs, the event date, notes, the venue combobox, the cart header,
+   the builder header metadata and the whole rendered quotation document.
+   **Verification is part of the task:** open a recording of a real
+   builder session and confirm no client data is legible before calling
+   this done.
+
+The coming-soon page (`newgen-coming-soon/public/index.html`) now carries
+a "Studio login" footer link to
+`https://portal.newgeneventstudio.com/portal/login` — redeploy it
+(`npx wrangler pages deploy public --project-name=newgen-coming-soon`)
+AFTER steps 1–2, or the link 404s.
