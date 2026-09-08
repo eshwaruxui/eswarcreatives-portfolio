@@ -370,3 +370,15 @@ The finish ladder locked with Mohan anna on 8 Sep replaced the single global mul
 ## Section 9 addendum - fix pass, 9 Sep 2026
 
 Sanity findings (docs/Newgen_Build2_Sanity_Findings.md) fixed on the PR #37 branch. Venues renamed IN PLACE to the Google verified spellings from docs/Newgen_Venue_Directory.md with phone/address columns added (migration 0121) - "Selvi Mahal" must never appear client-facing, the partner is Selvi Thirumana Mahal. The public RPC now returns per-line finish labels and the day/session list ordered Morning before Evening (0122); the document prints each line's finish and shows the scope-level finish only when every curved line agrees with it, plus the date and a day/session summary. Builder: neutral zone guidance instead of the red banner, settings collapsed into a "Quotation settings" summary row so lines get the panel height, catalogue grouped under sticky system headings with priced items first and rows showing the EFFECTIVE price at the current finish (matching what adding produces), sessions sorted Morning-first everywhere, tenant-aware tab titles. NES-2026-1014 deleted; NES-2026-1010 still not authorised for deletion.
+
+---
+
+# SECTION 10 - Build 3, pricing settings screen (9 Sep 2026)
+
+Settings > Pricing (visible only to tenants with the quotations module) edits the pricing data model in-product - no more migrations for rate changes. Three panels: commission (the single quotation_pricing_settings row, with the strip-on-untick explanation), the rate card (all 72 items grouped by system, multi-unit rates, three first-class states including "rate to be confirmed", live finish-level preview as an anchor is typed, is_active retire toggle), and the curve editor (ratio edits validated - full_fresh locked at 1.000000, ratios in (0,1], strictly descending, at least two steps - every save through an impact preview naming affected items with before/after prices; deleting a referenced curve refused naming its blockers).
+
+Migration 0123 adds updated_at/updated_by audit columns + a stamp trigger to rates, curves, curve steps and pricing settings; each panel shows a plain "last changed" line.
+
+**Change-safety, verified on a Supabase branch:** a sent quotation is byte-identical through anchor, curve and commission changes. **Drafts do NOT re-price** - every quotation (draft included) snapshots the rate card at creation, so changes apply only to quotations created afterwards. The screen states this above the panels.
+
+Gates 1-4 ran against a throwaway Supabase preview branch (the recorded migration history is not replayable from scratch - the branch came up empty and the quotation schema was rebuilt on it by hand; worth knowing before relying on Supabase branching for this project again).
