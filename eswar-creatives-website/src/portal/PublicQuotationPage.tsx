@@ -37,6 +37,7 @@ type RpcItem = {
   rate: number
   amount: number
   note: string | null
+  finish_label: string | null
 }
 
 type TokenPayload = {
@@ -46,6 +47,7 @@ type TokenPayload = {
   // Already a client-facing sentence when it arrives; the RPC strips the
   // stored key, so this page has no access to the internal value.
   muhurtham_reuse_label: string | null
+  sessions: { day_number: number; slot: string }[]
   items: RpcItem[]
 }
 
@@ -97,6 +99,7 @@ export function PublicQuotationPage() {
     rate: Number(i.rate),
     amount: Number(i.amount),
     note: i.note,
+    finishLabel: i.finish_label ?? null,
   }))
 
   const finishLabels: FinishLabels = {
@@ -138,6 +141,7 @@ export function PublicQuotationPage() {
             items={items}
             finishLabels={finishLabels}
             muhurthamReuseLabel={payload.muhurtham_reuse_label ?? null}
+            sessions={payload.sessions ?? []}
           />
         )}
       </main>

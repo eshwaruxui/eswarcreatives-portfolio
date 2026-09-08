@@ -43,6 +43,7 @@ import { QuotationDocument, type QuotationDocumentItem, type FinishLabels } from
 import {
   computeTotals,
   unitRate,
+  listRate,
   commissionComponent,
   lineAmount,
   type PricingContext,
@@ -151,6 +152,15 @@ function newSessionKey(): string {
   return `sess-${sessionKeySeq}-${Date.now()}`
 }
 
+// Sessions render and persist in chronological order everywhere: by day,
+// then Morning before Evening — never insertion order.
+const SLOT_RANK: Record<'morning' | 'evening', number> = { morning: 0, evening: 1 }
+function sortSessions(rows: SessionRow[]): SessionRow[] {
+  return [...rows].sort(
+    (a, z) => a.dayNumber - z.dayNumber || SLOT_RANK[a.slot] - SLOT_RANK[z.slot]
+  )
+}
+
 /** Every day 1..dayCount holds at least one session (a new day defaults to
  *  one Evening session); days beyond the count are dropped; a day holds at
  *  most two sessions (default one, option to add a second). */
@@ -161,7 +171,7 @@ function normalizeSessions(dayCount: number, prev: SessionRow[]): SessionRow[] {
     if (forDay.length === 0) out.push({ key: newSessionKey(), dayNumber: d, slot: 'evening' })
     else out.push(...forDay)
   }
-  return out
+  return sortSessions(out)
 }
 
 /** Venue combobox: filter by typing, pick from the list, or keep a new name
@@ -279,6 +289,11 @@ export function QuotationBuilder() {
 
   // Days/sessions inline editor on the builder (summary always visible).
   const [editingDays, setEditingDays] = useState(false)
+
+  // The finish/discount/advance/validity/GST controls collapse into one
+  // "Quotation settings" group so the line list gets the panel height
+  // (client feedback: two lines already clipped behind the finish block).
+  const [showQuotationSettings, setShowQuotationSettings] = useState(false)
 
   // The id this session has already hydrated from the database. Set both on
   // load and immediately after insert, so the post-insert URL change never
@@ -1076,6 +1091,25 @@ export function QuotationBuilder() {
     return matchSystem && matchSearch
   })
 
+  // Quick mitigation for the seventy-row flat list (the full catalogue
+  // treatment stays parked): sticky group headings in the existing system
+  // order, priced items above rate-TBC within each group. Array.sort is
+  // stable, so equal-priced items keep their seeded order.
+  const groupedLibrary = useMemo(() => {
+    const isPriced = (li: LibraryItem) =>
+      defaultRateFor(li.name, li.unit) !== undefined || Number(li.default_rate) > 0
+    return systems
+      .map((sys) => ({
+        key: sys.key,
+        label: sys.label,
+        items: [...filteredLibrary.filter((li) => li.system === sys.key)]
+          .sort((a, b) => Number(isPriced(b)) - Number(isPriced(a))),
+      }))
+      .filter((g) => g.items.length > 0)
+    // filteredLibrary is derived fresh each render; this memo keys off its inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [systems, library, activeSystem, search, defaultRateFor])
+
   const functionItems = items.filter((i) => i.functionKey === activeFunction)
   const countByZone = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -1112,6 +1146,7 @@ export function QuotationBuilder() {
     rate: unitRate(it, pricingCtx),
     amount: lineAmount(it, pricingCtx),
     note: it.note,
+    finishLabel: it.curveKey && it.finishLevel ? finishLabel(it.finishLevel) : null,
   }))
 
   // The two client-facing sentences for the reuse decision, matching
@@ -1148,7 +1183,7 @@ export function QuotationBuilder() {
       const forDay = prev.filter((s) => s.dayNumber === dayNumber)
       if (forDay.length >= 2) return prev
       const slot = forDay.some((s) => s.slot === 'evening') ? 'morning' : 'evening'
-      return [...prev, { key: newSessionKey(), dayNumber, slot: slot as 'morning' | 'evening' }]
+      return sortSessions([...prev, { key: newSessionKey(), dayNumber, slot: slot as 'morning' | 'evening' }])
     })
   }
   function removeSession(key: string) {
@@ -1161,7 +1196,7 @@ export function QuotationBuilder() {
     })
   }
   function setSessionSlot(key: string, slot: 'morning' | 'evening') {
-    setSessions((prev) => prev.map((s) => (s.key === key ? { ...s, slot } : s)))
+    setSessions((prev) => sortSessions(prev.map((s) => (s.key === key ? { ...s, slot } : s))))
   }
 
   // Days and sessions controls — shared between the intake form's own step
@@ -1295,6 +1330,7 @@ export function QuotationBuilder() {
               validity_days: validDays,
               gst_enabled: gstEnabled,
               has_muhurtham: twoFunction,
+              day_count: dayCount,
               subtotal: totals.subtotal,
               discount_amount: totals.discountAmount,
               gst_amount: totals.gstAmount,
@@ -1303,6 +1339,7 @@ export function QuotationBuilder() {
             }}
             items={docItems}
             muhurthamReuseLabel={muhurthamReuseLabel}
+            sessions={sessions.map((x) => ({ day_number: x.dayNumber, slot: x.slot }))}
           />
         </div>
       </div>
@@ -1559,7 +1596,7 @@ export function QuotationBuilder() {
             is looking rather than left to be inferred from a greyed-out UI. */}
         {!zoneChosen ? (
           <div style={styles.zonePrompt}>
-            Pick a zone above to start adding elements. Nothing can be added until you do.
+            Pick a zone to start adding elements.
           </div>
         ) : (
           <div style={styles.zoneActiveNote}>
@@ -1672,56 +1709,80 @@ export function QuotationBuilder() {
             })}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {filteredLibrary.map((li) => {
-              const isAdded = zoneChosen && functionItems.some((i) => i.label === li.name && i.zoneKey === activeZone)
-              const rates = ratesForItem(li.name)
-              const primaryRate = rates[0]
-              return (
-                <div
-                  key={li.id}
-                  onClick={() => addLibraryItem(li)}
-                  title={zoneChosen ? undefined : 'Pick a zone first'}
-                  aria-disabled={!zoneChosen}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '11px 14px', borderRadius: 6,
-                    cursor: zoneChosen ? 'pointer' : 'not-allowed',
-                    opacity: zoneChosen ? 1 : 0.55,
-                    background: isAdded ? `${tokens.primary}15` : '#fff',
-                    border: `1px solid ${isAdded ? tokens.primary : tokens.border}`,
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: isAdded ? 600 : 400, color: t.text.primary }}>
-                      {li.name}
-                      {li.is_motion && <span style={styles.motionTag}>motor</span>}
-                    </div>
-                    <div style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary, marginTop: 2 }}>
-                      {systemLabel(li.system)}
-                      {primaryRate
-                        ? ` · ${rates.map((r) => r.unit).join(' / ')}`
-                        : ` · ${li.unit}`}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: primaryRate || Number(li.default_rate) > 0 ? tokens.goldDark : t.text.muted }}>
-                      {primaryRate
-                        ? `${formatMoney(primaryRate.anchorRate, 'INR')} / ${primaryRate.unit}`
-                        : Number(li.default_rate) > 0 ? formatMoney(Number(li.default_rate), 'INR') : 'rate TBC'}
-                    </div>
-                    <div style={{
-                      width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: isAdded ? tokens.primary : '#fff',
-                      border: `1.5px solid ${isAdded ? tokens.primary : zoneChosen ? tokens.border : '#DDD8D0'}`,
-                      color: isAdded ? tokens.gold : zoneChosen ? t.text.tertiary : '#C8C4BC', fontSize: 16, fontWeight: 700,
-                    }}>
-                      {isAdded ? '✓' : '+'}
-                    </div>
-                  </div>
+          <div style={styles.catalogueScroll}>
+            {groupedLibrary.map((group) => (
+              <div key={group.key}>
+                <div style={styles.catalogueGroupHeading}>{group.label}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+                  {group.items.map((li) => {
+                    const isAdded = zoneChosen && functionItems.some((i) => i.label === li.name && i.zoneKey === activeZone)
+                    const rates = ratesForItem(li.name)
+                    const sr = defaultRateFor(li.name, li.unit)
+                    // The EFFECTIVE price at the active function's current
+                    // finish — the figure adding this item actually lands
+                    // at — not the anchor. Recomputes when the finish
+                    // changes; a null-curve rate stays flat.
+                    const rowPrice = sr
+                      ? listRate(
+                          {
+                            qty: 1,
+                            anchorRate: sr.anchorRate,
+                            curveKey: sr.curveKey,
+                            finishLevel: sr.curveKey ? resolveFinish(sr.curveKey, activeFinishKey) : null,
+                            commissionApplied: true,
+                            commissionFlat: sr.commissionFlat,
+                          },
+                          pricingCtx
+                        )
+                      : Number(li.default_rate ?? 0)
+                    return (
+                      <div
+                        key={li.id}
+                        onClick={() => addLibraryItem(li)}
+                        title={zoneChosen ? undefined : 'Pick a zone first'}
+                        aria-disabled={!zoneChosen}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '11px 14px', borderRadius: 6,
+                          cursor: zoneChosen ? 'pointer' : 'not-allowed',
+                          opacity: zoneChosen ? 1 : 0.55,
+                          background: isAdded ? `${tokens.primary}15` : '#fff',
+                          border: `1px solid ${isAdded ? tokens.primary : tokens.border}`,
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: isAdded ? 600 : 400, color: t.text.primary }}>
+                            {li.name}
+                            {li.is_motion && <span style={styles.motionTag}>motor</span>}
+                          </div>
+                          <div style={{ fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary, marginTop: 2 }}>
+                            {systemLabel(li.system)}
+                            {rates.length > 0
+                              ? ` · ${rates.map((r) => r.unit).join(' / ')}`
+                              : ` · ${li.unit}`}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: rowPrice > 0 ? tokens.goldDark : t.text.muted }}>
+                            {rowPrice > 0
+                              ? `${formatMoney(rowPrice, 'INR')} / ${sr ? sr.unit : li.unit}`
+                              : 'rate TBC'}
+                          </div>
+                          <div style={{
+                            width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: isAdded ? tokens.primary : '#fff',
+                            border: `1.5px solid ${isAdded ? tokens.primary : zoneChosen ? tokens.border : '#DDD8D0'}`,
+                            color: isAdded ? tokens.gold : zoneChosen ? t.text.tertiary : '#C8C4BC', fontSize: 16, fontWeight: 700,
+                          }}>
+                            {isAdded ? '✓' : '+'}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
+              </div>
+            ))}
             {filteredLibrary.length === 0 && (
               <div style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary, padding: '24px 0', textAlign: 'center' }}>
                 No elements match that search.
@@ -1791,7 +1852,9 @@ export function QuotationBuilder() {
           <div style={styles.cartItems}>
             {functionItems.length === 0 ? (
               <div style={{ color: t.text.tertiary, fontFamily: fonts.body, fontSize: 13, textAlign: 'center', padding: '40px 16px', lineHeight: 1.6 }}>
-                Pick a zone above, then tap elements to add them here.
+                {zoneChosen
+                  ? `Tap elements on the left to add them to ${zoneLabel(activeZone)}.`
+                  : 'Pick a zone to start adding elements.'}
               </div>
             ) : (
               cartGroups.map((group) => (
@@ -1943,49 +2006,70 @@ export function QuotationBuilder() {
           </div>
 
           <div style={styles.settingsPanel}>
-            {/* Finish applies to the ACTIVE function: it re-defaults every
-                curved line in that function (or the nearest level a 3-step
-                curve offers). A line can still be deviated on its own row. */}
-            <label style={{ ...labelStyle, fontSize: 11 }}>
-              FINISH{twoFunction ? ` — ${activeFunction === 'reception' ? 'RECEPTION' : 'MUHURTHAM'}` : ''}
-            </label>
-            <select
-              style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: colourVariantOffered ? 8 : 12 }}
-              value={activeFinishKey}
-              onChange={(e) => changeFunctionFinish(activeFunction, e.target.value)}
+            {/* Collapsed by default: the summary row carries the current
+                values, and the freed height goes to the line list above. */}
+            <button
+              type="button"
+              style={styles.settingsSummaryRow}
+              onClick={() => setShowQuotationSettings((v) => !v)}
             >
-              {finishLevels.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-            </select>
-            {colourVariantOffered && (
-              <select
-                style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: 12 }}
-                value={readymadeVariant}
-                onChange={(e) => setReadymadeVariant(e.target.value as typeof readymadeVariant)}
-              >
-                <option value="">Colour: not specified</option>
-                <option value="with_red">With red (traditional)</option>
-                <option value="without_red">Without red (pink, peach, white, beige)</option>
-              </select>
-            )}
+              <span style={{ fontWeight: 700 }}>
+                {showQuotationSettings ? '▾' : '▸'} Quotation settings
+              </span>
+              <span style={styles.settingsSummaryValues}>
+                {finishLabels[activeFunction] ?? 'No finish'}
+                {discount > 0 ? ` · ${discount}% discount` : ''}
+                {` · ${advance}% advance · ${validDays}d · GST ${gstEnabled ? 'on' : 'off'}`}
+              </span>
+            </button>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-              <div>
-                <label style={{ ...labelStyle, fontSize: 11 }}>DISCOUNT %</label>
-                <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={discount} onChange={(e) => setDiscount(Number(e.target.value) || 0)} />
+            {showQuotationSettings && (
+              <div style={{ marginTop: 10 }}>
+                {/* Finish applies to the ACTIVE function: it re-defaults every
+                    curved line in that function (or the nearest level a 3-step
+                    curve offers). A line can still be deviated on its own row. */}
+                <label style={{ ...labelStyle, fontSize: 11 }}>
+                  FINISH{twoFunction ? ` — ${activeFunction === 'reception' ? 'RECEPTION' : 'MUHURTHAM'}` : ''}
+                </label>
+                <select
+                  style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: colourVariantOffered ? 8 : 12 }}
+                  value={activeFinishKey}
+                  onChange={(e) => changeFunctionFinish(activeFunction, e.target.value)}
+                >
+                  {finishLevels.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                </select>
+                {colourVariantOffered && (
+                  <select
+                    style={{ ...inputStyle, padding: '7px 10px', fontSize: 13, marginBottom: 12 }}
+                    value={readymadeVariant}
+                    onChange={(e) => setReadymadeVariant(e.target.value as typeof readymadeVariant)}
+                  >
+                    <option value="">Colour: not specified</option>
+                    <option value="with_red">With red (traditional)</option>
+                    <option value="without_red">Without red (pink, peach, white, beige)</option>
+                  </select>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: 11 }}>DISCOUNT %</label>
+                    <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={discount} onChange={(e) => setDiscount(Number(e.target.value) || 0)} />
+                  </div>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: 11 }}>ADVANCE %</label>
+                    <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={advance} onChange={(e) => setAdvance(Number(e.target.value) || 0)} />
+                  </div>
+                  <div>
+                    <label style={{ ...labelStyle, fontSize: 11 }}>VALID (DAYS)</label>
+                    <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={validDays} onChange={(e) => setValidDays(Number(e.target.value) || 1)} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 18 }}>
+                    <input type="checkbox" id="gst" checked={gstEnabled} onChange={(e) => setGstEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: tokens.primary }} />
+                    <label htmlFor="gst" style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: tokens.primary, cursor: 'pointer' }}>GST 18%</label>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label style={{ ...labelStyle, fontSize: 11 }}>ADVANCE %</label>
-                <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={advance} onChange={(e) => setAdvance(Number(e.target.value) || 0)} />
-              </div>
-              <div>
-                <label style={{ ...labelStyle, fontSize: 11 }}>VALID (DAYS)</label>
-                <input type="number" style={{ ...inputStyle, padding: '7px 10px', fontSize: 13 }} value={validDays} onChange={(e) => setValidDays(Number(e.target.value) || 1)} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 18 }}>
-                <input type="checkbox" id="gst" checked={gstEnabled} onChange={(e) => setGstEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: tokens.primary }} />
-                <label htmlFor="gst" style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: tokens.primary, cursor: 'pointer' }}>GST 18%</label>
-              </div>
-            </div>
+            )}
 
             {/* The client's public link renders the STORED row, so the
                 operator needs to know whether what they are looking at has
@@ -2149,9 +2233,11 @@ const styles: Record<string, CSSProperties> = {
   zoneStrip: {
     display: 'flex', gap: 6, flexWrap: 'wrap',
   },
+  // Neutral guidance, not an error: this is a friendly empty state, and
+  // red fill read as "something failed" (client feedback, 8 Sept).
   zonePrompt: {
-    fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.ruby,
-    background: tokens.rubyLight, border: `1px solid ${tokens.ruby}55`,
+    fontFamily: fonts.body, fontSize: 12, color: t.text.secondary,
+    background: '#fff', border: `1px solid ${tokens.border}`,
     borderRadius: 6, padding: '7px 10px', margin: '10px 0',
   },
   zoneActiveNote: {
@@ -2185,6 +2271,18 @@ const styles: Record<string, CSSProperties> = {
   },
   sendBlockedNote: {
     fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.goldDark,
+  },
+  // The catalogue scrolls in its own region (like the cart rail) so the
+  // group headings can stick to its top edge.
+  catalogueScroll: {
+    maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', position: 'relative',
+  },
+  catalogueGroupHeading: {
+    position: 'sticky', top: 0, zIndex: 2,
+    background: tokens.bg, padding: '8px 2px 5px',
+    fontFamily: fonts.body, fontSize: 11, fontWeight: 700, letterSpacing: 1,
+    textTransform: 'uppercase', color: tokens.goldDark,
+    borderBottom: `1px solid ${tokens.border}`, marginBottom: 6,
   },
   mockupCard: { background: '#fff', borderRadius: 8, padding: 20, marginBottom: 16, border: `1px dashed ${tokens.gold}` },
   chooseBtn: {
@@ -2225,7 +2323,17 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 5, marginTop: 5,
     fontFamily: fonts.body, fontSize: 10, color: t.text.tertiary, cursor: 'pointer',
   },
-  settingsPanel: { padding: '14px 16px', borderTop: `1px solid ${tokens.border}`, background: tokens.bg },
+  settingsPanel: { padding: '10px 16px 14px', borderTop: `1px solid ${tokens.border}`, background: tokens.bg },
+  settingsSummaryRow: {
+    display: 'flex', alignItems: 'baseline', gap: 8, width: '100%',
+    background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer',
+    fontFamily: fonts.body, fontSize: 12, color: tokens.primary, textAlign: 'left',
+    marginBottom: 4,
+  },
+  settingsSummaryValues: {
+    fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+  },
   totalLine: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 },
   previewToolbar: { display: 'flex', gap: 10, alignItems: 'center', padding: '12px 0', flexWrap: 'wrap' },
   toolbarBtnGhost: {
