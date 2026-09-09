@@ -1,6 +1,7 @@
-import { tokens, fonts, motionTokens, brandName, brandLogo } from './theme'
+import { tokens, fonts, motionTokens, brandName, brandLogo, brandMark } from './theme'
 import { useSignOut } from './useSignOut'
 import { Spinner } from './Spinner'
+import { BrandMarkBadge } from './BrandMarkBadge'
 
 // Light nav bar shared across the portal pages, matching the main site style:
 // tenant logo and wordmark on the left, an optional "Sign out" link on the right.
@@ -10,13 +11,21 @@ export function PortalNav({ showSignOut = false }: { showSignOut?: boolean }) {
   return (
     <nav style={styles.nav}>
       <div style={styles.brand}>
-        <img
-          src={brandLogo}
-          alt={`${brandName} logo`}
-          width={32}
-          height={32}
-          style={styles.logo}
-        />
+        {/* A tenant with a disc mark shows the SAME badge component the
+            authenticated shell's TopBar uses, so the mark is identical one
+            click before and after sign-in. Tenants without one keep their
+            logo image exactly as before. */}
+        {brandMark ? (
+          <BrandMarkBadge />
+        ) : (
+          <img
+            src={brandLogo}
+            alt={`${brandName} logo`}
+            width={32}
+            height={32}
+            style={styles.logo}
+          />
+        )}
         <span style={styles.brandName}>{brandName}</span>
       </div>
       {showSignOut && (
