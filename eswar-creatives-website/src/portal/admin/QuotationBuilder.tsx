@@ -1805,13 +1805,27 @@ export function QuotationBuilder() {
                         )
                       : Number(li.default_rate ?? 0)
                     return (
-                      <div
+                      // A real button, not a click-handling div: the row is
+                      // the builder's primary action and was absent from the
+                      // accessibility tree entirely, unreachable by keyboard
+                      // and unnamed (field test M3/M4). aria-disabled rather
+                      // than disabled so it stays focusable and can still
+                      // announce why it is inert.
+                      <button
                         key={li.id}
+                        type="button"
+                        className="ec-catalogue-row"
                         onClick={() => addLibraryItem(li)}
                         title={zoneChosen ? undefined : 'Pick a zone first'}
                         aria-disabled={!zoneChosen}
+                        aria-label={
+                          zoneChosen
+                            ? `Add ${li.name} to ${zoneOrder(activeZone)}. ${zoneLabel(activeZone)}${isAdded ? ', already added' : ''}`
+                            : `Add ${li.name}. Pick a zone first`
+                        }
                         style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          width: '100%', textAlign: 'left', font: 'inherit',
                           padding: '11px 14px', borderRadius: 6,
                           cursor: zoneChosen ? 'pointer' : 'not-allowed',
                           opacity: zoneChosen ? 1 : 0.55,
@@ -1837,7 +1851,7 @@ export function QuotationBuilder() {
                               ? `${formatMoney(rowPrice, 'INR')} / ${sr ? sr.unit : li.unit}`
                               : 'rate TBC'}
                           </div>
-                          <div style={{
+                          <div aria-hidden="true" style={{
                             width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                             background: isAdded ? tokens.primary : tokens.surface,
                             border: `1.5px solid ${isAdded ? tokens.primary : zoneChosen ? tokens.border : 'var(--ec-bg-tint-2)'}`,
@@ -1846,7 +1860,7 @@ export function QuotationBuilder() {
                             {isAdded ? '✓' : '+'}
                           </div>
                         </div>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>
