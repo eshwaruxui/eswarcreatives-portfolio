@@ -22,5 +22,8 @@ export interface TenantTheme {
     fontHeading: string
     fontBody: string
     logo: string
+    /** Circular disc mark for the admin top bar's avatar slot. Optional:
+     *  a tenant without one keeps the generated first-letter avatar. */
+    mark?: string
   }
 }

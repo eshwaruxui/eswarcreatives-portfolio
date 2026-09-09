@@ -1,5 +1,11 @@
 import type { TenantTheme } from '../tenant.types'
-import newgenLogo from '../../../imports/newgen-logo.svg'
+// Crown mark only (gold), per the brand guideline's "02 Mark only" set —
+// the full lockup (newgen-logo.svg) reads as a squeezed icon in the square
+// nav slot, and the printed quotation document carries the lockup already.
+import newgenMark from '../../../imports/newgen-mark-gold.svg'
+// Knockout crown on a teal disc ("08 Solid mark" set) — drops into the admin
+// top bar's 28px circular avatar slot in place of the generated letter.
+import newgenSolidMark from '../../../imports/newgen-solid-mark-teal-disc.svg'
 
 // Tenant 2 — Newgen Event Studio (portal.newgeneventstudio.com), Quotation
 // Module Phase 1. Portal chrome uses Inter throughout (per the brief — the
@@ -24,6 +30,7 @@ export const newgenConfig: TenantTheme = {
     cream: '#FAF8F4', // Newgen cream
     fontHeading: "'Inter', system-ui, -apple-system, sans-serif",
     fontBody: "'Inter', system-ui, -apple-system, sans-serif",
-    logo: newgenLogo,
+    logo: newgenMark,
+    mark: newgenSolidMark,
   },
 }
