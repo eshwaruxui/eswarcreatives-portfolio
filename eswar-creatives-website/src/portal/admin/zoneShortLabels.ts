@@ -2,9 +2,14 @@
 // surface. Full names, zone_keys and the quoting order are seeded tenant
 // data and stay in the database (quotation_zones); these are their on-screen
 // display aliases only (zone rail spec, frozen 9 Sept). The rail tiles, the
-// truncated line-row chips and the drawer's zone group headers all read from
-// here; the assignment dropdown menu and the printed document always use the
-// full DB name. No surface hand-writes its own zone strings.
+// line-row chips, the drawer's zone group headers AND both zone-assignment
+// dropdowns (move a line, and the mockup candidate picker) all read from
+// here, so one zone reads the same everywhere on screen. The printed
+// document is the one deliberate exception and keeps the full DB name: a
+// client reading a quotation has no rail to cross-reference, so the zone has
+// to name itself in full. The move-line select also carries the numbered
+// full name as its title, so the long form stays one hover away.
+// No surface hand-writes its own zone strings.
 //
 // RULE for adding or editing one of these: the short label comes from the
 // zone's own IDENTITY, never from a qualifier in its full name. Zone 2 broke

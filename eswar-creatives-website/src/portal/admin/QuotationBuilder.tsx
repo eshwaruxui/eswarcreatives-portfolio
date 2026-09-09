@@ -1716,7 +1716,7 @@ export function QuotationBuilder() {
                     >
                       <option value="">Unassigned</option>
                       {zones.map((z) => (
-                        <option key={z.key} value={z.key}>{z.sort_order}. {z.label}</option>
+                        <option key={z.key} value={z.key}>{z.sort_order}. {zoneShortLabel(z.key, z.label)}</option>
                       ))}
                     </select>
                     <span style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: ratesForItem(c.label).length > 0 ? tokens.goldDark : t.text.muted, width: 84, textAlign: 'right' }}>
@@ -2081,7 +2081,7 @@ export function QuotationBuilder() {
                           >
                             <option value="">Unassigned</option>
                             {zones.map((z) => (
-                              <option key={z.key} value={z.key}>{z.sort_order}. {z.label}</option>
+                              <option key={z.key} value={z.key}>{z.sort_order}. {zoneShortLabel(z.key, z.label)}</option>
                             ))}
                           </select>
                           {twoFunction && (
