@@ -104,7 +104,7 @@ export function PersistentDrawer({
 const styles: Record<string, CSSProperties> = {
   panelBase: {
     position: 'fixed',
-    background: '#fff',
+    background: tokens.surface,
     boxShadow: '-8px 0 24px rgba(2, 76, 79, 0.10)',
     display: 'flex',
     flexDirection: 'column',

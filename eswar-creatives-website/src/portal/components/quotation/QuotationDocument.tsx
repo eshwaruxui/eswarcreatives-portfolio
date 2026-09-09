@@ -25,7 +25,7 @@
 import type { CSSProperties } from 'react'
 import { formatDocumentDate } from '../../utils/formatDate'
 import { getDocumentTheme } from './documentThemes'
-import type { QuotationFunctionKey } from './quotationMath'
+import { balanceDueDate, type QuotationFunctionKey } from './quotationMath'
 
 export type QuotationDocumentData = {
   quotation_number: string
@@ -334,9 +334,18 @@ export function QuotationDocument({
               <span style={{ fontFamily: F, fontSize: 16, color: b.teal, fontWeight: 700 }}>Total</span>
               <span style={{ fontFamily: F, fontSize: 16, color: b.teal, fontWeight: 700 }}>{formatCurrency(quotation.total_amount)}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-              <span style={{ fontFamily: F, fontSize: 12, color: b.ochre, fontWeight: 500 }}>Advance Required ({quotation.advance_pct}%)</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 2px' }}>
+              <span style={{ fontFamily: F, fontSize: 12, color: b.ochre, fontWeight: 500 }}>Advance ({quotation.advance_pct}%) due now</span>
               <span style={{ fontFamily: F, fontSize: 12, color: b.ochre, fontWeight: 700 }}>{formatCurrency(quotation.advance_amount)}</span>
+            </div>
+            {/* Balance due = event Day 1 minus 10 days, computed from the
+                event date so it re-derives with it; worded fallback when the
+                date is astrologer-pending (confirmed rule, findings 3a). */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 8px' }}>
+              <span style={{ fontFamily: F, fontSize: 12, color: '#555', fontWeight: 500 }}>
+                Balance ({100 - quotation.advance_pct}%) due {balanceDueDate(quotation.event_date) ? formatDocumentDate(balanceDueDate(quotation.event_date)!) : '10 days before the event'}
+              </span>
+              <span style={{ fontFamily: F, fontSize: 12, color: '#555', fontWeight: 700 }}>{formatCurrency(Math.round((quotation.total_amount - quotation.advance_amount + Number.EPSILON) * 100) / 100)}</span>
             </div>
           </div>
         </div>
@@ -348,7 +357,10 @@ export function QuotationDocument({
         <div style={{ color: '#999', fontFamily: F, fontSize: 12, lineHeight: 2, marginTop: 10 }}>
           <div>1. This quotation is valid for {quotation.validity_days} days from the date of issue.</div>
           <div>2. {quotation.advance_pct}% advance payment required to confirm the booking.</div>
-          <div>3. Balance payment to be settled before the event date.</div>
+          <div>
+            3. The balance {100 - quotation.advance_pct}% is due 10 days before the event
+            {balanceDueDate(quotation.event_date) ? ` (by ${formatDocumentDate(balanceDueDate(quotation.event_date)!)})` : ''}.
+          </div>
           <div>4. Cancellation within 7 days of the event, the advance is non-refundable.</div>
           <div>5. Any additions to scope on the day will be billed separately.</div>
           {quotation.gst_enabled && b.gstin && <div>6. GST at 18% included. GSTIN: {b.gstin}</div>}

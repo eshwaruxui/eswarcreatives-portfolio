@@ -16,7 +16,7 @@ import { Spinner } from '../Spinner'
 import { AddClientModal } from './AddClientModal'
 
 // Neutral grey divider used by the bar and its popovers, per the Phase 3 spec.
-const HAIRLINE = '#E5E7EB'
+const HAIRLINE = 'var(--ec-bg-tint-1)'
 
 export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
   const navigate = useNavigate()

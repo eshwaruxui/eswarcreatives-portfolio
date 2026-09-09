@@ -2,6 +2,44 @@
 @import './tailwind.css';
 @import './theme.css';
 
+
+/* ═══ Semantic token layer (build 4 phase 6, newgen-design-tokens-v1) ═══
+   THE single definition of the portal's neutral palette. Components reach
+   these through theme.ts (whose neutral values are var() references) or
+   directly via var(); no neutral hex belongs anywhere else. Brand teal,
+   gold and ruby are NOT tokenised here on purpose - they stay per-tenant
+   in theme.ts. Light mode values. */
+:root {
+  --ec-bg-page: #ffffff;
+  --ec-bg-surface: #ffffff;
+  --ec-bg-subtle: #f9fafa;
+  --ec-bg-muted: #f4f5f6;
+  --ec-bg-tint-1: #e9ebec;
+  --ec-bg-tint-2: #e3e6e7;
+  --ec-bg-tint-3: #dbdfdf;
+  --ec-text-primary: #101212;
+  --ec-text-secondary: #525859;
+  --ec-text-tertiary: #6d7576;
+  --ec-text-muted: #6d7576;
+  --ec-text-disabled: #a7adae;
+  --ec-text-primary-brand: #02373b;
+  --ec-text-inverse: #ffffff;
+  --ec-border-overlay-subtle: #1b22220a;
+  --ec-border-overlay-medium: #1b22220d;
+  --ec-border-overlay-strong: #1b22221a;
+  --ec-border-overlay-extra-strong: #0e111126;
+  --ec-border-overlay: #0e11114a;
+  --ec-border-overlay-bold: #0e11116e;
+}
+
+/* Phase 6 item 5: every rounded element reads as a smooth squircle. One
+   implementation, applied universally as progressive enhancement - engines
+   without corner-shape keep the plain radius. Supersedes per-element
+   .ec-squircle tagging (the class remains as a no-op alias). */
+* {
+  corner-shape: squircle;
+}
+
 /* ── Scrollbar gutter ─────────────────────────────────────── */
 /* Reserve the scrollbar's track on the window's scroll container at all times,
    so a page whose content crosses viewport height does not shrink the content
@@ -22,6 +60,13 @@
    rule; see docs/COMPONENT_PATTERNS.md's Scrollbar Gutter Pattern. */
 html {
   scrollbar-gutter: stable;
+  /* Phase 6 item 1: the outermost page scrollbar is hidden portal-wide.
+     Scrolling still works (wheel/trackpad/touch); only the indicator goes.
+     Internal panel scrollers keep the phase 5 hover-reveal behaviour. */
+  scrollbar-width: none;
+}
+html::-webkit-scrollbar {
+  display: none;
 }
 
 /* Utility: hide scrollbar */
@@ -180,10 +225,14 @@ select:not([multiple]):not([size]):not(.ec-own-caret) {
   -webkit-appearance: none;
   /* Phase 5 item 14: dropdowns read as grey squircle chips, not bordered
      input boxes. Same !important reasoning as the caret rules below. */
-  background-color: #EFECE5 !important;
-  border: none !important;
+  background-color: var(--ec-bg-muted) !important;
+  border: 1px solid var(--ec-border-overlay-strong) !important;
   border-radius: 10px !important;
   corner-shape: squircle;
+  /* Phase 6 item 2: chips hug their label + caret instead of stretching
+     the full card width. Height (via existing padding) stays the target. */
+  width: fit-content !important;
+  max-width: 100%;
   padding-right: 30px !important;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236E6A61' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important;
