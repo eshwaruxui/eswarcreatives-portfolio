@@ -5,9 +5,19 @@
 // truncated line-row chips and the drawer's zone group headers all read from
 // here; the assignment dropdown menu and the printed document always use the
 // full DB name. No surface hand-writes its own zone strings.
+//
+// RULE for adding or editing one of these: the short label comes from the
+// zone's own IDENTITY, never from a qualifier in its full name. Zone 2 broke
+// this ("Mandapam building decoration (exterior and elevation)" was shortened
+// to "Elevation", borrowed from the parenthetical), which made the rail read
+// "Entrance / Elevation" as if zone 1's "Entrance and elevation" had been
+// split across two tiles. It is the mandapam, so it reads "Mandapam".
+// Two near-traps are deliberately left long for the same reason: "Hall door"
+// is not shortened to "Hall" (zone 11 owns that) and "Music stage" keeps its
+// noun so it cannot be read as zone 10's "Stage".
 export const ZONE_SHORT_LABELS: Record<string, string> = {
   entrance_elevation: 'Entrance',
-  mandapam_building: 'Elevation',
+  mandapam_building: 'Mandapam',
   pathway: 'Pathway',
   valet_parking: 'Valet',
   lift_placard: 'Lift placard',
