@@ -42,6 +42,7 @@ import { ACTIVE_TENANT_ID } from '../tenant/activeTenantId'
 import { ZoneRail } from './ZoneRail'
 import { EdgeFadeRow } from './EdgeFadeRow'
 import { PersistentDrawer } from './PersistentDrawer'
+import { zoneShortLabel } from './zoneShortLabels'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ChevronsRight, ChevronsLeft } from 'lucide-react'
 import { QuotationDocument, type QuotationDocumentItem, type FinishLabels } from '../components/quotation/QuotationDocument'
@@ -1941,7 +1942,7 @@ export function QuotationBuilder() {
             ) : (
               cartGroups.map((group) => (
                 <div key={group.key} style={{ marginBottom: 14 }}>
-                  <div style={styles.cartZoneHeading}>{group.label}</div>
+                  <div style={styles.cartZoneHeading} title={group.label}>{group.order < 9999 ? `${group.order}. ` : ''}{zoneShortLabel(group.key === '__unzoned__' ? null : group.key, group.label)}</div>
                   {group.items.map((item) => {
                     const charged = unitRate(item, pricingCtx)
                     const commission = commissionComponent(item, pricingCtx)
@@ -2058,7 +2059,7 @@ export function QuotationBuilder() {
                           <select
                             value={item.zoneKey ?? ''}
                             onChange={(e) => moveItemZone(item.key, e.target.value || null)}
-                            title="Move this line to another zone"
+                            title={item.zoneKey ? `${zoneOrder(item.zoneKey)}. ${zoneLabel(item.zoneKey)}` : 'Move this line to another zone'}
                             style={styles.moveSelect}
                           >
                             <option value="">Unassigned</option>

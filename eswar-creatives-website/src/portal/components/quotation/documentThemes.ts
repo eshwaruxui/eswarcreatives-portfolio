@@ -1,3 +1,5 @@
+import newgenFullLogoGold from '../../../imports/newgen-full-logo-gold.svg'
+
 // Per-tenant brand for the Step 4 quotation *document* only — deliberately
 // separate from the shared TenantTheme (getTenantTheme.ts), which drives the
 // portal chrome (Inter throughout, per the brief). Reusing TenantTheme's
@@ -8,6 +10,11 @@
 // bespoke document branding — it's still built the same way for anyone.
 export type DocumentTheme = {
   teal: string
+  /** Full brand lockup for the document masthead (phase 7 redesign). A
+   *  tenant without one falls back to the text-only header. */
+  logoSrc?: string
+  /** SAC code printed beside the GSTIN in the document footer. */
+  sac?: string | null
   gold: string
   cream: string
   ochre: string
@@ -50,6 +57,8 @@ export const NEUTRAL_DOCUMENT_THEME: DocumentTheme = {
 const DOCUMENT_THEMES: Record<string, DocumentTheme> = {
   newgen: {
     teal: '#024C4F',
+    logoSrc: newgenFullLogoGold,
+    sac: '998596',
     gold: '#D5B067',
     cream: '#FAF8F4',
     ochre: '#E1A23D',

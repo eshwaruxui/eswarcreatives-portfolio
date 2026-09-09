@@ -25,6 +25,7 @@
 import type { CSSProperties } from 'react'
 import { formatDocumentDate } from '../../utils/formatDate'
 import { getDocumentTheme } from './documentThemes'
+import { KolamTileDefs } from './KolamPattern'
 import { balanceDueDate, type QuotationFunctionKey } from './quotationMath'
 
 export type QuotationDocumentData = {
@@ -195,224 +196,399 @@ export function QuotationDocument({
       ] as Section[]).filter((s) => s.items.length > 0)
     : [{ key: 'reception', heading: null, items }]
 
+  // Per-function subtotal for the section footer rows (display only —
+  // authoritative totals are the stored quotation figures below).
+  const sectionSubtotal = (list: QuotationDocumentItem[]) =>
+    list.reduce((sum, i) => sum + i.amount, 0)
+
+  const balDue = balanceDueDate(quotation.event_date)
+  const balanceAmount = Math.round((quotation.total_amount - quotation.advance_amount + Number.EPSILON) * 100) / 100
+  const inWords = rupeesInWords(quotation.total_amount)
+
   return (
     // data-clarity-mask: the rendered document carries the client's name,
     // phone, address and event date; the whole thing is masked in any
     // Clarity recording (admin preview and public page alike).
-    <div data-clarity-mask="True" style={{ maxWidth: 860, margin: '0 auto', background: 'white', borderRadius: 4 }}>
-      {/* Header */}
-      <div style={{ background: b.teal, padding: '36px 52px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <div style={{ color: b.gold, fontSize: 20, fontFamily: b.fontDisplay, fontWeight: 700 }}>Newgen Event Studio</div>
-          {b.tagline && (
-            <div style={{ color: b.gold, fontSize: 13, fontFamily: b.fontDisplay, fontStyle: 'italic', marginTop: 4, opacity: 0.9 }}>
-              {b.tagline}
-            </div>
-          )}
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ color: b.gold, fontSize: 20, fontFamily: b.fontDisplay, fontStyle: 'italic', marginBottom: 6 }}>Quotation</div>
-          <div style={{ color: b.cream, fontFamily: F, fontSize: 13, fontWeight: 500 }}>{quotation.quotation_number}</div>
-          <div style={{ color: b.cream, fontFamily: F, fontSize: 12, marginTop: 2, opacity: 0.75 }}>Date: {formatDocumentDate(quotation.created_at)}</div>
-          <div style={{ color: b.cream, fontFamily: F, fontSize: 12, opacity: 0.75 }}>Valid for {quotation.validity_days} days</div>
-        </div>
-      </div>
+    //
+    // Visual system lifted from the approved reference
+    // (design-reference/newgen-quotation-sheet-reference.html): masthead with
+    // the kolam lattice + metallic sheen, meta band, per-function scope
+    // tables with zone mini-headers, right-aligned totals, amount-in-words
+    // strip, numbered terms, deep-teal footer. All data stays live; the
+    // reference's sample content never ships.
+    <div className="ngq-doc" data-clarity-mask="True">
+      <style>{docCss(b)}</style>
+      <KolamTileDefs />
 
-      {/* Client + Event */}
-      <div style={{ padding: '32px 52px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, borderBottom: `1px solid ${b.gold}33` }}>
-        <div>
-          <div style={styles.sectionLabel(b, F)}>PREPARED FOR</div>
-          <div style={styles.sectionValue(b, F)}>{quotation.client_name}</div>
-          <div style={styles.detailBlock(F)}>
-            {quotation.client_phone && <div>{formatPhone(quotation.client_phone, b.defaultDialCode)}</div>}
-            {quotation.client_email && <div>{quotation.client_email}</div>}
-            {quotation.client_address && <div>{quotation.client_address}</div>}
+      {/* Masthead */}
+      <header className="ngq-mast">
+        <svg className="ngp-pattern" aria-hidden="true"><rect width="100%" height="100%" fill="url(#ngp-kolam-tile)" /></svg>
+        <div className="ngp-sheen" aria-hidden="true" />
+        {b.logoSrc ? (
+          <div className="ngq-lockup">
+            <img src={b.logoSrc} alt="Newgen Event Studio. Your vision, their memory." />
+          </div>
+        ) : (
+          <div className="ngq-lockup-text">
+            <div className="ngq-lockup-name">Newgen Event Studio</div>
+            {b.tagline && <div className="ngq-lockup-tag">{b.tagline}</div>}
+          </div>
+        )}
+        <div className="ngq-docmeta">
+          <p className="ngq-doctype">Quotation</p>
+          <div className="ngq-docno">{quotation.quotation_number}</div>
+          <div className="ngq-docdates">
+            Issued {formatDocumentDate(quotation.created_at)}<br />
+            Valid for {quotation.validity_days} days
           </div>
         </div>
+      </header>
+
+      {/* Meta band — every live field the document has always carried. */}
+      <section className="ngq-meta">
         <div>
-          <div style={styles.sectionLabel(b, F)}>EVENT DETAILS</div>
-          <div style={styles.sectionValue(b, F)}>{quotation.event_type}</div>
-          <div style={styles.detailBlock(F)}>
-            {quotation.event_date && <div>{formatDocumentDate(quotation.event_date)}</div>}
+          <p className="ngq-eyebrow">Prepared for</p>
+          <p className="ngq-party">{quotation.client_name}</p>
+          <dl className="ngq-dl">
+            {quotation.client_phone && (<><dt>Mobile</dt><dd>{formatPhone(quotation.client_phone, b.defaultDialCode)}</dd></>)}
+            {quotation.client_email && (<><dt>Email</dt><dd>{quotation.client_email}</dd></>)}
+            {quotation.client_address && (<><dt>Address</dt><dd>{quotation.client_address}</dd></>)}
+          </dl>
+        </div>
+        <div>
+          <p className="ngq-eyebrow">Event</p>
+          <p className="ngq-party">{quotation.event_type}</p>
+          <dl className="ngq-dl">
+            {quotation.event_date && (<><dt>Date</dt><dd>{formatDocumentDate(quotation.event_date)}</dd></>)}
             {(() => {
               const summary = daySummary(quotation.day_count ?? 0, sessions)
-              return summary ? <div>{summary}</div> : null
+              return summary ? (<><dt>Days</dt><dd>{summary}</dd></>) : null
             })()}
-            {quotation.venue && <div>{quotation.venue}</div>}
-            {quotation.guest_count && <div>{quotation.guest_count} guests</div>}
-          </div>
+            {quotation.venue && (<><dt>Venue</dt><dd>{quotation.venue}</dd></>)}
+            {quotation.guest_count ? (<><dt>Guests</dt><dd>{quotation.guest_count}</dd></>) : null}
+          </dl>
         </div>
-      </div>
+      </section>
 
       {/* Scope of work — function, then zone in quoting order */}
-      <div style={{ padding: '32px 52px' }}>
-        <div style={{ ...styles.sectionLabel(b, F), marginBottom: 16 }}>SCOPE OF WORK</div>
+      <section className="ngq-scope">
+        <p className="ngq-section-label">Scope of work</p>
 
         {sections.map((section) => {
-          // The scope-level finish line prints ONLY when every curved line
+          // The scope-level finish chip prints ONLY when every curved line
           // in this function carries that same finish. Mixed finishes print
-          // per line instead — a header saying "Full fresh flowers" over a
-          // Balanced blend stage garden misstates what the client is
-          // buying. Flat lines (no finish) never block the scope line.
+          // per line instead — a chip saying one finish over a line at
+          // another misstates what the client is buying. Flat lines (no
+          // finish) never block the chip.
           const curvedLines = section.items.filter((i) => i.finishLabel != null)
           const uniformFinish =
             curvedLines.length > 0 &&
             curvedLines.every((i) => i.finishLabel === finishLabels[section.key])
           const finishLabel = uniformFinish ? finishLabels[section.key] : null
-          const muhurthamReuseLine = section.key === 'muhurtham' && !!muhurthamReuseLabel
           return (
-            <div key={section.key} style={{ marginBottom: sections.length > 1 ? 28 : 0 }}>
-              {section.heading && (
-                <div style={{ color: b.teal, fontFamily: b.fontDisplay, fontSize: 20, fontWeight: 700, marginBottom: 2, paddingTop: 4 }}>
-                  {section.heading}
+            <div key={section.key} className="ngq-fn">
+              <div className="ngq-fn-head">
+                <h2 className="ngq-fn-name">{section.heading ?? '\u00A0'}</h2>
+                <div className="ngq-fn-terms">
+                  {finishLabel && <span className="ngq-chip">{finishLabel}</span>}
+                  {/* Only under the muhurtham: it describes what happens to
+                      the reception setup. */}
+                  {section.key === 'muhurtham' && muhurthamReuseLabel && (
+                    <span className="ngq-chip ngq-chip-set">{muhurthamReuseLabel}</span>
+                  )}
                 </div>
-              )}
-              {finishLabel && (
-                <div style={{ color: b.ochre, fontFamily: F, fontSize: 12, fontWeight: 600, marginBottom: muhurthamReuseLine ? 2 : 12 }}>
-                  Finish: {finishLabel}
-                </div>
-              )}
-              {/* Only under the muhurtham: it describes what happens to the
-                  reception setup, so it is meaningless above the reception. */}
-              {section.key === 'muhurtham' && muhurthamReuseLabel && (
-                <div style={{ color: b.ochre, fontFamily: F, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
-                  Setup: {muhurthamReuseLabel}
-                </div>
-              )}
-
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, padding: '8px 0', borderBottom: `2px solid ${b.teal}` }}>
-                {['Item', 'Qty / Unit', 'Rate', 'Amount'].map((h) => (
-                  <div key={h} style={{ color: b.teal, fontFamily: F, fontSize: 11, letterSpacing: 1.5, fontWeight: 700 }}>{h}</div>
-                ))}
               </div>
-
-              {groupByZone(section.items).map((zone) => (
-                <div key={zone.key}>
-                  <div style={{ color: b.ochre, fontFamily: F, fontSize: 11, fontWeight: 700, padding: '14px 0 4px', borderBottom: `1px solid ${b.gold}22`, letterSpacing: 0.5 }}>
-                    {zone.label.toUpperCase()}
-                  </div>
-                  {zone.items.map((item, idx) => (
-                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, padding: '10px 0', borderBottom: '1px solid #f4f0ea' }}>
-                      <div>
-                        <div style={{ color: '#1A1A1A', fontFamily: F, fontSize: 13, fontWeight: 500 }}>{item.label}</div>
-                        {item.finishLabel && (
-                          <div style={{ color: b.ochre, fontFamily: F, fontSize: 11, marginTop: 2 }}>{item.finishLabel}</div>
-                        )}
-                        {item.note && <div style={{ color: '#999', fontFamily: F, fontSize: 11, marginTop: 2 }}>{item.note}</div>}
-                      </div>
-                      <div style={{ color: '#555', fontFamily: F, fontSize: 13 }}>{item.qty} {item.unit}</div>
-                      <div style={{ color: '#555', fontFamily: F, fontSize: 13 }}>{formatCurrency(item.amount / (item.qty || 1))}</div>
-                      <div style={{ color: b.teal, fontFamily: F, fontSize: 13, fontWeight: 600 }}>{formatCurrency(item.amount)}</div>
-                    </div>
+              <table className="ngq-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th className="ngq-qty">Quantity</th>
+                    <th className="ngq-n">Rate</th>
+                    <th className="ngq-n">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupByZone(section.items).map((zone) => (
+                    [
+                      <tr key={`${zone.key}-head`} className="ngq-zone"><td colSpan={4}>{zone.label}</td></tr>,
+                      ...zone.items.map((item, idx) => (
+                        <tr key={`${zone.key}-${idx}`}>
+                          <td className="ngq-item">
+                            {item.label}
+                            {item.finishLabel && <span className="ngq-item-finish">{item.finishLabel}</span>}
+                            {item.note && <span className="ngq-item-note">{item.note}</span>}
+                          </td>
+                          <td className="ngq-qty">{item.qty} × {item.unit ?? 'unit'}</td>
+                          <td className="ngq-n ngq-rate">{formatNumber(item.amount / (item.qty || 1))}</td>
+                          <td className="ngq-n ngq-amt">{formatNumber(item.amount)}</td>
+                        </tr>
+                      )),
+                    ]
                   ))}
+                </tbody>
+              </table>
+              {sections.length > 1 && (
+                <div className="ngq-fn-sub">
+                  <span>{section.heading}</span>
+                  <span><b>{formatNumber(sectionSubtotal(section.items))}</b></span>
                 </div>
-              ))}
+              )}
             </div>
           )
         })}
+      </section>
 
-        {/* Totals */}
-        <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ width: 300 }}>
-            <div style={styles.totalsRow}>
-              <span style={{ fontFamily: F, fontSize: 13, color: '#555' }}>Subtotal</span>
-              <span style={{ fontFamily: F, fontSize: 13, color: '#1A1A1A', fontWeight: 500 }}>{formatCurrency(quotation.subtotal)}</span>
-            </div>
+      {/* Totals — stored figures, never recomputed here. */}
+      <section className="ngq-totals">
+        <table>
+          <tbody>
+            <tr><td>Subtotal</td><td className="ngq-n">{formatNumber(quotation.subtotal)}</td></tr>
             {quotation.discount_pct > 0 && (
-              <div style={styles.totalsRow}>
-                <span style={{ fontFamily: F, fontSize: 13, color: b.ruby }}>Discount ({quotation.discount_pct}%)</span>
-                <span style={{ fontFamily: F, fontSize: 13, color: b.ruby, fontWeight: 500 }}>- {formatCurrency(quotation.discount_amount)}</span>
-              </div>
+              <tr className="ngq-discount"><td>Discount ({quotation.discount_pct}%)</td><td className="ngq-n">- {formatNumber(quotation.discount_amount)}</td></tr>
             )}
             {quotation.gst_enabled && (
-              <div style={styles.totalsRow}>
-                <span style={{ fontFamily: F, fontSize: 13, color: '#555' }}>GST (18%)</span>
-                <span style={{ fontFamily: F, fontSize: 13, color: '#1A1A1A', fontWeight: 500 }}>{formatCurrency(quotation.gst_amount)}</span>
-              </div>
+              <tr><td>GST at 18%</td><td className="ngq-n">{formatNumber(quotation.gst_amount)}</td></tr>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: `2px solid ${b.teal}` }}>
-              <span style={{ fontFamily: F, fontSize: 16, color: b.teal, fontWeight: 700 }}>Total</span>
-              <span style={{ fontFamily: F, fontSize: 16, color: b.teal, fontWeight: 700 }}>{formatCurrency(quotation.total_amount)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 2px' }}>
-              <span style={{ fontFamily: F, fontSize: 12, color: b.ochre, fontWeight: 500 }}>Advance ({quotation.advance_pct}%) due now</span>
-              <span style={{ fontFamily: F, fontSize: 12, color: b.ochre, fontWeight: 700 }}>{formatCurrency(quotation.advance_amount)}</span>
-            </div>
-            {/* Balance due = event Day 1 minus 10 days, computed from the
-                event date so it re-derives with it; worded fallback when the
-                date is astrologer-pending (confirmed rule, findings 3a). */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 8px' }}>
-              <span style={{ fontFamily: F, fontSize: 12, color: '#555', fontWeight: 500 }}>
-                Balance ({100 - quotation.advance_pct}%) due {balanceDueDate(quotation.event_date) ? formatDocumentDate(balanceDueDate(quotation.event_date)!) : '10 days before the event'}
-              </span>
-              <span style={{ fontFamily: F, fontSize: 12, color: '#555', fontWeight: 700 }}>{formatCurrency(Math.round((quotation.total_amount - quotation.advance_amount + Number.EPSILON) * 100) / 100)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+            <tr className="ngq-grand"><td>Total</td><td className="ngq-n">{formatCurrency(quotation.total_amount)}</td></tr>
+            <tr className="ngq-adv"><td>Advance ({quotation.advance_pct}%) due now</td><td className="ngq-n">{formatCurrency(quotation.advance_amount)}</td></tr>
+            <tr className="ngq-bal">
+              <td>Balance ({100 - quotation.advance_pct}%) due {balDue ? formatDocumentDate(balDue) : '10 days before the event'}</td>
+              <td className="ngq-n">{formatCurrency(balanceAmount)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
 
-      {/* Terms */}
-      <div style={{ padding: '0 52px 32px' }}>
-        <div style={styles.sectionLabel(b, F)}>TERMS AND CONDITIONS</div>
-        <div style={{ color: '#999', fontFamily: F, fontSize: 12, lineHeight: 2, marginTop: 10 }}>
-          <div>1. This quotation is valid for {quotation.validity_days} days from the date of issue.</div>
-          <div>2. {quotation.advance_pct}% advance payment required to confirm the booking.</div>
-          <div>
-            3. The balance {100 - quotation.advance_pct}% is due 10 days before the event
-            {balanceDueDate(quotation.event_date) ? ` (by ${formatDocumentDate(balanceDueDate(quotation.event_date)!)})` : ''}.
-          </div>
-          <div>4. Cancellation within 7 days of the event, the advance is non-refundable.</div>
-          <div>5. Any additions to scope on the day will be billed separately.</div>
-          {quotation.gst_enabled && b.gstin && <div>6. GST at 18% included. GSTIN: {b.gstin}</div>}
-        </div>
-      </div>
+      {/* Amount in words */}
+      {inWords && (
+        <p className="ngq-words">
+          Amount in words&nbsp;&nbsp;<b>{inWords}</b>
+        </p>
+      )}
+
+      {/* Terms — live text (phase 6 advance rule), reference styling. */}
+      <section className="ngq-terms">
+        <p className="ngq-section-label">Terms and conditions</p>
+        <ol>
+          <li>This quotation is valid for {quotation.validity_days} days from the date of issue.</li>
+          <li>{quotation.advance_pct}% advance payment required to confirm the booking.</li>
+          <li>
+            The balance {100 - quotation.advance_pct}% is due 10 days before the event
+            {balDue ? ` (by ${formatDocumentDate(balDue)})` : ''}.
+          </li>
+          <li>Cancellation within 7 days of the event, the advance is non-refundable.</li>
+          <li>Any additions to scope on the day will be billed separately.</li>
+          {quotation.gst_enabled && b.gstin && <li>GST at 18% included. GSTIN: {b.gstin}</li>}
+        </ol>
+      </section>
 
       {/* Footer */}
       {(b.contactLines.length > 0 || b.addressLines.length > 0) && (
-        <div style={{ background: b.teal, padding: '24px 52px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ color: b.cream, fontFamily: F, fontSize: 12, lineHeight: 1.9, opacity: 0.85 }}>
+        <footer className="ngq-foot">
+          <div>
             {b.contactLines.map((line) => (
               <div key={line}>{line}</div>
             ))}
           </div>
-          <div style={{ textAlign: 'right' }}>
-            {b.tagline && <div style={{ color: b.gold, fontFamily: b.fontDisplay, fontStyle: 'italic', fontSize: 14 }}>{b.tagline}</div>}
+          <div className="ngq-foot-r">
+            {b.tagline && <span className="ngq-foot-tag">{b.tagline}</span>}
             {b.addressLines.map((line) => (
-              <div key={line} style={{ color: b.cream, fontFamily: F, fontSize: 11, marginTop: 4, opacity: 0.6 }}>{line}</div>
+              <div key={line}>{line}</div>
             ))}
+            {(b.gstin || b.sac) && (
+              <div className="ngq-foot-reg">
+                {b.gstin ? `GSTIN ${b.gstin}` : ''}{b.gstin && b.sac ? ' \u00B7 ' : ''}{b.sac ? `SAC ${b.sac}` : ''}
+              </div>
+            )}
           </div>
-        </div>
+        </footer>
       )}
     </div>
   )
 }
 
-const styles = {
-  sectionLabel: (b: { gold: string }, F: string): CSSProperties => ({
-    color: b.gold,
-    fontSize: 10,
-    letterSpacing: 3,
-    fontFamily: F,
-    fontWeight: 700,
-  }),
-  sectionValue: (b: { teal: string }, F: string): CSSProperties => ({
-    color: b.teal,
-    fontSize: 18,
-    fontFamily: F,
-    fontWeight: 700,
-    marginTop: 10,
-    marginBottom: 4,
-  }),
-  detailBlock: (F: string): CSSProperties => ({
-    color: '#555',
-    fontFamily: F,
-    fontSize: 13,
-    lineHeight: 1.8,
-  }),
-  totalsRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '8px 0',
-    borderBottom: '1px solid #E2DDD6',
-  } as CSSProperties,
+/** Plain en-IN grouped number, no currency sign — the reference reserves the
+ *  rupee sign for the grand total and the advance/balance rows. */
+function formatNumber(amount: number): string {
+  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(amount)
+}
+
+const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen']
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+
+function twoDigits(n: number): string {
+  if (n < 20) return ONES[n]
+  return `${TENS[Math.floor(n / 10)]}${n % 10 ? ' ' + ONES[n % 10] : ''}`
+}
+
+function threeDigits(n: number): string {
+  const h = Math.floor(n / 100)
+  const rest = n % 100
+  return `${h ? ONES[h] + ' Hundred' + (rest ? ' ' : '') : ''}${rest ? twoDigits(rest) : ''}`
+}
+
+/** Indian-system rupees in words: crore / lakh / thousand / hundred.
+ *  Whole rupees only (documents print rounded rupees throughout). */
+function rupeesInWords(amount: number): string | null {
+  const n = Math.round(amount)
+  if (!Number.isFinite(n) || n <= 0) return null
+  if (n >= 1_00_00_00_000) return null
+  const crore = Math.floor(n / 1_00_00_000)
+  const lakh = Math.floor((n % 1_00_00_000) / 1_00_000)
+  const thousand = Math.floor((n % 1_00_000) / 1000)
+  const rest = n % 1000
+  const parts: string[] = []
+  if (crore) parts.push(`${twoDigits(crore)} Crore`)
+  if (lakh) parts.push(`${twoDigits(lakh)} Lakh`)
+  if (thousand) parts.push(`${twoDigits(thousand)} Thousand`)
+  if (rest) parts.push(threeDigits(rest))
+  return `${parts.join(' ')} rupees only`
+}
+
+/** The reference sheet's CSS, namespaced ngq-/ngp- so nothing leaks into the
+ *  portal chrome. Brandable colours come from the tenant document theme; the
+ *  neutrals (ink/paper/sand/rules) are the reference's own print palette,
+ *  deliberately separate from the portal token layer per the decision log.
+ *  print-color-adjust: exact keeps the teal bands, the kolam pattern and the
+ *  sheen in the print/PDF path. */
+function docCss(b: ReturnType<typeof getDocumentTheme>): string {
+  return `
+.ngq-doc{
+  --ink:#0E1A1B; --ink-2:#3A4A4B; --ink-3:#66787A;
+  --teal:${b.teal}; --teal-deep:#02373B; --teal-wash:#E8F3F4;
+  --gold:#8A6A22; --gold-leaf:${b.gold}; --gold-wash:#F9F4E8;
+  --paper:#FBF9F5; --sand:#EFE9DE; --rule:#DED6C6; --rule-soft:#EBE5D9;
+  max-width:820px; margin:0 auto; background:var(--paper);
+  font-family:${b.fontUI}; font-size:14px; line-height:1.55; color:var(--ink);
+  -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums;
+  box-shadow:0 1px 2px rgba(14,26,27,.10), 0 18px 50px rgba(14,26,27,.13);
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+.ngq-doc .ngp-pattern{
+  position:absolute; inset:0; width:100%; height:100%;
+  color:var(--ngp-color, var(--gold-leaf));
+  opacity:var(--ngp-opacity, 1);
+  transform:scale(var(--ngp-tile-scale, 1));
+  transform-origin:50% 50%;
+  z-index:-1; pointer-events:none;
+}
+.ngq-doc .ngp-sheen{
+  position:absolute; inset:0;
+  background:linear-gradient(180deg,
+    rgba(2,16,17,.34) 0%, rgba(255,255,255,.05) 24%, rgba(255,255,255,.48) 50%,
+    rgba(255,255,255,.05) 76%, rgba(2,16,17,.34) 100%);
+  mix-blend-mode:overlay;
+  opacity:var(--ngp-sheen-opacity, .85);
+  z-index:-1; pointer-events:none;
+}
+.ngq-mast{
+  position:relative; isolation:isolate; overflow:hidden;
+  background:var(--teal); color:#F4F1E9;
+  padding:36px 44px 30px;
+  display:flex; justify-content:space-between; align-items:flex-start; gap:28px;
+  --ngp-color:#FFFFFF; --ngp-opacity:.3; --ngp-tile-scale:1.4; --ngp-sheen-opacity:.68;
+}
+.ngq-lockup{width:172px; flex-shrink:0; position:relative; z-index:1}
+.ngq-lockup img{display:block; width:100%; height:auto}
+.ngq-lockup-text{position:relative; z-index:1}
+.ngq-lockup-name{color:var(--gold-leaf); font-size:20px; font-weight:700}
+.ngq-lockup-tag{color:var(--gold-leaf); font-size:13px; font-style:italic; margin-top:4px; opacity:.9}
+.ngq-docmeta{text-align:right; position:relative; z-index:1}
+.ngq-doctype{font-size:10.5px; font-weight:600; letter-spacing:.20em; text-transform:uppercase; color:var(--gold-leaf); margin:0 0 8px}
+.ngq-docno{font-size:22px; font-weight:600; letter-spacing:-.01em; color:#FFFFFF; line-height:1.1}
+.ngq-docdates{margin-top:7px; font-size:12px; color:#BDD2D2; line-height:1.6}
+.ngq-meta{display:grid; grid-template-columns:1fr 1fr; gap:0; border-bottom:1px solid var(--rule)}
+.ngq-meta > div{padding:22px 44px 20px}
+.ngq-meta > div + div{border-left:1px solid var(--rule-soft)}
+.ngq-eyebrow{font-size:10px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); margin:0 0 9px}
+.ngq-party{font-size:17px; font-weight:600; letter-spacing:-.01em; margin:0 0 3px}
+.ngq-dl{display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px; margin:0}
+.ngq-dl dt{color:var(--ink-3)}
+.ngq-dl dd{margin:0; color:var(--ink-2)}
+.ngq-scope{padding:26px 44px 0}
+.ngq-section-label{font-size:10px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); margin:0 0 18px}
+.ngq-fn{margin-bottom:30px}
+.ngq-fn-head{
+  display:flex; align-items:baseline; justify-content:space-between;
+  gap:16px; flex-wrap:wrap; padding-bottom:9px; border-bottom:2px solid var(--teal);
+}
+.ngq-fn-name{font-size:19px; font-weight:600; letter-spacing:-.015em; color:var(--teal); margin:0}
+.ngq-fn-terms{display:flex; gap:8px; flex-wrap:wrap}
+.ngq-chip{
+  font-size:11px; font-weight:500; padding:3px 10px; border-radius:3px;
+  background:var(--gold-wash); color:var(--gold); border:1px solid var(--rule); white-space:nowrap;
+}
+.ngq-chip-set{background:var(--teal-wash); color:var(--teal); border-color:#CBE0E1}
+.ngq-table{width:100%; border-collapse:collapse; margin-top:2px}
+.ngq-table thead th{
+  font-size:9.5px; font-weight:600; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--ink-3); text-align:left; padding:11px 0 8px; border-bottom:1px solid var(--rule);
+}
+.ngq-table th.ngq-n, .ngq-table td.ngq-n{text-align:right}
+.ngq-table th.ngq-qty, .ngq-table td.ngq-qty{text-align:right; white-space:nowrap}
+.ngq-zone td{
+  padding:15px 0 5px; font-size:9.5px; font-weight:600; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--teal); border-bottom:0;
+}
+.ngq-table tbody td{padding:8px 0; border-bottom:1px solid var(--rule-soft); font-size:13.5px}
+.ngq-table tbody tr.ngq-zone td{border-bottom:0}
+.ngq-item{padding-right:16px}
+.ngq-item-finish{display:block; font-size:11px; color:var(--gold); margin-top:1px}
+.ngq-item-note{display:block; font-size:11.5px; color:var(--ink-3); margin-top:1px}
+.ngq-amt{font-weight:600; width:110px}
+.ngq-rate{color:var(--ink-2); width:96px}
+.ngq-fn-sub{
+  display:flex; justify-content:flex-end; gap:26px;
+  padding:11px 0 0; font-size:12.5px; color:var(--ink-2);
+}
+.ngq-fn-sub b{color:var(--ink); font-weight:600}
+.ngq-totals{padding:4px 44px 0; display:flex; justify-content:flex-end}
+.ngq-totals table{width:340px; margin:0; border-collapse:collapse}
+.ngq-totals td{padding:8px 0; font-size:13.5px; border-bottom:1px solid var(--rule-soft)}
+.ngq-totals td.ngq-n{font-weight:500; text-align:right}
+.ngq-totals tr.ngq-discount td{color:${b.ruby}}
+.ngq-totals tr.ngq-grand td{
+  border-top:2px solid var(--teal); border-bottom:0;
+  padding-top:12px; font-size:19px; font-weight:600; color:var(--teal); letter-spacing:-.015em;
+}
+.ngq-totals tr.ngq-adv td{border-bottom:0; padding-top:6px; font-size:13px; color:var(--gold); font-weight:500}
+.ngq-totals tr.ngq-bal td{border-bottom:0; padding-top:2px; font-size:13px; color:var(--ink-2); font-weight:500}
+.ngq-words{
+  margin:22px 44px 0; padding:13px 16px;
+  background:var(--sand); border-left:3px solid var(--gold-leaf);
+  font-size:12.5px; color:var(--ink-2);
+}
+.ngq-words b{color:var(--ink); font-weight:600}
+.ngq-terms{padding:26px 44px 30px}
+.ngq-terms ol{margin:0; padding-left:17px; font-size:11.5px; color:var(--ink-2); line-height:1.75}
+.ngq-terms li{margin-bottom:2px}
+.ngq-terms li::marker{color:var(--ink-3)}
+.ngq-foot{
+  background:var(--teal-deep); color:#C6D6D6;
+  padding:22px 44px;
+  display:flex; justify-content:space-between; gap:28px; flex-wrap:wrap;
+  font-size:11.5px; line-height:1.7;
+}
+.ngq-foot-r{text-align:right}
+.ngq-foot-tag{color:var(--gold-leaf); font-style:italic; font-size:12px}
+.ngq-foot-reg{color:#8FA9A9; margin-top:5px}
+@media (max-width:720px){
+  .ngq-meta{grid-template-columns:1fr}
+  .ngq-meta > div + div{border-left:0; border-top:1px solid var(--rule-soft)}
+  .ngq-mast{flex-direction:column; padding:26px 24px}
+  .ngq-docmeta{text-align:left}
+  .ngq-scope,.ngq-terms{padding-left:24px; padding-right:24px}
+  .ngq-totals{padding-left:24px; padding-right:24px}
+  .ngq-words{margin-left:24px; margin-right:24px}
+  .ngq-foot{padding:20px 24px}
+  .ngq-foot-r{text-align:left}
+  .ngq-totals table{width:100%}
+}
+@media print{
+  .ngq-doc{box-shadow:none; max-width:none}
+  .ngq-fn{break-inside:avoid}
+  .ngq-table tr{break-inside:avoid}
+  @page{margin:12mm}
+}
+`
 }
