@@ -413,3 +413,5 @@ Eswar ran `wrangler login` in-session, which unblocked everything Cloudflare-sid
 - Password grant endpoint reachable from the new origin and rejecting wrong credentials correctly.
 
 **Remaining, needs a human in a browser:** password sign-in as mohan@, magic link and password reset email receipt, builder click-through (zone rail + delete UI included), localhost dev login run.
+
+**Login screen additions (same PR):** a Forgot password link on the Email + Password tab (shared LoginPage, every tenant), and a recovery screen: following a reset link fires Supabase's PASSWORD_RECOVERY event after the PKCE code exchange, which swaps the login card for a Set new password form (password + confirm, updateUser, then role-based redirect). A ref guards the page's signed-in auto-redirect so the recovery session is not bounced to the dashboard before the password is set. AccountPage's reset redirect was also fixed: it hardcoded eswarcreatives.in/portal/reset-password, a wrong-tenant URL AND a route that never existed. PKCE caveat: a reset link must be opened in the same browser that requested it, or the code exchange fails.
