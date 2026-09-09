@@ -589,6 +589,9 @@ function docCss(b: ReturnType<typeof getDocumentTheme>): string {
   .ngq-doc{box-shadow:none; max-width:none}
   .ngq-fn{break-inside:avoid}
   .ngq-table tr{break-inside:avoid}
+  /* Keep the money together: without this the totals table fragments and a
+     page break can land between Total and the advance/balance lines. */
+  .ngq-totals, .ngq-words, .ngq-terms{break-inside:avoid}
   @page{margin:12mm}
 }
 `
