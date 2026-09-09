@@ -11,7 +11,13 @@ import { CLIENT_NAV_HEIGHT } from './client/ClientNav'
 import { tokens, fonts, motionTokens } from './theme'
 import { useBreakpoint } from './hooks/useBreakpoint'
 
-const RESET_REDIRECT = 'https://www.eswarcreatives.in/portal/reset-password'
+// Origin-relative so the link follows whichever tenant domain served the
+// page. The old hardcoded eswarcreatives.in URL sent every tenant's users to
+// Eswar's domain, and to /portal/reset-password, a route that has never
+// existed. The recovery link signs the user in on /portal/login, whose
+// session check routes them by role. A function, not a module constant, so
+// window is only touched in the browser.
+const resetRedirect = () => `${window.location.origin}/portal/login`
 
 export function AccountPage() {
   const profile = useOutletContext<PortalProfile>()
@@ -30,7 +36,7 @@ function Account({ profile }: { profile: PortalProfile }) {
     setError(null)
     try {
       const { error: err } = await supabase.auth.resetPasswordForEmail(profile.email, {
-        redirectTo: RESET_REDIRECT,
+        redirectTo: resetRedirect(),
       })
       if (err) throw err
       // H1: clear confirmation that the action succeeded.

@@ -86,6 +86,33 @@ export function LoginPage() {
     }
   }
 
+  // The recovery link signs the user in and lands back here, where the
+  // session check routes them by role — same origin-relative pattern as the
+  // magic link, so it follows whichever tenant domain served the page.
+  async function handleForgotPassword() {
+    setError(null)
+    setInfo(null)
+    if (!email) {
+      // H5: the reset needs an address; say so instead of failing silently.
+      setError('Enter your email above first, then tap Forgot password.')
+      return
+    }
+    setBusy(true)
+    try {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/portal/login`,
+      })
+      if (err) throw err
+      // H1: clear confirmation that the action succeeded.
+      setInfo(`Password reset link sent to ${email}. Check your inbox.`)
+    } catch {
+      // H9: plain-language error, never a raw Supabase string.
+      setError('We could not send the reset link. Please try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // Full display name for SEO/social copy — distinct from theme.ts's
   // brandName (the compact nav wordmark, 'EswarCreatives' with no space).
   // Falls back to the exact literal live today so an unresolved tenant
@@ -165,6 +192,19 @@ export function LoginPage() {
                 </button>
               </div>
             </label>
+          )}
+
+          {mode === 'password' && (
+            <div style={styles.forgotRow}>
+              <button
+                type="button"
+                style={styles.forgotLink}
+                onClick={() => void handleForgotPassword()}
+                disabled={busy}
+              >
+                Forgot password?
+              </button>
+            </div>
           )}
 
           {error && <div style={styles.error}>{error}</div>}
@@ -265,6 +305,21 @@ const styles: Record<string, React.CSSProperties> = {
     outline: 'none',
   },
   passwordWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
+  forgotRow: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginTop: -6,
+  },
+  forgotLink: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.primary,
+    textDecoration: 'underline',
+  },
   eyeBtn: {
     position: 'absolute',
     right: 12,
