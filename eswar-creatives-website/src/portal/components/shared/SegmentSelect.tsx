@@ -81,6 +81,9 @@ export function SegmentSelect({
   return (
     <span style={styles.wrap} onClick={(e) => e.stopPropagation()}>
       <select
+        // Opts out of the global select-caret rule (styles/index.css):
+        // this select draws its own ChevronDown overlay.
+        className="ec-own-caret"
         style={{
           ...styles.select,
           background: tone.bg,
