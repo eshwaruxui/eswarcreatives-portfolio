@@ -168,6 +168,30 @@ html::-webkit-scrollbar {
     left: 0;
     width: 100%;
   }
+
+  /* ── Quotation document (build 4 phase 7 smoke finding) ──────────────
+     The visibility technique above is written for invoices but its first
+     selector is GLOBAL: `body:not([data-ec-printing]) *` hides everything
+     on any page printed without the invoice JS path, and only re-shows
+     .ec-invoice-document. The quotation document is not that element, so
+     every quotation print — public share link AND the builder's Preview
+     and Print, both of which call a bare window.print() — produced a
+     correctly paginated but completely blank PDF. Caught by the 9 Sept
+     production smoke: the document rendered in the live DOM while
+     printToPDF returned empty pages, and print-media emulation showed
+     .ngq-doc computing to visibility:hidden.
+
+     Deliberately NOT given the invoice's position:absolute lift: an
+     absolutely positioned box does not fragment across pages, which would
+     print page one of a multi-page quotation and silently drop the rest.
+     Hiding the chrome via .no-print instead keeps normal flow, so the
+     document paginates. */
+  body:not([data-ec-printing]) .ngq-doc,
+  body:not([data-ec-printing]) .ngq-doc * { visibility: visible; }
+
+  /* .no-print was already on the public page's top bar and the builder's
+     preview toolbar, but no rule ever defined it — a dangling hook. */
+  .no-print { display: none !important; }
 }
 /* ── App-wide scrollbars (build 4 phase 4, item 4) ─────────────────── */
 /* Reference: the Claude.ai chat scrollbar — a thin rounded thumb in a muted
