@@ -485,7 +485,7 @@ function docCss(b: ReturnType<typeof getDocumentTheme>): string {
   background:var(--teal); color:#F4F1E9;
   padding:36px 44px 30px;
   display:flex; justify-content:space-between; align-items:flex-start; gap:28px;
-  --ngp-color:#FFFFFF; --ngp-opacity:.3; --ngp-tile-scale:1.4; --ngp-sheen-opacity:.68;
+  --ngp-color:#FFFFFF; --ngp-opacity:.13; --ngp-tile-scale:1.4; --ngp-sheen-opacity:.68;
 }
 .ngq-lockup{width:172px; flex-shrink:0; position:relative; z-index:1}
 .ngq-lockup img{display:block; width:100%; height:auto}
