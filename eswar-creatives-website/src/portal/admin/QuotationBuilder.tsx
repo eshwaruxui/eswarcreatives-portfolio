@@ -328,17 +328,20 @@ export function QuotationBuilder() {
   // Category strips stick immediately below the stuck rail (gate 7 F1). The
   // rail's height varies (zone rail, optional function switch, guidance
   // line), so its bottom edge is measured, not hardcoded.
-  const placementRef = useRef<HTMLDivElement | null>(null)
+  // Callback ref, not useRef: the builder mounts on the FORM view, where the
+  // placement bar does not exist yet — a mount-time effect saw a null ref,
+  // never attached the observer, and the strips stuck at the 280px fallback
+  // (~58px of dead gap under the rail, Eswar's 9 Sept screenshot).
+  const [placementEl, setPlacementEl] = useState<HTMLDivElement | null>(null)
   const [stripTop, setStripTop] = useState(280)
   useEffect(() => {
-    const el = placementRef.current
-    if (!el) return
-    const measure = () => setStripTop(64 + el.offsetHeight + 8)
+    if (!placementEl) return
+    const measure = () => setStripTop(64 + placementEl.offsetHeight + 8)
     measure()
     const ro = new ResizeObserver(measure)
-    ro.observe(el)
+    ro.observe(placementEl)
     return () => ro.disconnect()
-  }, [])
+  }, [placementEl])
 
   const [discount, setDiscount] = useState(0)
   const [advance, setAdvance] = useState(DEFAULT_ADVANCE_PCT)
@@ -1607,7 +1610,7 @@ export function QuotationBuilder() {
       {/* The function switch and the zone strip together answer "where is
           the next tap going to land", so they stay pinned while the operator
           works down the element list. top: 56 clears the sticky TopBar. */}
-      <div ref={placementRef} className="ec-squircle" style={styles.placementBar}>
+      <div ref={setPlacementEl} className="ec-squircle" style={styles.placementBar}>
       {twoFunction && (
         <div style={styles.functionSwitch}>
           {(['reception', 'muhurtham'] as QuotationFunctionKey[]).map((fn) => {
