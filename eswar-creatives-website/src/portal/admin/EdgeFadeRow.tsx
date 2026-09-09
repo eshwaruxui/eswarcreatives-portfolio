@@ -11,7 +11,7 @@ export function EdgeFadeRow({
   children,
   fadeColor,
   gap = 4,
-  paddingBottom = 2,
+  padding = '0 0 2px',
   role,
   ariaLabel,
   updateKey,
@@ -20,7 +20,10 @@ export function EdgeFadeRow({
   /** The background the fades blend into (the row's surrounding colour). */
   fadeColor: string
   gap?: number
-  paddingBottom?: number
+  /** Inset padding on the scroll track. A row whose children carry a focus
+   *  outline needs enough here for the full ring to render inside the
+   *  track, or overflow clips it at the container edge. */
+  padding?: string | number
   role?: string
   ariaLabel?: string
   /** Changes here re-measure the fades (e.g. when async content arrives). */
@@ -65,7 +68,7 @@ export function EdgeFadeRow({
           display: 'flex',
           gap,
           overflowX: 'auto',
-          paddingBottom,
+          padding,
           scrollBehavior: reducedMotion ? 'auto' : 'smooth',
         }}
       >

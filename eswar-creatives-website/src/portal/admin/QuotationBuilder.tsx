@@ -141,6 +141,11 @@ type MockupCandidate = {
 type ClientForm = { name: string; phone: string; email: string; address: string }
 type EventForm = { type: string; date: string; venue: string; guestCount: string; notes: string }
 
+// Widened from the original 380px column (phase 4 item 5): at 380 the header,
+// line rows and footer read congested once real item names and finish
+// selectors are in play.
+const SUMMARY_DRAWER_WIDTH = 460
+
 const inputStyle: CSSProperties = {
   width: '100%', padding: '9px 12px', border: `1px solid ${tokens.border}`,
   borderRadius: 6, fontFamily: fonts.body, fontSize: 14, color: t.text.primary,
@@ -1371,7 +1376,7 @@ export function QuotationBuilder() {
           <div style={{ fontFamily: fonts.body, fontSize: 14, color: t.text.tertiary }}>Fill in client and event details to get started.</div>
         </div>
 
-        <section style={styles.formCard}>
+        <section className="ec-squircle" style={styles.formCard}>
           <div style={styles.formCardTitle}>CLIENT INFORMATION</div>
           <div style={styles.formGrid}>
             <div>
@@ -1393,7 +1398,7 @@ export function QuotationBuilder() {
           </div>
         </section>
 
-        <section style={styles.formCard}>
+        <section className="ec-squircle" style={styles.formCard}>
           <div style={styles.formCardTitle}>EVENT INFORMATION</div>
           <div style={styles.formGrid}>
             <div>
@@ -1476,7 +1481,7 @@ export function QuotationBuilder() {
 
         {/* The one part that earns its own step: the number of days
             determines how many session controls appear. */}
-        <section style={styles.formCard}>
+        <section className="ec-squircle" style={styles.formCard}>
           <div style={styles.formCardTitle}>DAYS AND SESSIONS</div>
           <div style={{ fontFamily: fonts.body, fontSize: 12, color: t.text.tertiary, margin: '8px 0 14px', lineHeight: 1.5 }}>
             One day can carry more than one event. Muhurtham is the morning slot; the reception is the evening.
@@ -1523,7 +1528,7 @@ export function QuotationBuilder() {
       style={{
         // The open drawer's width is taken FROM the catalogue, not laid over
         // it; collapsing hands it back (Eswar, build 4 revision).
-        paddingRight: !isMobile && summaryOpen ? 400 : 0,
+        paddingRight: !isMobile && summaryOpen ? SUMMARY_DRAWER_WIDTH + 20 : 0,
         transition: 'padding-right 0.28s ease',
       }}
     >
@@ -1611,7 +1616,7 @@ export function QuotationBuilder() {
         {/* Element catalog — full width; the summary drawer's space is
             reserved by the page-level paddingRight while it is open. */}
         <div>
-          <div style={styles.mockupCard}>
+          <div className="ec-squircle" style={styles.mockupCard}>
             <div style={styles.formCardTitle}>ANALYSE A MOCKUP</div>
             <div style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary, margin: '6px 0 12px', lineHeight: 1.5 }}>
               Upload a concept image to identify elements. Analysis returns a candidate list —
@@ -1801,7 +1806,7 @@ export function QuotationBuilder() {
             + Add Custom Element Manually
           </button>
           {showManual && (
-            <div style={styles.manualForm}>
+            <div className="ec-squircle" style={styles.manualForm}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={labelStyle}>Element Name</label>
@@ -1851,7 +1856,7 @@ export function QuotationBuilder() {
         <PersistentDrawer
           open={summaryOpen}
           onClose={() => setSummaryOpen(false)}
-          width={380}
+          width={SUMMARY_DRAWER_WIDTH}
           topOffset={isMobile ? 0 : 56}
           ariaLabel="Quote summary"
         >
@@ -2379,21 +2384,25 @@ const styles: Record<string, CSSProperties> = {
     background: 'transparent', border: 'none', borderRadius: 6,
     color: tokens.gold, cursor: 'pointer',
   },
+  // Ruby, not teal (phase 4 item 3): the collapsed tab carries the running
+  // total and must read high-attention, not blend in as a neutral control.
   summaryTab: {
     position: 'fixed', right: 0, top: '45%', zIndex: 119,
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-    padding: '12px 7px', background: tokens.primary, color: tokens.gold,
+    padding: '12px 7px', background: tokens.ruby, color: t.text.inverse,
     border: 'none', borderRadius: '8px 0 0 8px', cursor: 'pointer',
-    boxShadow: '-4px 2px 12px rgba(2, 76, 79, 0.18)',
+    boxShadow: '-4px 2px 12px rgba(176, 13, 45, 0.22)',
   },
   summaryTabText: {
     writingMode: 'vertical-rl', fontFamily: fonts.body, fontSize: 12,
     fontWeight: 600, letterSpacing: '0.02em', whiteSpace: 'nowrap',
   },
+  // Same ruby as the desktop tab: it is the same collapsed-summary control
+  // in a different frame.
   summaryBarMobile: {
     position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 119,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-    padding: '13px 16px', background: tokens.primary, color: tokens.gold,
+    padding: '13px 16px', background: tokens.ruby, color: t.text.inverse,
     border: 'none', cursor: 'pointer', fontFamily: fonts.body, fontSize: 14, fontWeight: 600,
   },
   summaryBarHint: {

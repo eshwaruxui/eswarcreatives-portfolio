@@ -106,9 +106,13 @@ export function ZoneRail({
 
   return (
     <div>
+      {/* The !important flags are load-bearing: each tile carries an inline
+          background (transparent / teal when selected), and an inline style
+          always beats a class rule without them — which is exactly why the
+          hover state never showed (phase 4 item 1). */}
       <style>{`
-        .zr-tile:hover { background: ${tokens.primary}12; }
-        .zr-tile[aria-pressed="true"]:hover { background: ${tokens.primary}; }
+        .zr-tile:hover { background: ${tokens.primary}12 !important; }
+        .zr-tile[aria-pressed="true"]:hover { background: ${tokens.primary} !important; }
         .zr-tile:focus-visible { outline: 2px solid ${tokens.gold}; outline-offset: 1px; }
       `}</style>
 
@@ -124,6 +128,10 @@ export function ZoneRail({
         role="tablist"
         ariaLabel="Zones, in quoting order"
         updateKey={zones.length}
+        // 4px inset on every side: the gold focus ring (2px outline + 1px
+        // offset) extends past a tile's box, and without this the scroll
+        // track's overflow crops it top and bottom (phase 4 item 1).
+        padding={4}
       >
           {zones.map((z) => {
             const count = countByZone[z.key] ?? 0
