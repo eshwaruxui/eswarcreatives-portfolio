@@ -51,6 +51,8 @@ import {
   listRate,
   commissionComponent,
   lineAmount,
+  balanceDueDate,
+  DEFAULT_ADVANCE_PCT,
   type PricingContext,
   type QuotationFunctionKey,
 } from '../components/quotation/quotationMath'
@@ -149,7 +151,7 @@ const SUMMARY_DRAWER_WIDTH = 460
 const inputStyle: CSSProperties = {
   width: '100%', padding: '9px 12px', border: `1px solid ${tokens.border}`,
   borderRadius: 6, fontFamily: fonts.body, fontSize: 14, color: t.text.primary,
-  background: '#fff', outline: 'none', boxSizing: 'border-box',
+  background: tokens.surface, outline: 'none', boxSizing: 'border-box',
 }
 const labelStyle: CSSProperties = {
   fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: t.text.secondary,
@@ -324,7 +326,7 @@ export function QuotationBuilder() {
   const { isMobile } = useBreakpoint()
 
   const [discount, setDiscount] = useState(0)
-  const [advance, setAdvance] = useState(50)
+  const [advance, setAdvance] = useState(DEFAULT_ADVANCE_PCT)
   const [validDays, setValidDays] = useState(7)
   const [gstEnabled, setGstEnabled] = useState(false)
 
@@ -452,7 +454,9 @@ export function QuotationBuilder() {
       setMuhurthamFinish(q.muhurtham_finish_key ?? '')
       setReadymadeVariant(q.readymade_variant ?? '')
       setDiscount(Number(q.discount_pct) || 0)
-      setAdvance(Number(q.advance_pct) || 50)
+      // Stored value wins for existing quotations (0 is a legitimate stored
+      // advance); the 10% default applies to new ones only.
+      setAdvance(q.advance_pct == null ? DEFAULT_ADVANCE_PCT : Number(q.advance_pct))
       setValidDays(Number(q.validity_days) || 7)
       setGstEnabled(!!q.gst_enabled)
       setCommissionPct(Number(q.commission_pct) || 0)
@@ -1231,7 +1235,7 @@ export function QuotationBuilder() {
                 style={{
                   padding: compact ? '5px 12px' : '8px 18px', borderRadius: 6, cursor: 'pointer',
                   fontFamily: fonts.body, fontSize: compact ? 12 : 13, fontWeight: isActive ? 700 : 500,
-                  background: isActive ? tokens.primary : '#fff',
+                  background: isActive ? tokens.primary : tokens.surface,
                   color: isActive ? tokens.gold : t.text.secondary,
                   border: `1px solid ${isActive ? tokens.primary : tokens.border}`,
                 }}
@@ -1304,8 +1308,8 @@ export function QuotationBuilder() {
               title={hasUnpriced ? 'Every line needs a rate before this can be sent' : undefined}
               style={{
                 ...styles.toolbarBtnPrimary,
-                background: hasUnpriced ? '#C8C4BC' : tokens.primary,
-                color: hasUnpriced ? '#999' : tokens.gold,
+                background: hasUnpriced ? 'var(--ec-bg-tint-3)' : tokens.primary,
+                color: hasUnpriced ? t.text.disabled : tokens.gold,
                 cursor: hasUnpriced ? 'not-allowed' : 'pointer',
               }}
               onClick={() => void handleSend()}
@@ -1568,6 +1572,7 @@ export function QuotationBuilder() {
               `${dayCount} day${dayCount > 1 ? 's' : ''}`,
               sessionsSummary || null,
             ].filter(Boolean).join(' · ')}
+            <Pencil size={11} style={{ marginLeft: 7, flexShrink: 0 }} aria-hidden="true" />
           </button>
           <span>{client.name}{client.phone ? ` · ${client.phone}` : ''}</span>
         </div>
@@ -1630,7 +1635,7 @@ export function QuotationBuilder() {
           // Plain helper text, not a box: the old bordered treatment read
           // as an input to type into (phase 5 item 2).
           <div style={styles.zonePrompt}>
-            <Info size={13} aria-hidden="true" />
+            <Info size={14} fill="currentColor" color="var(--ec-bg-subtle)" strokeWidth={2} aria-hidden="true" />
             Pick a zone to start adding elements.
           </div>
         ) : (
@@ -1741,7 +1746,7 @@ export function QuotationBuilder() {
                     style={{
                       padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
                       fontFamily: fonts.body, fontSize: 12, fontWeight: isActive ? 600 : 400,
-                      background: isActive ? tokens.primary : '#fff',
+                      background: isActive ? tokens.primary : tokens.surface,
                       color: isActive ? tokens.gold : t.text.secondary,
                       border: `1px solid ${isActive ? tokens.primary : tokens.border}`,
                       flexShrink: 0,
@@ -1792,7 +1797,7 @@ export function QuotationBuilder() {
                           padding: '11px 14px', borderRadius: 6,
                           cursor: zoneChosen ? 'pointer' : 'not-allowed',
                           opacity: zoneChosen ? 1 : 0.55,
-                          background: isAdded ? `${tokens.primary}15` : '#fff',
+                          background: isAdded ? `${tokens.primary}15` : tokens.surface,
                           border: `1px solid ${isAdded ? tokens.primary : tokens.border}`,
                         }}
                       >
@@ -1816,9 +1821,9 @@ export function QuotationBuilder() {
                           </div>
                           <div style={{
                             width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            background: isAdded ? tokens.primary : '#fff',
-                            border: `1.5px solid ${isAdded ? tokens.primary : zoneChosen ? tokens.border : '#DDD8D0'}`,
-                            color: isAdded ? tokens.gold : zoneChosen ? t.text.tertiary : '#C8C4BC', fontSize: 16, fontWeight: 700,
+                            background: isAdded ? tokens.primary : tokens.surface,
+                            border: `1.5px solid ${isAdded ? tokens.primary : zoneChosen ? tokens.border : 'var(--ec-bg-tint-2)'}`,
+                            color: isAdded ? tokens.gold : zoneChosen ? t.text.tertiary : 'var(--ec-bg-tint-3)', fontSize: 16, fontWeight: 700,
                           }}>
                             {isAdded ? '✓' : '+'}
                           </div>
@@ -1916,7 +1921,7 @@ export function QuotationBuilder() {
               <ChevronsRight size={16} />
             </button>
             <div style={{ fontFamily: fonts.body, fontSize: 15, fontWeight: 700, color: tokens.gold }}>{client.name || 'Client Name'}</div>
-            <div style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: '#fff', marginTop: 2, opacity: 0.85 }}>
+            <div style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: tokens.surface, marginTop: 2, opacity: 0.85 }}>
               {eventInfo.type}{eventInfo.date ? ` · ${formatDocumentDate(eventInfo.date)}` : ''}
             </div>
             {twoFunction && (
@@ -2188,13 +2193,21 @@ export function QuotationBuilder() {
                   <span style={{ fontFamily: fonts.body, fontSize: 12, color: t.text.secondary }}>{formatMoney(totals.gstAmount, 'INR')}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, paddingTop: 4, borderTop: `1px solid ${tokens.border}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, paddingTop: 4 }}>
                 <span style={{ fontFamily: fonts.body, fontSize: 16, color: tokens.primary, fontWeight: 700 }}>Total</span>
                 <span style={{ fontFamily: fonts.body, fontSize: 16, color: tokens.primary, fontWeight: 700 }}>{formatMoney(totals.total, 'INR')}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontFamily: fonts.body, fontSize: 12, color: tokens.goldDark, fontWeight: 500 }}>Advance ({advance}%)</span>
+                <span style={{ fontFamily: fonts.body, fontSize: 12, color: tokens.goldDark, fontWeight: 500 }}>Advance ({advance}%) due now</span>
                 <span style={{ fontFamily: fonts.body, fontSize: 12, color: tokens.goldDark, fontWeight: 700 }}>{formatMoney(totals.advanceAmount, 'INR')}</span>
+              </div>
+              {/* Balance due = event Day 1 minus 10 days, computed live so a
+                  date change re-derives it (confirmed rule, findings 3a). */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                <span style={{ fontFamily: fonts.body, fontSize: 12, color: t.text.secondary, fontWeight: 500 }}>
+                  Balance ({100 - advance}%) due {balanceDueDate(eventInfo.date) ? formatDocumentDate(balanceDueDate(eventInfo.date)!) : '10 days before the event'}
+                </span>
+                <span style={{ fontFamily: fonts.body, fontSize: 12, color: t.text.secondary, fontWeight: 700 }}>{formatMoney(totals.balanceAmount, 'INR')}</span>
               </div>
             </div>
 
@@ -2204,8 +2217,8 @@ export function QuotationBuilder() {
               onClick={() => void handleGoToPreview()}
               style={{
                 marginTop: 12, width: '100%', padding: 13, borderRadius: 6, border: 'none',
-                background: items.length > 0 ? tokens.primary : '#C8C4BC',
-                color: items.length > 0 ? tokens.gold : '#999',
+                background: items.length > 0 ? tokens.primary : 'var(--ec-bg-tint-3)',
+                color: items.length > 0 ? tokens.gold : t.text.disabled,
                 cursor: items.length > 0 ? 'pointer' : 'not-allowed',
                 fontFamily: fonts.body, fontSize: 14, fontWeight: 700,
               }}
@@ -2281,24 +2294,24 @@ const styles: Record<string, CSSProperties> = {
   headerEditBtn: {
     position: 'absolute', top: 0, right: 0,
     width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 8,
+    background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 8,
     color: tokens.primary, cursor: 'pointer',
   },
   // Ruby on a grey squircle: the date/duration/session trio is the tap
   // target for the day/session dialog (phase 5 items 5 and 11).
   daysChip: {
     display: 'inline-flex', alignItems: 'center',
-    padding: '4px 10px', background: '#EFECE5', border: 'none', borderRadius: 8,
+    padding: '4px 10px', background: 'var(--ec-bg-tint-1)', border: 'none', borderRadius: 8,
     fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.ruby,
     cursor: 'pointer',
   },
   daysEditorBox: {
-    marginTop: 10, padding: 12, background: '#fff',
+    marginTop: 10, padding: 12, background: tokens.surface,
     border: `1px solid ${tokens.border}`, borderRadius: 8,
   },
   sessionChip: {
     display: 'inline-flex', alignItems: 'center', gap: 2,
-    border: `1px solid ${tokens.border}`, borderRadius: 6, padding: '2px 4px', background: '#fff',
+    border: `1px solid ${tokens.border}`, borderRadius: 6, padding: '2px 4px', background: tokens.surface,
   },
   sessionSelect: {
     border: 'none', background: 'transparent', fontFamily: fonts.body, fontSize: 12,
@@ -2306,7 +2319,7 @@ const styles: Record<string, CSSProperties> = {
   },
   comboList: {
     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
-    background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 6,
+    background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 6,
     marginTop: 4, maxHeight: 220, overflowY: 'auto', boxShadow: '0 6px 20px rgba(0,0,0,0.08)',
   },
   comboOption: {
@@ -2325,7 +2338,7 @@ const styles: Record<string, CSSProperties> = {
   },
   candidateRow: {
     display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0',
-    borderBottom: '1px solid #f0ece4',
+    borderBottom: `1px solid ${t.border.subtle}`,
   },
   commissionToggle: {
     display: 'flex', alignItems: 'center', gap: 5,
@@ -2339,7 +2352,7 @@ const styles: Record<string, CSSProperties> = {
     background: tokens.goldLight, fontFamily: fonts.body, fontSize: 11,
     color: tokens.goldDark, fontWeight: 600, cursor: 'pointer',
   },
-  formCard: { background: '#fff', borderRadius: 8, padding: 28, marginBottom: 16, border: `1px solid ${tokens.border}` },
+  formCard: { background: tokens.surface, borderRadius: 8, padding: 28, marginBottom: 16, border: `1px solid ${tokens.border}` },
   formCardTitle: { fontFamily: fonts.body, fontSize: 13, fontWeight: 700, color: tokens.primary, letterSpacing: 1.5 },
   formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 20 },
   muhurthamBox: {
@@ -2348,7 +2361,7 @@ const styles: Record<string, CSSProperties> = {
   },
   functionSwitch: {
     display: 'flex', gap: 4, padding: 4, marginBottom: 12,
-    background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 8,
+    background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 8,
   },
   // Pinned under the 56px sticky TopBar (zIndex 90), so the strip cannot
   // scroll out of view while elements are being tapped.
@@ -2360,7 +2373,7 @@ const styles: Record<string, CSSProperties> = {
     margin: '0 -8px 16px',
     padding: '10px 8px 4px',
     border: `1px solid ${tokens.border}`,
-    borderRadius: 12,
+    borderRadius: 18,
   },
   // Neutral guidance, not an error: this is a friendly empty state, and
   // red fill read as "something failed" (client feedback, 8 Sept).
@@ -2381,12 +2394,12 @@ const styles: Record<string, CSSProperties> = {
   },
   moveSelect: {
     flex: 1, minWidth: 0, padding: '3px 6px', borderRadius: 4,
-    border: `1px solid ${tokens.border}`, background: '#fff',
+    border: `1px solid ${tokens.border}`, background: tokens.surface,
     fontFamily: fonts.body, fontSize: 11, color: t.text.secondary, cursor: 'pointer',
   },
   moveFnBtn: {
     padding: '3px 8px', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap',
-    border: `1px solid ${tokens.border}`, background: '#fff',
+    border: `1px solid ${tokens.border}`, background: tokens.surface,
     fontFamily: fonts.body, fontSize: 11, fontWeight: 600, color: tokens.primary,
   },
   saveState: {
@@ -2408,12 +2421,12 @@ const styles: Record<string, CSSProperties> = {
   },
   catalogueGroupHeading: {
     position: 'sticky', top: 0, zIndex: 2,
-    background: '#EFECE5', padding: '7px 10px 6px', borderRadius: 8,
+    background: 'var(--ec-bg-tint-1)', padding: '7px 10px 6px', borderRadius: 8,
     fontFamily: fonts.body, fontSize: 11, fontWeight: 700, letterSpacing: 1,
     textTransform: 'uppercase', color: tokens.goldDark,
     marginBottom: 6,
   },
-  mockupCard: { background: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, border: `1px dashed ${tokens.gold}` },
+  mockupCard: { background: tokens.surface, borderRadius: 16, padding: 20, marginBottom: 16, border: `1px dashed ${tokens.gold}` },
   chooseBtn: {
     padding: '8px 14px', background: tokens.bg, border: `1px solid ${tokens.border}`, color: tokens.primary,
     fontFamily: fonts.body, fontSize: 13, fontWeight: 500, cursor: 'pointer', borderRadius: 4,
@@ -2430,11 +2443,11 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 12, width: '100%', padding: 10, background: 'transparent', border: `1px dashed ${tokens.primary}`,
     color: tokens.primary, fontFamily: fonts.body, fontSize: 13, fontWeight: 600, cursor: 'pointer', borderRadius: 6,
   },
-  manualForm: { background: '#fff', padding: 16, marginTop: 8, border: `1px solid ${tokens.border}`, borderRadius: 6 },
+  manualForm: { background: tokens.surface, padding: 16, marginTop: 8, border: `1px solid ${tokens.border}`, borderRadius: 6 },
   // Fills the PersistentDrawer: header top, items flex-1 scroll, settings
   // panel bottom. The drawer itself owns position, border and shadow.
   cartRail: {
-    background: '#fff',
+    background: tokens.surface,
     // flex: 1 + minHeight: 0 (not height: 100%) so it fills the drawer on
     // desktop AND resolves inside the auto-height mobile bottom sheet.
     display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden',
@@ -2477,8 +2490,8 @@ const styles: Record<string, CSSProperties> = {
     textTransform: 'uppercase', color: tokens.goldDark, padding: '6px 0 4px',
     borderBottom: `1px solid ${tokens.border}`, marginBottom: 4,
   },
-  cartItem: { padding: '10px 0', borderBottom: '1px solid #f0ece4' },
-  removeBtn: { background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 18, padding: '0 2px', lineHeight: 1 },
+  cartItem: { padding: '10px 0', borderBottom: `1px solid ${t.border.subtle}` },
+  removeBtn: { background: 'none', border: 'none', color: t.text.disabled, cursor: 'pointer', fontSize: 18, padding: '0 2px', lineHeight: 1 },
   stepperBtn: { width: 24, height: 24, background: tokens.bg, border: `1px solid ${tokens.border}`, cursor: 'pointer', color: tokens.primary, fontFamily: fonts.body, fontSize: 16, fontWeight: 700, borderRadius: 4 },
   effectiveRateNote: {
     fontFamily: fonts.body, fontSize: 10, color: tokens.goldDark, whiteSpace: 'nowrap',

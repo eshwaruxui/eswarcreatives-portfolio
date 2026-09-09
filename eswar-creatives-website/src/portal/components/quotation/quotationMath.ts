@@ -105,9 +105,31 @@ export type Totals = {
   gstAmount: number
   total: number
   advanceAmount: number
+  balanceAmount: number
 }
 
 export const GST_RATE = 0.18
+
+// The confirmed advance rule (Build2 sanity findings 3a, confirmed 9 Sept):
+// 10% advance to book, the 90% balance due 10 days before event Day 1.
+// Per-quotation editable; these are the defaults for NEW quotations only.
+export const DEFAULT_ADVANCE_PCT = 10
+export const BALANCE_DUE_DAYS_BEFORE_EVENT = 10
+
+/**
+ * Balance due date: event Day 1 minus BALANCE_DUE_DAYS_BEFORE_EVENT, as an
+ * ISO date string. Computed, never stored, so it re-derives whenever Day 1
+ * changes. Null when no event date is set (astrologer-pending) — callers
+ * show a worded fallback instead.
+ */
+export function balanceDueDate(eventDate: string | null | undefined): string | null {
+  if (!eventDate) return null
+  const d = new Date(`${eventDate}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return null
+  d.setDate(d.getDate() - BALANCE_DUE_DAYS_BEFORE_EVENT)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
 
 /**
  * Whole-quotation totals, built from the same per-line amounts the cart and
@@ -126,7 +148,8 @@ export function computeTotals(
   const gstAmount = round2(gstEnabled ? afterDiscount * GST_RATE : 0)
   const total = round2(afterDiscount + gstAmount)
   const advanceAmount = round2((total * advancePct) / 100)
-  return { subtotal, discountAmount, gstAmount, total, advanceAmount }
+  const balanceAmount = round2(total - advanceAmount)
+  return { subtotal, discountAmount, gstAmount, total, advanceAmount, balanceAmount }
 }
 
 // Money is stored as numeric(12,2). Rounding each line as it is computed —

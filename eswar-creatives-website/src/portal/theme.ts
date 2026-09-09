@@ -99,19 +99,19 @@ export const tokens = {
   // 2026, now Figma background/subtle (neutral.10). This is the single value
   // every page background in the portal resolves through, so changing it here
   // is what removes the cream everywhere rather than editing 74 call sites.
-  bg:         isEswarPalette ? '#FAFAF9' : tenantTheme!.theme.cream,  // Figma background/subtle (neutral.10)
-  surface:    '#FFFFFF',
+  bg:         'var(--ec-bg-subtle)',  // neutral for every tenant since phase 6 (was tenant cream)
+  surface:    'var(--ec-bg-surface)',
   // Overlay-based neutral border (was a low-contrast teal tint #D8E8E8). A
   // semi-transparent near-black reads with consistent contrast on both the
   // white surfaces and the neutral page. See t.border.* for the full scale.
-  border:     'rgba(10, 10, 23, 0.12)',
+  border:     'var(--ec-border-overlay-strong)',
   primary:    brandPrimary,  // deep teal (Eswar) / tenant primary
   accent:     derived.accent,  // teal-mid (Eswar) / tenant accent step
   gold:       brandGold,
   goldDark:   derived.goldDark,
   goldLight:  derived.goldLight,
-  text:       '#0A1A1B',
-  textMuted:  '#3D6163',
+  text:       'var(--ec-text-primary)',
+  textMuted:  'var(--ec-text-tertiary)',
   tealLight:  derived.primaryLight,  // Figma: brand/primary-tint-subtle, status/viewed-bg, phase/1-bg (teal.50, Eswar)
   ruby:       '#B00D2D',
   rubyLight:  '#FCEEF1',  // Figma: state/danger-subtle, status/declined-bg, phase/3-bg (ruby.50)
@@ -126,7 +126,7 @@ export const tokens = {
   greenLight: '#E8F8F0',  // Figma: state/success-subtle, status/accepted-bg, status/paid-bg (success.50)
   // Matches the page canvas above, as it always has. Both were the cream
   // #FAF8F4 before 9 August 2026.
-  inputBg:    isEswarPalette ? '#FAFAF9' : tenantTheme!.theme.cream,  // Figma background/subtle (neutral.10)
+  inputBg:    'var(--ec-bg-subtle)',  // neutral for every tenant since phase 6 (was tenant cream)
 } as const
 
 // EC Design System semantic tokens (canonical Figma mapping).
@@ -139,10 +139,10 @@ export const tokens = {
 //     elements: CTAs, links, active nav, selected states, focus rings.
 export const t = {
   text: {
-    primary:      '#111111',  // body text, headings, labels — Figma text/primary (neutral.900)
+    primary:      'var(--ec-text-primary)',    // #101212 via token layer —  // body text, headings, labels — Figma text/primary (neutral.900)
     primaryBrand: brandPrimary,  // interactive only: CTAs, links, active nav
-    secondary:    '#555555',  // supporting text, subtitles — Figma text/secondary (neutral.600)
-    tertiary:     '#717171',  // placeholder text, hints — Figma text/tertiary (neutral.500)
+    secondary:    'var(--ec-text-secondary)',  // #525859 via token layer —  // supporting text, subtitles — Figma text/secondary (neutral.600)
+    tertiary:     'var(--ec-text-tertiary)',  // #6d7576 via token layer — placeholder text, hints — Figma text/tertiary (neutral.500)
     // Figma spec is neutral.450 #888888, but that's 3.5:1 on white / 3.3:1 on
     // the cream `bg` — fails WCAG AA (4.5:1) at every size this role is
     // actually used at (10-14px timestamps/captions, not large text).
@@ -161,10 +161,10 @@ export const t = {
     // 4.67:1 on background.subtle/raised — all clear the 4.5:1 AA floor. It
     // measures 4.47:1 on background.muted/sunken (#F5F5F4), 0.03 under the
     // floor; see COMPONENT_PATTERNS.md for that known exception.
-    muted:        '#717171',  // timestamps, helper text, captions — Figma text/muted (neutral.500)
-    disabled:     '#AAAAAA',  // disabled state text — Figma text/disabled (neutral.350)
-    inverse:      '#FFFFFF',  // text on dark backgrounds
-    onPrimary:    '#FFFFFF',  // text on teal primary buttons
+    muted:        'var(--ec-text-muted)',     // #6d7576 via token layer —  // timestamps, helper text, captions — Figma text/muted (neutral.500)
+    disabled:     'var(--ec-text-disabled)',  // #a7adae via token layer —  // disabled state text — Figma text/disabled (neutral.350)
+    inverse:      'var(--ec-text-inverse)',   // text on dark backgrounds
+    onPrimary:    'var(--ec-text-inverse)',   // text on teal primary buttons (inverse token)
     onAccent:     derived.onAccent,  // text on gold accent fills — Figma text/on-accent (gold.800); was #FFFFFF (unused, low contrast on gold)
     urlLink:      '#0A66C2',  // hyperlinks only — Figma text/url-link (Blue.500). Reverses an earlier deliberate teal-not-blue override; now intentionally matches Figma exactly per explicit request.
     // "On-dark" text roles: for content on permanently-dark surfaces (e.g. the
@@ -179,16 +179,16 @@ export const t = {
     // Overlay-based neutral scale: semi-transparent near-black so borders keep
     // consistent contrast on white surfaces and the cream page (the old solid
     // greys washed out and looked invisible on light backgrounds).
-    subtle:             'rgba(10,10,23,0.06)',  // lightest dividers, card outlines
-    default:            'rgba(10,10,23,0.12)',  // standard input/card borders
-    medium:             'rgba(10,10,23,0.18)',  // stronger dividers
-    strong:             'rgba(10,10,23,0.30)',  // emphasis borders
+    subtle:             'var(--ec-border-overlay-subtle)',  // lightest dividers, card outlines
+    default:            'var(--ec-border-overlay-strong)',  // standard input/card borders
+    medium:             'var(--ec-border-overlay-extra-strong)',  // stronger dividers
+    strong:             'var(--ec-border-overlay)',  // emphasis borders
     focus:              brandPrimary,           // focus ring on inputs
-    overlaySubtle:      'rgba(10,10,23,0.04)',  // frosted/glass panels subtle edge
-    overlayMedium:      'rgba(10,10,23,0.08)',  // panel borders on overlays
-    overlayStrong:      'rgba(10,10,23,0.14)',  // modal/drawer borders
-    overlay:            'rgba(10,10,23,0.20)',  // standard overlay border
-    overlayExtraStrong: 'rgba(10,10,23,0.30)',  // high contrast overlay edge
+    overlaySubtle:      'var(--ec-border-overlay-subtle)',  // frosted/glass panels subtle edge
+    overlayMedium:      'var(--ec-border-overlay-medium)',  // panel borders on overlays
+    overlayStrong:      'var(--ec-border-overlay-strong)',  // modal/drawer borders
+    overlay:            'var(--ec-border-overlay-extra-strong)',  // standard overlay border
+    overlayExtraStrong: 'var(--ec-border-overlay)',  // high contrast overlay edge
     brand:              brandPrimary,           // active/selected states only
     danger:             '#B00D2D',              // error states — Figma border/danger (ruby.600)
     success:            '#1B6B4A',              // success states — Figma border/success (success.600)
@@ -211,12 +211,12 @@ export const t = {
     // `StickyBar` and `FadeOverflow` both resolve their colour from this
     // token, which is what keeps the footer and the fade matching the canvas
     // without either of them naming a hex.
-    page:           '#FFFFFF',              // body canvas, Figma background/page (neutral.0)
-    subtle:         '#FAFAF9',              // subtle section bg — Figma background/subtle (neutral.10)
-    muted:          '#F5F5F4',              // muted fills — Figma background/muted (neutral.50)
-    surface:        '#FFFFFF',              // card/panel surfaces
-    raised:         '#FAFAF9',              // elevated cards — Figma background/raised (neutral.10)
-    sunken:         '#F5F5F4',              // inset areas — Figma background/sunken (neutral.50)
+    page:           'var(--ec-bg-page)',     // body canvas, Figma background/page (neutral.0)
+    subtle:         'var(--ec-bg-subtle)',              // subtle section bg — Figma background/subtle (neutral.10)
+    muted:          'var(--ec-bg-muted)',              // muted fills — Figma background/muted (neutral.50)
+    surface:        'var(--ec-bg-surface)',  // card/panel surfaces
+    raised:         'var(--ec-bg-raised, var(--ec-bg-subtle))',              // elevated cards — Figma background/raised (neutral.10)
+    sunken:         'var(--ec-bg-muted)',              // inset areas — Figma background/sunken (neutral.50)
     tint1:          tintRgba(brandPrimary, 0.04),   // tinted fills
     tint2:          tintRgba(brandPrimary, 0.08),
     tint3:          tintRgba(brandPrimary, 0.12),
@@ -238,8 +238,8 @@ export const t = {
     dark3:      '#222222',  // Figma background/dark-3 (neutral.800)
     // Warm-cream card surfaces. These stay warm deliberately: they are the
     // only cream left in the portal now that page/inputBg are neutral.
-    cardWarm:   '#F5F0E6',  // Figma background/card-warm (warm.50)
-    subtleWarm: '#E8DCC4',  // Figma background/subtle-warm (warm.200)
+    cardWarm:   'var(--ec-bg-muted)',   // was warm #F5F0E6 —  // Figma background/card-warm (warm.50)
+    subtleWarm: 'var(--ec-bg-tint-1)', // was warm #E8DCC4 —  // Figma background/subtle-warm (warm.200)
     success:    tokens.greenLight,  // success/confirmation surfaces, alias of tokens.greenLight
   },
 } as const

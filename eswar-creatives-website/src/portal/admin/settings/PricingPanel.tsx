@@ -976,23 +976,23 @@ const ps: Record<string, CSSProperties> = {
   muted: { fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary },
   safetyNote: {
     fontFamily: fonts.body, fontSize: 12, lineHeight: 1.6, color: t.text.secondary,
-    background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 8,
+    background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 8,
     padding: '10px 14px', marginBottom: 16,
   },
   card: {
-    background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 8,
+    background: tokens.surface, border: `1px solid ${tokens.border}`, borderRadius: 8,
     padding: 24, marginBottom: 16,
   },
   cardTitle: { fontFamily: fonts.body, fontSize: 16, fontWeight: 700, color: tokens.primary, margin: 0 },
   cardSub: { fontFamily: fonts.body, fontSize: 13, lineHeight: 1.6, color: t.text.tertiary, margin: '6px 0 0' },
   input: {
     padding: '8px 10px', border: `1px solid ${tokens.border}`, borderRadius: 6,
-    fontFamily: fonts.body, fontSize: 13, color: t.text.primary, background: '#fff',
+    fontFamily: fonts.body, fontSize: 13, color: t.text.primary, background: tokens.surface,
     outline: 'none', boxSizing: 'border-box',
   },
   select: {
     padding: '8px 10px', border: `1px solid ${tokens.border}`, borderRadius: 6,
-    fontFamily: fonts.body, fontSize: 13, color: t.text.primary, background: '#fff', cursor: 'pointer',
+    fontFamily: fonts.body, fontSize: 13, color: t.text.primary, background: tokens.surface, cursor: 'pointer',
   },
   primaryBtn: {
     padding: '8px 18px', borderRadius: 6, border: 'none', cursor: 'pointer',
@@ -1015,7 +1015,7 @@ const ps: Record<string, CSSProperties> = {
     textTransform: 'uppercase', color: tokens.goldDark,
     borderBottom: `1px solid ${tokens.border}`, padding: '14px 0 5px', marginBottom: 4,
   },
-  itemRow: { padding: '10px 0', borderBottom: '1px solid #f0ece4' },
+  itemRow: { padding: '10px 0', borderBottom: `1px solid ${t.border.subtle}` },
   itemName: { fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: t.text.primary },
   activeLabel: { fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary },
   tbcRow: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 },
@@ -1024,7 +1024,7 @@ const ps: Record<string, CSSProperties> = {
   rateUnit: { fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: t.text.secondary, minWidth: 84, display: 'inline-block' },
   previewLine: { fontFamily: fonts.body, fontSize: 11, color: tokens.goldDark, marginTop: 5, lineHeight: 1.6 },
   rateChanged: { fontFamily: fonts.body, fontSize: 10, color: t.text.muted, marginTop: 3 },
-  curveBlock: { padding: '12px 0', borderBottom: '1px solid #f0ece4' },
+  curveBlock: { padding: '12px 0', borderBottom: `1px solid ${t.border.subtle}` },
   curveMeta: { fontFamily: fonts.body, fontSize: 11, color: t.text.tertiary, marginTop: 2 },
   curveEditor: {
     marginTop: 10, padding: 14, background: tokens.bg,
