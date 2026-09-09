@@ -8,7 +8,7 @@ import { useNavigate, useLocation } from 'react-router'
 import { Check, ChevronDown, Menu, QrCode, Settings, UserPlus, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { clientLabel, usePortal } from '../PortalContext'
-import { tokens, t, fonts, motionTokens, brandName } from '../theme'
+import { tokens, t, fonts, motionTokens, brandName, brandMark } from '../theme'
 import { useSignOut } from '../useSignOut'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { Spinner } from '../Spinner'
@@ -112,9 +112,15 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
           <>
             {/* Brand */}
             <div style={styles.brand}>
-              <span style={styles.logoCircle}>
-                <span style={styles.logoLetter}>{brandName.charAt(0).toLowerCase()}</span>
-              </span>
+              {/* Tenant disc mark when the config provides one; the generated
+                  first-letter avatar stays the fallback for tenants without. */}
+              {brandMark ? (
+                <img src={brandMark} alt="" width={28} height={28} style={styles.logoMark} />
+              ) : (
+                <span style={styles.logoCircle}>
+                  <span style={styles.logoLetter}>{brandName.charAt(0).toLowerCase()}</span>
+                </span>
+              )}
               <span style={styles.brandName}>{brandName}</span>
             </div>
 
@@ -402,6 +408,11 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+  },
+  logoMark: {
+    display: 'block',
+    borderRadius: '50%',
     flexShrink: 0,
   },
   logoLetter: {

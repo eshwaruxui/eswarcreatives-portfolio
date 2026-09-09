@@ -319,5 +319,8 @@ export { tenantTheme }
 // tenant reads its own config directly.
 export const brandName = isEswarPalette ? 'EswarCreatives' : tenantTheme!.name
 export const brandLogo = isEswarPalette ? eswarLogo : tenantTheme!.theme.logo
+// Optional circular disc mark for the admin top bar's avatar slot. Null for
+// tenants without one (including Eswar), which keep the generated letter.
+export const brandMark: string | null = isEswarPalette ? null : tenantTheme!.theme.mark ?? null
 
 export type PhaseState = keyof typeof phaseUI.status
