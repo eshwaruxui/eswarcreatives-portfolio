@@ -415,3 +415,38 @@ Eswar ran `wrangler login` in-session, which unblocked everything Cloudflare-sid
 **Remaining, needs a human in a browser:** password sign-in as mohan@, magic link and password reset email receipt, builder click-through (zone rail + delete UI included), localhost dev login run.
 
 **Login screen additions (same PR):** a Forgot password link on the Email + Password tab (shared LoginPage, every tenant), and a recovery screen: following a reset link fires Supabase's PASSWORD_RECOVERY event after the PKCE code exchange, which swaps the login card for a Set new password form (password + confirm, updateUser, then role-based redirect). A ref guards the page's signed-in auto-redirect so the recovery session is not bounced to the dashboard before the password is set. AccountPage's reset redirect was also fixed: it hardcoded eswarcreatives.in/portal/reset-password, a wrong-tenant URL AND a route that never existed. PKCE caveat: a reset link must be opened in the same browser that requested it, or the code exchange fails.
+
+---
+
+# SECTION 12 - Build 4, login shell, builder layout, document redesign (9 Sep 2026)
+
+Seven phases plus two field-test fix rounds, shipped as PRs #42 through #48. No pricing logic changed. Two migrations, both applied after their deploy: 0124 (finish labels) and 0125 (advance default).
+
+## What shipped
+
+**Login and shell.** The signed-out login screen now renders the same `BrandMarkBadge` component the authenticated TopBar uses, so the mark is identical one click either side of sign in. Tenants without a disc mark keep their logo image untouched.
+
+**Builder layout.** The quote summary moved from a static right column to a non-modal drawer (`PersistentDrawer`), open by default at 460px, collapsing to a ruby tab that keeps the item count and running total visible. Inside it the teal client header pins to the top, the totals and Preview and Print block pins to the bottom, and only the line list scrolls. The element category row became a single scrollable line sharing the zone rail's edge-fade mechanic (`EdgeFadeRow`, now used by both). The manual add form and the day/session editor became dialogs on the shared `Modal` rather than inline expansions, and the date/duration/session trio became a ruby chip that is itself the day/session dialog trigger, with a pencil icon in the header for general details.
+
+**Design tokens.** The neutral palette is defined once as CSS custom properties in `src/styles/index.css` (`--ec-bg-*`, `--ec-text-*`, `--ec-border-overlay-*`, newgen-design-tokens-v1 light values). `theme.ts`'s neutral entries are `var()` references into that layer, so every theme-routed component adopted them with no per-component edits. Brand teal, gold and ruby stay tenant-parametric in `theme.ts` and were not tokenised. The cream page canvas is gone portal wide for every tenant.
+
+**Client-facing document.** Redesigned to the approved reference (`design-reference/newgen-quotation-sheet-reference.html`, held outside this repo): teal masthead carrying the real gold lockup, the kolam lattice and the metallic sheen, a two column meta band, per function scope tables with uppercase zone mini headers and finish chips, right aligned totals, an amount in words strip, numbered terms and a deep teal footer with GSTIN and SAC. One component serves the builder preview, the print output and the public share link, so all three match by construction. Approved masthead values after live review: white lattice at 0.13 opacity (superseding the reference file's 0.3), tile scale 1.4, sheen 0.68.
+
+**Advance rule (Build2 sanity findings 3a, confirmed).** New quotations default to 10 percent advance and 90 percent balance. The balance due date is event Day 1 minus 10 days, computed in `quotationMath.ts` and never stored, so it re-derives whenever Day 1 changes, with a worded fallback when no date is set. Both the on screen totals and the printed document show advance due now and balance with its computed date. Migration 0125 aligns the column default; existing quotations keep their stored `advance_pct`.
+
+**Finish ladder relabel.** Migration 0124 renames the five display labels to 100% Fresh, 60:40 Fresh, 50:50 Fresh, 30:70 Fresh, 100% Ready-made. Display labels only: keys, sort order and every curve ratio are untouched, and snapshots store keys and ratios rather than labels, so nothing re-priced.
+
+## Landmines found and closed
+
+**Quotation documents printed blank, and always had.** The invoice print block in `styles/index.css` opens with a global `body:not([data-ec-printing]) * { visibility: hidden }` and re-shows only `.ec-invoice-document`. Both quotation print entry points call a bare `window.print()`, so every quotation PDF was correctly paginated and completely empty, with the old document design too. Nobody caught it because the scenario script says preview and send but never says print. Fixed by opting `.ngq-doc` into the visible list and defining `.no-print`, which two surfaces had been tagged with while no rule ever defined it. The invoice's `position: absolute` lift was deliberately not copied: absolutely positioned boxes do not fragment across pages, so a multi page quotation would print page one and silently drop the rest.
+
+**0124 first targeted the wrong keys.** The file was written against 0112's seed keys, which 0113 had already renamed opaque, so the first apply matched zero rows. Caught by verifying after applying rather than trusting the success response.
+
+**Zone names disagreed across surfaces.** Short labels now live in one module, `src/portal/admin/zoneShortLabels.ts`, read by the rail, the drawer group headers and both zone dropdowns. Zone 2's short label was "Elevation", borrowed from its full name's parenthetical, which beside zone 1's "Entrance and elevation" read as one zone split across two tiles; it is now "Mandapam". The printed document is the one deliberate exception and keeps full names, because a client has no rail to cross reference against.
+
+## Still open after build 4
+
+- Login shell serves the portfolio `<title>` in its static HTML for every route of the Newgen build, corrected client side after hydration. The fix belongs in the build's HTML title, `vite.config.ts` or `prerender.mjs`.
+- Muhurtham is expressed twice with no cross check: the includes-a-Muhurtham checkbox and the morning session slot. Recommendation on record is a visible non blocking disagreement note rather than deriving one from the other, because deriving would silently change the pricing structure and because morning does not mean muhurtham outside weddings. Awaiting a decision.
+- Catalogue row accessibility fix is built and open as PR #47.
+- Commission percentage is still a 10.00 placeholder, `ANTHROPIC_API_KEY` is still unset so the analyser cannot run, and the Newgen Clarity project still does not exist.

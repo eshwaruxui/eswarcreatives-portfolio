@@ -1026,6 +1026,9 @@ All three found and fixed in one live-testing pass on the Cloudflare preview, no
 
 | Component | Location | Notes |
 |---|---|---|
+| `BrandMarkBadge` | `src/portal/BrandMarkBadge.tsx` | The circular brand mark. Renders the tenant's disc mark when its config supplies one, else the generated first-letter avatar. Used by the admin TopBar AND the signed-out PortalNav, so the mark is identical either side of sign in. |
+| `PersistentDrawer` | `src/portal/admin/PersistentDrawer.tsx` | Non-modal right drawer, the counterpart to `SidePanel`. No backdrop on desktop, bottom sheet under 768px, Escape closes. See the Non-Modal Drawer Pattern in COMPONENT_PATTERNS.md for which of the two to reach for. |
+| `EdgeFadeRow` | `src/portal/admin/EdgeFadeRow.tsx` | One horizontal scroll row with 44px edge fades that retire at the extremes, hidden scrollbar, reduced-motion aware. Used by the zone rail and the element category chips. Takes inset `padding` so a focus ring inside it is not clipped by the scroll track. |
 | `StageLabel` | `src/portal/components/StageLabel.tsx` | Stage header, inline name edit (admin), status pill: Upcoming/In progress/Done |
 | `TaskList` | `src/portal/components/TaskList.tsx` | Drag reorder, status cycle, nested subtasks (↳ 1-level), progress bar (secondary color) |
 | `AttachmentSection` | `src/portal/components/AttachmentSection.tsx` | Drag+drop+paste upload, signed URL download, projectLevel prop for project_attachments table |
@@ -1175,7 +1178,23 @@ Edge function versions confirmed live via Supabase on 24 Jul 2026, except send-c
 ## 7. Theme and token system
 
 **Files:** `src/portal/theme.ts` (colour, type, and the motion tokens in current
-use), `src/portal/motion.ts` (the motion scale, added 9 Aug 2026).
+use), `src/portal/motion.ts` (the motion scale, added 9 Aug 2026),
+`src/styles/index.css` (the semantic token layer, added 9 Sept 2026).
+
+### The neutral token layer (9 Sept 2026)
+
+The portal's neutral palette is defined once as CSS custom properties in the
+`:root` block of `src/styles/index.css`: `--ec-bg-*`, `--ec-text-*` and the alpha
+`--ec-border-overlay-*` scale, at the newgen-design-tokens-v1 light values.
+`theme.ts`'s neutral entries, in both the legacy flat `tokens` and the nested `t`,
+are `var()` references into that layer, so every component already routed through
+`theme.ts` adopted the tokens with no per-component edit. Components keep importing
+from `theme.ts`; the CSS layer is where a neutral value is *changed*.
+
+Brand hues are deliberately not tokenised there. Teal, gold and ruby stay
+per-tenant in `theme.ts` because they vary by tenant, while the neutrals do not.
+The one consequence worth knowing: the warm cream page canvas is gone for every
+tenant, including Eswar's, since the canvas now resolves through the neutral layer.
 
 **Docs:** `docs/COMPONENT_PATTERNS.md` (per-component patterns, plus a Token
 Sources table mapping each concern to its owning file), `docs/MOTION_SYSTEM.md`
