@@ -325,6 +325,20 @@ export function QuotationBuilder() {
   // total visible and reopens it. Escape collapses (handled by the drawer).
   const [summaryOpen, setSummaryOpen] = useState(true)
   const { isMobile } = useBreakpoint()
+  // Category strips stick immediately below the stuck rail (gate 7 F1). The
+  // rail's height varies (zone rail, optional function switch, guidance
+  // line), so its bottom edge is measured, not hardcoded.
+  const placementRef = useRef<HTMLDivElement | null>(null)
+  const [stripTop, setStripTop] = useState(280)
+  useEffect(() => {
+    const el = placementRef.current
+    if (!el) return
+    const measure = () => setStripTop(64 + el.offsetHeight + 8)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const [discount, setDiscount] = useState(0)
   const [advance, setAdvance] = useState(DEFAULT_ADVANCE_PCT)
@@ -1593,7 +1607,7 @@ export function QuotationBuilder() {
       {/* The function switch and the zone strip together answer "where is
           the next tap going to land", so they stay pinned while the operator
           works down the element list. top: 56 clears the sticky TopBar. */}
-      <div className="ec-squircle" style={styles.placementBar}>
+      <div ref={placementRef} className="ec-squircle" style={styles.placementBar}>
       {twoFunction && (
         <div style={styles.functionSwitch}>
           {(['reception', 'muhurtham'] as QuotationFunctionKey[]).map((fn) => {
@@ -1728,7 +1742,7 @@ export function QuotationBuilder() {
 
           <div style={{ position: 'relative', marginBottom: 10 }}>
             <Search size={15} color={t.text.tertiary} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} aria-hidden="true" />
-            <input style={{ ...inputStyle, paddingLeft: 34 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all elements…" />
+            <input style={{ ...inputStyle, paddingLeft: 34, borderRadius: 12 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all elements…" />
           </div>
 
           {/* One scrollable line, never a second row: same edge-fade
@@ -1764,7 +1778,7 @@ export function QuotationBuilder() {
           <div style={styles.catalogueScroll}>
             {groupedLibrary.map((group) => (
               <div key={group.key}>
-                <div className="ec-squircle" style={styles.catalogueGroupHeading}>{group.label}</div>
+                <div className="ec-squircle" style={{ ...styles.catalogueGroupHeading, top: stripTop }}>{group.label}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
                   {group.items.map((li) => {
                     const isAdded = zoneChosen && functionItems.some((i) => i.label === li.name && i.zoneKey === activeZone)
@@ -2310,9 +2324,10 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 10, padding: 12, background: tokens.surface,
     border: `1px solid ${tokens.border}`, borderRadius: 8,
   },
+  // No border/fill of its own: the select inside is a full grey chip via the
+  // global rule, and a second box around it doubled the border (gate 7 F2).
   sessionChip: {
     display: 'inline-flex', alignItems: 'center', gap: 2,
-    border: `1px solid ${tokens.border}`, borderRadius: 6, padding: '2px 4px', background: tokens.surface,
   },
   sessionSelect: {
     border: 'none', background: 'transparent', fontFamily: fonts.body, fontSize: 12,
@@ -2368,7 +2383,7 @@ const styles: Record<string, CSSProperties> = {
   // scroll out of view while elements are being tapped.
   placementBar: {
     position: 'sticky',
-    top: 56,
+    top: 64,
     zIndex: 80,
     background: tokens.bg,
     margin: '0 -8px 16px',
@@ -2417,8 +2432,10 @@ const styles: Record<string, CSSProperties> = {
   },
   // The catalogue scrolls in its own region (like the cart rail) so the
   // group headings can stick to its top edge.
+  // Page-scrolling, not an internal scroller: an internal container slid
+  // under the stuck rail and took the sticky strips with it (gate 7 F1).
   catalogueScroll: {
-    maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', position: 'relative',
+    position: 'relative',
   },
   catalogueGroupHeading: {
     position: 'sticky', top: 0, zIndex: 2,

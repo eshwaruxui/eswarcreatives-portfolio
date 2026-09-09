@@ -218,11 +218,10 @@ export function QuotationDocument({
     // reference's sample content never ships.
     <div className="ngq-doc" data-clarity-mask="True">
       <style>{docCss(b)}</style>
-      <KolamTileDefs />
 
       {/* Masthead */}
       <header className="ngq-mast">
-        <svg className="ngp-pattern" aria-hidden="true"><rect width="100%" height="100%" fill="url(#ngp-kolam-tile)" /></svg>
+        <svg className="ngp-pattern" aria-hidden="true"><KolamTileDefs /><rect width="100%" height="100%" fill="url(#ngp-kolam-tile)" /></svg>
         <div className="ngp-sheen" aria-hidden="true" />
         {b.logoSrc ? (
           <div className="ngq-lockup">
@@ -478,7 +477,7 @@ function docCss(b: ReturnType<typeof getDocumentTheme>): string {
     rgba(2,16,17,.34) 0%, rgba(255,255,255,.05) 24%, rgba(255,255,255,.48) 50%,
     rgba(255,255,255,.05) 76%, rgba(2,16,17,.34) 100%);
   mix-blend-mode:overlay;
-  opacity:var(--ngp-sheen-opacity, .85);
+  opacity:var(--ngp-sheen-opacity, .68);
   z-index:-1; pointer-events:none;
 }
 .ngq-mast{
