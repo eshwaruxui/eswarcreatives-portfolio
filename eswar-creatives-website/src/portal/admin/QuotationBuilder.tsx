@@ -41,6 +41,9 @@ import { formatDocumentDate } from '../utils/formatDate'
 import { ACTIVE_TENANT_ID } from '../tenant/activeTenantId'
 import { ZoneRail } from './ZoneRail'
 import { EdgeFadeRow } from './EdgeFadeRow'
+import { PersistentDrawer } from './PersistentDrawer'
+import { useBreakpoint } from '../hooks/useBreakpoint'
+import { ChevronsRight, ChevronsLeft } from 'lucide-react'
 import { QuotationDocument, type QuotationDocumentItem, type FinishLabels } from '../components/quotation/QuotationDocument'
 import {
   computeTotals,
@@ -308,20 +311,12 @@ export function QuotationBuilder() {
   const [mockupNotice, setMockupNotice] = useState('')
   const [mockupCandidates, setMockupCandidates] = useState<MockupCandidate[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
-  // The summary panel pins below the sticky TopBar (56px) + placement bar,
-  // whose height varies (zone rail, optional function switch, guidance
-  // line), so the sticky offset is measured, not hardcoded.
-  const placementRef = useRef<HTMLDivElement | null>(null)
-  const [cartTop, setCartTop] = useState(260)
-  useEffect(() => {
-    const el = placementRef.current
-    if (!el) return
-    const measure = () => setCartTop(56 + el.offsetHeight + 12)
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+  // The quote summary lives in a non-modal drawer (PersistentDrawer), open by
+  // default. Collapsing hands the full width back to the catalogue; a slim
+  // tab (desktop) or bottom bar (mobile) keeps the item count and running
+  // total visible and reopens it. Escape collapses (handled by the drawer).
+  const [summaryOpen, setSummaryOpen] = useState(true)
+  const { isMobile } = useBreakpoint()
 
   const [discount, setDiscount] = useState(0)
   const [advance, setAdvance] = useState(50)
@@ -1524,7 +1519,14 @@ export function QuotationBuilder() {
 
   // ── BUILDER ──────────────────────────────────────────────────────────
   return (
-    <div>
+    <div
+      style={{
+        // The open drawer's width is taken FROM the catalogue, not laid over
+        // it; collapsing hands it back (Eswar, build 4 revision).
+        paddingRight: !isMobile && summaryOpen ? 400 : 0,
+        transition: 'padding-right 0.28s ease',
+      }}
+    >
       {error && <div style={styles.error}>{error}</div>}
 
       {/* Page header. One H1 only: the event type. The venue is the H2.
@@ -1552,7 +1554,7 @@ export function QuotationBuilder() {
       {/* The function switch and the zone strip together answer "where is
           the next tap going to land", so they stay pinned while the operator
           works down the element list. top: 56 clears the sticky TopBar. */}
-      <div ref={placementRef} style={styles.placementBar}>
+      <div style={styles.placementBar}>
       {twoFunction && (
         <div style={styles.functionSwitch}>
           {(['reception', 'muhurtham'] as QuotationFunctionKey[]).map((fn) => {
@@ -1605,8 +1607,9 @@ export function QuotationBuilder() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
-        {/* Left — element catalog */}
+      <div>
+        {/* Element catalog — full width; the summary drawer's space is
+            reserved by the page-level paddingRight while it is open. */}
         <div>
           <div style={styles.mockupCard}>
             <div style={styles.formCardTitle}>ANALYSE A MOCKUP</div>
@@ -1840,11 +1843,29 @@ export function QuotationBuilder() {
         </div>
 
         {/* Right — cart, finish, totals */}
-        {/* Sticky within the page scroll and sized to the viewport, so the
-            teal header (top) and totals/Preview block (bottom) never leave
-            view; only cartItems in between scrolls (Eswar, build 4). */}
-        <div style={{ ...styles.cartRail, top: cartTop, maxHeight: `calc(100vh - ${cartTop + 16}px)` }}>
+        {/* Quote summary as a non-modal drawer (InvoicePreview's pattern via
+            PersistentDrawer): open by default, the catalogue stays clickable
+            beside it, Escape or the chevron collapses it. Inside, the teal
+            header pins top, the totals/Preview block pins bottom, and only
+            the line items scroll (Eswar, build 4). */}
+        <PersistentDrawer
+          open={summaryOpen}
+          onClose={() => setSummaryOpen(false)}
+          width={380}
+          topOffset={isMobile ? 0 : 56}
+          ariaLabel="Quote summary"
+        >
+        <div style={styles.cartRail}>
           <div style={styles.cartHeader} data-clarity-mask="True">
+            <button
+              type="button"
+              style={styles.collapseBtn}
+              onClick={() => setSummaryOpen(false)}
+              aria-label="Collapse quote summary"
+              title="Collapse (Esc)"
+            >
+              <ChevronsRight size={16} />
+            </button>
             <div style={{ fontFamily: fonts.body, fontSize: 15, fontWeight: 700, color: tokens.gold }}>{client.name || 'Client Name'}</div>
             <div style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: '#fff', marginTop: 2, opacity: 0.85 }}>
               {eventInfo.type}{eventInfo.date ? ` · ${formatDocumentDate(eventInfo.date)}` : ''}
@@ -2146,6 +2167,43 @@ export function QuotationBuilder() {
             )}
           </div>
         </div>
+        </PersistentDrawer>
+
+        {/* Collapsed state: the item count and running total stay visible,
+            and this control reopens the drawer. Desktop: a slim tab on the
+            right edge. Mobile: a bottom bar. Both are plain buttons, so
+            keyboard access comes for free. */}
+        {!summaryOpen && (
+          isMobile ? (
+            <button
+              type="button"
+              style={styles.summaryBarMobile}
+              onClick={() => setSummaryOpen(true)}
+              aria-expanded={false}
+              aria-label={`Open quote summary, ${items.length} item${items.length === 1 ? '' : 's'}, total ${formatMoney(totals.total, 'INR')}`}
+            >
+              <span>{items.length} item{items.length === 1 ? '' : 's'}</span>
+              <span style={{ fontWeight: 700 }}>{formatMoney(totals.total, 'INR')}</span>
+              <span style={styles.summaryBarHint}>
+                <ChevronsLeft size={14} style={{ transform: 'rotate(90deg)' }} />
+                View summary
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              style={styles.summaryTab}
+              onClick={() => setSummaryOpen(true)}
+              aria-expanded={false}
+              aria-label={`Open quote summary, ${items.length} item${items.length === 1 ? '' : 's'}, total ${formatMoney(totals.total, 'INR')}`}
+            >
+              <ChevronsLeft size={14} />
+              <span style={styles.summaryTabText}>
+                {items.length} item{items.length === 1 ? '' : 's'} · {formatMoney(totals.total, 'INR')}
+              </span>
+            </button>
+          )
+        )}
       </div>
     </div>
   )
@@ -2306,13 +2364,42 @@ const styles: Record<string, CSSProperties> = {
     color: tokens.primary, fontFamily: fonts.body, fontSize: 13, fontWeight: 600, cursor: 'pointer', borderRadius: 6,
   },
   manualForm: { background: '#fff', padding: 16, marginTop: 8, border: `1px solid ${tokens.border}`, borderRadius: 6 },
+  // Fills the PersistentDrawer: header top, items flex-1 scroll, settings
+  // panel bottom. The drawer itself owns position, border and shadow.
   cartRail: {
-    background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 8,
-    display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    // top and maxHeight are set inline from the measured placement bar.
-    position: 'sticky',
+    background: '#fff',
+    // flex: 1 + minHeight: 0 (not height: 100%) so it fills the drawer on
+    // desktop AND resolves inside the auto-height mobile bottom sheet.
+    display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden',
   },
-  cartHeader: { padding: '16px 20px', background: tokens.primary, flexShrink: 0 },
+  cartHeader: { padding: '16px 44px 16px 20px', background: tokens.primary, flexShrink: 0, position: 'relative' },
+  collapseBtn: {
+    position: 'absolute', top: 12, right: 10,
+    width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    background: 'transparent', border: 'none', borderRadius: 6,
+    color: tokens.gold, cursor: 'pointer',
+  },
+  summaryTab: {
+    position: 'fixed', right: 0, top: '45%', zIndex: 119,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+    padding: '12px 7px', background: tokens.primary, color: tokens.gold,
+    border: 'none', borderRadius: '8px 0 0 8px', cursor: 'pointer',
+    boxShadow: '-4px 2px 12px rgba(2, 76, 79, 0.18)',
+  },
+  summaryTabText: {
+    writingMode: 'vertical-rl', fontFamily: fonts.body, fontSize: 12,
+    fontWeight: 600, letterSpacing: '0.02em', whiteSpace: 'nowrap',
+  },
+  summaryBarMobile: {
+    position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 119,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+    padding: '13px 16px', background: tokens.primary, color: tokens.gold,
+    border: 'none', cursor: 'pointer', fontFamily: fonts.body, fontSize: 14, fontWeight: 600,
+  },
+  summaryBarHint: {
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    fontSize: 12, fontWeight: 500, opacity: 0.9,
+  },
   cartItems: { flex: 1, padding: '12px 16px', overflowY: 'auto' },
   cartZoneHeading: {
     fontFamily: fonts.body, fontSize: 10, fontWeight: 700, letterSpacing: 1,
