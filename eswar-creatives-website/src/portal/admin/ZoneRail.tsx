@@ -11,6 +11,7 @@
 import { useMemo } from 'react'
 import { tokens, t, fonts } from '../theme'
 import { EdgeFadeRow } from './EdgeFadeRow'
+import { zoneShortLabel } from './zoneShortLabels'
 import type { CSSProperties, ReactNode } from 'react'
 
 type RailZone = { key: string; label: string; sort_order: number }
@@ -18,61 +19,47 @@ type RailZone = { key: string; label: string; sort_order: number }
 // Short labels and 24x24 marks, in zone order. The marks are drawn for these
 // zones specifically (half of them have no equivalent in any icon library) —
 // do not substitute.
-const ZONE_MARKS: Record<string, { short: string; icon: ReactNode }> = {
+const ZONE_MARKS: Record<string, { icon: ReactNode }> = {
   entrance_elevation: {
-    short: 'Entrance',
     icon: <><path d="M5 21V9a7 7 0 0 1 14 0v12" /><path d="M3 21h18" /><circle cx="15.2" cy="14" r="1" /></>,
   },
   mandapam_building: {
-    short: 'Elevation',
     icon: <><path d="M3 21h18" /><path d="M5.5 21V10.5m4.2 10.5V10.5m4.6 10.5V10.5m4.2 10.5V10.5" /><path d="M3.5 10.5h17L12 4.5z" /></>,
   },
   pathway: {
-    short: 'Pathway',
     icon: <><path d="M9.5 21 6 3.5" /><path d="m14.5 21 3.5-17.5" /><path d="M12 7.5v2m0 4v2m0 4v1" /></>,
   },
   valet_parking: {
-    short: 'Valet',
     icon: <><path d="M4 16.5v-3.2l1.8-4.6A2 2 0 0 1 7.7 7.4h8.6a2 2 0 0 1 1.9 1.3l1.8 4.6v3.2z" /><path d="M4.6 13.3h14.8" /><circle cx="7.6" cy="18" r="1.5" /><circle cx="16.4" cy="18" r="1.5" /></>,
   },
   lift_placard: {
-    short: 'Lift placard',
     icon: <><rect x="6" y="3" width="12" height="13.5" rx="1.6" /><path d="M12 16.5V21" /><path d="M9 21h6" /><path d="m10.2 9.2 1.8-1.8 1.8 1.8" /><path d="m10.2 11.9 1.8 1.8 1.8-1.8" /></>,
   },
   hall_door: {
-    short: 'Hall door',
     icon: <><rect x="4" y="3" width="16" height="18" rx="1.4" /><path d="M12 3v18" /><circle cx="9.7" cy="12" r=".95" /><circle cx="14.3" cy="12" r=".95" /></>,
   },
   selfie_point: {
-    short: 'Selfie point',
     icon: <><path d="M4 8.2h2.9l1.5-2h7.2l1.5 2H20a1 1 0 0 1 1 1v8.6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.2a1 1 0 0 1 1-1z" /><circle cx="12" cy="13.3" r="3.2" /></>,
   },
   welcome_table: {
-    short: 'Welcome table',
     icon: <><path d="M3 14h18" /><path d="M6.2 14v6.5m11.6-6.5v6.5" /><path d="M7.8 14a4.2 4.2 0 0 1 8.4 0" /><path d="M12 7.2v2.6" /></>,
   },
   aisle: {
-    short: 'Aisle',
     icon: <><path d="M9 21V5m6 16V5" /><path d="M3.5 8.5h3m-3 4h3m-3 4h3" /><path d="M17.5 8.5h3m-3 4h3m-3 4h3" /></>,
   },
   stage: {
-    short: 'Stage',
     icon: <><path d="M3 19.5h18" /><path d="M5.2 19.5v-7.8a6.8 6.8 0 0 1 13.6 0v7.8" /><path d="M9.2 19.5v-4.8a2.8 2.8 0 0 1 5.6 0v4.8" /></>,
   },
   hall: {
-    short: 'Hall',
     icon: <><path d="M3 20.5h18" /><rect x="4.6" y="5.5" width="4.2" height="4.2" rx="1.1" /><rect x="9.9" y="5.5" width="4.2" height="4.2" rx="1.1" /><rect x="15.2" y="5.5" width="4.2" height="4.2" rx="1.1" /><rect x="4.6" y="11.6" width="4.2" height="4.2" rx="1.1" /><rect x="9.9" y="11.6" width="4.2" height="4.2" rx="1.1" /><rect x="15.2" y="11.6" width="4.2" height="4.2" rx="1.1" /></>,
   },
   music_dance_stage: {
-    short: 'Music stage',
     icon: <><path d="M9.2 17.8V5.2l10-2v12.4" /><circle cx="6.7" cy="17.8" r="2.5" /><circle cx="16.7" cy="15.6" r="2.5" /></>,
   },
   buffet_dining: {
-    short: 'Buffet',
     icon: <><path d="M6 3v6.2a2.2 2.2 0 0 0 4.4 0V3" /><path d="M8.2 9.4V21" /><path d="M16.6 3v18" /><path d="M16.6 3c2.1 0 3.2 2.1 3.2 5.2s-1.1 4.2-3.2 4.2" /></>,
   },
   return_gift_point: {
-    short: 'Return gifts',
     icon: <><rect x="3.2" y="9.4" width="17.6" height="11.4" rx="1.5" /><path d="M3.2 13.6h17.6" /><path d="M12 9.4v11.4" /><path d="M12 9.4C9.9 9.4 8.2 8.4 8.2 7.1S9.5 5 12 9.4z" /><path d="M12 9.4c2.1 0 3.8-1 3.8-2.3S14.5 5 12 9.4z" /></>,
   },
 }
@@ -181,7 +168,7 @@ export function ZoneRail({
                   style={{ ...styles.tileLabel, fontWeight: hasItems && !isActive ? 600 : 500 }}
                   aria-hidden="true"
                 >
-                  {mark?.short ?? z.label}
+                  {zoneShortLabel(z.key, z.label)}
                 </span>
               </button>
             )

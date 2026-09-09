@@ -42,6 +42,7 @@ import { ACTIVE_TENANT_ID } from '../tenant/activeTenantId'
 import { ZoneRail } from './ZoneRail'
 import { EdgeFadeRow } from './EdgeFadeRow'
 import { PersistentDrawer } from './PersistentDrawer'
+import { zoneShortLabel } from './zoneShortLabels'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { ChevronsRight, ChevronsLeft } from 'lucide-react'
 import { QuotationDocument, type QuotationDocumentItem, type FinishLabels } from '../components/quotation/QuotationDocument'
@@ -324,6 +325,23 @@ export function QuotationBuilder() {
   // total visible and reopens it. Escape collapses (handled by the drawer).
   const [summaryOpen, setSummaryOpen] = useState(true)
   const { isMobile } = useBreakpoint()
+  // Category strips stick immediately below the stuck rail (gate 7 F1). The
+  // rail's height varies (zone rail, optional function switch, guidance
+  // line), so its bottom edge is measured, not hardcoded.
+  // Callback ref, not useRef: the builder mounts on the FORM view, where the
+  // placement bar does not exist yet — a mount-time effect saw a null ref,
+  // never attached the observer, and the strips stuck at the 280px fallback
+  // (~58px of dead gap under the rail, Eswar's 9 Sept screenshot).
+  const [placementEl, setPlacementEl] = useState<HTMLDivElement | null>(null)
+  const [stripTop, setStripTop] = useState(280)
+  useEffect(() => {
+    if (!placementEl) return
+    const measure = () => setStripTop(64 + placementEl.offsetHeight + 8)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(placementEl)
+    return () => ro.disconnect()
+  }, [placementEl])
 
   const [discount, setDiscount] = useState(0)
   const [advance, setAdvance] = useState(DEFAULT_ADVANCE_PCT)
@@ -1592,7 +1610,7 @@ export function QuotationBuilder() {
       {/* The function switch and the zone strip together answer "where is
           the next tap going to land", so they stay pinned while the operator
           works down the element list. top: 56 clears the sticky TopBar. */}
-      <div className="ec-squircle" style={styles.placementBar}>
+      <div ref={setPlacementEl} className="ec-squircle" style={styles.placementBar}>
       {twoFunction && (
         <div style={styles.functionSwitch}>
           {(['reception', 'muhurtham'] as QuotationFunctionKey[]).map((fn) => {
@@ -1727,7 +1745,7 @@ export function QuotationBuilder() {
 
           <div style={{ position: 'relative', marginBottom: 10 }}>
             <Search size={15} color={t.text.tertiary} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} aria-hidden="true" />
-            <input style={{ ...inputStyle, paddingLeft: 34 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all elements…" />
+            <input style={{ ...inputStyle, paddingLeft: 34, borderRadius: 12 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all elements…" />
           </div>
 
           {/* One scrollable line, never a second row: same edge-fade
@@ -1763,7 +1781,7 @@ export function QuotationBuilder() {
           <div style={styles.catalogueScroll}>
             {groupedLibrary.map((group) => (
               <div key={group.key}>
-                <div className="ec-squircle" style={styles.catalogueGroupHeading}>{group.label}</div>
+                <div className="ec-squircle" style={{ ...styles.catalogueGroupHeading, top: stripTop }}>{group.label}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
                   {group.items.map((li) => {
                     const isAdded = zoneChosen && functionItems.some((i) => i.label === li.name && i.zoneKey === activeZone)
@@ -1941,7 +1959,7 @@ export function QuotationBuilder() {
             ) : (
               cartGroups.map((group) => (
                 <div key={group.key} style={{ marginBottom: 14 }}>
-                  <div style={styles.cartZoneHeading}>{group.label}</div>
+                  <div style={styles.cartZoneHeading} title={group.label}>{group.order < 9999 ? `${group.order}. ` : ''}{zoneShortLabel(group.key === '__unzoned__' ? null : group.key, group.label)}</div>
                   {group.items.map((item) => {
                     const charged = unitRate(item, pricingCtx)
                     const commission = commissionComponent(item, pricingCtx)
@@ -2058,7 +2076,7 @@ export function QuotationBuilder() {
                           <select
                             value={item.zoneKey ?? ''}
                             onChange={(e) => moveItemZone(item.key, e.target.value || null)}
-                            title="Move this line to another zone"
+                            title={item.zoneKey ? `${zoneOrder(item.zoneKey)}. ${zoneLabel(item.zoneKey)}` : 'Move this line to another zone'}
                             style={styles.moveSelect}
                           >
                             <option value="">Unassigned</option>
@@ -2309,9 +2327,10 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 10, padding: 12, background: tokens.surface,
     border: `1px solid ${tokens.border}`, borderRadius: 8,
   },
+  // No border/fill of its own: the select inside is a full grey chip via the
+  // global rule, and a second box around it doubled the border (gate 7 F2).
   sessionChip: {
     display: 'inline-flex', alignItems: 'center', gap: 2,
-    border: `1px solid ${tokens.border}`, borderRadius: 6, padding: '2px 4px', background: tokens.surface,
   },
   sessionSelect: {
     border: 'none', background: 'transparent', fontFamily: fonts.body, fontSize: 12,
@@ -2367,7 +2386,7 @@ const styles: Record<string, CSSProperties> = {
   // scroll out of view while elements are being tapped.
   placementBar: {
     position: 'sticky',
-    top: 56,
+    top: 64,
     zIndex: 80,
     background: tokens.bg,
     margin: '0 -8px 16px',
@@ -2416,8 +2435,10 @@ const styles: Record<string, CSSProperties> = {
   },
   // The catalogue scrolls in its own region (like the cart rail) so the
   // group headings can stick to its top edge.
+  // Page-scrolling, not an internal scroller: an internal container slid
+  // under the stuck rail and took the sticky strips with it (gate 7 F1).
   catalogueScroll: {
-    maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', position: 'relative',
+    position: 'relative',
   },
   catalogueGroupHeading: {
     position: 'sticky', top: 0, zIndex: 2,

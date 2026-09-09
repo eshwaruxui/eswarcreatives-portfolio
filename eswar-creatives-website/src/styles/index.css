@@ -230,9 +230,15 @@ select:not([multiple]):not([size]):not(.ec-own-caret) {
   border-radius: 10px !important;
   corner-shape: squircle;
   /* Phase 6 item 2: chips hug their label + caret instead of stretching
-     the full card width. Height (via existing padding) stays the target. */
+     the full card width. Height (via existing padding) stays the target.
+     Phase 7 item 10: capped and truncated — a long zone name renders as
+     "2. Mandapam building dec…" with the caret still visible; the open
+     menu always shows full names, and consumers set title for hover. */
   width: fit-content !important;
-  max-width: 100%;
+  max-width: min(230px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding-right: 30px !important;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236E6A61' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important;
