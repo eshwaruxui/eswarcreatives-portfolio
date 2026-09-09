@@ -402,3 +402,14 @@ Branch `feat/newgen-entry-point`. Goal: Mohan anna reaches the login from Newgen
 2. Supabase Auth URL configuration on `mqkvguzyjvhlnilmollp`: Site URL `https://portal.newgeneventstudio.com`; redirect allowlist `https://portal.newgeneventstudio.com/**` plus keep `http://localhost:3000/**` (local dev login depends on it).
 3. Redeploy the coming soon page (above) after 1 and 2 so the Studio login link resolves.
 4. The six login checks: password sign-in, magic link, password reset, footer link, builder loads, localhost login. The only auth user is mohan@newgeneventstudio.com (admin, confirmed, last sign-in 8 Sep).
+
+## Section 11 addendum - infrastructure went live, 9 Sep 2026 (same day)
+
+Eswar ran `wrangler login` in-session, which unblocked everything Cloudflare-side. State is now:
+
+- **Coming soon page redeployed to production** (`--branch=main` matters: a bare deploy from a feature branch creates a preview, not production). Live apex verified: studio@ footer (Cloudflare email obfuscation rewrites the mailto, harmless), Mukund Varadarajan JSON-LD address, Studio login link. hello@ gone.
+- **`portal.newgeneventstudio.com` live** on the `newgen-portal` Pages project. Domain added via API (wrangler OAuth token works for the Pages API but has NO dns_records scope, so the CNAME itself was a dashboard step). Serves the production bundle with the tenant compiled to "newgen"; Crown Pillar / Newgen branding confirmed in the served JS. Env vars verified BY VALUE on both Production and Preview: VITE_TENANT_ID=newgen, the mqkvguzyjvhlnilmollp URL, and the publishable key matches `get_publishable_keys`.
+- **Auth URL config applied by Eswar** (keychain token, one curl). Verified behaviourally without sending mail, via `/auth/v1/verify` with a bogus token: an allowlisted portal redirect lands on the portal; a disallowed host falls back to the portal (proving Site URL changed from localhost:3000); `http://localhost:3000/**` still redirects to localhost (local dev preserved). The `https://*.newgen-portal.pages.dev/**` preview wildcard did NOT match a real preview host in testing - check the saved allowlist if preview-deploy login testing is wanted; not blocking.
+- Password grant endpoint reachable from the new origin and rejecting wrong credentials correctly.
+
+**Remaining, needs a human in a browser:** password sign-in as mohan@, magic link and password reset email receipt, builder click-through (zone rail + delete UI included), localhost dev login run.
