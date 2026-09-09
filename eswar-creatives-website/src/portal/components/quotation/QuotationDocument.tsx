@@ -485,6 +485,8 @@ function docCss(b: ReturnType<typeof getDocumentTheme>): string {
   background:var(--teal); color:#F4F1E9;
   padding:36px 44px 30px;
   display:flex; justify-content:space-between; align-items:flex-start; gap:28px;
+  /* Approved 9 Sept (Gate 7): white lattice at .13 — quieter than the
+     reference file's .3, which is superseded for the masthead. */
   --ngp-color:#FFFFFF; --ngp-opacity:.13; --ngp-tile-scale:1.4; --ngp-sheen-opacity:.68;
 }
 .ngq-lockup{width:172px; flex-shrink:0; position:relative; z-index:1}
