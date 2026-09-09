@@ -40,6 +40,7 @@ import { ui, mono, formatMoney } from './ui'
 import { formatDocumentDate } from '../utils/formatDate'
 import { ACTIVE_TENANT_ID } from '../tenant/activeTenantId'
 import { ZoneRail } from './ZoneRail'
+import { EdgeFadeRow } from './EdgeFadeRow'
 import { QuotationDocument, type QuotationDocumentItem, type FinishLabels } from '../components/quotation/QuotationDocument'
 import {
   computeTotals,
@@ -307,6 +308,20 @@ export function QuotationBuilder() {
   const [mockupNotice, setMockupNotice] = useState('')
   const [mockupCandidates, setMockupCandidates] = useState<MockupCandidate[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
+  // The summary panel pins below the sticky TopBar (56px) + placement bar,
+  // whose height varies (zone rail, optional function switch, guidance
+  // line), so the sticky offset is measured, not hardcoded.
+  const placementRef = useRef<HTMLDivElement | null>(null)
+  const [cartTop, setCartTop] = useState(260)
+  useEffect(() => {
+    const el = placementRef.current
+    if (!el) return
+    const measure = () => setCartTop(56 + el.offsetHeight + 12)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const [discount, setDiscount] = useState(0)
   const [advance, setAdvance] = useState(50)
@@ -1537,7 +1552,7 @@ export function QuotationBuilder() {
       {/* The function switch and the zone strip together answer "where is
           the next tap going to land", so they stay pinned while the operator
           works down the element list. top: 56 clears the sticky TopBar. */}
-      <div style={styles.placementBar}>
+      <div ref={placementRef} style={styles.placementBar}>
       {twoFunction && (
         <div style={styles.functionSwitch}>
           {(['reception', 'muhurtham'] as QuotationFunctionKey[]).map((fn) => {
@@ -1668,27 +1683,34 @@ export function QuotationBuilder() {
 
           <input style={{ ...inputStyle, marginBottom: 10 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all elements…" />
 
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-            {['All', ...systems.map((s) => s.key)].map((key) => {
-              const label = key === 'All' ? 'All' : systemLabel(key)
-              const isActive = activeSystem === key
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setActiveSystem(key)}
-                  style={{
-                    padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
-                    fontFamily: fonts.body, fontSize: 12, fontWeight: isActive ? 600 : 400,
-                    background: isActive ? tokens.primary : '#fff',
-                    color: isActive ? tokens.gold : t.text.secondary,
-                    border: `1px solid ${isActive ? tokens.primary : tokens.border}`,
-                  }}
-                >
-                  {label}
-                </button>
-              )
-            })}
+          {/* One scrollable line, never a second row: same edge-fade
+              mechanic as the zone rail (Eswar, build 4). Chip styling is
+              unchanged; only the wrapping behaviour differs. */}
+          <div style={{ marginBottom: 12 }}>
+            <EdgeFadeRow fadeColor={tokens.bg} gap={6} ariaLabel="Element categories" updateKey={systems.length}>
+              {['All', ...systems.map((s) => s.key)].map((key) => {
+                const label = key === 'All' ? 'All' : systemLabel(key)
+                const isActive = activeSystem === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setActiveSystem(key)}
+                    style={{
+                      padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+                      fontFamily: fonts.body, fontSize: 12, fontWeight: isActive ? 600 : 400,
+                      background: isActive ? tokens.primary : '#fff',
+                      color: isActive ? tokens.gold : t.text.secondary,
+                      border: `1px solid ${isActive ? tokens.primary : tokens.border}`,
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </EdgeFadeRow>
           </div>
 
           <div style={styles.catalogueScroll}>
@@ -1818,7 +1840,10 @@ export function QuotationBuilder() {
         </div>
 
         {/* Right — cart, finish, totals */}
-        <div style={styles.cartRail}>
+        {/* Sticky within the page scroll and sized to the viewport, so the
+            teal header (top) and totals/Preview block (bottom) never leave
+            view; only cartItems in between scrolls (Eswar, build 4). */}
+        <div style={{ ...styles.cartRail, top: cartTop, maxHeight: `calc(100vh - ${cartTop + 16}px)` }}>
           <div style={styles.cartHeader} data-clarity-mask="True">
             <div style={{ fontFamily: fonts.body, fontSize: 15, fontWeight: 700, color: tokens.gold }}>{client.name || 'Client Name'}</div>
             <div style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: '#fff', marginTop: 2, opacity: 0.85 }}>
@@ -2283,9 +2308,11 @@ const styles: Record<string, CSSProperties> = {
   manualForm: { background: '#fff', padding: 16, marginTop: 8, border: `1px solid ${tokens.border}`, borderRadius: 6 },
   cartRail: {
     background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 8,
-    display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 200px)', overflow: 'hidden',
+    display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    // top and maxHeight are set inline from the measured placement bar.
+    position: 'sticky',
   },
-  cartHeader: { padding: '16px 20px', background: tokens.primary },
+  cartHeader: { padding: '16px 20px', background: tokens.primary, flexShrink: 0 },
   cartItems: { flex: 1, padding: '12px 16px', overflowY: 'auto' },
   cartZoneHeading: {
     fontFamily: fonts.body, fontSize: 10, fontWeight: 700, letterSpacing: 1,
@@ -2302,7 +2329,11 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 5, marginTop: 5,
     fontFamily: fonts.body, fontSize: 10, color: t.text.tertiary, cursor: 'pointer',
   },
-  settingsPanel: { padding: '10px 16px 14px', borderTop: `1px solid ${tokens.border}`, background: tokens.bg },
+  // No flexShrink: 0 here on purpose: if the expanded settings form ever
+  // exceeds the panel height on a short viewport, this block shrinks and
+  // scrolls internally instead of clipping the Total and Preview button
+  // out of reach. At normal heights it keeps its natural size, pinned.
+  settingsPanel: { padding: '10px 16px 14px', borderTop: `1px solid ${tokens.border}`, background: tokens.bg, overflowY: 'auto' },
   settingsSummaryRow: {
     display: 'flex', alignItems: 'baseline', gap: 8, width: '100%',
     background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer',

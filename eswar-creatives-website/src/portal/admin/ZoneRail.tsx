@@ -8,8 +8,9 @@
 //
 // The empty state is the resting state for most zones on most jobs: muted
 // ink, calm, never error styling. An unquoted zone is an upsell not yet made.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import { tokens, t, fonts } from '../theme'
+import { EdgeFadeRow } from './EdgeFadeRow'
 import type { CSSProperties, ReactNode } from 'react'
 
 type RailZone = { key: string; label: string; sort_order: number }
@@ -87,28 +88,10 @@ export function ZoneRail({
   activeZone: string
   onSelect: (key: string) => void
 }) {
-  const scrollRef = useRef<HTMLDivElement | null>(null)
-  const [fadeLeft, setFadeLeft] = useState(false)
-  const [fadeRight, setFadeRight] = useState(false)
-
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     [],
   )
-
-  // Edge fades appear only when there is content hidden past that edge.
-  const updateFades = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    setFadeLeft(el.scrollLeft > 1)
-    setFadeRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 1)
-  }, [])
-
-  useEffect(() => {
-    updateFades()
-    window.addEventListener('resize', updateFades)
-    return () => window.removeEventListener('resize', updateFades)
-  }, [updateFades, zones.length])
 
   const quotedCount = zones.filter((z) => (countByZone[z.key] ?? 0) > 0).length
 
@@ -124,8 +107,6 @@ export function ZoneRail({
   return (
     <div>
       <style>{`
-        .zr-scroll { scrollbar-width: none; -ms-overflow-style: none; }
-        .zr-scroll::-webkit-scrollbar { display: none; }
         .zr-tile:hover { background: ${tokens.primary}12; }
         .zr-tile[aria-pressed="true"]:hover { background: ${tokens.primary}; }
         .zr-tile:focus-visible { outline: 2px solid ${tokens.gold}; outline-offset: 1px; }
@@ -138,15 +119,12 @@ export function ZoneRail({
         </span>
       </div>
 
-      <div style={styles.railWrap}>
-        <div
-          ref={scrollRef}
-          className="zr-scroll"
-          style={{ ...styles.rail, scrollBehavior: reducedMotion ? 'auto' : 'smooth' }}
-          role="tablist"
-          aria-label="Zones, in quoting order"
-          onScroll={updateFades}
-        >
+      <EdgeFadeRow
+        fadeColor={tokens.bg}
+        role="tablist"
+        ariaLabel="Zones, in quoting order"
+        updateKey={zones.length}
+      >
           {zones.map((z) => {
             const count = countByZone[z.key] ?? 0
             const isActive = activeZone === z.key
@@ -200,10 +178,7 @@ export function ZoneRail({
               </button>
             )
           })}
-        </div>
-        {fadeLeft && <div style={{ ...styles.fade, ...styles.fadeLeft }} aria-hidden="true" />}
-        {fadeRight && <div style={{ ...styles.fade, ...styles.fadeRight }} aria-hidden="true" />}
-      </div>
+      </EdgeFadeRow>
     </div>
   )
 }
@@ -229,15 +204,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 600,
     color: t.text.secondary,
-  },
-  railWrap: {
-    position: 'relative',
-  },
-  rail: {
-    display: 'flex',
-    gap: 4,
-    overflowX: 'auto',
-    paddingBottom: 2,
   },
   tile: {
     position: 'relative',
@@ -285,20 +251,5 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 11,
     lineHeight: 1.25,
     textAlign: 'center',
-  },
-  fade: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 44,
-    pointerEvents: 'none',
-  },
-  fadeLeft: {
-    left: 0,
-    background: `linear-gradient(to right, ${tokens.bg}, transparent)`,
-  },
-  fadeRight: {
-    right: 0,
-    background: `linear-gradient(to left, ${tokens.bg}, transparent)`,
   },
 }
