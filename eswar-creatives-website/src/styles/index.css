@@ -131,8 +131,16 @@ html {
    portal (and the rest of the app) picks it up; do not restyle per screen.
    Modern engines honour scrollbar-width/scrollbar-color (and then ignore the
    ::-webkit-scrollbar rules); the pseudo-element block covers older WebKit. */
+/* Phase 5 item 12 refinement: the thumb is HIDDEN at rest and appears while
+   the pointer is over the scroll region, so two adjacent scrollable panels
+   never show two persistent thumbs side by side. Hover on any descendant
+   keeps an ancestor scroll container's :hover true, so the thumb shows
+   whenever the pointer is anywhere inside the region being scrolled. */
 * {
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
   scrollbar-color: rgba(93, 88, 79, 0.35) transparent;
 }
 ::-webkit-scrollbar {
@@ -147,11 +155,15 @@ html {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(93, 88, 79, 0.35);
+  background-color: transparent;
   border-radius: 9999px;
   border: none;
+  transition: background-color 0.2s ease;
 }
-::-webkit-scrollbar-thumb:hover {
+:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(93, 88, 79, 0.35);
+}
+:hover::-webkit-scrollbar-thumb:hover {
   background-color: rgba(93, 88, 79, 0.55);
 }
 
@@ -166,6 +178,12 @@ html {
 select:not([multiple]):not([size]):not(.ec-own-caret) {
   appearance: none;
   -webkit-appearance: none;
+  /* Phase 5 item 14: dropdowns read as grey squircle chips, not bordered
+     input boxes. Same !important reasoning as the caret rules below. */
+  background-color: #EFECE5 !important;
+  border: none !important;
+  border-radius: 10px !important;
+  corner-shape: squircle;
   padding-right: 30px !important;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236E6A61' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important;
@@ -179,4 +197,9 @@ select:not([multiple]):not([size]):not(.ec-own-caret) {
    corner smoothing); everywhere else the existing border-radius stands. */
 .ec-squircle {
   corner-shape: squircle;
+}
+
+/* ── Disclosure row affordance (build 4 phase 5, item 13) ──────────── */
+.ec-disclosure-row:hover {
+  background: rgba(2, 76, 79, 0.06) !important;
 }

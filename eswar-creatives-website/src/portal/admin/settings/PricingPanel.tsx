@@ -635,13 +635,13 @@ function CurvesEditor({
     if (!d.label.trim()) return 'Give the curve a label.'
     if (d.steps.length < 2) return 'A curve keeps at least two steps.'
     const full = d.steps.find((sr) => sr.finishLevel === 'full_fresh')
-    if (!full) return 'Every curve carries a full_fresh step — the anchor is by definition the full fresh price.'
+    if (!full) return 'Every curve carries a full_fresh step. The anchor is by definition the full fresh price.'
     for (const sr of d.steps) {
       if (!RATIO_PATTERN.test(sr.ratio.trim())) return `The ${finishLabel(sr.finishLevel)} ratio must be a number between 0 and 1 with at most six decimals.`
       const n = ratioNumber(sr.ratio)
       if (!(n > 0 && n <= 1)) return `The ${finishLabel(sr.finishLevel)} ratio must be greater than 0 and no greater than 1.`
     }
-    if (ratioNumber(full.ratio) !== 1) return 'The full_fresh ratio must be exactly 1.000000 — the anchor is the full fresh price.'
+    if (ratioNumber(full.ratio) !== 1) return 'The full_fresh ratio must be exactly 1.000000. The anchor is the full fresh price.'
     const ordered = [...d.steps].sort(
       (a, b) => (finishes.find((f) => f.key === a.finishLevel)?.sort_order ?? 999) - (finishes.find((f) => f.key === b.finishLevel)?.sort_order ?? 999)
     )
@@ -709,7 +709,7 @@ function CurvesEditor({
     )
     setBusy(false)
     if (stepsErr) {
-      showToast('Curve created but its steps did not save — open it and try again.', 'error')
+      showToast('Curve created but its steps did not save. Open it and try again.', 'error')
     } else {
       showToast('Curve created.', 'success')
     }
@@ -763,7 +763,7 @@ function CurvesEditor({
     if (blockers.length > 0) {
       const names = [...new Set(blockers.map((r) => `${itemName(r.item_id)} (${r.unit})`))]
       showToast(
-        `Cannot delete ${curve.label}: ${names.length} rate${names.length === 1 ? '' : 's'} still price on it — ${names.join(', ')}. Move them to another curve first.`,
+        `Cannot delete ${curve.label}: ${names.length} rate${names.length === 1 ? '' : 's'} still price on it: ${names.join(', ')}. Move them to another curve first.`,
         'error',
         8000
       )
@@ -837,7 +837,7 @@ function CurvesEditor({
                         style={{ ...ps.input, width: 120 }}
                         value={sr.ratio}
                         disabled={sr.finishLevel === 'full_fresh'}
-                        title={sr.finishLevel === 'full_fresh' ? 'The anchor is by definition the full fresh price — this step is always 1.000000.' : undefined}
+                        title={sr.finishLevel === 'full_fresh' ? 'The anchor is by definition the full fresh price. This step is always 1.000000.' : undefined}
                         onChange={(e) =>
                           setDraft({
                             ...draft,

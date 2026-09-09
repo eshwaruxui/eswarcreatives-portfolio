@@ -33,10 +33,10 @@
 // exists to prevent.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { ArrowLeft, Printer, Mail, Send } from 'lucide-react'
+import { ArrowLeft, Printer, Mail, Send, Pencil, Info, Search, ChevronDown, ChevronRight } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
-import { ui, mono, formatMoney } from './ui'
+import { ui, mono, formatMoney, Modal } from './ui'
 import { formatDocumentDate } from '../utils/formatDate'
 import { ACTIVE_TENANT_ID } from '../tenant/activeTenantId'
 import { ZoneRail } from './ZoneRail'
@@ -764,7 +764,7 @@ export function QuotationBuilder() {
       // Same guard as the autosave effect, for the explicit save paths:
       // writing lines against an absent snapshot would store zeros.
       if (!snapshotLoaded) {
-        setError('Still loading the rate card for this quotation — try again in a moment.')
+        setError('Still loading the rate card for this quotation. Try again in a moment.')
         return false
       }
       setSaveState('saving')
@@ -1047,7 +1047,7 @@ export function QuotationBuilder() {
       setMockupNotice(
         found.length === 0
           ? 'No elements identified in this mockup.'
-          : `${found.length} candidate${found.length === 1 ? '' : 's'} identified. Tick the ones to add — nothing is added until you confirm.`
+          : `${found.length} candidate${found.length === 1 ? '' : 's'} identified. Tick the ones to add. Nothing is added until you confirm.`
       )
     } catch {
       setMockupNotice('Could not analyze the mockup. Add items manually.')
@@ -1537,29 +1537,57 @@ export function QuotationBuilder() {
       {/* Page header. One H1 only: the event type. The venue is the H2.
           Everything else is supporting metadata — visual prominence does
           not have to follow heading level. */}
-      <header style={{ marginBottom: 12 }}>
+      <header style={{ marginBottom: 12, position: 'relative' }}>
+        {/* One pencil, top right: general details (title, venue, client
+            contact). Days and sessions have their own entry point, the
+            ruby chip below (phase 5 items 4, 5, 11). */}
+        <button
+          type="button"
+          style={styles.headerEditBtn}
+          onClick={() => setView('form')}
+          aria-label="Edit event details"
+          title="Edit event details"
+        >
+          <Pencil size={15} />
+        </button>
         <h1 style={styles.pageH1}>{eventInfo.type || 'Quotation'}</h1>
         {eventInfo.venue.trim() !== '' && <h2 style={styles.pageH2}>{eventInfo.venue.trim()}</h2>}
         <div style={styles.headerMeta} data-clarity-mask="True">
           {quotationNumber && <span style={{ fontFamily: mono }}>{quotationNumber}</span>}
-          {eventInfo.date && <span>{formatDocumentDate(eventInfo.date)}</span>}
-          <span>{dayCount} day{dayCount > 1 ? 's' : ''}</span>
-          {sessionsSummary && <span>{sessionsSummary}</span>}
+          {/* The chip IS the tap target for the day/session editor. */}
+          <button
+            type="button"
+            className="ec-squircle"
+            style={styles.daysChip}
+            onClick={() => setEditingDays(true)}
+            aria-haspopup="dialog"
+            title="Edit days and sessions"
+          >
+            {[
+              eventInfo.date ? formatDocumentDate(eventInfo.date) : null,
+              `${dayCount} day${dayCount > 1 ? 's' : ''}`,
+              sessionsSummary || null,
+            ].filter(Boolean).join(' · ')}
+          </button>
           <span>{client.name}{client.phone ? ` · ${client.phone}` : ''}</span>
-          <button type="button" style={styles.linkBtn} onClick={() => setEditingDays((v) => !v)}>
-            {editingDays ? 'done' : 'edit days'}
-          </button>
-          <button type="button" style={styles.linkBtn} onClick={() => setView('form')}>
-            edit details
-          </button>
         </div>
-        {editingDays && <div style={styles.daysEditorBox}>{renderDaysSessions(true)}</div>}
       </header>
+
+      {editingDays && (
+        <Modal title="Days and sessions" onClose={() => setEditingDays(false)}>
+          {renderDaysSessions(true)}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+            <button type="button" style={ui.primaryBtn} onClick={() => setEditingDays(false)}>
+              Done
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {/* The function switch and the zone strip together answer "where is
           the next tap going to land", so they stay pinned while the operator
           works down the element list. top: 56 clears the sticky TopBar. */}
-      <div style={styles.placementBar}>
+      <div className="ec-squircle" style={styles.placementBar}>
       {twoFunction && (
         <div style={styles.functionSwitch}>
           {(['reception', 'muhurtham'] as QuotationFunctionKey[]).map((fn) => {
@@ -1599,7 +1627,10 @@ export function QuotationBuilder() {
         {/* The reason the add controls are inert, stated where the operator
             is looking rather than left to be inferred from a greyed-out UI. */}
         {!zoneChosen ? (
+          // Plain helper text, not a box: the old bordered treatment read
+          // as an input to type into (phase 5 item 2).
           <div style={styles.zonePrompt}>
+            <Info size={13} aria-hidden="true" />
             Pick a zone to start adding elements.
           </div>
         ) : (
@@ -1619,8 +1650,8 @@ export function QuotationBuilder() {
           <div className="ec-squircle" style={styles.mockupCard}>
             <div style={styles.formCardTitle}>ANALYSE A MOCKUP</div>
             <div style={{ fontFamily: fonts.body, fontSize: 13, color: t.text.tertiary, margin: '6px 0 12px', lineHeight: 1.5 }}>
-              Upload a concept image to identify elements. Analysis returns a candidate list —
-              you pick the ones to add, and nothing lands in the quotation until you confirm.
+              Upload a concept image to identify elements. Analysis returns a candidate list,
+              and you pick which ones to add. Nothing lands in the quotation until you confirm.
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => setMockupFile(e.target.files?.[0] ?? null)} />
@@ -1689,7 +1720,10 @@ export function QuotationBuilder() {
             )}
           </div>
 
-          <input style={{ ...inputStyle, marginBottom: 10 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all elements…" />
+          <div style={{ position: 'relative', marginBottom: 10 }}>
+            <Search size={15} color={t.text.tertiary} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} aria-hidden="true" />
+            <input style={{ ...inputStyle, paddingLeft: 34 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all elements…" />
+          </div>
 
           {/* One scrollable line, never a second row: same edge-fade
               mechanic as the zone rail (Eswar, build 4). Chip styling is
@@ -1724,7 +1758,7 @@ export function QuotationBuilder() {
           <div style={styles.catalogueScroll}>
             {groupedLibrary.map((group) => (
               <div key={group.key}>
-                <div style={styles.catalogueGroupHeading}>{group.label}</div>
+                <div className="ec-squircle" style={styles.catalogueGroupHeading}>{group.label}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
                   {group.items.map((li) => {
                     const isAdded = zoneChosen && functionItems.some((i) => i.label === li.name && i.zoneKey === activeZone)
@@ -1802,11 +1836,15 @@ export function QuotationBuilder() {
             )}
           </div>
 
-          <button type="button" style={styles.manualToggle} onClick={() => setShowManual(!showManual)}>
+          <button type="button" style={styles.manualToggle} onClick={() => setShowManual(true)}>
             + Add Custom Element Manually
           </button>
+          {/* A dialog, not an inline expansion: the form no longer pushes
+              the catalogue down (phase 5 item 9). Closes on add or cancel;
+              the shared Modal supplies Escape and backdrop behaviour. */}
           {showManual && (
-            <div className="ec-squircle" style={styles.manualForm}>
+            <Modal title="Add custom element" onClose={() => setShowManual(false)}>
+            <div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={labelStyle}>Element Name</label>
@@ -1835,15 +1873,21 @@ export function QuotationBuilder() {
               <div style={{ fontFamily: fonts.body, fontSize: 11, color: zoneChosen ? t.text.tertiary : tokens.ruby, marginBottom: 10 }}>
                 {zoneChosen ? `Lands in ${zoneLabel(activeZone)}.` : 'Pick a zone above before adding this.'}
               </div>
-              <button
-                type="button"
-                disabled={!zoneChosen || !manualItem.name.trim() || !manualItem.system}
-                style={{ ...styles.toolbarBtnPrimary, opacity: zoneChosen && manualItem.name.trim() && manualItem.system ? 1 : 0.5 }}
-                onClick={addManualItem}
-              >
-                Add to Quotation
-              </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" style={styles.toolbarBtnGhost} onClick={() => setShowManual(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!zoneChosen || !manualItem.name.trim() || !manualItem.system}
+                  style={{ ...styles.toolbarBtnPrimary, opacity: zoneChosen && manualItem.name.trim() && manualItem.system ? 1 : 0.5 }}
+                  onClick={addManualItem}
+                >
+                  Add to Quotation
+                </button>
+              </div>
             </div>
+            </Modal>
           )}
         </div>
 
@@ -1937,7 +1981,7 @@ export function QuotationBuilder() {
                               value={item.anchorRate > 0 ? item.anchorRate : ''}
                               placeholder="TBC"
                               onChange={(e) => updateItemAnchor(item.key, Number(e.target.value) || 0)}
-                              title={item.curveKey ? 'Anchor rate — the full-fresh figure the curve scales from' : 'Rate'}
+                              title={item.curveKey ? 'Anchor rate: the full-fresh figure the curve scales from' : 'Rate'}
                               style={{
                                 width: 68, padding: '4px 6px', borderRadius: 4, textAlign: 'right',
                                 border: `1px solid ${unpriced ? tokens.goldDark : tokens.border}`,
@@ -1960,7 +2004,7 @@ export function QuotationBuilder() {
                             <select
                               value={item.finishLevel ?? ''}
                               onChange={(e) => updateItemFinish(item.key, e.target.value)}
-                              title="Finish for this line — only the levels its curve defines"
+                              title="Finish for this line: only the levels its curve defines"
                               style={styles.moveSelect}
                             >
                               {item.finishLevel == null && <option value="">choose finish…</option>}
@@ -2043,11 +2087,14 @@ export function QuotationBuilder() {
                 values, and the freed height goes to the line list above. */}
             <button
               type="button"
+              className="ec-disclosure-row"
               style={styles.settingsSummaryRow}
               onClick={() => setShowQuotationSettings((v) => !v)}
+              aria-expanded={showQuotationSettings}
             >
-              <span style={{ fontWeight: 700 }}>
-                {showQuotationSettings ? '▾' : '▸'} Quotation settings
+              <span style={{ fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                {showQuotationSettings ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                Quotation settings
               </span>
               <span style={styles.settingsSummaryValues}>
                 {finishLabels[activeFunction] ?? 'No finish'}
@@ -2112,7 +2159,7 @@ export function QuotationBuilder() {
               {saveState === 'dirty' && 'Unsaved changes'}
               {saveState === 'saved' && 'All changes saved'}
               {saveState === 'error' && (
-                <span style={{ color: tokens.ruby, fontWeight: 700 }}>Not saved — retrying on next change</span>
+                <span style={{ color: tokens.ruby, fontWeight: 700 }}>Not saved. Retrying on next change</span>
               )}
             </div>
 
@@ -2231,6 +2278,20 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 6,
     fontFamily: fonts.body, fontSize: 12, color: t.text.tertiary, alignItems: 'center',
   },
+  headerEditBtn: {
+    position: 'absolute', top: 0, right: 0,
+    width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    background: '#fff', border: `1px solid ${tokens.border}`, borderRadius: 8,
+    color: tokens.primary, cursor: 'pointer',
+  },
+  // Ruby on a grey squircle: the date/duration/session trio is the tap
+  // target for the day/session dialog (phase 5 items 5 and 11).
+  daysChip: {
+    display: 'inline-flex', alignItems: 'center',
+    padding: '4px 10px', background: '#EFECE5', border: 'none', borderRadius: 8,
+    fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.ruby,
+    cursor: 'pointer',
+  },
   daysEditorBox: {
     marginTop: 10, padding: 12, background: '#fff',
     border: `1px solid ${tokens.border}`, borderRadius: 8,
@@ -2297,15 +2358,16 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 80,
     background: tokens.bg,
     margin: '0 -8px 16px',
-    padding: '10px 8px 0',
-    borderBottom: `1px solid ${tokens.border}`,
+    padding: '10px 8px 4px',
+    border: `1px solid ${tokens.border}`,
+    borderRadius: 12,
   },
   // Neutral guidance, not an error: this is a friendly empty state, and
   // red fill read as "something failed" (client feedback, 8 Sept).
   zonePrompt: {
+    display: 'flex', alignItems: 'center', gap: 6,
     fontFamily: fonts.body, fontSize: 12, color: t.text.secondary,
-    background: '#fff', border: `1px solid ${tokens.border}`,
-    borderRadius: 6, padding: '7px 10px', margin: '10px 0',
+    padding: '9px 2px', margin: '4px 0',
   },
   zoneActiveNote: {
     fontFamily: fonts.body, fontSize: 12, color: t.text.secondary, padding: '9px 2px',
@@ -2346,12 +2408,12 @@ const styles: Record<string, CSSProperties> = {
   },
   catalogueGroupHeading: {
     position: 'sticky', top: 0, zIndex: 2,
-    background: tokens.bg, padding: '8px 2px 5px',
+    background: '#EFECE5', padding: '7px 10px 6px', borderRadius: 8,
     fontFamily: fonts.body, fontSize: 11, fontWeight: 700, letterSpacing: 1,
     textTransform: 'uppercase', color: tokens.goldDark,
-    borderBottom: `1px solid ${tokens.border}`, marginBottom: 6,
+    marginBottom: 6,
   },
-  mockupCard: { background: '#fff', borderRadius: 8, padding: 20, marginBottom: 16, border: `1px dashed ${tokens.gold}` },
+  mockupCard: { background: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, border: `1px dashed ${tokens.gold}` },
   chooseBtn: {
     padding: '8px 14px', background: tokens.bg, border: `1px solid ${tokens.border}`, color: tokens.primary,
     fontFamily: fonts.body, fontSize: 13, fontWeight: 500, cursor: 'pointer', borderRadius: 4,
@@ -2431,8 +2493,9 @@ const styles: Record<string, CSSProperties> = {
   // out of reach. At normal heights it keeps its natural size, pinned.
   settingsPanel: { padding: '10px 16px 14px', borderTop: `1px solid ${tokens.border}`, background: tokens.bg, overflowY: 'auto' },
   settingsSummaryRow: {
-    display: 'flex', alignItems: 'baseline', gap: 8, width: '100%',
-    background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+    background: 'none', border: 'none', padding: '8px 10px', margin: '0 -10px',
+    borderRadius: 8, cursor: 'pointer',
     fontFamily: fonts.body, fontSize: 12, color: tokens.primary, textAlign: 'left',
     marginBottom: 4,
   },
