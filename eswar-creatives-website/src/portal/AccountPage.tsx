@@ -41,11 +41,18 @@ function Account({ profile }: { profile: PortalProfile }) {
       if (err) throw err
       // H1: clear confirmation that the action succeeded.
       setToast('A reset link has been sent to your email.')
-    } catch {
-      // H9: plain-language error, never a raw Supabase string.
-      setError(
-        'We could not send the reset link. Please try again or contact eswar@eswarcreatives.in'
-      )
+    } catch (err) {
+      // H9: plain-language errors, never a raw Supabase string. The mailer
+      // rate limit gets its own message: an immediate retry cannot succeed.
+      const status = (err as { status?: number } | null)?.status
+      const code = (err as { code?: string } | null)?.code
+      if (status === 429 || code === 'over_email_send_rate_limit') {
+        setError('Too many reset requests. Please wait a few minutes before trying again.')
+      } else {
+        setError(
+          'We could not send the reset link. Please try again or contact eswar@eswarcreatives.in'
+        )
+      }
     } finally {
       setBusy(false)
     }

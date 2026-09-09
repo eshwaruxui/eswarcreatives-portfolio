@@ -164,9 +164,18 @@ export function LoginPage() {
       if (err) throw err
       // H1: clear confirmation that the action succeeded.
       setInfo(`Password reset link sent to ${email}. Check your inbox.`)
-    } catch {
-      // H9: plain-language error, never a raw Supabase string.
-      setError('We could not send the reset link. Please try again.')
+    } catch (err) {
+      // H9: plain-language errors, never a raw Supabase string. The rate
+      // limit gets its own message because "please try again" is exactly the
+      // wrong advice there: Supabase's mailer allows only a couple of emails
+      // per hour, so an immediate retry is guaranteed to fail again.
+      const status = (err as { status?: number } | null)?.status
+      const code = (err as { code?: string } | null)?.code
+      if (status === 429 || code === 'over_email_send_rate_limit') {
+        setError('Too many reset requests. Please wait a few minutes before trying again.')
+      } else {
+        setError('We could not send the reset link. Please try again.')
+      }
     } finally {
       setBusy(false)
     }
