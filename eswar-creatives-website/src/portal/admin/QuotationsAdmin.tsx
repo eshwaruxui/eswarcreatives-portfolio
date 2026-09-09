@@ -3,13 +3,15 @@
 // both navigate to the full-screen QuotationBuilder route rather than opening
 // a Modal/SidePanel — the builder's two-column scope step needs real width.
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
-import { Plus, ReceiptText } from 'lucide-react'
+import { useNavigate, useOutletContext } from 'react-router'
+import { Plus, ReceiptText, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tokens, t, fonts } from '../theme'
 import { PageHeader, Card, StatusBadge, ui, mono, formatMoney } from './ui'
 import { formatDocumentDate } from '../utils/formatDate'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { DeleteQuotationModal, type DeletableQuotation } from './DeleteQuotationModal'
+import type { PortalProfile } from '../PortalGuard'
 import type { CSSProperties } from 'react'
 
 type QuotationRow = {
@@ -26,9 +28,15 @@ type QuotationRow = {
 export function QuotationsAdmin() {
   const navigate = useNavigate()
   const { isMobile } = useBreakpoint()
+  // AdminShell gates this whole area to owner/admin and passes the profile via
+  // the router outlet; only those roles may delete a quotation (mirrors invoices).
+  const profile = useOutletContext<PortalProfile>()
+  const canDelete = profile?.role === 'owner' || profile?.role === 'admin'
   const [rows, setRows] = useState<QuotationRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // The quotation queued for deletion (drives the confirmation modal).
+  const [deleteTarget, setDeleteTarget] = useState<DeletableQuotation | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -77,7 +85,22 @@ export function QuotationsAdmin() {
               <div key={r.id} style={styles.mobileCard} onClick={() => navigate(`/portal/admin/quotations/${r.id}`)}>
                 <div style={styles.mobileCardTop}>
                   <span style={styles.quoteNumber}>{r.quotation_number}</span>
-                  <StatusBadge status={r.status} />
+                  <span style={styles.mobileTopRight}>
+                    <StatusBadge status={r.status} />
+                    {canDelete && r.status === 'draft' && (
+                      <button
+                        type="button"
+                        style={styles.deleteBtn}
+                        aria-label={`Delete quotation ${r.quotation_number}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteTarget(r)
+                        }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </span>
                 </div>
                 <div style={styles.mobileClient}>{r.client_name}</div>
                 <div style={styles.mobileMeta}>
@@ -98,6 +121,7 @@ export function QuotationsAdmin() {
                 <th style={styles.th}>Date</th>
                 <th style={styles.th}>Total</th>
                 <th style={styles.th}>Status</th>
+                {canDelete && <th style={styles.th} aria-label="Actions" />}
               </tr>
             </thead>
             <tbody>
@@ -111,12 +135,49 @@ export function QuotationsAdmin() {
                   <td style={styles.td}>
                     <StatusBadge status={r.status} />
                   </td>
+                  {canDelete && (
+                    <td style={{ ...styles.td, width: 44 }}>
+                      {r.status === 'draft' ? (
+                        <button
+                          type="button"
+                          style={styles.deleteBtn}
+                          aria-label={`Delete quotation ${r.quotation_number}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDeleteTarget(r)
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      ) : (
+                        // H5: a sent quotation is a document the client has
+                        // seen; the muted icon + title says why it stays.
+                        <span
+                          style={styles.deleteBtnDisabled}
+                          title="Sent quotations are kept as a record and cannot be deleted"
+                        >
+                          <Trash2 size={15} />
+                        </span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </Card>
+
+      {deleteTarget && (
+        <DeleteQuotationModal
+          quotation={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => {
+            setDeleteTarget(null)
+            void load()
+          }}
+        />
+      )}
     </>
   )
 }
@@ -165,6 +226,29 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   mobileCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  mobileTopRight: { display: 'flex', alignItems: 'center', gap: 8 },
+  deleteBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 30,
+    height: 30,
+    background: 'transparent',
+    color: tokens.ruby,
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    padding: 0,
+  },
+  deleteBtnDisabled: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 30,
+    height: 30,
+    color: t.text.disabled,
+    cursor: 'not-allowed',
+  },
   quoteNumber: { fontFamily: mono, fontSize: 12, color: t.text.tertiary },
   mobileClient: { fontFamily: fonts.body, fontSize: 15, fontWeight: 600, color: t.text.primary },
   mobileMeta: { fontFamily: fonts.body, fontSize: 12, color: t.text.tertiary, marginTop: 2 },

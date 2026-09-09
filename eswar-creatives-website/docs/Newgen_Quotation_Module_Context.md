@@ -382,3 +382,36 @@ Migration 0123 adds updated_at/updated_by audit columns + a stamp trigger to rat
 **Change-safety, verified on a Supabase branch:** a sent quotation is byte-identical through anchor, curve and commission changes. **Drafts do NOT re-price** - every quotation (draft included) snapshots the rate card at creation, so changes apply only to quotations created afterwards. The screen states this above the panels.
 
 Gates 1-4 ran against a throwaway Supabase preview branch (the recorded migration history is not replayable from scratch - the branch came up empty and the quotation schema was rebuilt on it by hand; worth knowing before relying on Supabase branching for this project again).
+
+---
+
+# SECTION 11 - Entry point and live testing readiness (9 Sep 2026)
+
+Branch `feat/newgen-entry-point`. Goal: Mohan anna reaches the login from Newgen's own domain, signs in, and is recorded.
+
+**Coming soon page is now under version control.** `newgen-coming-soon/` had never been committed; the 8 Sep edits (studio@ footer email, Major Mukund Varadarajan Rd address in the JSON-LD, Studio login footer link to `https://portal.newgeneventstudio.com/portal/login`) existed only on one machine. Committed on this branch. NOT yet redeployed: there is no Cloudflare credential on this machine (`wrangler` has never been logged in here; the 8 Sep deploy attempt failed the same way). Deploy needs `npx wrangler login` once, then `npx wrangler pages deploy public --project-name=newgen-coming-soon` from `newgen-coming-soon/`.
+
+**Quotation delete shipped.** Trash action on the quotations list (owner or admin role), confirmation modal naming quotation number, client and total. Draft-only: the guard is inside the delete statement (`.eq('status','draft')`), so a quotation sent from another tab between render and click is kept and the modal explains. Sent rows show a muted icon titled with the archive reason. No migration: all four child tables already cascade (0110, 0116, 0117). Cascade and guard verified against the live project with a throwaway quotation.
+
+**Zone rail shipped.** Built to `docs/Newgen_Zone_Rail_Spec.md` (frozen 9 Sep). Short labels and the fourteen drawn marks live in a code map in `ZoneRail.tsx` keyed by `zone_key`, presentation only, so no short label column was added: the DB names, zone order and printed document are untouched, and a zone missing from the map still renders with its full name. Accessible name is the full zone name plus count. Interactive behaviour (scroll, fades, badge states) is build-verified, not yet browser-tested.
+
+**Test data cleared.** NES-2026-1016 (smoke test, was status sent) and NES-2026-1010 (Rs.0 "Test name" draft) deleted with cascade confirmed; the quotations table is empty and orphan checks across all four child tables returned zero. The first UI proof of the delete flow falls to the live smoke test.
+
+**Still manual, needs Eswar's credentials (all steps in TENANT_PROVISIONING_LOG.md, Newgen section):**
+1. Cloudflare: custom domain `portal.newgeneventstudio.com` on the `newgen-portal` Pages project, and confirm `VITE_TENANT_ID=newgen` on BOTH Production and Preview environments (Preview does not inherit).
+2. Supabase Auth URL configuration on `mqkvguzyjvhlnilmollp`: Site URL `https://portal.newgeneventstudio.com`; redirect allowlist `https://portal.newgeneventstudio.com/**` plus keep `http://localhost:3000/**` (local dev login depends on it).
+3. Redeploy the coming soon page (above) after 1 and 2 so the Studio login link resolves.
+4. The six login checks: password sign-in, magic link, password reset, footer link, builder loads, localhost login. The only auth user is mohan@newgeneventstudio.com (admin, confirmed, last sign-in 8 Sep).
+
+## Section 11 addendum - infrastructure went live, 9 Sep 2026 (same day)
+
+Eswar ran `wrangler login` in-session, which unblocked everything Cloudflare-side. State is now:
+
+- **Coming soon page redeployed to production** (`--branch=main` matters: a bare deploy from a feature branch creates a preview, not production). Live apex verified: studio@ footer (Cloudflare email obfuscation rewrites the mailto, harmless), Mukund Varadarajan JSON-LD address, Studio login link. hello@ gone.
+- **`portal.newgeneventstudio.com` live** on the `newgen-portal` Pages project. Domain added via API (wrangler OAuth token works for the Pages API but has NO dns_records scope, so the CNAME itself was a dashboard step). Serves the production bundle with the tenant compiled to "newgen"; Crown Pillar / Newgen branding confirmed in the served JS. Env vars verified BY VALUE on both Production and Preview: VITE_TENANT_ID=newgen, the mqkvguzyjvhlnilmollp URL, and the publishable key matches `get_publishable_keys`.
+- **Auth URL config applied by Eswar** (keychain token, one curl). Verified behaviourally without sending mail, via `/auth/v1/verify` with a bogus token: an allowlisted portal redirect lands on the portal; a disallowed host falls back to the portal (proving Site URL changed from localhost:3000); `http://localhost:3000/**` still redirects to localhost (local dev preserved). The `https://*.newgen-portal.pages.dev/**` preview wildcard did NOT match a real preview host in testing - check the saved allowlist if preview-deploy login testing is wanted; not blocking.
+- Password grant endpoint reachable from the new origin and rejecting wrong credentials correctly.
+
+**Remaining, needs a human in a browser:** password sign-in as mohan@, magic link and password reset email receipt, builder click-through (zone rail + delete UI included), localhost dev login run.
+
+**Login screen additions (same PR):** a Forgot password link on the Email + Password tab (shared LoginPage, every tenant), and a recovery screen: following a reset link fires Supabase's PASSWORD_RECOVERY event after the PKCE code exchange, which swaps the login card for a Set new password form (password + confirm, updateUser, then role-based redirect). A ref guards the page's signed-in auto-redirect so the recovery session is not bounced to the dashboard before the password is set. AccountPage's reset redirect was also fixed: it hardcoded eswarcreatives.in/portal/reset-password, a wrong-tenant URL AND a route that never existed. PKCE caveat: a reset link must be opened in the same browser that requested it, or the code exchange fails.

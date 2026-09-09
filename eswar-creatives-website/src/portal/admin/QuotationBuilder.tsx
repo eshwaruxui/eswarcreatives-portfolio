@@ -39,6 +39,7 @@ import { tokens, t, fonts } from '../theme'
 import { ui, mono, formatMoney } from './ui'
 import { formatDocumentDate } from '../utils/formatDate'
 import { ACTIVE_TENANT_ID } from '../tenant/activeTenantId'
+import { ZoneRail } from './ZoneRail'
 import { QuotationDocument, type QuotationDocumentItem, type FinishLabels } from '../components/quotation/QuotationDocument'
 import {
   computeTotals,
@@ -1563,34 +1564,15 @@ export function QuotationBuilder() {
         </div>
       )}
 
-      {/* Zone strip — the venue walk. All 14 zones stay visible; an empty
-          one is a prompt, not clutter. Wraps rather than scrolling
-          sideways so every zone stays within reach. */}
-      <div style={styles.zoneStrip}>
-        {zones.map((z) => {
-          const count = countByZone[z.key] ?? 0
-          const isActive = activeZone === z.key
-          return (
-            <button
-              key={z.key}
-              type="button"
-              onClick={() => setActiveZone(isActive ? '' : z.key)}
-              style={{
-                padding: '7px 12px', borderRadius: 20, cursor: 'pointer', whiteSpace: 'nowrap',
-                fontFamily: fonts.body, fontSize: 12, fontWeight: isActive ? 700 : 400,
-                background: isActive ? tokens.primary : count > 0 ? `${tokens.primary}12` : '#fff',
-                color: isActive ? tokens.gold : count > 0 ? tokens.primary : t.text.tertiary,
-                border: `1px solid ${isActive || count > 0 ? tokens.primary : tokens.border}`,
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ opacity: 0.55, marginRight: 6 }}>{z.sort_order}</span>
-              {z.label}
-              {count > 0 && <span style={{ marginLeft: 6, fontWeight: 700 }}>{count}</span>}
-            </button>
-          )
-        })}
-      </div>
+      {/* Zone rail — the venue walk as a scrollable row of icon tiles
+          (docs/Newgen_Zone_Rail_Spec.md). All 14 zones stay within reach;
+          an empty one is a prompt, not clutter. */}
+      <ZoneRail
+        zones={zones}
+        countByZone={countByZone}
+        activeZone={activeZone}
+        onSelect={(key) => setActiveZone(activeZone === key ? '' : key)}
+      />
 
         {/* The reason the add controls are inert, stated where the operator
             is looking rather than left to be inferred from a greyed-out UI. */}
@@ -2229,9 +2211,6 @@ const styles: Record<string, CSSProperties> = {
     margin: '0 -8px 16px',
     padding: '10px 8px 0',
     borderBottom: `1px solid ${tokens.border}`,
-  },
-  zoneStrip: {
-    display: 'flex', gap: 6, flexWrap: 'wrap',
   },
   // Neutral guidance, not an error: this is a friendly empty state, and
   // red fill read as "something failed" (client feedback, 8 Sept).

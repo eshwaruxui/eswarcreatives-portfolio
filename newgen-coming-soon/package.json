@@ -1,0 +1,13 @@
+{
+  "name": "newgen-coming-soon",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Newgen Event Studio coming soon page for newgeneventstudio.com, deployed on Cloudflare Pages",
+  "scripts": {
+    "preview": "npx serve public",
+    "deploy": "wrangler pages deploy public --project-name=newgen-coming-soon"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

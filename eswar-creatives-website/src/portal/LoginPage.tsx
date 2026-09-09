@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { useNavigate } from 'react-router'
 import { Eye, EyeOff } from 'lucide-react'
@@ -18,11 +18,49 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
 
-  // Already logged in? Skip the form.
+  // Password recovery: a reset link lands here with a PKCE code; once
+  // supabase-js exchanges it, onAuthStateChange fires PASSWORD_RECOVERY and
+  // the card shows a "Set new password" form instead of the login form.
+  // The ref (not just state) guards the session-redirect effect below, whose
+  // getSession callback would otherwise bounce the fresh recovery session to
+  // the dashboard before the user has set a password.
+  const [recovery, setRecovery] = useState(false)
+  const recoveryRef = useRef(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+
+  // This effect must come BEFORE the getSession one: getSession() resolves
+  // only after supabase-js finishes processing the URL, so attaching the
+  // listener first guarantees PASSWORD_RECOVERY sets the ref in time.
+  useEffect(() => {
+    // Legacy implicit-flow links carry type=recovery in the hash; catch those
+    // synchronously too, in case the event fired before this mount.
+    if (window.location.hash.includes('type=recovery')) {
+      recoveryRef.current = true
+      setRecovery(true)
+    }
+    // An expired or reused link redirects back here with the error in the
+    // hash; surface it instead of showing a silently ordinary login form (H9).
+    if (window.location.hash.includes('error_code=otp_expired')) {
+      setError('That link has expired or was already used. Request a new one.')
+    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        recoveryRef.current = true
+        setRecovery(true)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Already logged in? Skip the form — unless this session just arrived via
+  // a recovery link and still needs its password set.
   useEffect(() => {
     let cancelled = false
     supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled && data.session) void redirectByRole(data.session.user.id)
+      if (!cancelled && data.session && !recoveryRef.current) {
+        void redirectByRole(data.session.user.id)
+      }
     })
     return () => { cancelled = true }
   }, [navigate])
@@ -86,6 +124,54 @@ export function LoginPage() {
     }
   }
 
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    if (newPassword !== confirmPassword) {
+      // H5: catch the mismatch before the request, in plain words.
+      setError('The two passwords do not match.')
+      return
+    }
+    setBusy(true)
+    try {
+      const { data, error: err } = await supabase.auth.updateUser({ password: newPassword })
+      if (err) throw err
+      recoveryRef.current = false
+      await redirectByRole(data.user.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // The recovery link signs the user in and lands back here, where the
+  // session check routes them by role — same origin-relative pattern as the
+  // magic link, so it follows whichever tenant domain served the page.
+  async function handleForgotPassword() {
+    setError(null)
+    setInfo(null)
+    if (!email) {
+      // H5: the reset needs an address; say so instead of failing silently.
+      setError('Enter your email above first, then tap Forgot password.')
+      return
+    }
+    setBusy(true)
+    try {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/portal/login`,
+      })
+      if (err) throw err
+      // H1: clear confirmation that the action succeeded.
+      setInfo(`Password reset link sent to ${email}. Check your inbox.`)
+    } catch {
+      // H9: plain-language error, never a raw Supabase string.
+      setError('We could not send the reset link. Please try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // Full display name for SEO/social copy — distinct from theme.ts's
   // brandName (the compact nav wordmark, 'EswarCreatives' with no space).
   // Falls back to the exact literal live today so an unresolved tenant
@@ -117,6 +203,54 @@ export function LoginPage() {
       <div style={styles.center}>
         <div style={styles.shell}>
         <div style={styles.card}>
+        {recovery ? (
+          <>
+            <h1 style={styles.recoveryTitle}>Set new password</h1>
+            <p style={styles.recoveryHint}>
+              You followed a password reset link. Choose a new password to
+              finish signing in.
+            </p>
+            <form onSubmit={handleSetPassword} style={styles.form}>
+              <label style={styles.label}>
+                New password
+                <div style={styles.passwordWrap}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    style={{ ...styles.input, width: '100%', paddingRight: 44, boxSizing: 'border-box' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((s) => !s)}
+                    style={styles.eyeBtn}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </label>
+              <label style={styles.label}>
+                Confirm new password
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={styles.input}
+                />
+              </label>
+              {error && <div style={styles.error}>{error}</div>}
+              <button type="submit" disabled={busy} style={styles.submit}>
+                {busy ? 'Working…' : 'Set new password'}
+              </button>
+            </form>
+          </>
+        ) : (
+        <>
         <div style={styles.tabs}>
           <button
             type="button"
@@ -167,6 +301,19 @@ export function LoginPage() {
             </label>
           )}
 
+          {mode === 'password' && (
+            <div style={styles.forgotRow}>
+              <button
+                type="button"
+                style={styles.forgotLink}
+                onClick={() => void handleForgotPassword()}
+                disabled={busy}
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
+
           {error && <div style={styles.error}>{error}</div>}
           {info  && <div style={styles.info}>{info}</div>}
 
@@ -174,6 +321,8 @@ export function LoginPage() {
             {busy ? 'Working…' : mode === 'password' ? 'Sign in' : 'Send magic link'}
           </button>
         </form>
+        </>
+        )}
         </div>
         </div>
       </div>
@@ -265,6 +414,35 @@ const styles: Record<string, React.CSSProperties> = {
     outline: 'none',
   },
   passwordWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
+  recoveryTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 20,
+    fontWeight: 600,
+    color: t.text.primary,
+    margin: '0 0 8px',
+  },
+  recoveryHint: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: t.text.secondary,
+    margin: '0 0 18px',
+  },
+  forgotRow: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginTop: -6,
+  },
+  forgotLink: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: tokens.primary,
+    textDecoration: 'underline',
+  },
   eyeBtn: {
     position: 'absolute',
     right: 12,
