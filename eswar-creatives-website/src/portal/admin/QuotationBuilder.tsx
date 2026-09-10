@@ -824,6 +824,23 @@ export function QuotationBuilder() {
     return () => clearTimeout(timer)
   }, [quotationId, view, vocabLoaded, snapshotLoaded, saveScopeAndSettings])
 
+  // A hook, not inline in the preview JSX below: this component renders its
+  // views as early returns off one function, so a conditional inside one of
+  // those branches would be a conditional hook call. Scoped to the preview
+  // view specifically, since that's the print entry point — same shape
+  // PublicQuotationPage already uses, and the same "{number} - {type} -
+  // Newgen Event Studio" PublicQuotationPage builds its title from, matching
+  // the email subject a few lines below in the JSX exactly, so Save-As-PDF's
+  // suggested filename and the emailed subject line read as the same thing.
+  // Restored on cleanup so leaving preview doesn't leave a quotation-specific
+  // title stuck on the rest of the admin UI.
+  useEffect(() => {
+    if (view !== 'preview') return
+    const prev = document.title
+    document.title = `${quotationNumber} - ${eventInfo.type} - Newgen Event Studio`
+    return () => { document.title = prev }
+  }, [view, quotationNumber, eventInfo.type])
+
   async function handleContinueFromForm() {
     if (missingRequired.length > 0) {
       setMissingNote(missingRequired)
