@@ -1394,8 +1394,12 @@ export function QuotationBuilder() {
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         {error && <div style={styles.error}>{error}</div>}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontFamily: fonts.body, fontSize: 22, fontWeight: 700, color: tokens.primary, marginBottom: 4 }}>New Quotation</div>
-          <div style={{ fontFamily: fonts.body, fontSize: 14, color: t.text.tertiary }}>Fill in client and event details to get started.</div>
+          {/* Reached both from the empty-quotation start and from the pencil
+              on an existing one (setView('form') keeps client/eventInfo as
+              they already are) — say which, or an edit visually claims to
+              be a fresh quotation. */}
+          <div style={{ fontFamily: fonts.body, fontSize: 22, fontWeight: 700, color: tokens.primary, marginBottom: 4 }}>{isNew ? 'New Quotation' : 'Edit Event Details'}</div>
+          <div style={{ fontFamily: fonts.body, fontSize: 14, color: t.text.tertiary }}>{isNew ? 'Fill in client and event details to get started.' : 'Update client and event details below.'}</div>
         </div>
 
         <section className="ec-squircle" style={styles.formCard}>
