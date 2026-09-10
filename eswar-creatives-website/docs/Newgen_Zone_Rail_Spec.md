@@ -12,8 +12,15 @@ authority for anything the artifact and the code disagree about.
   anna's outside-in guest journey and it is locked.
 - The full zone names on the printed quotation document. Only the on-screen label
   shortens.
-- The zone assignment dropdown on each line item keeps showing "10. Stage" style
-  entries, so numbers stay meaningful.
+- The number prefix on the zone assignment dropdown. Entries stay "10. Stage" style
+  so numbers remain meaningful.
+
+**Superseded 9 Sept, field test:** the dropdowns originally kept the full DB name.
+On screen that put one zone under two names, the rail reading "Mandapam" while the
+dropdown read "2. Mandapam building decoration (exterior and elevation)". Both zone
+selects now render the short label too. The printed document is the only surface
+that keeps full names, because a client reading a quotation has no rail to cross
+reference against.
 
 ## Labels
 
@@ -93,7 +100,7 @@ stroke-linecap="round" stroke-linejoin="round">`.
 1 Entrance
 `<path d="M5 21V9a7 7 0 0 1 14 0v12"/><path d="M3 21h18"/><circle cx="15.2" cy="14" r="1"/>`
 
-2 Elevation
+2 Mandapam
 `<path d="M3 21h18"/><path d="M5.5 21V10.5m4.2 10.5V10.5m4.6 10.5V10.5m4.2 10.5V10.5"/><path d="M3.5 10.5h17L12 4.5z"/>`
 
 3 Pathway

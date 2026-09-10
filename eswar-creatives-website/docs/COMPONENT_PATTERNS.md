@@ -1170,7 +1170,8 @@ concern, and do not restate a value in a component.
 
 | Concern | Source of truth | Notes |
 |---|---|---|
-| Colour, text, border, background | `src/portal/theme.ts` | Two systems: legacy flat `tokens` and the nested semantic `t`. See the Text Color Token Rule and Page Canvas Token sections above. |
+| Colour, text, border, background | `src/portal/theme.ts` | Two systems: legacy flat `tokens` and the nested semantic `t`. See the Text Color Token Rule and Page Canvas Token sections above. Since 9 Sept 2026 the neutral values in both are `var()` references into the CSS custom property layer below, so components keep importing from `theme.ts` and pick the tokens up unchanged. |
+| Neutral palette values themselves | `src/styles/index.css`, the `:root` block | THE single definition of the neutral scale: `--ec-bg-*`, `--ec-text-*`, `--ec-border-overlay-*` (newgen-design-tokens-v1, light). Brand hues are deliberately NOT here: teal, gold and ruby stay tenant-parametric in `theme.ts`. Add a neutral here, never as a hex in a component. |
 | Motion values in current use | `src/portal/theme.ts`, the flat `motionTokens` | `durationFast` 120ms, `durationBase` 200ms, `durationSlow` 350ms, `easeDefault`/`easeEnter`/`easeExit`. Every existing call site uses this. |
 | Motion scale, patterns, accessibility | `docs/MOTION_SYSTEM.md` | The canonical motion reference: full duration/easing/distance/delay scale, per-component patterns, reduced-motion policy, and an audit of every animation live in `src/portal` as of 9 August 2026. |
 | Motion token object, new values | `src/portal/motion.ts`, exported as `motionSystem` | Nested shape (`duration.fast`, `easing.enter`). Added 9 August 2026. Carries the values `theme.ts` lacks: `micro`, `moderate`, `slower`, `expressive`, `snap`, `emphasized`, `distance.*`, `delay.*`. |
@@ -1582,6 +1583,71 @@ expect still set after a reload — rather than writing a second one-off
 `localStorage` read/write pair.
 
 ---
+
+## Printable Document Pattern
+
+Any surface meant to reach paper or a PDF has to opt in explicitly, because the
+print block in `src/styles/index.css` starts by hiding everything:
+
+```css
+body:not([data-ec-printing]) * { visibility: hidden; }
+body:not([data-ec-printing]) .ec-invoice-document, ... { visibility: visible; }
+```
+
+That first selector is global. It was written for invoices, whose "Download PDF"
+button clones the document to a root level div and sets `data-ec-printing`, but it
+applies to every page printed without that flag. Any other document prints as
+correctly paginated blank pages.
+
+This is not theoretical. The quotation document printed blank from both its entry
+points, the public share link and the builder's Preview and Print, for as long as
+both features coexisted. It went unnoticed because the surface renders perfectly on
+screen and the failure only appears in the export.
+
+When adding a printable document:
+
+1. Add its root class to the visible list in the print block.
+2. Give the surrounding chrome `class="no-print"`. That class is defined in the same
+   block. It went undefined for months while two components already used it, so
+   confirm the rule exists rather than assuming the class name does something.
+3. Do **not** copy the invoice's `position: absolute; top: 0` lift onto a document
+   that can run past one page. Absolutely positioned boxes do not fragment across
+   pages, so page one prints and the rest is dropped silently. Hide the chrome
+   instead and leave the document in normal flow.
+4. Add `break-inside: avoid` to blocks that must not split, particularly a totals
+   table, so a page break cannot land between a total and the lines qualifying it.
+5. Set `print-color-adjust: exact` on the document root if it carries background
+   fills, patterns or gradients that must survive the print path.
+6. Verify with a real export, not an on-screen preview. `Page.printToPDF` over CDP
+   after waiting for the document to appear in the DOM is the cheapest honest check;
+   an on-screen print-media emulation plus a computed-style read will name the
+   offending property when something is hidden.
+
+## Non-Modal Drawer Pattern
+
+Two drawer shapes exist and they are not interchangeable:
+
+| | `SidePanel` | `PersistentDrawer` |
+|---|---|---|
+| Modality | Modal. Backdrop, backdrop click closes, page behind blocked | Non modal on desktop. No backdrop, page stays interactive |
+| Use when | The drawer is the task: a form, a detail view, an editor | The user works *alongside* it: a running total, a live summary |
+| Mobile | Full screen overlay | Bottom sheet with tap to close backdrop |
+| Resize | Drag handle, 400px to 70vw | Fixed width from the consumer |
+
+Both close on Escape. `PersistentDrawer` stays mounted and animates on its `open`
+prop, so a consumer with a collapsed state gets the exit animation, and it goes
+`visibility: hidden` once the slide finishes so collapsed controls leave the tab
+order without React 19's `inert`.
+
+The deciding question is whether blocking the page behind would defeat the drawer's
+purpose. The quotation builder's whole interaction is adding elements on the left
+while watching the total on the right, so a backdrop would have made the drawer
+pointless. `InvoicePreview` reached the same conclusion independently and predates
+the shared component; migrating it onto `PersistentDrawer` is still open.
+
+A drawer that takes width from the page rather than covering it needs the page to
+reserve that width itself (the builder animates `padding-right`), otherwise
+collapsing leaves dead space instead of handing the width back.
 
 ## Standing rules
 - No em dashes in any component copy or code
