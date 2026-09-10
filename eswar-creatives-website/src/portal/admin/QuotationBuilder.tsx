@@ -257,6 +257,13 @@ export function QuotationBuilder() {
   const [community, setCommunity] = useState('')
   const [communityOther, setCommunityOther] = useState('')
   const [items, setItems] = useState<CartItem[]>([])
+  // In-flight text of a cart line's quantity box, keyed by item.key, held
+  // only while that box is being typed in. A line is absent from this map
+  // unless it is mid-edit, so the box otherwise renders item.qty directly
+  // and the steppers stay the single source of truth. Kept as a string, not
+  // a number, so a half-typed or emptied field survives a re-render instead
+  // of snapping back to a coerced value under the cursor.
+  const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({})
 
   // Days and sessions — explicit selection, never inferred from dates. A
   // day holds a LIST of sessions (the client confirmed one day can carry
@@ -961,6 +968,22 @@ export function QuotationBuilder() {
   function updateItemQty(key: string, qty: number) {
     if (qty < 1) return
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, qty } : i)))
+  }
+  /** Commit a typed quantity on blur or Enter — never per keystroke, or
+   *  clearing the field to retype would momentarily commit an empty value.
+   *  Anything empty or non-numeric is dropped rather than committed, which
+   *  reverts the box to the line's existing qty; anything below 1 is refused
+   *  by updateItemQty's own floor and reverts the same way. Dropping the
+   *  draft either way is what makes the box fall back to item.qty. */
+  function commitQtyDraft(key: string, raw: string) {
+    const n = Number(raw.trim())
+    if (raw.trim() !== '' && Number.isFinite(n)) updateItemQty(key, Math.floor(n))
+    setQtyDraft((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
   }
   // "Per quotation edits write to that copy": the editable number on a line
   // is its own anchor. The global card is untouched, and other lines keep
@@ -1993,7 +2016,41 @@ export function QuotationBuilder() {
                         <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                             <button type="button" style={styles.stepperBtn} onClick={() => updateItemQty(item.key, item.qty - 1)}>-</button>
-                            <span style={{ fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: tokens.primary, width: 26, textAlign: 'center' }}>{item.qty}</span>
+                            {/* Typable, not just steppable: a 400-guest job
+                                legitimately runs to three-figure quantities,
+                                and reaching 142 by tapping + was 142 taps.
+                                Steppers on either side are unchanged and stay
+                                the quick path for small nudges. Width is 38,
+                                not the old span's 26, so three digits fit
+                                without clipping; the type stays 13/600 in
+                                tokens.primary so the line reads exactly as
+                                it did when it was a plain number. */}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              className="ec-qty-input"
+                              value={qtyDraft[item.key] ?? String(item.qty)}
+                              aria-label={`Quantity for ${item.label}`}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onChange={(e) => setQtyDraft((prev) => ({ ...prev, [item.key]: e.target.value }))}
+                              onBlur={(e) => commitQtyDraft(item.key, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  e.currentTarget.blur()
+                                } else if (e.key === 'Escape') {
+                                  // Abandon the edit: drop the draft, then blur
+                                  // onto the untouched qty rather than committing.
+                                  setQtyDraft((prev) => {
+                                    const next = { ...prev }
+                                    delete next[item.key]
+                                    return next
+                                  })
+                                  e.currentTarget.blur()
+                                }
+                              }}
+                              style={styles.qtyInput}
+                            />
                             <button type="button" style={styles.stepperBtn} onClick={() => updateItemQty(item.key, item.qty + 1)}>+</button>
                           </div>
                           {unitOptions.length > 1 ? (
@@ -2528,6 +2585,13 @@ const styles: Record<string, CSSProperties> = {
   cartItem: { padding: '10px 0', borderBottom: `1px solid ${t.border.subtle}` },
   removeBtn: { background: 'none', border: 'none', color: t.text.disabled, cursor: 'pointer', fontSize: 18, padding: '0 2px', lineHeight: 1 },
   stepperBtn: { width: 24, height: 24, background: tokens.bg, border: `1px solid ${tokens.border}`, cursor: 'pointer', color: tokens.primary, fontFamily: fonts.body, fontSize: 16, fontWeight: 700, borderRadius: 4 },
+  // Reads as the number it replaced, not as a form field: no border or fill
+  // until focus. 38 wide (was a 26-wide span) so three digits do not clip.
+  qtyInput: {
+    width: 38, height: 24, textAlign: 'center', padding: 0,
+    background: 'transparent', border: '1px solid transparent', borderRadius: 4,
+    fontFamily: fonts.body, fontSize: 13, fontWeight: 600, color: tokens.primary,
+  },
   effectiveRateNote: {
     fontFamily: fonts.body, fontSize: 10, color: tokens.goldDark, whiteSpace: 'nowrap',
   },
