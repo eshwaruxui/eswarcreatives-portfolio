@@ -613,6 +613,26 @@ export function QuotationBuilder() {
   const muhurthamAvailable = supportsMuhurtham(eventInfo.type)
   const twoFunction = muhurthamAvailable && hasMuhurtham
 
+  // Field test round 2, finding 4: muhurtham is stated in two places that
+  // never checked each other — the "This quotation includes a Muhurtham"
+  // checkbox, which is what actually creates the second function, and the
+  // Days and Sessions block, whose helper text says the morning slot IS the
+  // muhurtham. A user could tick the box with every session left on Evening,
+  // or set a morning session without ticking the box, and the build took
+  // either silently.
+  //
+  // Derived and read-only on purpose. Driving the checkbox FROM the session
+  // slot was considered and rejected: it would silently change the pricing
+  // model, "morning" is not muhurtham outside weddings, Build 2 deliberately
+  // made days and sessions explicit rather than inferred, and real bookings
+  // do legitimately disagree. So the two are allowed to disagree — they just
+  // stop disagreeing quietly.
+  //
+  // Scoped by muhurthamAvailable alone, so a morning session on an
+  // engagement or a shop opening says nothing.
+  const hasMorningSession = sessions.some((s) => s.slot === 'morning')
+  const muhurthamMismatch = muhurthamAvailable && hasMuhurtham !== hasMorningSession
+
   // Switching muhurtham OFF (or changing the event type off Wedding) must
   // not strand its lines: they would stay in the totals and print on the
   // client document while the function switch that reveals them is hidden.
@@ -1523,6 +1543,19 @@ export function QuotationBuilder() {
             </div>
           )}
         </section>
+
+        {/* Sits between the two cards it is comparing, so the note is
+            adjacent to both halves of the contradiction. Names which side is
+            inconsistent rather than just saying they disagree — "mismatch"
+            on its own tells the user nothing about what to change. */}
+        {muhurthamMismatch && (
+          <div style={styles.muhurthamMismatchNote}>
+            {hasMuhurtham
+              ? 'Muhurtham is checked, but no session is set to Morning.'
+              : 'A Morning session is set, but Muhurtham is not checked.'}
+            {' '}Both can be correct — check they match the booking.
+          </div>
+        )}
 
         {/* The one part that earns its own step: the number of days
             determines how many session controls appear. */}
@@ -2500,6 +2533,17 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: fonts.body, fontSize: 11, lineHeight: 1.5, color: tokens.goldDark,
     background: tokens.goldLight, border: `1px solid ${tokens.gold}`,
     borderRadius: 6, padding: '7px 10px', marginBottom: 10,
+  },
+  // Informational only. Deliberately its own entry rather than a reuse of
+  // unpricedNotice: they look alike, but unpricedNotice marks a hard block
+  // (Send stays disabled until every line is priced) while this one NEVER
+  // blocks Continue or Send. Keeping them separate means restyling the
+  // blocking notice later cannot quietly restyle this one into looking like
+  // an error the user has to clear.
+  muhurthamMismatchNote: {
+    fontFamily: fonts.body, fontSize: 12, lineHeight: 1.5, color: tokens.goldDark,
+    background: tokens.goldLight, border: `1px solid ${tokens.gold}`,
+    borderRadius: 6, padding: '9px 12px', marginBottom: 14,
   },
   sendBlockedNote: {
     fontFamily: fonts.body, fontSize: 12, fontWeight: 600, color: tokens.goldDark,
