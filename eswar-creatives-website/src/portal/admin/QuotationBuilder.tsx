@@ -851,6 +851,23 @@ export function QuotationBuilder() {
     return () => clearTimeout(timer)
   }, [quotationId, view, vocabLoaded, snapshotLoaded, saveScopeAndSettings])
 
+  // A hook, not inline in the preview JSX below: this component renders its
+  // views as early returns off one function, so a conditional inside one of
+  // those branches would be a conditional hook call. Scoped to the preview
+  // view specifically, since that's the print entry point — same shape
+  // PublicQuotationPage already uses, and the same "{number} - {type} -
+  // Newgen Event Studio" PublicQuotationPage builds its title from, matching
+  // the email subject a few lines below in the JSX exactly, so Save-As-PDF's
+  // suggested filename and the emailed subject line read as the same thing.
+  // Restored on cleanup so leaving preview doesn't leave a quotation-specific
+  // title stuck on the rest of the admin UI.
+  useEffect(() => {
+    if (view !== 'preview') return
+    const prev = document.title
+    document.title = `${quotationNumber} - ${eventInfo.type} - Newgen Event Studio`
+    return () => { document.title = prev }
+  }, [view, quotationNumber, eventInfo.type])
+
   async function handleContinueFromForm() {
     if (missingRequired.length > 0) {
       setMissingNote(missingRequired)
@@ -1437,8 +1454,12 @@ export function QuotationBuilder() {
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         {error && <div style={styles.error}>{error}</div>}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontFamily: fonts.body, fontSize: 22, fontWeight: 700, color: tokens.primary, marginBottom: 4 }}>New Quotation</div>
-          <div style={{ fontFamily: fonts.body, fontSize: 14, color: t.text.tertiary }}>Fill in client and event details to get started.</div>
+          {/* Reached both from the empty-quotation start and from the pencil
+              on an existing one (setView('form') keeps client/eventInfo as
+              they already are) — say which, or an edit visually claims to
+              be a fresh quotation. */}
+          <div style={{ fontFamily: fonts.body, fontSize: 22, fontWeight: 700, color: tokens.primary, marginBottom: 4 }}>{isNew ? 'New Quotation' : 'Edit Event Details'}</div>
+          <div style={{ fontFamily: fonts.body, fontSize: 14, color: t.text.tertiary }}>{isNew ? 'Fill in client and event details to get started.' : 'Update client and event details below.'}</div>
         </div>
 
         <section className="ec-squircle" style={styles.formCard}>
