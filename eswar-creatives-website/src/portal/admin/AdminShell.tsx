@@ -197,10 +197,21 @@ function Shell({ profile }: { profile: PortalProfile }) {
           the horizontal clipping entirely. */}
       <style>{`.ec-admin-shell { overflow-x: hidden; overflow-x: clip; }`}</style>
       <ToastHost />
-      <TopBar onMenuClick={() => setMobileNavOpen(true)} />
+      {/* Print CSS hides chrome by visibility, which keeps its layout box:
+          the sidebar's 240px still squeezed the printed .ngq-doc into half
+          the page width (quotation PDF layout bug). .no-print removes both
+          from the print flex row entirely instead of just hiding them —
+          TopBar takes no className of its own, so it's wrapped here.
+          display:'contents' keeps the wrapper out of .ec-admin-shell's flex
+          column on screen (TopBar's own flexShrink:0 stays the thing that
+          governs its box, exactly as before); .no-print's display:none at
+          print time overrides that and drops the whole wrapper. */}
+      <div className="no-print" style={{ display: 'contents' }}>
+        <TopBar onMenuClick={() => setMobileNavOpen(true)} />
+      </div>
       <div style={styles.body}>
         {!isMobile && (
-          <aside style={{ ...styles.sidebar, width: isTablet ? 180 : 240 }}>
+          <aside className="no-print" style={{ ...styles.sidebar, width: isTablet ? 180 : 240 }}>
             <nav style={styles.nav}>
               {tenantLoading &&
                 Array.from({ length: 4 }).map((_, i) => (
