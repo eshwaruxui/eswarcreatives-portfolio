@@ -152,6 +152,7 @@
   }
   .btn-line:hover { border-color: var(--gold); background: rgba(213,176,103,0.08); transform: translateY(-2px); }
   .btn svg { width: 18px; height: 18px; fill: currentColor; }
+  .btn:disabled { opacity: 0.6; cursor: default; transform: none; }
   .cover-teaser {
     display: block;
     width: 100%;
@@ -401,8 +402,11 @@
     };
 
     btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+
       if (navigator.canShare && navigator.share) {
         var previousLabel = label ? label.textContent : '';
+        btn.disabled = true;
         if (label) label.textContent = 'Preparing...';
 
         fetch(PDF_URL)
@@ -422,6 +426,9 @@
           })
           .catch(function () {
             if (label) label.textContent = previousLabel;
+          })
+          .then(function () {
+            btn.disabled = false;
           });
         return;
       }
