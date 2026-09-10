@@ -282,3 +282,11 @@ select:not([multiple]):not([size]):not(.ec-own-caret) {
 .ec-disclosure-row:hover {
   background: rgba(2, 76, 79, 0.06) !important;
 }
+
+/* ── Catalogue row focus (field test M3/M4) ────────────────────────── */
+/* The row is a button now; give it a visible keyboard focus ring, since
+   the inline styles carry no outline of their own. */
+.ec-catalogue-row:focus-visible {
+  outline: 2px solid #024C4F;
+  outline-offset: 2px;
+}
