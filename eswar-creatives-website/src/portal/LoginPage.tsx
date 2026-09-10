@@ -192,6 +192,29 @@ export function LoginPage() {
   const isEswar = !tenantTheme || tenantTheme.id === 'eswar'
   const portalUrl = `${window.location.origin}/portal/`
 
+  // Belt and suspenders on top of the <Helmet> title below, not a replacement
+  // for it — Helmet still owns the og/twitter tags, which this cannot set.
+  //
+  // Field test round 2, finding 1: /portal/login was still showing the
+  // portfolio's <title> ("Eswar Maheswaran — Enterprise SaaS Design Systems
+  // Architect") long after the page had finished loading, even though the
+  // Helmet block below has been correct since Build 2 item 2.7 and
+  // HelmetProvider is wired in main.tsx. Confirmed live on
+  // portal.newgeneventstudio.com: still the portfolio title three seconds
+  // after readyState hit 'complete'. Every route ships that title in the raw
+  // served HTML, and react-helmet-async's DOM commit runs a beat behind a
+  // plain document.title assignment. Login is the coldest first load in the
+  // app, so the gap is long enough to see — and it is the first screen a
+  // client-facing user ever sees, on a tenant deployment where the title
+  // names another business entirely.
+  //
+  // Same direct pattern already used by AdminShell.tsx and the Public*Page
+  // files, which is why every post-login and public route was already right.
+  // No cleanup on unmount: whatever route the user lands on next sets its own.
+  useEffect(() => {
+    document.title = `Client Portal — ${displayName}`
+  }, [displayName])
+
   return (
     <>
       <Helmet>
