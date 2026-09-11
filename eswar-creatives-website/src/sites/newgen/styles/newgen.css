@@ -21,6 +21,15 @@
   --ng-gutter: clamp(1.25rem, 4vw, 2.5rem);
 }
 
+/* Without border-box, any width:100% element with padding (e.g.
+   .ng-container) overflows the viewport by the gutter on narrow screens. */
+.ng-site,
+.ng-site *,
+.ng-site *::before,
+.ng-site *::after {
+  box-sizing: border-box;
+}
+
 .ng-site {
   font-family: var(--ng-font-body);
   font-weight: 300;
