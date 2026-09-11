@@ -34,6 +34,7 @@ export const routes = [
   '/portfolio',
   '/testimonials',
   '/contact',
+  '/brand-guideline',
 ];
 
 // Per-route metadata. Titles under 60 characters, descriptions under 160,
@@ -93,5 +94,10 @@ export const routeMeta = {
     title: 'Contact Newgen Event Studio | Tell Us About Your Event',
     description:
       'WhatsApp 91760 45045 or studio@newgeneventstudio.com. Newgen Event Studio, 15 Major Mukund Varadarajan Rd, Pallikaranai, Chennai 600100.',
+  },
+  '/brand-guideline': {
+    title: 'Brand guideline | NEWGEN Event Studio',
+    description:
+      'The permanent NEWGEN Event Studio brand guideline: logo, colour, typography, pattern, photography, voice and application rules, each with a quotable address.',
   },
 };

@@ -7,6 +7,7 @@ import { PortfolioPage } from './pages/PortfolioPage';
 import { TestimonialsPage } from './pages/TestimonialsPage';
 import { ContactPage } from './pages/ContactPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { BrandGuidelinePage } from './pages/BrandGuidelinePage';
 
 // The 11 launch routes, matching content/site-meta.mjs exactly. Category
 // pages share one component (one template, five fills).
@@ -26,6 +27,7 @@ export const newgenRouteConfig = [
       { path: '/portfolio', Component: PortfolioPage },
       { path: '/testimonials', Component: TestimonialsPage },
       { path: '/contact', Component: ContactPage },
+      { path: '/brand-guideline', Component: BrandGuidelinePage },
       { path: '*', Component: NotFoundPage },
     ],
   },

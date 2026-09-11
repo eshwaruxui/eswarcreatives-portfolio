@@ -1,0 +1,161 @@
+{
+ "parts": [
+  {
+   "num": "00",
+   "label": "How to use this book",
+   "color": "#024C4F"
+  },
+  {
+   "num": "01",
+   "label": "The brand",
+   "color": "#D7A953"
+  },
+  {
+   "num": "02",
+   "label": "The logo",
+   "color": "#E1A23D"
+  },
+  {
+   "num": "03",
+   "label": "Colour",
+   "color": "#024C4F"
+  },
+  {
+   "num": "04",
+   "label": "Typography",
+   "color": "#D7A953"
+  },
+  {
+   "num": "05",
+   "label": "Pattern and graphic language",
+   "color": "#E1A23D"
+  },
+  {
+   "num": "06",
+   "label": "Photography",
+   "color": "#024C4F"
+  },
+  {
+   "num": "07",
+   "label": "Voice",
+   "color": "#D7A953"
+  },
+  {
+   "num": "08",
+   "label": "Applications",
+   "color": "#E1A23D"
+  },
+  {
+   "num": "A",
+   "label": "ISCL partnership annexe",
+   "color": "#B01F2F"
+  },
+  {
+   "num": "09",
+   "label": "Governance",
+   "color": "#024C4F"
+  }
+ ],
+ "taskIndex": [
+  {
+   "task": "I need to put the logo on a jersey, a bus or a boundary board",
+   "refs": "A.3 to A.5",
+   "ids": [
+    "A-3",
+    "A-4",
+    "A-5"
+   ]
+  },
+  {
+   "task": "I am sending logo files to a printer, a vendor or ISCL",
+   "refs": "2.9, A.6",
+   "ids": [
+    "2-9",
+    "A-6"
+   ]
+  },
+  {
+   "task": "I am printing something and need CMYK or Pantone",
+   "refs": "3.2",
+   "ids": [
+    "3-2"
+   ]
+  },
+  {
+   "task": "I am making a WhatsApp post, a display picture or a status",
+   "refs": "8.3",
+   "ids": [
+    "8-3"
+   ]
+  },
+  {
+   "task": "I need to choose a colour for a highlight or a button",
+   "refs": "3.3",
+   "ids": [
+    "3-3"
+   ]
+  },
+  {
+   "task": "I want to put the logo on a photograph",
+   "refs": "2.7",
+   "ids": [
+    "2-7"
+   ]
+  },
+  {
+   "task": "I am choosing photographs for the website or Instagram",
+   "refs": "6.2, 6.3",
+   "ids": [
+    "6-2",
+    "6-3"
+   ]
+  },
+  {
+   "task": "I am writing a caption, a WhatsApp reply or an Instagram post",
+   "refs": "7.4, 7.5",
+   "ids": [
+    "7-4",
+    "7-5"
+   ]
+  },
+  {
+   "task": "I am ordering uniforms, ID cards or a signboard",
+   "refs": "8.4, 8.6",
+   "ids": [
+    "8-4",
+    "8-6"
+   ]
+  },
+  {
+   "task": "I want to use the kolam pattern on something",
+   "refs": "5.2, 5.3",
+   "ids": [
+    "5-2",
+    "5-3"
+   ]
+  },
+  {
+   "task": "The logo is being embroidered, foiled or engraved",
+   "refs": "2.8",
+   "ids": [
+    "2-8"
+   ]
+  },
+  {
+   "task": "Something is not covered here and I need a decision",
+   "refs": "9.1",
+   "ids": [
+    "9-1"
+   ]
+  },
+  {
+   "task": "I do not know a word used in this book",
+   "refs": "9.4",
+   "ids": [
+    "9-4"
+   ]
+  }
+ ],
+ "contentsIntro": "Eleven parts, 62 rules to navigate. Rule addresses never change; quote the address, not the page.",
+ "findItFastIntro": "Start from what you are trying to do, not from what the section is called. Find the task, go to the address."
+}

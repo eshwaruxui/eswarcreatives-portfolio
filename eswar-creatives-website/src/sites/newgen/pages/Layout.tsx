@@ -72,6 +72,10 @@ export function Layout() {
                 <a className="ng-utility-link" href="https://portal.newgeneventstudio.com" rel="noopener">
                   Client login
                 </a>
+                <br />
+                <Link className="ng-utility-link" to="/brand-guideline">
+                  Brand guideline
+                </Link>
               </p>
             </div>
           </div>
