@@ -14,7 +14,7 @@ export function ContactPage() {
         <div className="ng-container">
           <h1>{contact.headline}</h1>
           <p>
-            <a className="ng-cta" href={whatsappLink('Hi Newgen, I would like to talk about an event.')}>
+            <a className="ng-cta" href={whatsappLink('Hi NEWGEN, I would like to talk about an event.')}>
               WhatsApp 91760 45045
             </a>
           </p>

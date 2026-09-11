@@ -107,7 +107,7 @@ export const serviceCategories: ServiceCategory[] = [
       'Institutional and campus events',
     ],
     intro:
-      'Aachi Masala and IC Mobile trusted Newgen with brand-critical events where the setup had to be right, on time, every time. The same standard now covers openings, launches and the seasonal retail calendar.',
+      'Aachi Masala and IC Mobile trusted NEWGEN with brand-critical events where the setup had to be right, on time, every time. The same standard now covers openings, launches and the seasonal retail calendar.',
   },
   {
     slug: 'social-celebrations',
@@ -138,7 +138,7 @@ export const serviceCategories: ServiceCategory[] = [
     seoTarget: 'destination wedding decorator Kodaikanal',
     occasions: ['Kodaikanal weddings', 'Resort weddings', 'Outstation events'],
     intro:
-      'Kodaikanal weddings bring their own logistics. Newgen plans for terrain, weather, and guest count before the first truck leaves Chennai.',
+      'Kodaikanal weddings bring their own logistics. NEWGEN plans for terrain, weather, and guest count before the first truck leaves Chennai.',
   },
   {
     slug: 'eco-friendly-weddings',

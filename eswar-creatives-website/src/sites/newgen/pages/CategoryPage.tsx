@@ -106,7 +106,7 @@ export function CategoryPage({ slug }: { slug: string }) {
           <h2>Tell us about your event.</h2>
           <a
             className="ng-cta"
-            href={whatsappLink(`Hi Newgen, I would like to talk about ${category.name.toLowerCase()}.`)}
+            href={whatsappLink(`Hi NEWGEN, I would like to talk about ${category.name.toLowerCase()}.`)}
           >
             WhatsApp us
           </a>

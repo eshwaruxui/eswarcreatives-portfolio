@@ -25,7 +25,7 @@ export function HomePage() {
         <div className="ng-container">
           <h1>{home.heroHeadline}</h1>
           <p>{home.heroSupport}</p>
-          <a className="ng-cta" href={whatsappLink('Hi Newgen, I would like to talk about an event.')}>
+          <a className="ng-cta" href={whatsappLink('Hi NEWGEN, I would like to talk about an event.')}>
             {home.primaryCta}
           </a>
         </div>
@@ -110,7 +110,7 @@ export function HomePage() {
       <section className="ng-section ng-section--teal">
         <div className="ng-container">
           <h2>{home.primaryCta}</h2>
-          <a className="ng-cta" href={whatsappLink('Hi Newgen, I would like to talk about an event.')}>
+          <a className="ng-cta" href={whatsappLink('Hi NEWGEN, I would like to talk about an event.')}>
             WhatsApp us
           </a>
         </div>

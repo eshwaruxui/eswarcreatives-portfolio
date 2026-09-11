@@ -18,14 +18,14 @@ export function AboutPage() {
         <div className="ng-container">
           <h2>{about.team.title}</h2>
           <p>{about.team.body}</p>
-          {/* Team photo pending a Newgen photography session; text-only strip
+          {/* Team photo pending a NEWGEN photography session; text-only strip
               until the asset exists, per the business profile note. */}
         </div>
       </section>
       <section className="ng-section">
         <div className="ng-container">
           <h2>Tell us about your event.</h2>
-          <a className="ng-cta" href={whatsappLink('Hi Newgen, I would like to talk about an event.')}>
+          <a className="ng-cta" href={whatsappLink('Hi NEWGEN, I would like to talk about an event.')}>
             WhatsApp us
           </a>
         </div>

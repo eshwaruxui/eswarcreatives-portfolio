@@ -21,7 +21,7 @@ export function ServicesHubPage() {
 
       <section className="ng-section">
         <div className="ng-container">
-          <h2>Three ways to work with Newgen</h2>
+          <h2>Three ways to work with NEWGEN</h2>
           <div className="ng-grid-3">
             {scopeLadder.map((tier) => (
               <div className="ng-card" key={tier.id}>
@@ -60,7 +60,7 @@ export function ServicesHubPage() {
       <section className="ng-section ng-section--teal">
         <div className="ng-container">
           <h2>Tell us about your event.</h2>
-          <a className="ng-cta" href={whatsappLink('Hi Newgen, I would like to talk about an event.')}>
+          <a className="ng-cta" href={whatsappLink('Hi NEWGEN, I would like to talk about an event.')}>
             WhatsApp us
           </a>
         </div>

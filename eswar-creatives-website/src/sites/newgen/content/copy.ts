@@ -23,7 +23,7 @@ export const home = {
     },
     {
       title: 'End-to-end, one team',
-      body: 'Decor, AV, sound, photography, videography, logistics, and catering coordination, all under Newgen, all accountable to one point of contact. No coordination gaps between vendors, no dropped handoffs.',
+      body: 'Decor, AV, sound, photography, videography, logistics, and catering coordination, all under NEWGEN, all accountable to one point of contact. No coordination gaps between vendors, no dropped handoffs.',
     },
   ],
 };
@@ -31,19 +31,19 @@ export const home = {
 export const about = {
   title: 'The sketch behind every event',
   paragraphs: [
-    'Newgen Event Studio began in 2018 with a simple belief: a celebration should look, on the day, exactly the way it looked in the mind of the person who imagined it.',
+    'NEWGEN Event Studio began in 2018 with a simple belief: a celebration should look, on the day, exactly the way it looked in the mind of the person who imagined it.',
     'Mohan A started by sketching. Before a single flower was ordered or a stage built, he would sit with a family, listen to what they wanted their day to feel like, and draw it by hand, on paper, right in front of them. That sketch became the promise, and the promise got kept.',
-    'Eight years later, that same habit has carried Newgen through 1,500+ events, into three cities, and into a partnership with Illam Hospitality & Banquets, one of Chennai’s most recognised luxury venues.',
+    'Eight years later, that same habit has carried NEWGEN through 1,500+ events, into three cities, and into a partnership with Illam Hospitality & Banquets, one of Chennai’s most recognised luxury venues.',
     // Kept in its own paragraph, separated from "Eight years later" above:
     // both are correct but read as an error when adjacent (Day 5 note).
     'The longest relationship in the portfolio tells the same story. Nine years as the decoration partner of Sri Venkatesh Mahal, since 2017. The scale has changed. The sketch has not.',
-    'Today Newgen handles everything a celebration needs under one roof: decor, sound, lighting, photography, videography, logistics, and catering coordination, so families and venues alike work with one accountable team, not a dozen vendors.',
-    'The name means what it says: next generation. It’s built to carry Newgen through the next celebration, the next city, and the next decade.',
+    'Today NEWGEN handles everything a celebration needs under one roof: decor, sound, lighting, photography, videography, logistics, and catering coordination, so families and venues alike work with one accountable team, not a dozen vendors.',
+    'The name means what it says: next generation. It’s built to carry NEWGEN through the next celebration, the next city, and the next decade.',
   ],
   team: {
     title: 'Meet the team',
     body: 'Behind every sketch is a team that shows up before the guests do and leaves after the last chair is stacked. Coordinated across Chennai, Tiruchi, and Bengaluru, trained on the same walkthrough checklist Mohan built by hand, so the standard holds whether or not he’s the one on site.',
-    // Team photo pending: a Newgen team photography session is an open item.
+    // Team photo pending: a NEWGEN team photography session is an open item.
   },
 };
 
@@ -56,7 +56,7 @@ export const servicesHub = {
 
 export const ecoFeature = {
   claim:
-    'Newgen is the only Chennai decorator with proven eco-friendly wedding capability, covered in local press.',
+    'NEWGEN is the only Chennai decorator with proven eco-friendly wedding capability, covered in local press.',
   body: 'An eco-friendly wedding doesn’t mean fewer flowers. It means sourcing locally, reducing waste on site, and leaving the venue exactly as it was found.',
   // Press clipping asset pending from Mohan anna. The page ships with a
   // clearly framed press mention; the clipping slots in when sourced.
@@ -68,9 +68,9 @@ export const portfolio = {
   weddings:
     'From an intimate 80-guest ceremony to a large reception at Priyam, every wedding starts the same way: a sketch, reviewed together, before a single flower is ordered.',
   corporate:
-    'Aachi Masala and IC Mobile trusted Newgen with brand-critical events where the setup had to be right, on time, every time.',
+    'Aachi Masala and IC Mobile trusted NEWGEN with brand-critical events where the setup had to be right, on time, every time.',
   destination:
-    'Kodaikanal weddings bring their own logistics. Newgen plans for terrain, weather, and guest count before the first truck leaves Chennai.',
+    'Kodaikanal weddings bring their own logistics. NEWGEN plans for terrain, weather, and guest count before the first truck leaves Chennai.',
   caseStudy: {
     title: 'Case study: the Brindhavan theme',
     body: 'From a hand-drawn sketch to a built stage. One theme followed from the first client conversation to the last photograph of the finished set.',
@@ -105,7 +105,7 @@ export const tradeCraft = [
   },
   {
     title: 'Why flowers dress three sides of the canopy, not four',
-    body: 'The devas stand on the three open sides of the muhurtham canopy. The fourth is closed behind the deity. That is the tradition the setup follows, and it is why a Newgen canopy is dressed the way it is.',
+    body: 'The devas stand on the three open sides of the muhurtham canopy. The fourth is closed behind the deity. That is the tradition the setup follows, and it is why a NEWGEN canopy is dressed the way it is.',
   },
   {
     title: 'The floor is chosen against the outfit',

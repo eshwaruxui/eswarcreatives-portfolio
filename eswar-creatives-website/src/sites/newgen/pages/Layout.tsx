@@ -50,7 +50,7 @@ export function Layout() {
           <div className="ng-footer__grid">
             <div>
               <p style={{ fontFamily: 'var(--ng-font-display)', fontSize: '1.2rem', color: 'var(--ng-gold)' }}>
-                Newgen Event Studio
+                NEWGEN Event Studio
               </p>
               <p>Your vision. Their memory.</p>
             </div>
@@ -80,7 +80,7 @@ export function Layout() {
             </div>
           </div>
           <div className="ng-footer__legal">
-            <span>© {new Date().getFullYear()} Newgen Event Studio</span>
+            <span>© {new Date().getFullYear()} NEWGEN Event Studio</span>
             <span>1,500+ events since 2018</span>
           </div>
         </div>

@@ -8,7 +8,7 @@ export function NotFoundPage() {
   return (
     <main>
       <Helmet>
-        <title>Page not found | Newgen Event Studio</title>
+        <title>Page not found | NEWGEN Event Studio</title>
         <meta name="robots" content="noindex" />
       </Helmet>
       <section className="ng-section">

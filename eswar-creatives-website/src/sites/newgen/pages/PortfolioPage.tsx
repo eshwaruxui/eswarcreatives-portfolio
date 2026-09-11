@@ -39,7 +39,7 @@ export function PortfolioPage() {
       <section className="ng-section ng-section--teal">
         <div className="ng-container">
           <h2>Build yours like this.</h2>
-          <a className="ng-cta" href={whatsappLink('Hi Newgen, I saw your portfolio and would like to talk about an event.')}>
+          <a className="ng-cta" href={whatsappLink('Hi NEWGEN, I saw your portfolio and would like to talk about an event.')}>
             WhatsApp us
           </a>
         </div>
