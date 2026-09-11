@@ -142,7 +142,9 @@ async function main() {
         const setAttr = (val) => (_, open, close) => `${open}${val}${close}`;
         html = html
           .replace(/<title>[^<]*<\/title>/, `<title>${meta.title}</title>`)
-          .replace(/(<meta name="description" content=")[^"]*(")/,         setAttr(meta.description))
+          // The newgen template formats this tag across several lines, so
+          // the name and content attributes may be newline-separated.
+          .replace(/(<meta\s+name="description"\s+content=")[^"]*(")/,     setAttr(meta.description))
           .replace(/(<meta property="og:title" content=")[^"]*(")/,        setAttr(meta.title))
           .replace(/(<meta property="og:description" content=")[^"]*(")/,  setAttr(meta.description))
           .replace(/(<meta name="twitter:title" content=")[^"]*(")/,       setAttr(meta.title))
