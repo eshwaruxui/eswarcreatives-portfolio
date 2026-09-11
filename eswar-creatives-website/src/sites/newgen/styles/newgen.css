@@ -1,6 +1,6 @@
 /* Newgen Event Studio - brand tokens and base styles.
    Palette (locked): Gold #D7A953 dominant, Teal #024C4F grounding,
-   Cream #FAF8F4 background, Ochre #E1A23D accent only, Ruby #B00D2D
+   Cream #FAF8F4 background, Ochre #E1A23D accent only, Ruby #B01F2F
    sparingly (one focal point per touchpoint).
    Type: Cormorant Garamond (display) + Jost (functional), each with a
    size-matched Tamil fallback. Proper subsetting is a Day 4 task. */
@@ -10,7 +10,7 @@
   --ng-teal: #024c4f;
   --ng-cream: #faf8f4;
   --ng-ochre: #e1a23d;
-  --ng-ruby: #b00d2d;
+  --ng-ruby: #b01f2f;
   --ng-ink: #1e2a2a; /* body text on cream */
   --ng-teal-soft: #0a5c5e;
 
