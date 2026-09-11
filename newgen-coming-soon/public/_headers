@@ -9,3 +9,7 @@
 
 /sitemap.xml
   Cache-Control: public, max-age=86400
+
+/Newgen-Business-Profile.pdf
+  ! X-Frame-Options
+  X-Frame-Options: SAMEORIGIN

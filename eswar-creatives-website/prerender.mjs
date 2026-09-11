@@ -126,9 +126,22 @@ async function main() {
     try {
       const appHtml = await render(route);
       const meta = site.routeMeta[route];
+      // Self-describing marker, read back by src/main.tsx on the eswar
+      // build: this is the ONLY route this specific HTML file's
+      // server-rendered markup is valid for. Every route not in this loop
+      // (all of /portal/*, plus the OG-only /portal and /portal/login pages
+      // generate-og-pages.mjs clones from this same dist/index.html) falls
+      // through Cloudflare's catch-all redirect to whichever prerendered
+      // file that turns out to be, almost always this one for "/". Without
+      // the marker, main.tsx cannot tell "the homepage, requested as the
+      // homepage" apart from "the homepage's markup, served by the SPA
+      // fallback for some completely different route", and hydrateRoot()
+      // cannot tell either, so it reconciles a live client-rendered admin
+      // screen against a portfolio nav bar, which is the reported hydration
+      // crash. Harmless on the newgen build, whose routes all prerender.
       let html = template.replace(
         '<div id="root"></div>',
-        `<div id="root">${appHtml}</div>`
+        `<div id="root" data-ssr-path="${route}">${appHtml}</div>`
       );
 
       // Inject canonical tag for every route.

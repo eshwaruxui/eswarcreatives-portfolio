@@ -282,3 +282,27 @@ select:not([multiple]):not([size]):not(.ec-own-caret) {
 .ec-disclosure-row:hover {
   background: rgba(2, 76, 79, 0.06) !important;
 }
+
+/* ── Catalogue row focus (field test M3/M4) ────────────────────────── */
+/* The row is a button now; give it a visible keyboard focus ring, since
+   the inline styles carry no outline of their own. */
+.ec-catalogue-row:focus-visible {
+  outline: 2px solid #024C4F;
+  outline-offset: 2px;
+}
+
+/* ── Cart line quantity box (field test round 2 follow-up) ─────────── */
+/* Sits between the - / + steppers and reads as a plain number until you
+   touch it, so the cart looks unchanged at rest. Hover and focus are what
+   tell you it is typable — without them a borderless input is invisible
+   affordance. Focus ring matches .ec-catalogue-row. */
+.ec-qty-input:hover {
+  border-color: rgba(2, 76, 79, 0.25) !important;
+}
+.ec-qty-input:focus,
+.ec-qty-input:focus-visible {
+  outline: 2px solid #024C4F;
+  outline-offset: 1px;
+  border-color: transparent !important;
+  background: #fff !important;
+}
