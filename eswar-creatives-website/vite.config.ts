@@ -16,6 +16,12 @@ function figmaAssetResolver() {
   }
 }
 
+// Multi-tenant build switch. SITE=newgen builds the Newgen Event Studio
+// marketing site (index.newgen.html -> src/sites/newgen/) into dist-newgen,
+// consumed by the `newgen-website` Cloudflare Pages project. The default
+// build (eswarcreatives.in + portal) is untouched.
+const site = process.env.SITE || 'eswar'
+
 export default defineConfig({
   base: '/',
   plugins: [
@@ -31,9 +37,17 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  build: {
-    outDir: 'dist',
-  },
+  build:
+    site === 'newgen'
+      ? {
+          outDir: 'dist-newgen',
+          rollupOptions: {
+            input: path.resolve(__dirname, 'index.newgen.html'),
+          },
+        }
+      : {
+          outDir: 'dist',
+        },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],

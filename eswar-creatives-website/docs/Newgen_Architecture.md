@@ -22,10 +22,10 @@
 | Token | Screen (RGB) | Print (CMYK) | Usage |
 |---|---|---|---|
 | Teal | `#024C4F` | `#024C51` | Primary grounding colour |
-| Gold | `#D5B067` | `#D5B067` | Dominant brand colour |
+| Gold | `#D7A953` | `#D7A953` | Dominant brand colour |
 | Cream | `#FAF8F4` | `#FAF8F4` | Backgrounds, breathing space |
 | Ochre | `#E1A23D` | `#E1A23D` | Accent, highlights, CTAs |
-| Ruby | `#B00D2D` | `#B00D2D` | One focal point per touchpoint only |
+| Ruby | `#B01F2F` | `#B01F2F` | One focal point per touchpoint only |
 
 **Rule:** Use `#024C4F` for all web, screen, and digital work. Use `#024C51` only for Illustrator CMYK print production. The difference is CMYK rounding, not a design decision.
 
@@ -100,8 +100,8 @@ Crown Pillar mark with colour-coded backgrounds, 401x401px PNG:
 | Account | Background | Mark |
 |---|---|---|
 | studio@ | Teal `#024C4F` | Crown Pillar only, no initial (brand mark) |
-| mohan@ | Gold `#D5B067` | Crown Pillar + M |
-| deepika@ | Ruby `#B00D2D` | Crown Pillar + D |
+| mohan@ | Gold `#D7A953` | Crown Pillar + M |
+| deepika@ | Ruby `#B01F2F` | Crown Pillar + D |
 | hello@ | Dark Teal | Crown Pillar + H |
 
 ---
@@ -124,10 +124,10 @@ export const tenantConfig = {
   supabaseRef: 'newgen-project-ref', // separate project, NOT eswarcreatives
   theme: {
     primary: '#024C4F',
-    gold: '#D5B067',
+    gold: '#D7A953',
     cream: '#FAF8F4',
     ochre: '#E1A23D',
-    ruby: '#B00D2D',
+    ruby: '#B01F2F',
     fontHeading: 'Cormorant Garamond',
     fontBody: 'Futura PT',
     fontUI: 'Inter',
