@@ -1,0 +1,216 @@
+/* Newgen Event Studio - brand tokens and base styles.
+   Palette (locked): Gold #D7A953 dominant, Teal #024C4F grounding,
+   Cream #FAF8F4 background, Ochre #E1A23D accent only, Ruby #B00D2D
+   sparingly (one focal point per touchpoint).
+   Type: Cormorant Garamond (display) + Jost (functional), each with a
+   size-matched Tamil fallback. Proper subsetting is a Day 4 task. */
+
+:root {
+  --ng-gold: #d7a953;
+  --ng-teal: #024c4f;
+  --ng-cream: #faf8f4;
+  --ng-ochre: #e1a23d;
+  --ng-ruby: #b00d2d;
+  --ng-ink: #1e2a2a; /* body text on cream */
+  --ng-teal-soft: #0a5c5e;
+
+  --ng-font-display: 'Cormorant Garamond', 'Noto Serif Tamil', Georgia, serif;
+  --ng-font-body: 'Jost', 'Noto Sans Tamil', 'Segoe UI', sans-serif;
+
+  --ng-max-width: 72rem;
+  --ng-gutter: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.ng-site {
+  font-family: var(--ng-font-body);
+  font-weight: 300;
+  color: var(--ng-ink);
+  background: var(--ng-cream);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+.ng-site h1,
+.ng-site h2,
+.ng-site h3 {
+  font-family: var(--ng-font-display);
+  font-weight: 600;
+  color: var(--ng-teal);
+  line-height: 1.15;
+  margin: 0 0 0.5em;
+}
+
+.ng-site h1 { font-size: clamp(2.25rem, 6vw, 3.75rem); }
+.ng-site h2 { font-size: clamp(1.6rem, 4vw, 2.4rem); }
+.ng-site h3 { font-size: clamp(1.25rem, 3vw, 1.6rem); }
+
+.ng-site p { margin: 0 0 1em; max-width: 42em; }
+
+.ng-container {
+  width: 100%;
+  max-width: var(--ng-max-width);
+  margin-inline: auto;
+  padding-inline: var(--ng-gutter);
+}
+
+.ng-section { padding-block: clamp(3rem, 8vw, 5.5rem); }
+.ng-section--teal {
+  background: var(--ng-teal);
+  color: var(--ng-cream);
+}
+.ng-section--teal h1,
+.ng-section--teal h2,
+.ng-section--teal h3 { color: var(--ng-gold); }
+
+/* Header */
+.ng-header {
+  background: var(--ng-teal);
+  color: var(--ng-cream);
+}
+.ng-header__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1.1rem;
+  flex-wrap: wrap;
+}
+.ng-wordmark {
+  font-family: var(--ng-font-display);
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 0.06em;
+  color: var(--ng-gold);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ng-wordmark small {
+  display: block;
+  font-family: var(--ng-font-body);
+  font-weight: 300;
+  font-size: 0.62rem;
+  letter-spacing: 0.32em;
+  color: var(--ng-cream);
+  text-transform: uppercase;
+}
+.ng-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.4rem;
+  font-size: 0.95rem;
+}
+.ng-nav a {
+  color: var(--ng-cream);
+  text-decoration: none;
+  padding-block: 0.25rem;
+}
+.ng-nav a:hover,
+.ng-nav a[aria-current='page'] { color: var(--ng-gold); }
+
+/* Quiet utility link (Client login). Deliberately de-emphasised. */
+.ng-utility-link {
+  font-size: 0.8rem;
+  color: var(--ng-cream);
+  opacity: 0.7;
+  text-decoration: none;
+}
+.ng-utility-link:hover { opacity: 1; }
+
+/* CTA */
+.ng-cta {
+  display: inline-block;
+  background: var(--ng-gold);
+  color: var(--ng-teal);
+  font-family: var(--ng-font-body);
+  font-weight: 400;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  padding: 0.85rem 1.8rem;
+  border-radius: 2px;
+  text-decoration: none;
+}
+.ng-cta:hover { background: var(--ng-ochre); }
+
+/* Stats band */
+.ng-stats { display: grid; gap: 2rem; }
+.ng-stat--lead .ng-stat__value {
+  font-family: var(--ng-font-display);
+  font-size: clamp(2.5rem, 7vw, 4rem);
+  font-weight: 600;
+  color: var(--ng-gold);
+  line-height: 1;
+}
+.ng-stat--primary .ng-stat__value {
+  font-family: var(--ng-font-display);
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  font-weight: 600;
+  color: var(--ng-gold);
+}
+.ng-stats__secondary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1.5rem;
+}
+.ng-stat--secondary .ng-stat__value {
+  font-family: var(--ng-font-display);
+  font-size: 1.9rem;
+  font-weight: 600;
+  color: var(--ng-gold);
+}
+.ng-stat__label { font-size: 0.95rem; }
+.ng-stat__qualifier { font-size: 0.82rem; opacity: 0.75; }
+.ng-stats__footnote {
+  margin-top: 2rem;
+  font-size: 0.9rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* Cards / tiers */
+.ng-grid-3 {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+.ng-card {
+  border-top: 2px solid var(--ng-gold);
+  padding-top: 1.25rem;
+}
+.ng-card ul {
+  padding-left: 1.1rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.95rem;
+}
+.ng-card li { margin-bottom: 0.35rem; }
+
+/* Footer */
+.ng-footer {
+  margin-top: auto;
+  background: var(--ng-teal);
+  color: var(--ng-cream);
+  font-size: 0.9rem;
+}
+.ng-footer a { color: var(--ng-gold); text-decoration: none; }
+.ng-footer__grid {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  padding-block: 3rem 2rem;
+}
+.ng-footer__legal {
+  border-top: 1px solid rgba(250, 248, 244, 0.2);
+  padding-block: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+/* Tamil text should never fake-italicise: fallback fonts have no italic. */
+.ng-ta { font-style: normal; }

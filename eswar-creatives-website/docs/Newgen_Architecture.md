@@ -22,7 +22,7 @@
 | Token | Screen (RGB) | Print (CMYK) | Usage |
 |---|---|---|---|
 | Teal | `#024C4F` | `#024C51` | Primary grounding colour |
-| Gold | `#D5B067` | `#D5B067` | Dominant brand colour |
+| Gold | `#D7A953` | `#D7A953` | Dominant brand colour |
 | Cream | `#FAF8F4` | `#FAF8F4` | Backgrounds, breathing space |
 | Ochre | `#E1A23D` | `#E1A23D` | Accent, highlights, CTAs |
 | Ruby | `#B00D2D` | `#B00D2D` | One focal point per touchpoint only |
@@ -100,7 +100,7 @@ Crown Pillar mark with colour-coded backgrounds, 401x401px PNG:
 | Account | Background | Mark |
 |---|---|---|
 | studio@ | Teal `#024C4F` | Crown Pillar only, no initial (brand mark) |
-| mohan@ | Gold `#D5B067` | Crown Pillar + M |
+| mohan@ | Gold `#D7A953` | Crown Pillar + M |
 | deepika@ | Ruby `#B00D2D` | Crown Pillar + D |
 | hello@ | Dark Teal | Crown Pillar + H |
 
@@ -124,7 +124,7 @@ export const tenantConfig = {
   supabaseRef: 'newgen-project-ref', // separate project, NOT eswarcreatives
   theme: {
     primary: '#024C4F',
-    gold: '#D5B067',
+    gold: '#D7A953',
     cream: '#FAF8F4',
     ochre: '#E1A23D',
     ruby: '#B00D2D',

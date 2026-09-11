@@ -26,7 +26,7 @@ export const newgenConfig: TenantTheme = {
 
   theme: {
     primary: '#024C4F', // Newgen teal
-    gold: '#D5B067', // Newgen gold
+    gold: '#D7A953', // Newgen gold
     cream: '#FAF8F4', // Newgen cream
     fontHeading: "'Inter', system-ui, -apple-system, sans-serif",
     fontBody: "'Inter', system-ui, -apple-system, sans-serif",
