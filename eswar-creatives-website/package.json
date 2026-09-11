@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "build": "vite build && node prerender.mjs",
+    "build:newgen": "SITE=newgen vite build && SITE=newgen node prerender.mjs",
     "postbuild": "node scripts/generate-og-pages.mjs",
     "dev": "vite",
+    "dev:newgen": "vite --open /index.newgen.html",
     "optimise-images": "node scripts/optimise-images.mjs",
     "seed:phase1": "node --env-file=.env scripts/seed-phase1.mjs",
     "typecheck": "tsc --noEmit"
